@@ -1,0 +1,133 @@
+FOLDER: /project-docs/11_gap_and_review
+FILE: 01_open_questions_and_gaps.txt
+TITLE: Open Questions & Requirement Gaps - Temple Registry & Management Portal
+
+SOURCE:
+  Consolidated from all prior analysis sessions and individual file sections.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Master registry of all open questions and identified requirement gaps
+   that need resolution before or during implementation. Tracked with
+   originating file reference.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 OPEN QUESTIONS BY CATEGORY
+
+   AUTHENTICATION & USERS
+   OQ-01 | Which Aadhaar eKYC provider / UIDAI integration is to be used?
+          | (Commercial UIDAI partner or direct NeSL licensing?)
+   OQ-02 | Will TOTP or SMS OTP be the primary MFA method?
+          | Both are supported; which is the default UX?
+   OQ-03 | Should refreshToken be in HttpOnly cookie or response body?
+   OQ-04 | Is "remember this device" (longer refresh TTL) in scope?
+   OQ-05 | Is DPDP Act compliance audit required before go-live?
+
+   WORKFLOW
+   OQ-06 | Can Temple Authority withdraw a PENDING_REVIEW declaration?
+   OQ-07 | Is there a maximum number of clarification rounds? (Soft limit
+          | suggested: 3 rounds before SUPER_ADMIN is alerted)
+   OQ-08 | Should DC be able to reopen an APPROVED declaration post-approval?
+   OQ-09 | Is there an SLA for DC to respond to a PENDING_REVIEW declaration?
+
+   TRUST MODULE
+   OQ-10 | Does trust data require a DC-approval workflow?
+          | (Current design: No; trust changes go direct without DC review)
+   OQ-11 | Can a temple have more than one ACTIVE trust simultaneously?
+   OQ-12 | Should trust_board_members.pan_number be AES-256 encrypted?
+
+   DATA & SCHEMA
+   OQ-13 | What fields constitute movable_assets and immovable_assets?
+          | Free-text or structured JSON?
+   OQ-14 | Is employee_succession chain in scope for v1?
+   OQ-15 | Should S3 object versioning be enabled on the document bucket?
+   OQ-16 | Are legacy temple registration IDs being migrated from paper records?
+   OQ-17 | Is there a legal requirement for digital signatures on approved
+          | asset declarations?
+
+   INFRASTRUCTURE & OPS
+   OQ-18 | Is the deployment model EC2 or ECS (Fargate)?
+   OQ-19 | What is the RDS instance size / tier for production?
+   OQ-20 | Is AWS WAF required in addition to Spring rate limiting?
+   OQ-21 | Which DAST tool is approved by the government security review body?
+   OQ-22 | What is the go-live target date?
+
+   3.2 REQUIREMENT GAPS
+
+   GAP-01 | API Design Formalization
+   Source: /project-docs/08_api_planning/00_api_endpoint_registry.txt is a
+   planning document. Formal OpenAPI YAML spec does not yet exist.
+   Action: Generate from Spring Boot @Operation annotations once backend
+   scaffolding is set up.
+
+   GAP-02 | PDF Report Layout Specification
+   Source: /project-docs/07_dashboards_and_reports/00_dc_dashboard.txt
+   The PDF export format for official DC reports is not specified.
+   Action: Get sign-off from HR&CE department on PDF template layout
+   (cover page, field order, official header).
+
+   GAP-03 | Seed Data Specification
+   Source: /project-docs/04_schema_design/01_geo_hierarchy_schema.txt
+   The complete Karnataka geo hierarchy (district/taluk/hobli) seed data
+   is not in the repository.
+   Action: Obtain official Karnataka government administrative boundary data
+   (available from data.gov.in or Karnataka Census data) and create a
+   Flyway seed migration.
+
+   GAP-04 | Notification Template Content
+   Source: /project-docs/04_schema_design/09_notification_schema.txt
+   Email and SMS notification content (subject lines, body templates)
+   are not defined.
+   Action: Write 13 email templates and 8 SMS templates (shorter versions)
+   signed off by HR&CE communications team.
+
+   GAP-05 | Performance Benchmarks
+   Source: /project-docs/00_context/02_go_live_blockers.txt (F-02)
+   No formal performance benchmark figures exist beyond "3 seconds for
+   district-wide search."
+   Action: Define complete performance SLAs for all high-traffic endpoints
+   before load testing begins.
+
+   GAP-06 | Disaster Recovery Plan
+   Source: /project-docs/10_delivery_and_ops/01_scheduled_jobs_ops.txt
+   RDS backup and RTO/RPO targets are mentioned but no formal DR runbook exists.
+   Action: Write DR runbook with step-by-step recovery instructions.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - OQ-16 (legacy migration): If answer is YES, a separate migration module
+     must be designed and scoped before backend implementation begins.
+   - GAP-03 (seed data): Must be available before any testing of geo-hierarchy
+     cascading dropdowns. Obtaining this data is a critical path item.
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   (This file IS the open questions log - see section 3.1)
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - OQ-22 (go-live date unknown): Without a target date, it is impossible to
+     prioritize gaps and open questions. This is the highest-priority unknown.
+   - GAP-03 (seed data): If Karnataka administrative boundary data is not
+     publicly accessible, it may require a formal government data request
+     that could take weeks.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Open questions without a resolution are flagged in individual files
+     with "OPEN QUESTIONS" section
+   - This file is kept up to date as questions are resolved
+   - All gaps in GAP-01 to GAP-06 are pre-implementation tasks

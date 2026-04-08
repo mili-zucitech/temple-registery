@@ -1,0 +1,138 @@
+FOLDER: /project-docs/06_security_and_auth
+FILE: 03_pii_handling_and_encryption.txt
+TITLE: PII Handling & Encryption - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from sensitive fields inventory (03_domain_model/02_sensitive_fields_inventory.txt)
+  and design constraints SC-05.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the AES-256 encryption implementation pattern, the JPA attribute
+   converter, KMS key management, and the masking strategy for API responses.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 AES-256 ENCRYPTION VIA AWS KMS
+
+   Every _encrypted column uses a JPA AttributeConverter:
+
+   @Converter
+   public class AesEncryptionConverter
+       implements AttributeConverter<String, String> {
+
+     @Value("${aws.kms.key-id}")
+     private String kmsKeyId;
+
+     private final AWSKMS kmsClient = AWSKMSClientBuilder.defaultClient();
+
+     @Override
+     public String convertToDatabaseColumn(String plaintext) {
+       if (plaintext == null) return null;
+       EncryptRequest req = new EncryptRequest()
+         .withKeyId(kmsKeyId)
+         .withPlaintext(ByteBuffer.wrap(plaintext.getBytes(UTF_8)));
+       ByteBuffer ciphertext = kmsClient.encrypt(req).getCiphertextBlob();
+       return Base64.getEncoder().encodeToString(ciphertext.array());
+     }
+
+     @Override
+     public String convertToEntityAttribute(String ciphertext) {
+       if (ciphertext == null) return null;
+       DecryptRequest req = new DecryptRequest()
+         .withCiphertextBlob(ByteBuffer.wrap(
+             Base64.getDecoder().decode(ciphertext)));
+       ByteBuffer plaintext = kmsClient.decrypt(req).getPlaintext();
+       return new String(plaintext.array(), UTF_8);
+     }
+   }
+
+   Apply to entity fields:
+   @Convert(converter = AesEncryptionConverter.class)
+   @Column(name = "aadhaar_encrypted", columnDefinition = "TEXT")
+   private String aadhaar;
+
+   3.2 MASKING IN API RESPONSE DTOs
+
+   DTOs must NEVER return the decrypted value directly.
+   Masking utility:
+
+   public class PiiMaskingUtil {
+     // XXXX-XXXX-1234
+     public static String maskAadhaar(String aadhaar) {
+       if (aadhaar == null || aadhaar.length() < 4) return "XXXX-XXXX-XXXX";
+       return "XXXX-XXXX-" + aadhaar.substring(aadhaar.length() - 4);
+     }
+
+     // XXXXX9999X (standard PAN format: first 5 = X, next 4 = show, last = X)
+     public static String maskPan(String pan) {
+       if (pan == null || pan.length() != 10) return "XXXXXXXXXX";
+       return "XXXXX" + pan.substring(5, 9) + "X";
+     }
+
+     // XXXXXXXX6789 (last 4 digits of account number)
+     public static String maskBankAccount(String accountNo) {
+       if (accountNo == null || accountNo.length() < 4) return "XXXXXXXXXXXX";
+       return "XXXXXXXX" + accountNo.substring(accountNo.length() - 4);
+     }
+
+     // t***@domain.com
+     public static String maskEmail(String email) {
+       if (email == null || !email.contains("@")) return "***";
+       int at = email.indexOf('@');
+       return email.charAt(0) + "***" + email.substring(at);
+     }
+   }
+
+   3.3 KMS KEY POLICY
+
+   - One KMS key per environment (prod, staging, dev)
+   - Key policy: only trm-app IAM role can use Encrypt/Decrypt
+   - Key rotation: automatic annual rotation enabled
+   - Key alias: alias/trm-pii-key-prod (or -staging, -dev)
+
+   3.4 LOGGING RULES FOR ENCRYPTED FIELDS
+
+   MANDATORY: Any method that returns a decrypted _encrypted field value
+   must NOT log the return value. Apply a @Sensitive annotation (custom marker)
+   and add a checkstyle or FindBugs rule to flag any toString() / log calls
+   that include @Sensitive fields.
+
+   Code review checklist item:
+   [ ] No log.debug/info/warn/error calls include a variable holding
+       decrypted aadhaar, pan, or bank account number.
+
+   3.5 DATA IN TRANSIT
+
+   - DB connection: SSL/TLS required for RDS connections
+     spring.datasource.url=jdbc:mysql://...?useSSL=true&requireSSL=true
+   - S3 uploads: HTTPS only (bucket policy denies HTTP)
+   - KMS API calls: HTTPS (AWS SDK default)
+   - SNS/SES: HTTPS (AWS SDK default)
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - AES-256 via AWS KMS for all _encrypted columns (not application-managed keys)
+   - Masking applied in DTO layer; entities hold decrypted values in memory only
+   - KMS key rotation: annual automatic rotation enabled
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Is DPDP Act (India) compliance audit required before go-live?
+   - Should trust_board_members.pan_number be upgraded to encrypted storage?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - AWS KMS is available in the target region (ap-south-1 / Mumbai)
+   - IAM roles have least-privilege KMS access (Encrypt + Decrypt only)
+   - Application never caches decrypted PII values beyond the request scope

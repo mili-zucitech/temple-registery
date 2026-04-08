@@ -1,0 +1,66 @@
+FOLDER: /project-docs/07_dashboards_and_reports
+FILE: 02_super_admin_dashboard.txt
+TITLE: Super Admin Dashboard Design - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from friction points analysis (ARF-02) and SUPER_ADMIN role design.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the Super Admin system health and oversight dashboard.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 DASHBOARD WIDGETS
+
+   Widget                      | Scope          | Data Source
+   ----------------------------|----------------|----------------------------------
+   Total Temples               | All Karnataka  | temples (aggregate by grade)
+   Total Users                 | All roles      | users (aggregate by role)
+   Pending Declarations        | By district    | temple_search_summary (aggregate)
+   Overdue Declarations        | By district    | temple_search_summary (aggregate)
+   Failed Notifications (24h)  | System-wide    | notification_events (FAILED)
+   Recent Auth Failures (1h)   | System-wide    | audit_auth_events
+   System Actions Today        | All actors     | audit_data_events COUNT (today)
+   Last Job Executions         | Scheduled jobs | Application logs / job table
+
+   3.2 MANAGEMENT SCREENS
+
+   - User Management: Create, activate/deactivate, reset password for all users
+   - Geo Master Data: Add/edit State, City, District, Taluk, Hobli entries
+   - Temple Grade Config: Change temple grade (A/B/C) for any temple
+   - Duplicate Temple Merge: Identify and merge duplicate temple records
+   - Notification Failures: View failed notifications; manual retry
+   - Audit Log Viewer: Search audit_data_events and audit_auth_events
+   - Search Summary Rebuild: Trigger full rebuild of temple_search_summary
+
+   3.3 AGGREGATE QUERY BY DISTRICT
+
+   SELECT d.name AS district_name,
+          SUM(tss.pending_declarations) AS pending,
+          SUM(tss.overdue_declarations) AS overdue,
+          COUNT(tss.temple_id) AS temple_count
+   FROM temple_search_summary tss
+   JOIN geo_districts d ON d.id = tss.district_id
+   WHERE tss.temple_status = 'ACTIVE'
+   GROUP BY d.id, d.name
+   ORDER BY overdue DESC, pending DESC;
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - SUPER_ADMIN has all permissions; no jurisdiction scoping
+   - Audit log viewer is read-only (SELECT only on audit tables)
+   - User password reset sends a reset link via email (no direct plain-text reset)
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - SUPER_ADMIN dashboard is for 1-2 HR&CE department administrators
+   - All SUPER_ADMIN actions are captured in audit_data_events

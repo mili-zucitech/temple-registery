@@ -1,0 +1,145 @@
+FOLDER: /project-docs/07_dashboards_and_reports
+FILE: 01_temple_authority_dashboard.txt
+TITLE: Temple Authority Dashboard Design - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from Temple Authority end-to-end flow analysis.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the data elements and UX layout for the Temple Authority dashboard.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 DASHBOARD SECTIONS
+
+   Section              | Content
+   ---------------------|--------------------------------------------------
+   Temple Header        | Temple name, grade badge, registration number,
+                        | location path (District > Taluk > Hobli)
+   Alert Banner         | Red banner if any overdue declaration exists
+   Profile Status Card  | Current profile version + status badge
+   Asset Declarations   | List of all years with status badges;
+                        | "Submit New Declaration" button for current year
+   Quick Stats          | Active employees count; Active contractors count;
+                        | Trust name; Board member count
+   Activity Log         | Last 10 events (submissions, approvals, etc.)
+   Download Section     | List of approved declarations with download links
+                        | (see 3.5 below)
+   In-App Notifications | Unread notifications bell icon + dropdown
+
+   3.2 STATE-TO-DISPLAY-LABEL MAPPING
+
+   This mapping is the canonical bridge between internal system state and
+   the user-facing labels shown on the TA dashboard. Frontend must use
+   these exact labels (confirmed against PDF §4.4).
+
+   Internal State / Condition                       | Display Label          | Badge Color
+   -------------------------------------------------|------------------------|------------
+   No declaration record for current financial year | Not Started            | Grey
+   DRAFT (declaration exists, not submitted)        | In Progress            | Blue
+   PENDING_REVIEW                                   | Submitted              | Yellow
+   CLARIFICATION_REQUESTED                          | Clarification Required | Orange
+   PHYSICAL_VERIFICATION_REQUESTED                  | Verification Pending   | Purple
+   APPROVED                                         | Approved               | Green
+   REJECTED                                         | Rejected               | Red
+   OVERDUE (is_overdue=1 AND status != APPROVED)    | Overdue                | Dark Red
+   SUPERSEDED                                       | (history only; not shown on active view)
+
+   IMPLEMENTATION NOTE: The frontend must evaluate labels in this priority order:
+     1. is_overdue = 1 AND status NOT IN ('APPROVED') -> "Overdue" (overrides other labels)
+     2. status = PHYSICAL_VERIFICATION_REQUESTED       -> "Verification Pending"
+     3. status = CLARIFICATION_REQUESTED               -> "Clarification Required"
+     4. status = PENDING_REVIEW                        -> "Submitted"
+     5. status = APPROVED                              -> "Approved"
+     6. status = REJECTED                              -> "Rejected"
+     7. status = DRAFT                                 -> "In Progress"
+     8. No record                                      -> "Not Started"
+
+   Frontend implementation: define as a TypeScript constants file:
+     src/features/declarations/constants/declarationDisplayLabels.ts
+
+   3.3 DECLARATION STATUS BADGES
+
+   Status                 | Badge Color | Action Available
+   -----------------------|-------------|------------------------
+   NOT SUBMITTED          | Grey        | Submit Declaration
+   DRAFT                  | Blue        | Resume Draft
+   PENDING_REVIEW         | Yellow      | View (read-only)
+   CLARIFICATION_REQUESTED| Orange      | Respond to Clarification
+   PHYSICAL_VERIFICATION  | Purple      | View DC notes (read-only)
+   APPROVED               | Green       | Download Acknowledgement
+   REJECTED               | Red         | View reason; Create new version
+   OVERDUE                | Dark Red    | Submit Declaration (urgent)
+
+   3.4 NAVIGATION STRUCTURE
+
+   Dashboard
+   +-- Temple Profile (view / edit / submit for review)
+   +-- Trust Details
+   |   +-- Trust Registration
+   |   +-- Board Members
+   |   +-- Financial Records
+   |   +-- Meeting Minutes
+   +-- Staff
+   |   +-- Employees list + add/edit/soft-delete
+   |   +-- Contractor list + add/edit/soft-delete
+   +-- Asset Declarations
+   |   +-- All declarations by year
+   |   +-- Draft / New Declaration form
+   |   +-- Clarification view
+   +-- Documents (per-module document viewer)
+   +-- Downloads (approved acknowledgements)
+   +-- Activity Log
+
+   3.5 DOWNLOAD SECTION (Acknowledgements)
+
+   API endpoint: GET /api/declarations/{id}/acknowledgement
+   Returns: pre-signed S3 URL (15-min expiry) + acknowledgement_number
+
+   Dashboard Download Section content:
+   - List of declarations where status = APPROVED, grouped by financial year (descending)
+   - Each row shows: Financial Year, Acknowledgement Number, Approved Date, Download button
+   - Clicking Download calls GET /api/declarations/{id}/acknowledgement and opens URL in new tab
+   - If acknowledgement_doc_s3_key is NULL (edge case: legacy approval before PDF gen),
+     show "Processing..." and poll every 30 seconds until key is set
+
+   Query for download section:
+   SELECT id, financial_year, version_number, acknowledgement_number,
+          acknowledged_at, acknowledgement_doc_s3_key
+   FROM   asset_declarations
+   WHERE  temple_id  = :temple_id
+   AND    status     = 'APPROVED'
+   ORDER BY financial_year DESC, version_number DESC;
+
+   UI behaviour:
+   - Download section is a separate collapsible panel below Asset Declarations
+   - If no approved declarations exist, panel shows "No approved declarations yet"
+   - Notification DECLARATION_ACKNOWLEDGEMENT_READY deep-links to this section
+
+   3.6 ACTIVITY LOG QUERY
+
+   SELECT n.title, n.body, n.created_at, n.is_read
+   FROM in_app_notifications n
+   WHERE n.recipient_user_id = :user_id
+   ORDER BY n.created_at DESC
+   LIMIT 20;
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Dashboard is single-temple scoped; no cross-temple navigation for TA
+   - CLARIFICATION_REQUESTED status shows a prominent "Action Required" CTA
+   - Auto-save DRAFT is indicated by "Last saved at HH:MM" below the form
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Temple Authority user is always bound to exactly one temple
+   - If a temple has multiple years of declarations, all are listed (no archival)

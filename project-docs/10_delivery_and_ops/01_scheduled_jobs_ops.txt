@@ -1,0 +1,95 @@
+FOLDER: /project-docs/10_delivery_and_ops
+FILE: 01_scheduled_jobs_ops.txt
+TITLE: Scheduled Jobs Operations Guide - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from 02_overdue_and_scheduled_jobs.txt and delivery architecture.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Operational guide for all 6 scheduled jobs: how to monitor them, how to
+   re-run them manually, and failure recovery procedures.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 JOBS OVERVIEW
+
+   Job ID | Spring Bean Method        | Schedule          | Impact if Missed
+   -------|---------------------------|-------------------|----------------------------------
+   JOB-01 | scanOverdueDeclarations   | 0 5 0 1 4 *       | Temples not flagged overdue
+          |                           | (Apr 1, 00:05)    | for the year; SA manual run needed
+   JOB-02 | sendOverdueReminders      | 0 0 8 * * *       | No daily overdue SMS/email
+   JOB-03 | sendPreDeadlineReminders  | 0 0 8 * * *       | No upfront deadline warnings
+   JOB-04 | processNotifications      | */30 * * * * *    | Notification queue backs up
+   JOB-05 | cleanupExpiredTokens      | 0 0 2 * * *       | Stale tokens accumulate in DB
+   JOB-06 | rebuildSearchSummary      | 0 0 3 * * *       | Search slightly stale (LRU)
+
+   3.2 SHEDLOCK CONFIGURATION (CLUSTER SAFETY)
+
+   Use ShedLock to prevent duplicate execution in multi-instance ECS deployments:
+
+   @SchedulerLock(
+     name = "scanOverdueDeclarations",
+     lockAtLeastFor = "PT5M",
+     lockAtMostFor = "PT10M"
+   )
+   @Scheduled(cron = "0 5 0 1 4 *", zone = "Asia/Kolkata")
+
+   ShedLock table:
+   CREATE TABLE shedlock (
+     name        VARCHAR(64)  NOT NULL,
+     lock_until  TIMESTAMP    NOT NULL,
+     locked_at   TIMESTAMP    NOT NULL,
+     locked_by   VARCHAR(255) NOT NULL,
+     PRIMARY KEY (name)
+   );
+
+   3.3 TIMEZONE CONFIGURATION
+
+   All cron expressions run in IST (Asia/Kolkata, UTC+5:30).
+   Spring config: spring.task.scheduling.pool.size = 5
+   TimeZone for @Scheduled: add zone = "Asia/Kolkata" to all cron annotations.
+
+   3.4 MANUAL RE-RUN PROCEDURES
+
+   JOB-01 (Overdue Scanner) - Manual run via Super Admin API:
+     POST /api/admin/jobs/scan-overdue { financialYear: "2025-26" }
+   Expected: Returns count of temples flagged.
+
+   JOB-04 (Notification Processor) - Self-recovering: runs every 30 sec.
+   If stalled: restart ECS task.
+
+   JOB-06 (Search Summary Rebuild) - Manual run via Super Admin API:
+     POST /api/admin/search-summary/rebuild
+   Expected: Returns { templesProcessed: N }
+
+   3.5 MONITORING RECOMMENDATIONS
+
+   - CloudWatch Alarms:
+     * ECS CPU > 80% for 5 minutes
+     * RDS connections > 80% of max_connections
+     * notification_events with status=PENDING AND created_at < NOW - 10min
+       (indicates JOB-04 is stalled)
+   - CloudWatch Logs: structured JSON logs with jobName, duration, result counts
+   - Alert on: any job that does not log a successful completion within 2x
+     its expected running time
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - ShedLock is MANDATORY in any multi-instance deployment
+   - All cron timezone = Asia/Kolkata (IST)
+   - JOB-04 is the most critical; missing 2+ consecutive runs triggers alert
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Spring Boot application runs in IST timezone (JVM -Duser.timezone=Asia/Kolkata)
+   - ShedLock uses the same MySQL DB (not a separate Redis lock store)
+   - ECS tasks are in the same AWS region as RDS (low latency for ShedLock)

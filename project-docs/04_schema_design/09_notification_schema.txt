@@ -1,0 +1,192 @@
+FOLDER: /project-docs/04_schema_design
+FILE: 09_notification_schema.txt
+TITLE: Notification Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from notification architecture design session (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the notification_events queue table and in_app_notifications table.
+   The notification system uses a DB-based queue (not SQS) for v1.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 notification_events - OUTBOUND QUEUE
+
+   CREATE TABLE notification_events (
+     id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     recipient_user_id   BIGINT UNSIGNED NOT NULL,
+     template_key        VARCHAR(100)    NOT NULL,
+     template_params     JSON            DEFAULT NULL,
+     channels            JSON            NOT NULL,   -- e.g. ["EMAIL","SMS","IN_APP"]
+     priority            TINYINT UNSIGNED NOT NULL DEFAULT 5,  -- 1 (high) to 10 (low)
+     status              ENUM('PENDING','PROCESSING','SENT','FAILED','SKIPPED')
+                         NOT NULL DEFAULT 'PENDING',
+     -- Per-channel tracking
+     email_status        ENUM('PENDING','SENT','FAILED','SKIPPED') DEFAULT 'PENDING',
+     sms_status          ENUM('PENDING','SENT','FAILED','SKIPPED') DEFAULT 'PENDING',
+     in_app_status       ENUM('PENDING','SENT','FAILED','SKIPPED') DEFAULT 'PENDING',
+     -- Retry
+     attempt_count       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+     max_attempts        TINYINT UNSIGNED NOT NULL DEFAULT 3,
+     next_retry_at       DATETIME(6)      DEFAULT NULL,
+     last_error          TEXT             DEFAULT NULL,
+     -- Timestamps
+     created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                     ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by          BIGINT UNSIGNED NOT NULL,
+     updated_by          BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_notif_pending (status, priority, next_retry_at),
+     INDEX idx_notif_user (recipient_user_id, created_at),
+     CONSTRAINT fk_notif_user FOREIGN KEY (recipient_user_id) REFERENCES users(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.2 in_app_notifications - READ/UNREAD INBOX
+
+   CREATE TABLE in_app_notifications (
+     id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     recipient_user_id   BIGINT UNSIGNED NOT NULL,
+     notification_event_id BIGINT UNSIGNED DEFAULT NULL,
+     title               VARCHAR(255)    NOT NULL,
+     body                TEXT            NOT NULL,
+     link_url            VARCHAR(500)    DEFAULT NULL,
+     is_read             TINYINT(1)      NOT NULL DEFAULT 0,
+     read_at             DATETIME(6)     DEFAULT NULL,
+     created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                     ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by          BIGINT UNSIGNED NOT NULL,
+     updated_by          BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_inapp_user_unread (recipient_user_id, is_read, created_at),
+     CONSTRAINT fk_inapp_user FOREIGN KEY (recipient_user_id) REFERENCES users(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.3 NOTIFICATION TEMPLATE REGISTRY
+
+   Template Key                        | Trigger Event                         | Recipients          | Channels
+   ------------------------------------|---------------------------------------|---------------------|------------------
+   DECLARATION_SUBMITTED               | Temple submits declaration            | DC in district      | EMAIL + IN_APP
+   DECLARATION_APPROVED                | DC approves declaration               | Temple TA           | EMAIL + SMS + IN_APP
+   DECLARATION_ACKNOWLEDGEMENT_READY   | Status -> APPROVED; ack PDF generated | Temple TA           | EMAIL + SMS + IN_APP
+   DECLARATION_REJECTED                | DC rejects declaration                | Temple TA           | EMAIL + SMS + IN_APP
+   DECLARATION_CLARIFICATION_REQ       | DC requests clarification             | Temple TA           | EMAIL + SMS + IN_APP
+   DECLARATION_CLARIFICATION_REPLY     | TA resubmits after clarification      | DC in district      | IN_APP
+   DECLARATION_PHYSICAL_VERIFICATION   | DC flags for physical verification    | Temple TA           | EMAIL + IN_APP
+   DECLARATION_OVERDUE                 | Overdue scheduler fires               | Temple TA           | EMAIL + SMS + IN_APP
+   DECLARATION_OVERDUE_REMINDER_7D     | 7 days to deadline                    | Temple TA           | EMAIL + IN_APP
+   DECLARATION_OVERDUE_REMINDER_30D    | 30 days to deadline                   | Temple TA           | EMAIL + IN_APP
+   PROFILE_APPROVED                    | DC approves profile                   | Temple TA           | EMAIL + IN_APP
+   PROFILE_REJECTED                    | DC rejects profile                    | Temple TA           | EMAIL + IN_APP
+   USER_REGISTERED                     | New user created                      | New user            | EMAIL
+   PASSWORD_RESET                      | Password reset requested              | User                | EMAIL
+   ACCOUNT_LOCKED                      | 5 failed attempts                     | User                | EMAIL + SMS
+   NOTIFICATION_DELIVERY_FAILED        | Any channel fails after max attempts  | SUPER_ADMIN         | IN_APP
+
+   TEMPLATE CONTENT SPEC (key fields per trigger):
+
+   DECLARATION_ACKNOWLEDGEMENT_READY:
+     title:  "Your asset declaration for {financial_year} has been approved"
+     body:   "The District Collector has approved your asset declaration for
+              {temple_name} for the year {financial_year}. Your acknowledgement
+              number is {acknowledgement_number}. Download the acknowledgement
+              letter from your dashboard."
+     link_url: /dashboard/declarations/{declaration_id}/acknowledgement
+     Template params: temple_name, financial_year, acknowledgement_number, declaration_id
+     Priority: 3 (HIGH)
+
+   DECLARATION_PHYSICAL_VERIFICATION:
+     title:  "Physical verification required for your declaration"
+     body:   "The District Collector has flagged your asset declaration for
+              {financial_year} for on-site physical verification. The DC office
+              will contact you to schedule the visit. DC notes: {notes}"
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: financial_year, notes, declaration_id
+     Priority: 4 (HIGH)
+
+   DECLARATION_CLARIFICATION_REQ:
+     title:  "Clarification required for your declaration"
+     body:   "The District Collector has requested clarification on your asset
+              declaration for {financial_year}. Please review the comments and
+              resubmit with corrections."
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: financial_year, declaration_id
+     Priority: 4 (HIGH)
+
+   NOTIFICATION_DELIVERY_FAILED:
+     title:  "Notification delivery failure"
+     body:   "Notification event #{event_id} (template: {template_key}) failed
+              to deliver to user #{recipient_user_id} after {max_attempts} attempts.
+              Last error: {last_error}"
+     Priority: 2 (CRITICAL); IN_APP to SUPER_ADMIN only
+
+   3.4 RETRY STRATEGY
+
+   Attempt 1: Immediate on creation (attempt_count = 0)
+   Attempt 2: next_retry_at = created_at + 2 minutes
+   Attempt 3: next_retry_at = last_attempt + 10 minutes
+   After 3 failures: status = FAILED; INSERT a NOTIFICATION_DELIVERY_FAILED
+     event targeting SUPER_ADMIN (IN_APP only, no recursive retry).
+
+   DELIVERY FAILURE HANDLING:
+   - Per-channel failure is tracked independently (email_status, sms_status, in_app_status)
+   - If email_status = FAILED but sms_status = SENT, overall status = SENT (partial delivery ok)
+   - status = FAILED only when ALL requested channels are in FAILED or SKIPPED state
+     AND attempt_count >= max_attempts
+   - SUPER_ADMIN IN_APP notification is raised once per failed event (not per retry)
+
+   Priority Matrix:
+     Priority 1-3 (CRITICAL):  ACCOUNT_LOCKED, PASSWORD_RESET
+     Priority 4-6 (HIGH):      DECLARATION_SUBMITTED, APPROVED, REJECTED,
+                                CLARIFICATION_REQUESTED, OVERDUE
+     Priority 7-10 (NORMAL):   REMINDERS, PROFILE events, USER_REGISTERED
+
+   3.5 SCHEDULER QUERY (POLLING)
+
+   Scheduled every 30 seconds (Spring @Scheduled):
+   SELECT * FROM notification_events
+   WHERE status = 'PENDING'
+   AND (next_retry_at IS NULL OR next_retry_at <= NOW(6))
+   ORDER BY priority ASC, created_at ASC
+   LIMIT 50;
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - DB-based queue (notification_events table) for v1; no SQS dependency
+   - Max 3 retry attempts with exponential backoff (immediate, +2min, +10min)
+   - In-app notifications stored in in_app_notifications table
+   - AWS SES for email; AWS SNS for SMS; both in ap-south-1 region
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should notification_events be partitioned by created_at for performance?
+   - Is SUPER_ADMIN alerted for delivery failures, or just logged?
+   - Which language should SMS notifications be in: English or Kannada?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - If AWS SES is in sandbox mode, emails only go to verified addresses.
+     Request SES production access early (1-2 week AWS process).
+   - Phone number format for SNS: must be E.164 (+91XXXXXXXXXX). Validate
+     at the users table level.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Email content is in English; SMS is a shorter English summary
+   - Template rendering uses a simple key-value param substitution
+   - Notification delivery is best-effort; no guaranteed delivery SLA for v1

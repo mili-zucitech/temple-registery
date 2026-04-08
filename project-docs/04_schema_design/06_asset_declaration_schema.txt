@@ -1,0 +1,339 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 06_asset_declaration_schema.txt
+TITLE: Asset Declaration Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from asset declaration schema design session (prior analysis).
+  Temple_Registry_Requirements_v1.1.pdf (Section 3.5 - Asset Declarations).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the append-only asset_declarations table and the declaration_
+   clarifications table. Asset declarations are the primary DC review workflow.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 asset_declarations (APPEND-ONLY)
+
+   CREATE TABLE asset_declarations (
+     id               BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id        BIGINT UNSIGNED  NOT NULL,
+     financial_year   CHAR(7)          NOT NULL,  -- e.g. '2025-26'
+     version_number   INT UNSIGNED     NOT NULL DEFAULT 1,
+     status           ENUM('DRAFT','PENDING_REVIEW','APPROVED',
+                         'CLARIFICATION_REQUESTED','REJECTED',
+                         'PHYSICAL_VERIFICATION_REQUESTED','SUPERSEDED')
+                      NOT NULL DEFAULT 'DRAFT',
+     -- Core declaration content (summary totals only; detail in sub-tables)
+     annual_income         DECIMAL(15,2) DEFAULT NULL,
+     annual_expenditure    DECIMAL(15,2) DEFAULT NULL,
+     -- Acknowledgement
+     acknowledgement_number VARCHAR(30)  DEFAULT NULL,  -- auto-generated on APPROVED: 'TRM/ACK/{year}/{id}'
+     acknowledgement_doc_s3_key VARCHAR(500) DEFAULT NULL,  -- generated PDF stored in S3
+     -- Frozen snapshot of temple data at submission time
+     snapshot_json         JSON DEFAULT NULL,
+     -- Workflow timestamps
+     submitted_at          DATETIME(6) DEFAULT NULL,
+     submitted_by          BIGINT UNSIGNED DEFAULT NULL,
+     reviewed_at           DATETIME(6) DEFAULT NULL,
+     reviewed_by           BIGINT UNSIGNED DEFAULT NULL,
+     review_comment        TEXT DEFAULT NULL,
+     acknowledged_at       DATETIME(6) DEFAULT NULL,
+     -- Overdue flag (set by scheduled job)
+     is_overdue            TINYINT(1) NOT NULL DEFAULT 0,
+     overdue_flagged_at    DATETIME(6) DEFAULT NULL,
+     -- Audit
+     created_at            DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at            DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                     ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by            BIGINT UNSIGNED NOT NULL,
+     updated_by            BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_declaration_version (temple_id, financial_year, version_number),
+     CONSTRAINT fk_decl_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   KEY RULE: Once status = APPROVED or REJECTED, no UPDATE is permitted.
+   Application service must enforce this before any UPDATE call.
+
+   INDEXES:
+   CREATE INDEX idx_decl_temple_year ON asset_declarations(temple_id, financial_year);
+   CREATE INDEX idx_decl_status ON asset_declarations(status, submitted_at);
+   CREATE INDEX idx_decl_overdue ON asset_declarations(is_overdue, temple_id);
+
+   ACKNOWLEDGEMENT NUMBER GENERATION:
+   Format: TRM/ACK/{financial_year}/{zero-padded id}  e.g. TRM/ACK/2025-26/000142
+   Generated in service layer on status transition to APPROVED.
+   Stored in acknowledgement_number (UNIQUE constraint enforced at application layer).
+
+   PHYSICAL_VERIFICATION_REQUESTED RULE:
+   Only DC or SA may set status to PHYSICAL_VERIFICATION_REQUESTED.
+   Valid transition: PENDING_REVIEW -> PHYSICAL_VERIFICATION_REQUESTED.
+   After physical visit: DC transitions to APPROVED or REJECTED with comment.
+   Transitions out: PHYSICAL_VERIFICATION_REQUESTED -> APPROVED  (DC, SA)
+                    PHYSICAL_VERIFICATION_REQUESTED -> REJECTED   (DC, SA)
+   A physical_verification_notes TEXT field in declaration_clarifications is
+   used to log the DC's on-site findings (direction = 'DC_TO_TEMPLE', section_name = 'PHYSICAL_VERIFICATION').
+
+   3.2 declaration_clarifications
+
+   CREATE TABLE declaration_clarifications (
+     id               BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     declaration_id   BIGINT UNSIGNED  NOT NULL,
+     direction        ENUM('DC_TO_TEMPLE','TEMPLE_TO_DC') NOT NULL,
+     section_name     VARCHAR(100)     DEFAULT NULL,
+     field_names_json JSON             DEFAULT NULL,
+     comment_text     TEXT             NOT NULL,
+     created_at       DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at       DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                  ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by       BIGINT UNSIGNED  NOT NULL,
+     updated_by       BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_clar_decl FOREIGN KEY (declaration_id)
+       REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   INDEX:
+   CREATE INDEX idx_clar_decl ON declaration_clarifications(declaration_id, created_at);
+
+   3.3 IMMOVABLE ASSET SUB-TABLES
+
+   Each sub-table has: id, declaration_id (FK), created_at, created_by.
+   All amount fields are DECIMAL(15,2) in INR. All are INSERT-only (append-only like the parent declaration).
+
+   3.3a decl_immov_agri_land  (Agricultural Land holdings)
+
+   CREATE TABLE decl_immov_agri_land (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     survey_number        VARCHAR(50)     NOT NULL,   -- MANDATORY
+     village              VARCHAR(255)    NOT NULL,   -- MANDATORY
+     taluk                VARCHAR(100)    NOT NULL,   -- MANDATORY
+     district             VARCHAR(100)    NOT NULL,   -- MANDATORY
+     extent_acres         DECIMAL(10,4)   NOT NULL,   -- MANDATORY
+     owner_of_record      VARCHAR(255)    DEFAULT NULL,
+     patta_status         ENUM('PATTA_ISSUED','PATTA_PENDING','NOT_APPLICABLE') NOT NULL DEFAULT 'NOT_APPLICABLE',
+     registered_value_inr DECIMAL(15,2)   DEFAULT NULL,
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_agri_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_agri_decl ON decl_immov_agri_land(declaration_id);
+
+   3.3b decl_immov_building  (Temple Complex / Buildings)
+
+   CREATE TABLE decl_immov_building (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     door_number          VARCHAR(50)     DEFAULT NULL,
+     address              TEXT            NOT NULL,   -- MANDATORY
+     area_sqft            DECIMAL(12,2)   NOT NULL,   -- MANDATORY
+     usage                VARCHAR(100)    NOT NULL,   -- MANDATORY: e.g. 'Prayer Hall', 'Office', 'Dharamshala'
+     structure_type       VARCHAR(100)    DEFAULT NULL, -- e.g. 'Kachcha', 'Pucca', 'RCC'
+     year_built           SMALLINT UNSIGNED DEFAULT NULL,
+     estimated_value_inr  DECIMAL(15,2)   DEFAULT NULL,
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_bldg_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_bldg_decl ON decl_immov_building(declaration_id);
+
+   3.3c decl_immov_leased  (Leased Properties)
+
+   CREATE TABLE decl_immov_leased (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     property_address     TEXT            NOT NULL,   -- MANDATORY
+     lessee_name          VARCHAR(255)    NOT NULL,   -- MANDATORY
+     lease_start_date     DATE            NOT NULL,   -- MANDATORY
+     lease_end_date       DATE            DEFAULT NULL,
+     monthly_rent_inr     DECIMAL(15,2)   NOT NULL,   -- MANDATORY
+     agreement_doc_s3_key VARCHAR(500)    DEFAULT NULL, -- PDF of lease agreement
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_leased_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_leased_decl ON decl_immov_leased(declaration_id);
+
+   3.3d decl_immov_other  (Other Land Holdings)
+
+   CREATE TABLE decl_immov_other (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     location             VARCHAR(500)    NOT NULL,   -- MANDATORY
+     area_description     VARCHAR(255)    DEFAULT NULL,
+     usage_type           VARCHAR(100)    NOT NULL,   -- MANDATORY: e.g. 'Burial Ground', 'Car Parking'
+     revenue_dept_ref     VARCHAR(100)    DEFAULT NULL, -- Revenue Department reference number
+     estimated_value_inr  DECIMAL(15,2)   DEFAULT NULL,
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_oth_immov_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_oth_immov_decl ON decl_immov_other(declaration_id);
+
+   3.4 MOVABLE ASSET SUB-TABLES
+
+   3.4a decl_mov_precious_metal  (Gold, Silver and Precious Items)
+
+   CREATE TABLE decl_mov_precious_metal (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     item_description     VARCHAR(500)    NOT NULL,   -- MANDATORY: e.g. 'Gold Idol of Ganesha'
+     quantity             INT UNSIGNED    NOT NULL,   -- MANDATORY
+     weight_grams         DECIMAL(10,3)   NOT NULL,   -- MANDATORY
+     purity               VARCHAR(20)     DEFAULT NULL, -- e.g. '22K', '999'
+     estimated_value_inr  DECIMAL(15,2)   NOT NULL,   -- MANDATORY
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_metal_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_metal_decl ON decl_mov_precious_metal(declaration_id);
+
+   3.4b decl_mov_artifact  (Idols and Sacred Artifacts)
+
+   CREATE TABLE decl_mov_artifact (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     item_description     VARCHAR(500)    NOT NULL,   -- MANDATORY
+     material             VARCHAR(100)    DEFAULT NULL, -- e.g. 'Brass', 'Granite', 'Silver'
+     approximate_age_years INT UNSIGNED   DEFAULT NULL,
+     historical_period    VARCHAR(100)    DEFAULT NULL, -- e.g. 'Chola Period', 'Vijayanagara'
+     known_provenance     TEXT            DEFAULT NULL,
+     museum_grade         TINYINT(1)      NOT NULL DEFAULT 0,  -- 1 = museum-grade classification
+     estimated_value_inr  DECIMAL(15,2)   DEFAULT NULL,
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_artifact_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_artifact_decl ON decl_mov_artifact(declaration_id);
+
+   3.4c decl_mov_vehicle  (Vehicles)
+
+   CREATE TABLE decl_mov_vehicle (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     registration_number  VARCHAR(15)     NOT NULL,   -- MANDATORY: e.g. 'KA01AB1234'
+     make                 VARCHAR(100)    NOT NULL,   -- MANDATORY
+     model                VARCHAR(100)    NOT NULL,   -- MANDATORY
+     year_of_manufacture  SMALLINT UNSIGNED NOT NULL, -- MANDATORY
+     purpose              VARCHAR(200)    DEFAULT NULL, -- e.g. 'Procession', 'Transport'
+     estimated_value_inr  DECIMAL(15,2)   DEFAULT NULL,
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_vehicle_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_vehicle_decl ON decl_mov_vehicle(declaration_id);
+
+   3.4d decl_mov_equipment  (Electronic and Office Equipment)
+
+   CREATE TABLE decl_mov_equipment (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     item_description     VARCHAR(500)    NOT NULL,   -- MANDATORY
+     serial_number        VARCHAR(100)    DEFAULT NULL,
+     quantity             INT UNSIGNED    NOT NULL DEFAULT 1,
+     estimated_value_inr  DECIMAL(15,2)   NOT NULL,   -- MANDATORY
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_equip_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_equip_decl ON decl_mov_equipment(declaration_id);
+
+   3.4e decl_mov_financial  (Financial Assets: FDs, Investments)
+
+   CREATE TABLE decl_mov_financial (
+     id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id       BIGINT UNSIGNED NOT NULL,
+     asset_subtype        ENUM('FIXED_DEPOSIT','SAVINGS_ACCOUNT','INVESTMENT','BOND','OTHER') NOT NULL,
+     institution_name     VARCHAR(255)    NOT NULL,   -- MANDATORY: bank or fund name
+     branch               VARCHAR(255)    DEFAULT NULL,
+     account_or_folio_no_encrypted TEXT    DEFAULT NULL,  -- AES-256; account/folio number is PII
+     principal_amount_inr DECIMAL(15,2)   NOT NULL,   -- MANDATORY
+     current_value_inr    DECIMAL(15,2)   DEFAULT NULL,
+     maturity_date        DATE            DEFAULT NULL,  -- for FDs and bonds
+     created_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_fin_decl FOREIGN KEY (declaration_id) REFERENCES asset_declarations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_fin_decl ON decl_mov_financial(declaration_id);
+
+   3.5 VERSION NUMBER LOGIC
+
+   When a temple needs to resubmit after REJECTION for a financial year:
+     SELECT MAX(version_number) FROM asset_declarations
+     WHERE temple_id = :temple_id AND financial_year = :year;
+   New version = MAX + 1. Application layer responsibility.
+
+   Old versions get status = SUPERSEDED when new version is submitted.
+   UPDATE asset_declarations SET status = 'SUPERSEDED'
+   WHERE temple_id = :temple_id AND financial_year = :year
+   AND status IN ('DRAFT','REJECTED');
+
+   3.4 OVERDUE DETECTION SCHEDULER (SQL)
+
+   Run daily at 00:05 after financial year end (April 1):
+   UPDATE asset_declarations ad
+   SET is_overdue = 1, overdue_flagged_at = NOW(6)
+   WHERE ad.financial_year = :previous_year
+   AND ad.status NOT IN ('APPROVED')
+   AND ad.is_overdue = 0;
+
+   Also insert overdue notification_events for all affected temples.
+
+   3.5 DATA FREEZE (snapshot_json)
+
+   At submission time (DRAFT -> PENDING_REVIEW transition), the service
+   must capture a frozen JSON snapshot of:
+     - Temple basic info (name, grade, location)
+     - Active trust details (trust name, board members count)
+     - Employee count by type
+     - Contractor summary (count, total contract value)
+
+   This snapshot allows DC to see what the temple looked like at time of
+   submission, even if the temple later updates its profile.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+   - UNIQUE(temple_id, financial_year, version_number) - enforced in DB
+   - snapshot_json is written at PENDING_REVIEW transition; never updated after
+   - APPROVED and REJECTED records: no UPDATE allowed (app-enforced)
+   - is_overdue flag set by scheduled job; not by user action
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+   - What fields constitute movable_assets and immovable_assets?
+     Are these free-text or structured JSON? (Currently TEXT; consider JSON)
+   - Is there a maximum number of clarification rounds before a declaration
+     must be rejected outright?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+   - Financial year boundary: CHAR(7) format '2025-26' must be validated.
+     Add a regex constraint in the DTO: @Pattern(regexp = "\d{4}-\d{2}")
+   - Snapshot_json can become large if temple has many contractors/employees.
+     Cap at summary counts; do not inline all employee records in JSON.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+   - One filing per temple per financial year (multiple versions allowed)
+   - Financial year runs April 1 to March 31 (Indian fiscal year)
+   - Overdue scheduler runs as a Spring @Scheduled job (cron = '0 5 0 1 4 *')
+

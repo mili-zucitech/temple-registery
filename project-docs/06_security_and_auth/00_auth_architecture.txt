@@ -1,0 +1,137 @@
+FOLDER: /project-docs/06_security_and_auth
+FILE: 00_auth_architecture.txt
+TITLE: Authentication Architecture - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from design constraints SC-01 to SC-09, user auth schema,
+  and security analysis sessions.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the full authentication architecture: JWT token lifecycle,
+   MFA implementation, Aadhaar eKYC flow, session management, and the
+   Spring Security filter chain.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 AUTHENTICATION FLOW
+
+   Step 1: POST /api/auth/login { username, password }
+     - Load user by username
+     - Verify is_active = true
+     - Check locked_until (if in future, return 423 with retry_after)
+     - Verify bcrypt password hash
+     - On failure: increment failed_login_count; if >= 5, set locked_until
+     - On success: proceed to Step 2
+
+   Step 2: MFA Challenge
+     - If mfa_type = TOTP: return { mfaRequired: true, challengeType: "TOTP" }
+     - If mfa_type = SMS_OTP: generate OTP, send via SNS, return challengeType: "SMS_OTP"
+     - Frontend presents MFA input screen
+
+   Step 3: POST /api/auth/mfa-verify { tempToken, mfaCode }
+     - Verify MFA code (TOTP: compare with current window ±1 step;
+                         SMS_OTP: compare with stored OTP + expiry check)
+     - On success: issue access token + refresh token
+     - On failure: log to audit_auth_events; count MFA failures separately
+
+   Step 4: Token Response
+     { accessToken, refreshToken, expiresIn: 900 }
+     - accessToken: RS256 JWT, 15-minute TTL
+     - refreshToken: opaque UUID, stored as SHA-256 hash in DB
+     - refreshToken is HttpOnly cookie OR response body (decision TBD)
+
+   3.2 TOKEN REFRESH FLOW
+
+   POST /api/auth/refresh { refreshToken }
+     - Hash the provided token with SHA-256
+     - Lookup in refresh_tokens WHERE token_hash = :hash AND revoked_at IS NULL
+     - Verify expires_at > NOW()
+     - Verify user is still active and not locked
+     - Rotate: revoke old token (set revoked_at), issue new token pair
+     - Return new { accessToken, refreshToken }
+
+   3.3 SPRING SECURITY FILTER CHAIN
+
+   Order:
+   1. CorsFilter (allow frontend origin)
+   2. JwtAuthenticationFilter (validate access token; set SecurityContext)
+   3. SessionManagementFilter (stateless; no session created)
+   4. ExceptionTranslationFilter
+   5. FilterSecurityInterceptor (@PreAuthorize evaluation)
+
+   JwtAuthenticationFilter:
+   - Extract Bearer token from Authorization header
+   - Verify RS256 signature using public key
+   - Check claims: exp, sub, role
+   - Build UsernamePasswordAuthenticationToken with authorities from role claim
+   - Set in SecurityContextHolder
+
+   3.4 AADHAAR eKYC FLOW (REGISTRATION ONLY)
+
+   Used only during initial user registration, not for every login.
+
+   Step 1: User enters Aadhaar number on registration form
+   Step 2: POST /api/auth/aadhaar-otp-request { aadhaarNumber }
+     - Forward to UIDAI OTP API (or mock for dev)
+     - Store masked Aadhaar (last 4 digits) temporarily in session
+   Step 3: User enters OTP received on Aadhaar-linked mobile
+   Step 4: POST /api/auth/aadhaar-otp-verify { transactionId, otp }
+     - UIDAI verification response confirms identity
+     - Store aadhaar_encrypted (AES-256) in users table
+     - Complete registration
+
+   3.5 PASSWORD POLICY ENFORCEMENT
+
+   At API layer (registration + password change):
+   - Minimum 10 characters
+   - At least 1 uppercase letter
+   - At least 1 lowercase letter
+   - At least 1 digit
+   - At least 1 special character (!@#$%^&*...)
+   - Not equal to username
+   - Not one of last 5 passwords (store hashes of last 5)
+
+   DTO validation: @ValidPassword (custom JSR-380 constraint)
+   Server-side only; frontend may replicate but backend is authoritative.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - RS256 (asymmetric) for JWT signing; private key stored in AWS Secrets Manager
+   - Access token: 15-minute TTL; Refresh token: 7-day TTL, single-use rotation
+   - MFA is mandatory for ALL users; no bypass endpoint exists
+   - Aadhaar eKYC only at registration; not at every login
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should refreshToken be stored in an HttpOnly cookie (more secure) or
+     returned in response body (simpler frontend integration)?
+   - How is the UIDAI eKYC integration licensed? Government NeSL or commercial?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Refresh token rotation means a network error between token issue and
+     client receipt results in the client having neither old nor new token.
+     Implement a grace window: the old token remains valid for 60 seconds
+     after rotation to allow for retry.
+   - RS256 private key compromise: rotate immediately via Secrets Manager;
+     all active tokens become invalid (users re-login).
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - All auth endpoints are under /api/auth/** (unauthenticated)
+   - All other endpoints require a valid access token
+   - Frontend stores access token in memory (not localStorage); refresh
+     token in HttpOnly cookie

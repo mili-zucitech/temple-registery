@@ -1,0 +1,202 @@
+﻿FOLDER: /project-docs/01_users_and_roles
+FILE: 00_user_roles_and_permissions.txt
+TITLE: User Roles and Permissions - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - roles & RBAC analysis
+  - Temple_Registry_Requirements_v1.1.pdf (Section 4 - User Management,
+    Section 5 - Access Control)
+  - .github/copilot-instructions.md (User Roles & RBAC section)
+
+RELATED REQUIREMENTS:
+  Section 4 (User Management), Section 5 (Access Control) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document defines the 5 user roles in the TRM system, their
+   responsibilities, and the permission boundaries for each. It is the
+   authoritative reference for backend @PreAuthorize annotations and
+   frontend route guard configurations.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   5 roles are defined: SUPER_ADMIN, DISTRICT_COLLECTOR, DC_STAFF,
+   TEMPLE_AUTHORITY, and (implicit) SYSTEM for automated jobs.
+   RBAC is enforced at Spring Security method level via @PreAuthorize.
+   Jurisdiction scoping (district boundary) is a separate orthogonal control
+   that applies on top of role permissions for DC and DC_STAFF.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 ROLE DEFINITIONS
+
+       SUPER_ADMIN
+         Assigned to: HR&CE department administrators
+         Accountability: Platform-wide configuration and user management
+         Permissions:
+           - Create / edit / deactivate all user accounts
+           - Manage geo master data (State, City/Town, District, Taluk, Hobli)
+           - Manage temple grade configurations (Grade A / B / C criteria)
+           - View all temples across all districts (no district scoping)
+           - View all audit logs across system
+           - Run system-wide reports and exports
+           - Configure notification templates
+           - No restriction on any read or write operation
+
+       DISTRICT_COLLECTOR
+         Assigned to: Active IAS District Collectors
+         Accountability: Administrative oversight of temples in their district
+         Jurisdiction: Scoped to assigned district - cannot see temples
+                       outside their district boundary
+         Permissions:
+           - Read all temple profiles within their district
+           - Read all trust, employee, and contractor data for district temples
+           - Read all asset declarations within their district
+           - Approve asset declarations (PENDING_REVIEW -> APPROVED)
+           - Reject asset declarations (PENDING_REVIEW -> REJECTED)
+           - Request clarification (PENDING_REVIEW -> CLARIFICATION_REQUESTED)
+           - Export reports for their district (PDF/CSV)
+           - Generate and download declaration acknowledgements
+           - Cannot CREATE or EDIT any temple data (read + approval only)
+
+       DC_STAFF
+         Assigned to: Support staff in DC's office
+         Accountability: Assist DC with data review and report preparation
+         Jurisdiction: Same district scoping as DISTRICT_COLLECTOR
+         Permissions:
+           - Read all temple profiles within their district (same as DC)
+           - Read all trust, employee, contractor, and asset data
+           - Limited export: can export but with lower row limits than DC
+           - CANNOT approve, reject, or request clarification on declarations
+           - CANNOT manage user accounts
+
+       TEMPLE_AUTHORITY
+         Assigned to: Temple trustees or designated temple managers
+         Accountability: Managing and submitting their own temple's data
+         Scope: Strictly limited to their own temple (single temple per account)
+         Permissions:
+           - CREATE and EDIT their own temple profile
+           - CREATE and EDIT their own trust details and board members
+           - CREATE and EDIT their own employee records
+           - CREATE and EDIT their own contractor records
+           - CREATE asset declarations (DRAFT state)
+           - SUBMIT asset declarations (DRAFT -> PENDING_REVIEW)
+           - VIEW their own submitted declarations and status
+           - RESPOND to clarification requests from DC
+           - UPLOAD documents for their own temple
+           - CANNOT view any data belonging to other temples
+           - CANNOT approve or reject their own or any declaration
+
+       SYSTEM (implicit role)
+         Assigned to: Scheduled background jobs
+         Permissions:
+           - Flag overdue asset declarations
+           - Process notification retry queue
+           - Archive expired draft declarations
+
+   3.2 PERMISSION MATRIX
+
+       Action                             | SA | DC | DCS | TA | Notes
+       -----------------------------------|----|----|-----|----|----------
+       Manage user accounts               | Y  | N  |  N  | N  |
+       Manage geo master data             | Y  | N  |  N  | N  |
+       View any temple (cross-district)   | Y  | N  |  N  | N  |
+       View temple in own district        | Y  | Y  |  Y  | N  | see own only for TA
+       View own temple                    | Y  | Y  |  Y  | Y  |
+       Edit own temple profile            | N  | N  |  N  | Y  |
+       Edit any temple profile            | Y  | N  |  N  | N  |
+       View trust details                 | Y  | Y  |  Y  | Y* | *own only for TA
+       Edit trust details                 | Y  | N  |  N  | Y* | *own only for TA
+       View employee records              | Y  | Y  |  Y  | Y* | *own only for TA
+       Edit employee records              | Y  | N  |  N  | Y* | *own only for TA
+       View contractor records            | Y  | Y  |  Y  | Y* | *own only for TA
+       Edit contractor records            | Y  | N  |  N  | Y* | *own only for TA
+       Create asset declaration (DRAFT)   | N  | N  |  N  | Y  | own temple only
+       Submit declaration to DC           | N  | N  |  N  | Y  | own temple only
+       Approve declaration                | Y  | Y  |  N  | N  | within jurisdiction
+       Reject declaration                 | Y  | Y  |  N  | N  | within jurisdiction
+       Request clarification              | Y  | Y  |  N  | N  | within jurisdiction
+       Upload documents                   | Y  | N  |  N  | Y  | TA: own temple only
+       Download documents (pre-signed)    | Y  | Y  |  Y  | Y* | *own temple only for TA
+       Export district reports (full)     | Y  | Y  |  N  | N  |
+       Export district reports (limited)  | Y  | Y  |  Y  | N  |
+       View audit logs                    | Y  | N  |  N  | N  |
+       Configure notification templates   | Y  | N  |  N  | N  |
+
+       Legend: SA=SUPER_ADMIN, DC=DISTRICT_COLLECTOR, DCS=DC_STAFF,
+               TA=TEMPLE_AUTHORITY, Y=allowed, N=denied, *=restricted scope
+
+   3.3 SPRING SECURITY ANNOTATION PATTERN
+
+       All service methods must be annotated with @PreAuthorize.
+       Jurisdiction scoping is enforced as an additional predicate:
+
+       Example - DC approve declaration:
+         @PreAuthorize("hasRole('DISTRICT_COLLECTOR') and
+                        @jurisdictionGuard.isInDistrict(#declarationId,
+                        authentication.principal.districtId)")
+
+       Example - Temple Authority edit own profile:
+         @PreAuthorize("hasRole('TEMPLE_AUTHORITY') and
+                        @ownershipGuard.isOwner(#templeId,
+                        authentication.principal.templeId)")
+
+       Example - Super Admin only:
+         @PreAuthorize("hasRole('SUPER_ADMIN')")
+
+   3.4 ACCOUNT LIFECYCLE
+
+       Registration: SUPER_ADMIN creates accounts for all roles.
+                     Temple Authorities may self-register (pending review).
+       Activation:   Active by default after SUPER_ADMIN approval.
+       Suspension:   SUPER_ADMIN can suspend any account.
+       Lockout:      Automatic after 5 failed MFA attempts (30 min).
+       Deletion:     Soft delete only (deactivated_at); no hard deletes.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - 5 roles are fixed for v1; no custom role creation feature in scope
+   - RBAC enforcement at @PreAuthorize method level is non-negotiable
+   - Jurisdiction scoping uses district_id assigned to DC at account creation
+   - One TEMPLE_AUTHORITY account maps to exactly one temple (1:1)
+   - SUPER_ADMIN accounts are created offline (not via self-service registration)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Can a DC_STAFF member belong to multiple districts? (e.g., joint charge)
+   - Is there a READ_ONLY auditor role needed for state-level government review?
+   - Can SUPER_ADMIN delegate approval authority to a Deputy Collector?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   See: /project-docs/01_users_and_roles/01_permission_matrix_edge_cases.txt
+   for the 7 identified edge cases and their resolution strategies.
+
+   Notable:
+   - DC transferred to a new district: their district_id must update and
+     existing open declarations in the old district must be reassigned.
+   - Temple Authority account for a temple that merges with another temple:
+     both accounts become TEMPLE_AUTHORITY for the surviving temple_id,
+     or one is deactivated.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Each DC user is assigned exactly one district at account creation
+   - SUPER_ADMIN does not perform temple data operations (only admin tasks)
+   - Temple Authority users are pre-vetted by HR&CE before account creation

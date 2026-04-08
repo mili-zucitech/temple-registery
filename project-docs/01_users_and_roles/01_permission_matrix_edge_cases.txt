@@ -1,0 +1,245 @@
+﻿FOLDER: /project-docs/01_users_and_roles
+FILE: 01_permission_matrix_edge_cases.txt
+TITLE: Permission Matrix Edge Cases
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - 7 permission edge cases
+  - Temple_Registry_Requirements_v1.1.pdf (Section 4 - User Management)
+
+RELATED REQUIREMENTS:
+  Section 4.x (User Management), Section 5.x (Access Control) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document captures 7 edge cases in the permission model that are not
+   covered by the simple permission matrix. Each edge case has a resolution
+   that must be implemented. These are common sources of security defects.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   7 edge cases identified. All involve boundary conditions in role assignment
+   or jurisdiction scoping. Each has a defined resolution and implementation
+   note.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 EDGE CASES
+
+       E-01  DC TRANSFERRED TO A NEW DISTRICT
+       ----------------------------------------
+       Scenario: A District Collector is reassigned to a different district
+       by a government order. Their account must now scope to the new district
+       and lose access to the old district.
+
+       Risk: If not handled atomically, the DC retains dual-district access
+       during the transition window.
+
+       Resolution:
+         - SUPER_ADMIN updates district_id on the DC's user record
+         - All active sessions for this user must be invalidated immediately
+           (refresh tokens revoked; blacklist all outstanding access tokens
+           by setting a user-level revocation timestamp)
+         - Next login will embed new district_id in JWT claims
+         - Audit log entry: actor=SUPER_ADMIN, action=DISTRICT_REASSIGNMENT,
+           old_district=X, new_district=Y
+
+       Implementation:
+         - user.token_revoked_before = NOW() in user table at reassignment
+         - JwtFilter checks: if (issuedAt < user.token_revoked_before) -> 401
+         - No grace period; revocation is immediate
+
+       -------------------------------------------------------------------
+
+       E-02  TEMPLE AUTHORITY ACCOUNT BEFORE TEMPLE IS CREATED
+       ---------------------------------------------------------
+       Scenario: A Temple Authority completes registration (creates a user
+       account) but has not yet submitted their temple profile for approval.
+       What can they access?
+
+       Risk: User exists, has a role, but has no temple_id to scope their
+       access. Queries that scope by temple_id would fail or return all data.
+
+       Resolution:
+         - During registration, a placeholder temple record is created in
+           DRAFT state and its ID is linked to the user account immediately
+         - User can only see their own DRAFT temple profile and nothing else
+         - SUPER_ADMIN activates the account only after temple profile
+           is submitted and verified
+         - Until activation: user.status = PENDING_ACTIVATION; login blocked
+
+       Implementation:
+         - Registration creates: user record (status=PENDING_ACTIVATION) +
+           temple record (status=DRAFT) atomically in one transaction
+         - Login check: if (user.status != ACTIVE) throw AccountNotActiveException
+
+       -------------------------------------------------------------------
+
+       E-03  SUPER_ADMIN CREATES DATA - WHO OWNS IT?
+       ------------------------------------------------
+       Scenario: SUPER_ADMIN seeds or edits geo master data (Districts, Taluks,
+       Hoblis). These records have created_by fields. What value goes there?
+
+       Risk: SUPER_ADMIN has no district_id. Geo data is shared and has no
+       "owner" in the business sense.
+
+       Resolution:
+         - created_by = SUPER_ADMIN's user_id for geo master data
+         - Geo master data has no ownership or jurisdiction scoping
+         - Audit log captures SUPER_ADMIN user_id as the actor for all
+           geo master data changes
+
+       Implementation:
+         - @CreatedBy annotation on entity populates the current user's ID
+         - AuditingEntityListener from Spring Data JPA handles this
+           automatically for created_by / updated_by
+
+       -------------------------------------------------------------------
+
+       E-04  DC_STAFF EXPORTS SENSITIVE FIELDS
+       -----------------------------------------
+       Scenario: DC_STAFF has read access to all temple data in their district.
+       What happens when they generate a report that includes Aadhaar numbers
+       or PAN of board members?
+
+       Risk: DC_STAFF could export PII in full without the accountability
+       that a DC has (DC approvals are officially logged actions).
+
+       Resolution:
+         - DC_STAFF export is limited to summary reports:
+           temple name, grade, location, declaration status only
+         - Full PII fields (Aadhaar, PAN, bank account numbers) are MASKED
+           in all DC_STAFF views and exports regardless of endpoint
+         - Only DISTRICT_COLLECTOR role sees unmasked PII (and only in
+           the DC's portal view, not in bulk exports)
+         - SUPER_ADMIN does NOT see PII; audit access only
+
+       Implementation:
+         - @JsonSerialize with custom AadharMaskSerializer for all
+           Aadhaar fields in API response DTOs
+         - Export service applies masking based on role claim in JWT
+         - Unit test: DC_Staff calling export endpoint returns masked values
+
+       -------------------------------------------------------------------
+
+       E-05  TEMPLE AUTHORITY TRIES TO EDIT AN APPROVED DECLARATION
+       --------------------------------------------------------------
+       Scenario: A Temple Authority's asset declaration was approved last year.
+       They open the declaration and try to click Edit.
+
+       Risk: Approved declarations are immutable business records; any edit
+       would destroy the approved audit trail.
+
+       Resolution:
+         - Frontend: Edit button hidden / disabled for declarations with
+           status != DRAFT
+         - Backend: Service layer checks status before allowing any update;
+           throws ImmutableResourceException for non-DRAFT declarations
+         - For corrections post-approval: a new version is created (new
+           declaration record with version_number incremented); the approved
+           record remains untouched with status APPROVED
+
+       Implementation:
+         if (!declaration.getStatus().equals(DeclarationStatus.DRAFT)) {
+             throw new ImmutableResourceException(
+                 "Declaration " + declarationId + " is " +
+                 declaration.getStatus() + " and cannot be modified");
+         }
+
+       -------------------------------------------------------------------
+
+       E-06  MULTIPLE USERS CLAIM TO BE AUTHORITY FOR THE SAME TEMPLE
+       ----------------------------------------------------------------
+       Scenario: Two different individuals both attempt to register as the
+       Temple Authority for the same temple (identified by temple name +
+       location or a unique temple ID).
+
+       Risk: Two accounts both authenticated as TEMPLE_AUTHORITY for the
+       same temple could allow one to overwrite the other's data.
+
+       Resolution:
+         - One temple record can have exactly one linked TEMPLE_AUTHORITY
+           user account (1:1 relationship enforced by UNIQUE constraint on
+           temples.authority_user_id)
+         - During registration, if a temple record already has an active
+           authority account, the second registration attempt is rejected
+           with a specific error: "A verified authority account already
+           exists for this temple. Contact HR&CE to report a dispute."
+         - SUPER_ADMIN can transfer authority (deactivate old, activate new)
+           after real-world verification
+
+       Implementation:
+         - UNIQUE constraint: temples.authority_user_id
+         - Registration service: check if temple already has authority before
+           creating new account
+
+       -------------------------------------------------------------------
+
+       E-07  WHAT HAPPENS WHEN A DC IS ON LEAVE / VACANCY
+       ----------------------------------------------------
+       Scenario: The DC for a district is on long leave or the post is vacant.
+       Asset declarations submitted by temples in that district have no approver.
+
+       Risk: Declarations pile up with no action; temples cannot get
+       acknowledgements for time-sensitive filings.
+
+       Resolution:
+         - SUPER_ADMIN can assign a temporary DC (same account type,
+           DISTRICT_COLLECTOR role, temporarily assigned to the vacant district)
+         - Alternatively, SUPER_ADMIN can approve declarations directly
+           (SUPER_ADMIN has read-all but approval is DC-only per matrix;
+           this is an OPEN QUESTION - see Section 5)
+         - Overdue declaration alerts are sent to SUPER_ADMIN when a district
+           has pending declarations > 30 days with no DC action
+
+       Implementation:
+         - Temporary assignment: same as E-01 (district_id update + session
+           revocation for existing users in that district)
+         - Alert: scheduled job checks for declarations with
+           status=PENDING_REVIEW and updated_at < NOW() - INTERVAL 30 DAY
+           and DC district has no active logins in 7 days
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - E-01: DC transfer invalidates all sessions immediately (no grace period)
+   - E-02: User registration and temple record creation are atomic
+   - E-04: DC_STAFF always gets masked PII regardless of endpoint
+   - E-05: Approved declarations are immutable; new version required for changes
+   - E-06: 1:1 mapping enforced by DB UNIQUE constraint
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - E-07: Can SUPER_ADMIN approve asset declarations when DC post is vacant?
+     The requirements are silent on this. Needs business clarification.
+   - E-04: Should DCs see unmasked Aadhaar in the UI or only in printed
+     official documents? Needs legal/compliance clarification.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - E-02 (Temple Authority before temple created): The registration -> activation
+     flow has a multi-step state machine of its own. Risk of partial completion
+     if any step fails. Use database transactions and idempotent operations.
+   - E-06 (Duplicate authority claim): In practice, fraud risk is low but
+     procedural disputes are likely. An escalation workflow may be needed.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - One temple = one Temple Authority account (1:1, not 1:many)
+   - DC vacancy is a known operational risk; SUPER_ADMIN alert covers it
+   - Role changes take effect on next login (no real-time role push required
+     except for the revocation case in E-01)

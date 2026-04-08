@@ -1,0 +1,211 @@
+﻿FOLDER: /project-docs/00_context
+FILE: 00_system_overview.txt
+TITLE: System Overview - Temple Registry & Management Portal
+
+SOURCE:
+  Consolidated from:
+  - 10-bullet system summary (prior analysis)
+  - Temple_Registry_Requirements_v1.1.pdf (Sections 1.1, 1.2, 1.3, 2.1, 2.3)
+  - .github/copilot-instructions.md
+
+RELATED REQUIREMENTS:
+  Sections 1.1 (Background), 1.2 (Purpose), 1.3 (Scope), 2.1 (Stakeholders),
+  2.3 (Glossary) - Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document provides the foundational context for the Temple Registry &
+   Management Portal (TRM). It is the entry point for all engineers, auditors,
+   and new team members joining the project. All other /project-docs/ files
+   assume this context is understood.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   TRM is a government digital platform built for the state of Karnataka, India.
+   It replaces fragmented paper records and siloed departmental systems with a
+   single, secure, role-based web portal. The two primary user groups are
+   District Collectors (DCs) and Temple Authorities. The system operates under
+   the Hindu Religious & Charitable Endowments (HR&CE) Act.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 BACKGROUND
+
+       Karnataka is home to 30,000+ registered temples classified as:
+         - Grade A: Major temples with large endowments, high annual income
+         - Grade B: Medium-scale temples with moderate income
+         - Grade C: Smaller temples with limited resources
+
+       Currently, temple information is maintained in fragmented paper records
+       and siloed departmental systems. This makes it impossible for District
+       Collectors to quickly access reliable data on temple assets, staff,
+       trusts, and geo-location.
+
+   3.2 PURPOSE OF THE SYSTEM
+
+       District Collector (DC):
+         - Search, locate, and inspect all temple data within their jurisdiction
+         - Filter by geographic hierarchy and temple grade
+         - Review and approve/reject asset declarations from temples
+         - Export reports and generate acknowledgements
+
+       Temple Authority:
+         - Log in to share, update, and manage temple profile
+         - Submit asset declarations to the DC
+         - Manage trust details, employee records, and contractor records
+         - Respond to DC clarification requests
+
+   3.3 SCOPE (Requirements PDF Section 1.3)
+
+       In-Scope:
+       - Geo-hierarchical temple search: State -> City/Town -> District ->
+         Taluk -> Hobli (cascading dropdowns, master data by SUPER_ADMIN)
+       - Temple classification by Grade A, B, C
+       - Temple profile management: address, deity, history
+       - Trust and board member details (PAN, bank details)
+       - Employee and contractor records (including Archaka hereditary priests)
+       - Asset declarations submitted to DC for review/approval
+       - Secure, role-based web portal for DC and Temple Authority users
+       - Document upload and management (PDF only, max 10 MB, S3 storage)
+       - Audit trails and reporting
+       - MFA-enforced login with Aadhaar eKYC
+
+       Out-of-Scope:
+       - Native mobile applications (web portal only)
+       - Financial accounting or payment processing
+       - Integration with other state government systems
+
+   3.4 TECHNOLOGY STACK
+
+       Layer           | Technology
+       ----------------|-------------------------------------------
+       Frontend        | React (Vite), TypeScript
+       Backend         | Java 21, Spring Boot 3.x, REST API
+       Database        | MySQL 8
+       Auth            | JWT (access + refresh tokens) + MFA;
+                       | Aadhaar eKYC (OTP-based)
+       Deployment      | AWS (ECS + RDS or EC2 + RDS)
+       Notifications   | Email / SMS via AWS SES / SNS
+
+   3.5 PROJECT DIRECTORY STRUCTURE
+
+       TRM/
+       +-- frontend/
+       |   +-- src/
+       |       +-- features/        (feature-sliced modules)
+       |       +-- components/      (shared UI components)
+       |       +-- api/             (Axios client, mirrors backend modules)
+       +-- backend/
+       |   +-- src/main/java/com/zucitech/trm/
+       |       +-- temple/          (controller -> service -> repository)
+       |       +-- trust/
+       |       +-- asset/
+       |       +-- employee/
+       |       +-- auth/            (JWT, MFA, session management)
+       |       +-- common/          (RBAC, audit, exception, file storage)
+       +-- .github/
+           +-- copilot-instructions.md
+
+   3.6 BUILD AND TEST COMMANDS
+
+       Backend (Spring Boot):
+         cd backend
+         ./mvnw clean install          -- Build
+         ./mvnw spring-boot:run        -- Run locally (port 8080)
+         ./mvnw test                   -- Run unit + integration tests
+
+       Frontend (React + Vite):
+         cd frontend
+         npm install
+         npm run dev                   -- Dev server (port 5173)
+         npm run build                 -- Production build
+         npm test                      -- Run tests (Vitest or Jest)
+
+   3.7 DOMAIN GLOSSARY
+
+       Term              | Definition
+       ------------------|---------------------------------------------------
+       DC                | District Collector - senior IAS officer responsible
+                         | for district-level administration in Karnataka
+       Grade A Temple    | Major temples with large endowments, high income
+       Grade B Temple    | Medium-scale temples with moderate income
+       Grade C Temple    | Smaller temples with limited resources
+       Hobli             | Smallest administrative unit in Karnataka,
+                         | below Taluk level
+       Taluk             | Administrative division below District,
+                         | comprising multiple Hoblis
+       HR&CE             | Hindu Religious & Charitable Endowments -
+                         | Karnataka government department overseeing temples
+       Trust             | Registered legal entity managing temple affairs
+       Archaka           | Hereditary priest; special employee type with
+                         | succession tracking
+       RBAC              | Role-Based Access Control
+       MFA               | Multi-Factor Authentication
+       eKYC              | Electronic Know Your Customer via Aadhaar OTP
+       UAT               | User Acceptance Testing
+       Asset Declaration | Annual financial and property statement submitted
+                         | by Temple Authority for DC review
+
+   3.8 STAKEHOLDERS
+
+       Stakeholder                          | Role in System
+       -------------------------------------|-----------------------------
+       District Collector (DC)              | Primary Viewer / Approver
+       DC Office Staff                      | Read-only support role
+       Temple Authority / Trustee           | Data Provider
+       HR & Charitable Endowments Dept.     | Super Admin
+       State Government / Audit Bodies      | External viewer / auditor
+
+   See also: /project-docs/01_users_and_roles/00_user_roles_and_permissions.txt
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Technology stack is fixed: React + Java Spring Boot + MySQL + AWS
+   - Small team of 2-5 developers
+   - Deployment target: AWS
+   - Source of truth for all functional requirements:
+     Temple_Registry_Requirements_v1.1.pdf in workspace root
+   - System is pre-development; no existing codebase at planning stage
+   - Web-only portal (no native mobile app requirement in requirements PDF)
+   - Single state (Karnataka); State dropdown is pre-selected, non-editable
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - What is the go-live target date?
+   - Are there existing legacy temple registration IDs to be migrated?
+   - Is there a legal requirement for digital signatures on approved
+     asset declarations?
+   - Which Aadhaar eKYC provider / UIDAI integration is to be used?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Karnataka administrative boundaries may change by government gazette;
+     geo master data must accommodate boundary changes without corrupting
+     jurisdiction scoping for existing DC accounts.
+   - 30,000+ temples creates scale constraints on search and export;
+     see /project-docs/04_schema_design/10_search_summary_and_indexes.txt
+   - Aadhaar eKYC integration has regulatory dependencies (UIDAI licensing,
+     data localization) that could affect launch timeline.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - The portal is web-only (no native mobile app requirement stated in PDF)
+   - Single state (Karnataka); State dropdown pre-selected and non-editable
+   - Requirements PDF (v1.1) is the authoritative and final requirements doc
+   - All temple data entry is manual by Temple Authority (no bulk import
+     from legacy systems in scope for v1)
+   - Internet connectivity is assumed for all users (no offline mode required)

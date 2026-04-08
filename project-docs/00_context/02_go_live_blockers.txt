@@ -1,0 +1,190 @@
+﻿FOLDER: /project-docs/00_context
+FILE: 02_go_live_blockers.txt
+TITLE: Go-Live Blockers - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - 16 go-live blockers
+  - Temple_Registry_Requirements_v1.1.pdf (NFR sections)
+  - Design constraints (01_design_constraints.txt)
+
+RELATED REQUIREMENTS:
+  Sections 6.x (Security NFRs), 7.x (Performance NFRs), 8.x (Compliance) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document lists the 16 minimum conditions that MUST be satisfied before
+   the TRM system can go live in any environment accessible to real government
+   users. Each blocker is categorized and has a clear pass criterion.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   16 go-live blockers across 4 categories:
+     - Functional (F): 5 blockers - core user workflows must be operational
+     - Security (S): 5 blockers - mandatory security controls
+     - Compliance (C): 3 blockers - regulatory and legal obligations
+     - Infrastructure (I): 3 blockers - deployment readiness
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 FUNCTIONAL BLOCKERS (F)
+
+       F-01  COMPLETE TEMPLE REGISTRATION WORKFLOW
+             BLOCKER: Temple Authority must be able to complete the full
+             registration workflow: register -> create temple profile ->
+             submit first asset declaration.
+             PASS CRITERION: End-to-end UAT completed by at least 3 temple
+             authority test users with zero critical defects.
+
+       F-02  DC SEARCH AND FILTER
+             BLOCKER: DC must be able to search for any temple within their
+             district using geo-hierarchy filters (District, Taluk, Hobli)
+             and grade filters. Results must load within 3 seconds for
+             district-wide searches.
+             PASS CRITERION: Performance test with 10,000 temple records
+             showing p95 response time <= 3s.
+
+       F-03  ASSET DECLARATION APPROVAL WORKFLOW
+             BLOCKER: The full DRAFT -> PENDING_REVIEW -> APPROVED /
+             CLARIFICATION_REQUESTED / REJECTED state machine must be
+             functional. Clarification loop (temple resubmits after DC
+             requests changes) must be tested.
+             PASS CRITERION: State machine test coverage >= 90% including
+             all edge transitions.
+
+       F-04  DOCUMENT UPLOAD AND DOWNLOAD
+             BLOCKER: Temple authorities must be able to upload PDF documents
+             (max 10 MB) and DCs must be able to download them via pre-signed
+             URLs. MIME type validation must reject non-PDF files.
+             PASS CRITERION: Upload test with valid PDF, oversized file,
+             non-PDF disguised with .pdf extension - all handled correctly.
+
+       F-05  NOTIFICATION DELIVERY
+             BLOCKER: Email and SMS notifications must be delivered for
+             all trigger events (submission, approval, rejection,
+             clarification request).
+             PASS CRITERION: Test delivery with AWS SES/SNS sandbox with
+             confirmed receipt of all notification templates.
+
+   3.2 SECURITY BLOCKERS (S)
+
+       S-01  MFA ENFORCED FOR ALL USERS
+             BLOCKER: No user at any role level can complete login without
+             passing MFA. MFA bypass code paths must not exist.
+             PASS CRITERION: Penetration test confirms no login path that
+             bypasses MFA. Automated test for all MFA failure paths.
+
+       S-02  ACCOUNT LOCKOUT FUNCTIONAL
+             BLOCKER: Account must lock after exactly 5 failed attempts.
+             Lock must persist for 30 minutes. Must be tested for all
+             user roles.
+             PASS CRITERION: Automated test confirms lockout at attempt 5,
+             no access during 30-min window, automatic unlock after 30 min.
+
+       S-03  RBAC ENFORCEMENT VERIFIED
+             BLOCKER: No privilege escalation possible cross-role or
+             cross-jurisdiction. DC from District A cannot see temples
+             in District B. Temple Authority cannot see another temple's data.
+             PASS CRITERION: RBAC matrix test suite covering all 15 data
+             access scoping test cases (see 01_users_and_roles/02_data_access_scoping.txt)
+             passes 100%.
+
+       S-04  AADHAAR PII ENCRYPTION VERIFIED
+             BLOCKER: All stored Aadhaar numbers must be AES-256 encrypted
+             in the database. No plain-text Aadhaar in any DB column, log,
+             API response, or export.
+             PASS CRITERION: DB inspection shows encrypted values only.
+             Log scan shows no pattern matching \\d{4}-\\d{4}-\\d{4}.
+
+       S-05  VULNERABILITY SCAN CLEAN
+             BLOCKER: Latest OWASP ZAP or equivalent DAST scan against
+             staging environment must show zero High or Critical findings.
+             PASS CRITERION: Clean scan report signed off by security lead.
+
+   3.3 COMPLIANCE BLOCKERS (C)
+
+       C-01  AUDIT TRAIL OPERATIONAL
+             BLOCKER: All data change events must be captured in audit_data_events
+             with before/after values, actor, and timestamp. Auth events
+             (login, lockout, logout) in audit_auth_events. Export events
+             in audit_export_events.
+             PASS CRITERION: Audit verification test - perform 20 known
+             operations and confirm all are present in audit tables.
+
+       C-02  DATA RETENTION POLICY IMPLEMENTED
+             BLOCKER: Audit logs must be retained for minimum 7 years.
+             Asset declarations must be retained permanently (append-only).
+             Soft-deleted employee records must not be hard-deleted.
+             PASS CRITERION: Database backup policy and retention schedule
+             documented and tested. Automated archival job tested.
+
+       C-03  TERMS OF USE AND PRIVACY NOTICE DISPLAYED
+             BLOCKER: System must display privacy notice covering Aadhaar
+             data collection, HR&CE Act authorization, and data retention
+             policy before user completes registration. User must acknowledge.
+             PASS CRITERION: Registration flow confirms acknowledgement
+             stored with timestamp and user ID in the database.
+
+   3.4 INFRASTRUCTURE BLOCKERS (I)
+
+       I-01  AWS PRODUCTION ENVIRONMENT PROVISIONED
+             BLOCKER: ECS (or EC2) + RDS (MySQL 8) + S3 (private bucket) +
+             SES + SNS all provisioned and tested in production AWS account.
+             PASS CRITERION: All services respond to health checks.
+             Failover tested for RDS Multi-AZ.
+
+       I-02  SSL/TLS CERTIFICATE INSTALLED
+             BLOCKER: All API and frontend traffic must be HTTPS only.
+             No HTTP access permitted in production.
+             PASS CRITERION: SSL Labs scan shows A rating minimum.
+             HTTP -> HTTPS redirect configured.
+
+       I-03  BACKUP AND RECOVERY TESTED
+             BLOCKER: RDS automated backups enabled with 7-day retention.
+             Recovery from backup must be tested in staging environment.
+             PASS CRITERION: Recovery test completed with RTO <= 2 hours,
+             documented and signed off.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - All 16 blockers must be resolved before any go-live
+   - No partial go-live is acceptable for security blockers (S-01 to S-05)
+   - C-03 (Privacy notice) must appear before any user data collection begins
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - S-05: Which DAST tool is approved by the government security review body?
+   - C-01: Does HR&CE department have a specific audit log format requirement?
+   - I-01: Is EC2 or ECS the chosen compute model? (Affects IaC approach)
+   - I-03: What is the acceptable RPO (Recovery Point Objective)?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - F-03 (Clarification loop) is the most complex workflow and most likely
+     source of go-live-blocking defects. Prioritize UAT for this flow.
+   - S-03 (RBAC enforcement) requires a comprehensive test matrix; teams often
+     test the happy path but miss cross-district / cross-role boundary tests.
+   - I-01: AWS SES production access requires manual request to AWS for
+     sandbox removal. This process can take 1-2 weeks and must be initiated
+     early in the project timeline.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Staging environment mirrors production in all security-relevant config
+   - Performance testing uses realistic data volume (10,000+ temple records)
+   - UAT participants are actual government users, not just developers

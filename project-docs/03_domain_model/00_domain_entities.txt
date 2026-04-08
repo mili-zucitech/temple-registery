@@ -1,0 +1,280 @@
+﻿FOLDER: /project-docs/03_domain_model
+FILE: 00_domain_entities.txt
+TITLE: Domain Entities - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - 23-entity domain model analysis (prior session)
+  - Temple_Registry_Requirements_v1.1.pdf (Sections 3, 4, 5)
+  - Schema design documents in /project-docs/04_schema_design/
+
+RELATED REQUIREMENTS:
+  Sections 3.x (Functional Modules), 4.x (Data Requirements) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document defines all 23 canonical domain entities in the TRM system,
+   their attributes, and their relationships. This is the authoritative reference
+   for database schema design, API contract design, and feature module planning.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   23 entities grouped into 5 domain modules:
+     - Geo Master Data: 5 entities
+     - Temple Core: 4 entities
+     - Trust & Financials: 3 entities
+     - People (Staff & Contractors): 4 entities
+     - Asset Declarations & Documents: 4 entities
+     - Users & Auth: 3 entities
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 GEO MASTER DATA ENTITIES
+
+       ENTITY: geo_states
+       Purpose: Top-level geographic unit. Karnataka is the only active record.
+       Key Attributes: id, name, code
+       Cardinality: 1 state -> N cities
+
+       ENTITY: geo_cities
+       Purpose: City or town within the state.
+       Key Attributes: id, state_id (FK), name, code
+       Cardinality: 1 city -> N districts
+
+       ENTITY: geo_districts
+       Purpose: Administrative district. DC jurisdiction is scoped to 1 district.
+       Key Attributes: id, city_id (FK), name, code
+       Cardinality: 1 district -> N taluks
+       Note: DC user accounts have a district_id foreign key. All temple
+             queries for DC must be filtered by this field.
+
+       ENTITY: geo_taluks
+       Purpose: Sub-district administrative unit.
+       Key Attributes: id, district_id (FK), name, code
+       Cardinality: 1 taluk -> N hoblis
+
+       ENTITY: geo_hoblis
+       Purpose: Smallest geo unit. Temple location is assigned to a Hobli.
+       Key Attributes: id, taluk_id (FK), name, code
+       Cardinality: 1 hobli -> N temples
+
+   3.2 TEMPLE CORE ENTITIES
+
+       ENTITY: temples
+       Purpose: Master record for a registered temple. The central entity
+       around which all other data is organized.
+       Key Attributes:
+         id, registration_number (unique), name, grade (A/B/C),
+         hobli_id (FK), address_line1, address_line2, pincode,
+         deity_name, established_year, historical_significance (text),
+         status (ACTIVE/INACTIVE/SUSPENDED),
+         created_at, updated_at, created_by, updated_by
+       Cardinality:
+         - 1 temple -> 1 active temple_profile_current
+         - 1 temple -> N trust_registrations
+         - 1 temple -> N employees
+         - 1 temple -> N contractors
+         - 1 temple -> N asset_declarations
+
+       ENTITY: temple_profile_current
+       Purpose: The currently approved and published version of all
+       supplementary temple details (contact, bank, description).
+       Synchronized from temple_profile_staging on DC approval.
+       Key Attributes:
+         id, temple_id (FK, unique), phone, email, website,
+         bank_name, bank_account_number_encrypted, bank_ifsc,
+         description, published_at, published_by
+       Note: Never modified in place. A new staging record is created
+             for any update; on approval, it replaces current.
+
+       ENTITY: temple_profile_staging
+       Purpose: Pending or draft changes to temple profile awaiting DC review.
+       Key Attributes:
+         id, temple_id (FK), version, status
+         (DRAFT/PENDING_REVIEW/APPROVED/REJECTED/SUPERSEDED),
+         ... (same supplementary fields as current),
+         submitted_at, submitted_by, reviewed_at, reviewed_by,
+         review_comment
+       Cardinality: 1 temple -> N staging records (one active at a time)
+
+       ENTITY: temple_profile_history
+       Purpose: Immutable archive of all previously approved temple profiles.
+       Created when a new staging record is approved (old current record
+       moves here).
+       Key Attributes: id, temple_id, version, archived_at, archived_by,
+         ... (snapshot of all profile fields at time of archival)
+
+   3.3 TRUST & FINANCIALS ENTITIES
+
+       ENTITY: trust_registrations
+       Purpose: Legal trust entity managing the temple. A temple may have
+       multiple trust records over time (historical).
+       Key Attributes:
+         id, temple_id (FK), trust_name, registration_number,
+         registration_date, pan_number_encrypted, status (ACTIVE/DISSOLVED),
+         address, created_at, updated_at, created_by, updated_by
+
+       ENTITY: trust_board_members
+       Purpose: Individual members of the trust board. Each member linked
+       to one trust registration.
+       Key Attributes:
+         id, trust_id (FK), name, designation, aadhaar_encrypted,
+         pan_number, phone, email, appointment_date, cessation_date,
+         is_active (bool), created_at, updated_at, created_by, updated_by
+
+       ENTITY: trust_financials
+       Purpose: Annual financial figures for a trust (income, expenditure,
+       balance). One record per trust per financial year.
+       Key Attributes:
+         id, trust_id (FK), financial_year, gross_income,
+         expenditure, closing_balance, submitted_at, submitted_by,
+         UNIQUE(trust_id, financial_year)
+
+   3.4 PEOPLE ENTITIES
+
+       ENTITY: employees
+       Purpose: All staff (Archaka, administrative, maintenance) employed
+       at a temple. Soft-deleted on termination.
+       Key Attributes:
+         id, temple_id (FK), employee_type (ARCHAKA/ADMINISTRATIVE/
+         MAINTENANCE/OTHER), name, aadhaar_encrypted, pan_number,
+         date_of_birth, date_of_joining, date_of_leaving,
+         hereditary_succession (bool, for Archaka),
+         designation, salary_grade,
+         deleted_at (null = active), created_at, updated_at
+
+       ENTITY: employee_succession
+       Purpose: Tracks hereditary succession chain for Archaka employees.
+       Relevant only when employees.hereditary_succession = true.
+       Key Attributes:
+         id, employee_id (FK), predecessor_id (FK -> employees),
+         succession_date, documentation_reference
+
+       ENTITY: contractors
+       Purpose: External contractors engaged by the temple for construction,
+       maintenance, events, etc. Soft-deleted on contract end.
+       Key Attributes:
+         id, temple_id (FK), contractor_name, gst_number,
+         pan_number_encrypted, contract_type, contract_start_date,
+         contract_end_date, contract_value, works_description,
+         deleted_at (null = active), created_at, updated_at
+
+       ENTITY: contractor_documents
+       Purpose: Documents linked to a contractor engagement (contracts,
+       work completion certificates). Junction to documents table.
+       Key Attributes:
+         id, contractor_id (FK), document_id (FK -> documents),
+         document_type
+
+   3.5 ASSET DECLARATION ENTITIES
+
+       ENTITY: asset_declarations
+       Purpose: Annual asset and property declaration submitted by Temple
+       Authority to DC. Append-only; never overwritten after approval.
+       Key Attributes:
+         id, temple_id (FK), financial_year (YYYY-YY format),
+         version_number (int, auto-incremented per temple per year),
+         status (DRAFT/PENDING_REVIEW/APPROVED/CLARIFICATION_REQUESTED/
+                 REJECTED/SUPERSEDED),
+         snapshot_json (JSON, frozen copy of temple data at submission),
+         submitted_at, submitted_by, acknowledged_at,
+         UNIQUE(temple_id, financial_year, version_number)
+
+       ENTITY: declaration_clarifications
+       Purpose: Individual clarification request/response entries in the
+       loop between DC and Temple Authority on a specific declaration.
+       Key Attributes:
+         id, declaration_id (FK -> asset_declarations),
+         direction (DC_TO_TEMPLE / TEMPLE_TO_DC),
+         section_name, field_names (JSON array),
+         comment_text, created_at, created_by
+
+       ENTITY: documents
+       Purpose: Canonical metadata record for each uploaded file.
+       Stores S3 key, MIME type, size, uploader.
+       Key Attributes:
+         id, original_filename, s3_key (unique), s3_bucket,
+         mime_type, file_size_bytes, uploaded_by, uploaded_at,
+         module_reference (TEMPLE/TRUST/EMPLOYEE/CONTRACTOR/DECLARATION)
+       Cardinality: 1 document -> linked via module junction tables
+
+       ENTITY: document_access_log
+       Purpose: Audit log of every pre-signed URL generation event,
+       recording who accessed which document and when.
+       Key Attributes:
+         id, document_id (FK), accessed_by, accessed_at,
+         ip_address, presigned_url_expiry
+
+   3.6 USER & AUTH ENTITIES
+
+       ENTITY: users
+       Purpose: All portal users regardless of role.
+       Key Attributes:
+         id, username, email, password_hash (bcrypt, cost 12),
+         role (SUPER_ADMIN/DISTRICT_COLLECTOR/DC_STAFF/TEMPLE_AUTHORITY),
+         district_id (FK -> geo_districts, nullable, required for DC roles),
+         temple_id (FK -> temples, nullable, required for TEMPLE_AUTHORITY),
+         is_active (bool), failed_login_count, locked_until,
+         mfa_secret_encrypted, mfa_type (TOTP/SMS_OTP),
+         created_at, updated_at, last_login_at
+
+       ENTITY: refresh_tokens
+       Purpose: Stores hashed refresh tokens for JWT rotation.
+       Key Attributes:
+         id, user_id (FK), token_hash (SHA-256 of raw token),
+         issued_at, expires_at, revoked_at (null = active),
+         device_fingerprint
+
+       ENTITY: audit_data_events
+       Purpose: Immutable audit log of all data change operations.
+       See /project-docs/04_schema_design/07_audit_trail_schema.txt.
+       Key Attributes:
+         id, actor_user_id, table_name, record_id, operation
+         (INSERT/UPDATE/DELETE), before_value (JSON), after_value (JSON),
+         event_time, ip_address
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Temple profile follows Current + Staging + History pattern (not in-place edit)
+   - Asset declarations are append-only (UNIQUE constraint on version_number)
+   - Aadhaar and PAN are stored encrypted in dedicated _encrypted columns
+   - Soft delete (deleted_at) for employees and contractors; no hard DELETE
+   - documents table is canonical; per-module junction tables link records to it
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should trust_financials be its own submission/approval workflow, or is
+     it embedded within asset declarations?
+   - Is employee_succession required for v1 or is it a future enhancement?
+   - Does a temple always have exactly one active trust, or can multiple
+     trusts be active simultaneously?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - If a temple changes district (administrative re-organization), all
+     historical records remain tied to the original district. The temple
+     record must be updatable by SUPER_ADMIN with an administrative note.
+   - Archaka employees with hereditary succession create recursive FK chains.
+     Limit succession depth query to prevent infinite recursion in UI.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - A temple belongs to exactly one Hobli (never shared across geo units)
+   - A user account is tied to exactly one role (no multi-role users)
+   - Temple Authority user is always linked to exactly one temple
+   - All monetary values (trust financials) stored as DECIMAL(15,2) in INR

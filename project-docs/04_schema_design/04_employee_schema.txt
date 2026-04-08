@@ -1,0 +1,176 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 04_employee_schema.txt
+TITLE: Employee & Contractor Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from people module schema design (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the employees, employee_succession, contractors, and contractor_
+   documents tables. All use soft delete. Archaka records additionally link
+   to succession chain.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 employees
+
+   CREATE TABLE employees (
+     id                      BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id               BIGINT UNSIGNED  NOT NULL,
+     employee_id             VARCHAR(50)      DEFAULT NULL,  -- OPTIONAL: internal HR ID assigned by TA (e.g. EMP-001)
+     employee_type           ENUM('ARCHAKA','ADMINISTRATIVE','ACCOUNTS','MAINTENANCE','SECURITY','OTHER')
+                             NOT NULL,                      -- MANDATORY
+     employment_status       ENUM('ACTIVE','ON_LEAVE','RETIRED','RESIGNED')
+                             NOT NULL DEFAULT 'ACTIVE',     -- MANDATORY: business-visible employment state
+     name                    VARCHAR(255)     NOT NULL,      -- MANDATORY
+     aadhaar_encrypted       TEXT             DEFAULT NULL,
+     pan_number              VARCHAR(10)      DEFAULT NULL,
+     date_of_birth           DATE             DEFAULT NULL,
+     date_of_joining         DATE             NOT NULL,      -- MANDATORY
+     date_of_leaving         DATE             DEFAULT NULL,  -- set when employment_status = RESIGNED or RETIRED
+     is_hereditary_succession TINYINT(1)      NOT NULL DEFAULT 0,  -- 1 for ARCHAKA only
+     designation             VARCHAR(100)     DEFAULT NULL,
+     salary_grade            VARCHAR(50)      DEFAULT NULL,
+     mobile                  VARCHAR(15)      DEFAULT NULL,  -- MANDATORY: contact number
+     address                 TEXT             DEFAULT NULL,  -- MANDATORY: residential address
+     deleted_at              DATETIME(6)      DEFAULT NULL,  -- soft-delete: account-level deactivation only
+     deleted_by              BIGINT UNSIGNED  DEFAULT NULL,
+     created_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                          ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by              BIGINT UNSIGNED  NOT NULL,
+     updated_by              BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_emp_id (temple_id, employee_id),  -- employee_id unique within a temple
+     CONSTRAINT fk_emp_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   EMPLOYMENT_STATUS RULES:
+     - deleted_at IS NULL + employment_status = 'ACTIVE'   -> employee is working
+     - deleted_at IS NULL + employment_status = 'ON_LEAVE'  -> employee is on leave (counted in staff list)
+     - deleted_at IS NULL + employment_status = 'RETIRED'   -> retired; remains visible in staff module
+     - deleted_at IS NULL + employment_status = 'RESIGNED'  -> resigned; date_of_leaving set
+     - deleted_at IS NOT NULL                               -> record logically deleted (SUPER_ADMIN action only)
+   Do NOT use deleted_at to represent retirement or on-leave status.
+
+   INDEXES:
+   CREATE INDEX idx_emp_temple_type   ON employees(temple_id, employee_type, deleted_at);
+   CREATE INDEX idx_emp_temple_status ON employees(temple_id, employment_status, deleted_at);
+
+   Active employee query (always include deleted_at IS NULL):
+   SELECT * FROM employees
+   WHERE temple_id = :temple_id
+   AND   deleted_at IS NULL
+   AND   employment_status = 'ACTIVE'
+   ORDER BY employee_type, name;
+
+   All staff (including On Leave and Retired) query:
+   SELECT * FROM employees
+   WHERE temple_id = :temple_id
+   AND   deleted_at IS NULL
+   ORDER BY employment_status, name;
+
+   3.2 employee_succession (Archaka only)
+
+   CREATE TABLE employee_succession (
+     id                  BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     employee_id         BIGINT UNSIGNED  NOT NULL,
+     predecessor_id      BIGINT UNSIGNED  DEFAULT NULL,
+     succession_date     DATE             NOT NULL,
+     documentation_ref   VARCHAR(500)     DEFAULT NULL,
+     created_at          DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at          DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                      ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by          BIGINT UNSIGNED  NOT NULL,
+     updated_by          BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_succ_emp FOREIGN KEY (employee_id) REFERENCES employees(id),
+     CONSTRAINT fk_succ_pred FOREIGN KEY (predecessor_id) REFERENCES employees(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   NOTE: Query the succession chain with a max depth limit to prevent
+   infinite recursion:
+   WITH RECURSIVE succession_chain AS (
+     SELECT id, predecessor_id, name, 0 AS depth
+     FROM employees WHERE id = :archaka_id
+     UNION ALL
+     SELECT e.id, e.predecessor_id, e.name, sc.depth + 1
+     FROM employees e
+     JOIN succession_chain sc ON e.id = sc.predecessor_id
+     WHERE sc.depth < 10
+   )
+   SELECT * FROM succession_chain;
+
+   3.3 contractors
+
+   CREATE TABLE contractors (
+     id                         BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id                  BIGINT UNSIGNED  NOT NULL,
+     contractor_name            VARCHAR(255)     NOT NULL,         -- MANDATORY
+     gst_number                 VARCHAR(15)      DEFAULT NULL,
+     pan_number_encrypted       TEXT             DEFAULT NULL,
+     contract_type              ENUM('CIVIL_WORKS','ELECTRICAL','SECURITY',
+                                     'CATERING','EVENTS','MAINTENANCE','OTHER')
+                                NOT NULL,                          -- MANDATORY
+     contract_reference_number  VARCHAR(100)     DEFAULT NULL,     -- MANDATORY: formal contract doc number
+     work_order_date            DATE             DEFAULT NULL,     -- MANDATORY: date work order was issued
+     contract_start_date        DATE             NOT NULL,         -- MANDATORY
+     contract_end_date          DATE             DEFAULT NULL,     -- NULL = open-ended contract
+     contract_value             DECIMAL(15,2)    DEFAULT NULL,     -- INR
+     payment_status             ENUM('PENDING','PARTIAL','COMPLETED','DISPUTED')
+                                NOT NULL DEFAULT 'PENDING',        -- MANDATORY: financial compliance tracking
+     works_description          TEXT             DEFAULT NULL,
+     deleted_at                 DATETIME(6)      DEFAULT NULL,
+     deleted_by                 BIGINT UNSIGNED  DEFAULT NULL,
+     created_at                 DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at                 DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                             ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by                 BIGINT UNSIGNED  NOT NULL,
+     updated_by                 BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_contractor_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   INDEXES:
+   CREATE INDEX idx_contractor_temple ON contractors(temple_id, deleted_at);
+   CREATE INDEX idx_contractor_payment ON contractors(temple_id, payment_status, deleted_at);
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Soft delete (deleted_at) for both employees and contractors
+   - aadhaar_encrypted: AES-256 via KMS (employees)
+   - pan_number_encrypted: AES-256 via KMS (contractors)
+   - All list queries MUST include deleted_at IS NULL filter
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should employee documents (appointment letters, certificates) be tracked
+     via a separate employee_documents junction table?
+     Answer: Yes - covered in 08_document_storage_schema.txt.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Soft-deleted employees still show up in joins if deleted_at IS NULL
+     filter is omitted. Add a @Where(clause = "deleted_at IS NULL") Hibernate
+     annotation on the Employee entity for all default queries.
+   - Succession chain depth: if depth > 10, log a warning and return
+     partial chain. Do not throw an error to the user.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - is_hereditary_succession = 1 only for ARCHAKA type employees
+   - contractors.contract_value is in INR; no FX conversion
+   - A temple can have multiple active contractors simultaneously

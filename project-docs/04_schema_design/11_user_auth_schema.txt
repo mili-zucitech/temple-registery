@@ -1,0 +1,165 @@
+FOLDER: /project-docs/04_schema_design
+FILE: 11_user_auth_schema.txt
+TITLE: User & Auth Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from auth architecture and security analysis (prior sessions).
+  Design constraints SC-01 through SC-04 (01_design_constraints.txt).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the users and refresh_tokens tables. Document password policy
+   enforcement, MFA fields, and account lockout columns.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 users
+
+   CREATE TABLE users (
+     id                      BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     username                VARCHAR(100)     NOT NULL,
+     email                   VARCHAR(255)     NOT NULL,
+     password_hash           VARCHAR(255)     NOT NULL,  -- bcrypt cost >= 12
+     role                    ENUM('SUPER_ADMIN','DISTRICT_COLLECTOR',
+                                  'DC_STAFF','TEMPLE_AUTHORITY') NOT NULL,
+     -- Jurisdiction / ownership binding
+     district_id             BIGINT UNSIGNED  DEFAULT NULL,  -- required for DC roles
+     temple_id               BIGINT UNSIGNED  DEFAULT NULL,  -- required for TEMPLE_AUTHORITY
+     -- Account state
+     is_active               TINYINT(1)       NOT NULL DEFAULT 1,
+     failed_login_count      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+     locked_until            DATETIME(6)      DEFAULT NULL,   -- NULL = not locked
+     -- MFA
+     mfa_enabled             TINYINT(1)       NOT NULL DEFAULT 0,
+     mfa_type                ENUM('TOTP','SMS_OTP') DEFAULT NULL,
+     mfa_secret_encrypted    TEXT             DEFAULT NULL,   -- AES-256 via KMS
+     mfa_phone               VARCHAR(15)      DEFAULT NULL,   -- for SMS_OTP
+     -- Activity
+     last_login_at           DATETIME(6)      DEFAULT NULL,
+     password_changed_at     DATETIME(6)      DEFAULT NULL,
+     -- Audit
+     created_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                          ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by              BIGINT UNSIGNED  NOT NULL,
+     updated_by              BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_username (username),
+     UNIQUE KEY uq_email (email),
+     CONSTRAINT fk_user_district FOREIGN KEY (district_id)
+       REFERENCES geo_districts(id),
+     CONSTRAINT fk_user_temple FOREIGN KEY (temple_id)
+       REFERENCES temples(id),
+     INDEX idx_user_role (role, is_active),
+     INDEX idx_user_locked (locked_until)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.2 refresh_tokens
+
+   CREATE TABLE refresh_tokens (
+     id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     user_id             BIGINT UNSIGNED NOT NULL,
+     token_hash          VARCHAR(64)     NOT NULL,  -- SHA-256 hex of raw token
+     issued_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     expires_at          DATETIME(6)     NOT NULL,
+     revoked_at          DATETIME(6)     DEFAULT NULL,  -- NULL = active
+     device_fingerprint  VARCHAR(500)    DEFAULT NULL,
+     ip_address          VARCHAR(45)     DEFAULT NULL,
+     created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                     ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by          BIGINT UNSIGNED NOT NULL,
+     updated_by          BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_token_hash (token_hash),
+     INDEX idx_rt_user_active (user_id, revoked_at, expires_at),
+     CONSTRAINT fk_rt_user FOREIGN KEY (user_id) REFERENCES users(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.3 ACCOUNT LOCKOUT LOGIC (APPLICATION LAYER)
+
+   On LOGIN FAILURE:
+     UPDATE users
+     SET failed_login_count = failed_login_count + 1,
+         locked_until = CASE
+           WHEN failed_login_count + 1 >= 5
+           THEN DATE_ADD(NOW(6), INTERVAL 30 MINUTE)
+           ELSE locked_until
+         END
+     WHERE id = :user_id;
+
+   On LOGIN SUCCESS:
+     UPDATE users
+     SET failed_login_count = 0,
+         locked_until = NULL,
+         last_login_at = NOW(6)
+     WHERE id = :user_id;
+
+   Lock check (before authentication):
+     SELECT locked_until FROM users WHERE username = :username;
+     IF locked_until IS NOT NULL AND locked_until > NOW(6)
+       THEN return HTTP 423 (Locked) with retry_after timestamp
+
+   3.4 JWT TOKEN STRUCTURE
+
+   Access Token:
+     - Expiry: 15 minutes
+     - Claims: sub (user_id), role, district_id, temple_id, jti
+     - Algorithm: RS256 (asymmetric; private key on backend only)
+
+   Refresh Token:
+     - Expiry: 7 days
+     - Opaque random UUID (512 bits)
+     - Stored as SHA-256 hash in refresh_tokens table
+     - Rotate on every use (old token revoked, new token issued)
+
+   3.5 SESSION TIMEOUT
+
+   - Backend: Access token TTL = 15 minutes (hard expiry)
+   - Frontend: React Query detects 401 response, attempts silent refresh
+               using cached refresh token
+   - If refresh fails (token expired/revoked): redirect to login
+   - Activity timeout: if user is idle for 25 minutes, show warning modal
+     "Your session expires in 5 minutes" with "Stay logged in" button that
+     calls the /auth/refresh endpoint
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - bcrypt cost factor >= 12 for password_hash
+   - Refresh tokens stored as SHA-256 hash only (raw token never in DB)
+   - Access token: RS256 asymmetric JWT, 15-minute TTL
+   - Refresh token: 7-day TTL, opaque, single-use rotation
+   - Account lockout: 5 failed attempts -> 30-minute lockout
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should TOTP secret be stored in users table or in a separate mfa_configs
+     table (for future multi-MFA support)?
+   - Is there a requirement for "remember this device" (longer refresh TTL)?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Refresh token theft: if a stolen token is used before the legitimate user,
+     the rotation invalidates both. The legitimate user is logged out, alerting
+     them to the breach. Log both usages in audit_auth_events.
+   - TOTP clock skew: allow +/- 1 time step (30 seconds) tolerance in
+     TOTP verification.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - users.created_by: for the first SUPER_ADMIN created during bootstrap,
+     set created_by = own id (self-referential; handle in DB seed script)
+   - Aadhaar eKYC verification is a separate flow from standard login MFA;
+     it is performed only during initial user registration

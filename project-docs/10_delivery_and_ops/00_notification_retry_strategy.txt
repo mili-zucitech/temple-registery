@@ -1,0 +1,91 @@
+FOLDER: /project-docs/10_delivery_and_ops
+FILE: 00_notification_retry_strategy.txt
+TITLE: Notification Retry Strategy - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from notification architecture design session (prior analysis).
+  See also: /project-docs/04_schema_design/09_notification_schema.txt
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the complete retry strategy for notification delivery failures,
+   including exponential backoff schedule, failure handling, and alerting.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 RETRY SCHEDULE
+
+   Attempt | Delay from previous   | Condition
+   --------|-----------------------|------------------------------------------
+   1       | Immediate (0 delay)   | Initial creation (next_retry_at = NULL)
+   2       | +2 minutes            | After attempt 1 fails
+   3       | +10 minutes           | After attempt 2 fails
+   FAILED  | No more retries       | After 3 failures; status = FAILED
+
+   Backoff implementation in notification processor:
+   if (attemptCount == 1) nextRetryAt = NOW + 2 minutes
+   if (attemptCount == 2) nextRetryAt = NOW + 10 minutes
+   if (attemptCount >= 3) status = FAILED
+
+   3.2 CHANNEL-LEVEL RETRY
+
+   Each channel (EMAIL, SMS, IN_APP) is retried independently.
+   A notification_event is SENT only when ALL channels in the channels
+   JSON array have status = SENT or SKIPPED.
+
+   If EMAIL fails but SMS succeeds:
+     email_status = FAILED; sms_status = SENT
+     Overall status: still retried for EMAIL channel only on next cycle
+
+   SKIPPED: Channel skipped if user has no email / phone set for that channel.
+
+   3.3 FAILURE ALERTING
+
+   When notification_event.status = FAILED:
+   - Insert a SUPER_ADMIN in_app notification:
+     title: "Notification delivery failed"
+     body: "Event ID {id} for user {username} failed after 3 attempts: {last_error}"
+   - This is a priority 3 (high) notification
+
+   Daily summary: SUPER_ADMIN dashboard shows count of FAILED events in last 24h.
+
+   3.4 MANUAL RETRY (SUPER_ADMIN)
+
+   SUPER_ADMIN can retry failed notifications via admin screen:
+   POST /api/admin/notifications/{id}/retry
+   - Resets status = PENDING, attempt_count = 0, next_retry_at = NULL
+   - JOB-04 picks it up on the next 30-second cycle
+
+   3.5 NOTIFICATION CHANNEL SKIPPED RULES
+
+   Skip EMAIL if: users.email IS NULL
+   Skip SMS if:   users.mfa_phone IS NULL
+   Skip IN_APP if: (never skipped - always attempted)
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - 3-attempt maximum; no infinite retry
+   - After 3 failures: SUPER_ADMIN alert via in_app_notifications
+   - Manual retry available to SUPER_ADMIN only (not to DC or Temple Authority)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should failed notification events be archived to S3 after 30 days for
+     debugging purposes?
+   - Is there an SLA for notification delivery (e.g., within 5 minutes)?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - AWS SES and SNS are in production mode (not sandbox) at go-live
+   - Users.mfa_phone is in E.164 format (+91XXXXXXXXXX)
+   - IN_APP notifications are always deliverable (no external dependency)

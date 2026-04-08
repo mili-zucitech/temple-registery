@@ -1,0 +1,144 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 07_audit_trail_schema.txt
+TITLE: Audit Trail Schema - Temple Registry & Management Portal
+
+SOURCE: Derived from audit trail schema design session (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+   Define the 3 append-only audit tables that capture all data changes,
+   authentication events, and export events for compliance and investigation.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 audit_data_events - DATA CHANGE LOG
+
+   CREATE TABLE audit_data_events (
+     id             BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     actor_user_id  BIGINT UNSIGNED  NOT NULL,
+     table_name     VARCHAR(100)     NOT NULL,
+     record_id      BIGINT UNSIGNED  NOT NULL,
+     operation      ENUM('INSERT','UPDATE','DELETE') NOT NULL,
+     before_value   JSON             DEFAULT NULL,
+     after_value    JSON             DEFAULT NULL,
+     event_time     DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     ip_address     VARCHAR(45)      DEFAULT NULL,  -- IPv4/IPv6
+     request_id     VARCHAR(100)     DEFAULT NULL,  -- trace ID
+     PRIMARY KEY (id),
+     INDEX idx_ade_table_record (table_name, record_id, event_time),
+     INDEX idx_ade_actor (actor_user_id, event_time),
+     INDEX idx_ade_time (event_time)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   RULE: INSERT only. DB user has no UPDATE or DELETE grant on this table.
+
+   3.2 audit_auth_events - AUTHENTICATION LOG
+
+   CREATE TABLE audit_auth_events (
+     id             BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     user_id        BIGINT UNSIGNED  DEFAULT NULL,  -- NULL if user not found
+     username       VARCHAR(255)     DEFAULT NULL,
+     event_type     ENUM('LOGIN_SUCCESS','LOGIN_FAILURE','LOGOUT',
+                         'MFA_FAILURE','ACCOUNT_LOCKED',
+                         'PASSWORD_CHANGED','TOKEN_REFRESH') NOT NULL,
+     event_time     DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     ip_address     VARCHAR(45)      DEFAULT NULL,
+     user_agent     VARCHAR(500)     DEFAULT NULL,
+     failure_reason VARCHAR(255)     DEFAULT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_aae_user (user_id, event_time),
+     INDEX idx_aae_type (event_type, event_time),
+     INDEX idx_aae_ip (ip_address, event_time)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.3 audit_export_events - DATA EXPORT LOG
+
+   CREATE TABLE audit_export_events (
+     id              BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     actor_user_id   BIGINT UNSIGNED  NOT NULL,
+     export_type     VARCHAR(100)     NOT NULL,
+     filters_json    JSON             DEFAULT NULL,
+     record_count    INT UNSIGNED     DEFAULT NULL,
+     file_format     ENUM('PDF','CSV') NOT NULL,
+     event_time      DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     ip_address      VARCHAR(45)      DEFAULT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_aee_actor (actor_user_id, event_time),
+     INDEX idx_aee_time (event_time)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.4 DB PERMISSIONS MODEL
+
+   -- Application DB user (trm_app):
+   GRANT SELECT, INSERT, UPDATE, DELETE ON trm_db.* TO 'trm_app'@'%';
+   REVOKE UPDATE, DELETE ON trm_db.audit_data_events FROM 'trm_app'@'%';
+   REVOKE UPDATE, DELETE ON trm_db.audit_auth_events FROM 'trm_app'@'%';
+   REVOKE UPDATE, DELETE ON trm_db.audit_export_events FROM 'trm_app'@'%';
+   REVOKE UPDATE, DELETE ON trm_db.document_access_log FROM 'trm_app'@'%';
+
+   -- Audit read-only user (trm_audit):
+   GRANT SELECT ON trm_db.audit_data_events TO 'trm_audit'@'%';
+   GRANT SELECT ON trm_db.audit_auth_events TO 'trm_audit'@'%';
+   GRANT SELECT ON trm_db.audit_export_events TO 'trm_audit'@'%';
+
+   3.5 KEY INVESTIGATION QUERIES
+
+   -- Who changed a temple profile record and when?
+   SELECT actor_user_id, operation, before_value, after_value, event_time
+   FROM audit_data_events
+   WHERE table_name = 'temple_profile_staging'
+   AND record_id = :staging_id
+   ORDER BY event_time;
+
+   -- Failed login attempts in last 30 minutes for suspicious IP:
+   SELECT username, COUNT(*) AS attempts, MIN(event_time) AS first_attempt
+   FROM audit_auth_events
+   WHERE event_type = 'LOGIN_FAILURE'
+   AND ip_address = :ip
+   AND event_time >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+   GROUP BY username;
+
+   -- All exports by a DC in a date range:
+   SELECT e.actor_user_id, u.username, e.export_type,
+          e.record_count, e.file_format, e.event_time
+   FROM audit_export_events e
+   JOIN users u ON u.id = e.actor_user_id
+   WHERE e.event_time BETWEEN :start AND :end
+   AND u.role = 'DISTRICT_COLLECTOR'
+   ORDER BY e.event_time DESC;
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+   - All 3 audit tables: INSERT only at DB permission level
+   - before_value and after_value stored as JSON (flexible schema)
+   - IP address stored as VARCHAR(45) to support both IPv4 and IPv6
+   - Retention: 7 years minimum for all audit tables
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+   - Should audit data be replicated to a separate read-only Aurora replica
+     to prevent audit queries from impacting application performance?
+   - What is the acceptable archival strategy after 7 years?
+     (Compress and move to S3 Glacier, or keep in RDS?)
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+   - audit_data_events.before_value will be NULL for INSERT operations.
+     Queries must handle NULL gracefully (IS NULL check).
+   - High-frequency tables (documents, notifications) will generate large
+     audit event volume. Implement async audit logging via a queue to
+     decouple from the main write path.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+   - Spring AOP aspect or JPA @EntityListeners handles audit event generation
+   - Async audit queue uses an in-memory queue (Spring @Async) for v1;
+     upgrade to SQS for v2 if volume requires
+   - 7-year retention is the minimum; keep longer if storage cost permits

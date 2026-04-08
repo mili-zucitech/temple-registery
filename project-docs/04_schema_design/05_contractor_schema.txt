@@ -1,0 +1,117 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 05_contractor_schema.txt
+TITLE: Contractor Schema (detail) - Temple Registry & Management Portal
+
+SOURCE: Derived from contractor module design (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+   Contractor records are defined in 04_employee_schema.txt (contractors table).
+   This file documents the contractor_documents junction table, query patterns,
+   and provides clarification on the 3 additional fields added to contractors:
+     contract_reference_number, work_order_date, payment_status.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 contractor_documents (junction table)
+
+   CREATE TABLE contractor_documents (
+     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     contractor_id   BIGINT UNSIGNED NOT NULL,
+     document_id     BIGINT UNSIGNED NOT NULL,
+     document_type   VARCHAR(100)    NOT NULL,
+     created_at      DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at      DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                 ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by      BIGINT UNSIGNED NOT NULL,
+     updated_by      BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_contractor_doc (contractor_id, document_id),
+     CONSTRAINT fk_cd_contractor FOREIGN KEY (contractor_id)
+       REFERENCES contractors(id),
+     CONSTRAINT fk_cd_document FOREIGN KEY (document_id)
+       REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   Document types accepted for contractors:
+     CONTRACT          - Original signed contract PDF
+     WORK_ORDER        - Work order issued to contractor
+     COMPLETION_CERT   - Work completion certificate
+     INVOICE           - Tax invoice from contractor
+     OTHER             - Miscellaneous supporting documents
+
+   3.2 QUERY: Active contractors for a temple with their documents
+
+   SELECT c.id, c.contractor_name, c.contract_type,
+          c.contract_reference_number, c.work_order_date,
+          c.contract_start_date, c.contract_end_date,
+          c.contract_value, c.payment_status,
+          d.id AS doc_id, d.original_filename, cd.document_type
+   FROM   contractors c
+   LEFT JOIN contractor_documents cd ON cd.contractor_id = c.id
+   LEFT JOIN documents d ON d.id = cd.document_id
+   WHERE  c.temple_id = :temple_id
+   AND    c.deleted_at IS NULL
+   ORDER  BY c.contract_start_date DESC;
+
+   3.3 QUERY: Contractors with outstanding payments (DC view for financial compliance)
+
+   SELECT c.id, c.contractor_name, c.contract_type, c.contract_value,
+          c.payment_status, c.contract_end_date
+   FROM   contractors c
+   JOIN   temples t ON t.id = c.temple_id
+   JOIN   geo_hoblis h ON h.id = t.hobli_id
+   JOIN   geo_taluks ta ON ta.id = h.taluk_id
+   JOIN   geo_districts d ON d.id = ta.district_id
+   WHERE  d.id = :dc_district_id        -- jurisdiction scoping: MANDATORY for DC
+   AND    c.payment_status IN ('PENDING','DISPUTED')
+   AND    c.deleted_at IS NULL
+   ORDER  BY c.contract_end_date ASC;
+
+   3.4 SOFT DELETE PROPAGATION
+
+   When a contractor is soft-deleted (deleted_at set):
+   - contractor_documents rows are NOT deleted (retain for audit)
+   - documents records are NOT deleted (retain S3 key for compliance)
+   - Only the contractor itself has deleted_at set
+
+   To retrieve documents for a soft-deleted contractor (audit scenario):
+   SELECT * FROM contractors c
+   JOIN contractor_documents cd ON cd.contractor_id = c.id
+   JOIN documents d ON d.id = cd.document_id
+   WHERE c.id = :contractor_id;  -- No deleted_at filter here (intentional)
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+   - contractor_documents is a pure junction table; no soft delete on it
+   - When a contractor is soft-deleted, document metadata is retained
+   - document_type is a VARCHAR (not ENUM) to allow extension without migration
+   - contract_type is ENUM: CIVIL_WORKS, ELECTRICAL, SECURITY, CATERING, EVENTS, MAINTENANCE, OTHER
+   - payment_status ENUM values: PENDING (default), PARTIAL, COMPLETED, DISPUTED
+   - contract_reference_number and work_order_date are MANDATORY at API layer (jakarta.validation @NotBlank / @NotNull)
+   - payment_status = DISPUTED requires DC to be notified; add trigger in notification_events on update
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+   - Is there a maximum number of contractors per temple per financial year?
+   - Should contract_value > threshold trigger mandatory DC notification?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+   - A contractor may have the same GST number as a contractor at another temple.
+     gst_number is not globally unique by design (valid scenario).
+   - Contract end date NULL = open-ended contract. Add a scheduled job alert
+     for contracts with no end date older than 2 years.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+   - A temple can have multiple active contractors simultaneously (no limit)
+   - Contractor documents are submitted by TEMPLE_AUTHORITY only
+   - No DC approval workflow for contractor records in v1
