@@ -1,0 +1,259 @@
+Temple Registry & Management Portal Requirements Document v1.0
+==============================================================
+
+Temple Registry & Management Portal
+Detailed Requirements Specification
+
+
+1. Introduction & Purpose
+-------------------------
+
+The Temple Registry & Management Portal is a government digital solution designed to give District Collectors (DCs) and temple authorities across Karnataka a unified, secure, and structured platform to manage temple-related data. This document provides a comprehensive requirements specification covering all functional, technical, and operational aspects of the system.
+
+
+1.1 Background
+--------------
+
+Karnataka is home to over 30,000 registered temples spanning Grade A (major endowments), Grade B (medium endowments), and Grade C (smaller temples). These temples are governed under the Hindu Religious & Charitable Endowments Act, and the District Collector plays a central oversight role. Currently, temple information is maintained in fragmented paper records and siloed departmental systems, making it practically impossible for DCs to quickly access reliable data on temple assets, staff, trusts, and geo-location.
+
+
+1.2 Purpose of the System
+------------------------
+
+This system serves two primary user groups:
+
+- District Collector (DC): To search, locate, and inspect all temple data within their jurisdiction — across geographic hierarchies and temple grade classifications.
+- Temple Authority: To log in to the portal and proactively share, update, and manage their temple's profile, assets, trust details, and staff records.
+
+
+1.3 Scope
+---------
+
+- Geo-hierarchical temple search: City → District → Taluk → Hobli
+- Temple classification by Grade A, B, C
+- Temple profile management: address, deity, history
+- Trust and board member details
+- Employee and contractor records
+- Asset declarations submitted to DC
+- Secure, role-based web portal for both DC and temple authority users
+- Document upload and management capabilities
+- Audit trails and reporting
+
+
+2. Stakeholders & User Roles
+---------------------------
+
+2.1 Primary Stakeholders
+
+Stakeholder                         | Role                          | Responsibilities
+-----------------------------------|-------------------------------|-----------------------------------------------
+District Collector (DC)             | Primary Viewer / Administrator| Searches and reviews all temple data in jurisdiction; receives asset declarations
+DC Office Staff                     | Support Role                  | Assists DC in data review, exports, and correspondence with temples
+Temple Authority / Trustee          | Data Provider                 | Submits and updates temple profile, assets, trust, and staff data via the portal
+HR & Charitable Endowments Dept.    | Super Admin                   | Manages system-wide configurations, temple registrations, and grade classifications
+State Government / Audit Bodies     | Viewer                        | Reviews reports and asset disclosures for compliance and audits
+
+
+2.2 User Role Permissions Matrix
+
+Feature / Action                    | DC        | DC Staff  | Temple Auth. | Super Admin
+-----------------------------------|-----------|-----------|--------------|-------------
+Search Temples (Geo + Grade)        | Full      | Full      | Own Temple   | Full
+View Temple Profile                 | Full      | Full      | Own Temple   | Full
+View Trust Details                  | Full      | Read Only | Own Temple   | Full
+View Asset Declarations             | Full      | Read Only | Own Temple   | Full
+View Staff & Contractors            | Full      | Read Only | Own Temple   | Full
+Submit / Update Data                | No        | No        | Yes          | Yes
+Approve Submissions                 | Yes       | No        | No           | Yes
+Export Reports                      | Yes       | Yes       | Limited      | Full
+Manage Users                        | No        | No        | No           | Yes
+System Configuration                | No        | No        | No           | Yes
+
+
+2.3 Glossary
+
+Term            Definition
+--------------- -------------------------------------------------------------------------
+DC              District Collector — the senior IAS officer responsible for district-level administration in Karnataka
+Grade A Temple  Major temples with large endowments, significant pilgrim footfall, and high annual income as classified by HR&CE
+Grade B Temple  Medium-scale temples with moderate income and community importance
+Grade C Temple  Smaller temples with limited resources, often managed by local communities
+Hobli           The smallest administrative unit in Karnataka, below Taluk level
+Taluk           Administrative division below District level, comprising multiple Hoblis
+HR&CE           Hindu Religious & Charitable Endowments — the Karnataka government department overseeing temple administration
+Trust           The registered legal entity responsible for managing temple affairs and finances
+Archaka         The hereditary priest who performs daily worship rituals at a temple
+RBAC            Role-Based Access Control — a security model restricting system access based on a user's role
+MFA             Multi-Factor Authentication — requiring two or more verification methods to log in
+UAT             User Acceptance Testing — final testing conducted by end users before system go-live
+
+
+3. Functional Requirements
+--------------------------
+
+3.1 Temple Search Module (DC Portal)
+
+3.1.1 Geo-Hierarchy Search
+
+The DC portal shall provide a cascading dropdown search that follows the administrative hierarchy of Karnataka:
+
+1. State (pre-selected: Karnataka)
+2. City / Town
+3. District
+4. Taluk
+5. Hobli
+
+Requirements:
+- Each dropdown shall cascade based on the selection made in the parent dropdown.
+- Partial selections shall be allowed — e.g., a DC can search at District level without selecting Taluk.
+- All dropdowns shall be populated from a master geo-data table maintained by the Super Admin.
+- Search results shall update dynamically without requiring a full page reload.
+- Result count shall be displayed prominently before the DC views the list.
+
+
+3.1.2 Grade-Based Filter
+
+- The system shall allow filtering temples by Grade: Type A, Type B, Type C, or All Grades.
+- Grade definitions shall be maintained per the Karnataka HR&CE Act classifications.
+- Each search result card shall display the temple grade prominently as a visual badge.
+
+
+3.1.3 Additional Search Filters
+
+Filter                     | Type          | Description
+---------------------------|---------------|-----------------------------------------
+Temple Name                | Text Search   | Partial name match / full-text search
+Deity Name                 | Dropdown/Text | Primary deity worshipped
+Grade                      | Multi-select  | A, B, or C
+Trust Registration Status  | Toggle        | Registered / Unregistered
+Asset Declaration Status   | Dropdown      | Declared / Pending / Overdue
+Year of Establishment      | Range Picker  | From year — To year
+
+
+3.2 Temple Profile View
+
+3.2.1 Temple Master Information
+
+- Temple Name (primary and alias names)
+- Registration Number and Grade (A / B / C)
+- Primary Deity and Religious Tradition (Shaivite, Vaishnavite, Shakta, etc.)
+- Year of Establishment / Historical Period
+- Official Address: Door No., Street, Village/Town, Hobli, Taluk, District, PIN Code
+- GPS Coordinates (Latitude, Longitude) with embedded map view
+- Contact Person Name, Designation, Mobile, Email
+- Temple Photograph (uploaded by temple authority)
+- Language(s) of Worship
+- Linked Mutts or Sub-Temples (if any)
+
+
+3.3 Trust & Board Details Module
+
+3.3.1 Trust Information
+
+Data Field                  | Format                   | Mandatory
+---------------------------|--------------------------|----------
+Trust Name                 | Text                     | Yes
+Trust Registration Number  | Alphanumeric             | Yes
+Date of Registration       | DD/MM/YYYY               | Yes
+Registering Authority      | Text                     | Yes
+Trust Type                 | Dropdown (Public/Private)| Yes
+Trust PAN Number           | Alphanumeric (10 chars)  | Yes
+Bank Account Number        | Numeric                  | Yes
+Bank Name & Branch         | Text                     | Yes
+Annual Income (approx.)    | Currency (INR)           | No
+
+
+3.3.2 Board Members
+
+- Capture details of all trustees and board members
+- Full Name, Aadhaar Number (masked), Designation, Appointment Date, Tenure End Date, Contact Number, Address
+- Display current vs. past board members separately
+- Meeting minutes upload supported (PDF, max 10 MB)
+
+
+3.4 Employee & Contractor Module
+
+3.4.1 Temple Staff / Employees
+
+Employee Type: Priest (Archaka), Administrative Staff, Maintenance, Security  
+Employee Name: Full legal name  
+Employee ID: Internal HR identifier  
+Date of Joining: DD/MM/YYYY  
+Designation: Role title  
+Salary Grade: Pay grade classification  
+Contact Details: Mobile, Address  
+Status: Active / On Leave / Retired
+
+
+3.4.2 Contractors & Service Providers
+
+- Contractor Name (Individual or Company)
+- GST Registration Number
+- Type of Service
+- Contract Reference Number and Work Order Date
+- Contract Period
+- Contract Value (INR)
+- Payment Status
+- Uploaded contract document (PDF)
+
+
+3.5 Asset Declaration Module
+----------------------------
+
+3.5.1 Immovable Assets
+- Agricultural Land
+- Temple Complex / Buildings
+- Leased Properties
+- Other Land Holdings
+
+
+3.5.2 Movable Assets
+- Gold and Silver Items
+- Idols and Sacred Artifacts
+- Vehicles
+- Electronic & Office Equipment
+- Financial Assets
+
+
+3.5.3 Declaration Workflow
+- Temple authority submits asset declaration
+- DC office reviews and accepts / queries / flags for physical verification
+- Digital acknowledgement issued
+- Overdue declarations flagged
+- Full audit history maintained
+
+
+4. Temple Authority Login Portal
+-------------------------------
+
+4.1 Registration & Authentication
+- Aadhaar-based verification
+- MFA enforced
+- Password and lockout policies
+- Session timeout
+
+
+4.2 Data Submission Capabilities
+- Temple Profile
+- Trust Details
+- Staff Records
+- Contractor Records
+- Asset Declaration
+- Document Upload
+- Queries & Notices
+
+
+4.3 Submission & Approval Workflow
+- Submit
+- Validate
+- Review
+- Approve / Reject
+- Notify
+
+
+4.4 Dashboard
+- Status tracking
+- Deadlines
+- Notifications
+- Downloads
+- Submission history
