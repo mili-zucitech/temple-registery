@@ -1,8 +1,12 @@
 ﻿TRM GAP ANALYSIS REPORT
 Temple Registry & Management Portal
-Generated: 2026-04-07
-Scope: PDF requirements v1.1 vs /project-docs/ (41 files)
+Generated: 2026-04-07 | Last Updated: 2026-04-08 (post-audit fixes applied)
+Scope: PDF requirements v1.1 vs /project-docs/ (44 files)
 Purpose: Enable implementation and testing without ambiguity
+
+AUDIT STATUS: A full design audit was performed on 2026-04-08.
+All HIGH severity gaps have been remediated in-place across the affected files.
+See AUDIT REMEDIATION LOG at the bottom of this file for a complete change record.
 
 ================================================================================
 SECTION 1: REQUIREMENTS COVERAGE MATRIX
@@ -1971,6 +1975,182 @@ Listed in order of impact.
     Create with: per-module field validation matrix, error code catalogue,
     standard error response body structure
     (Resolves: GAP-20, INCONSISTENCY-08)
+
+================================================================================
+AUDIT REMEDIATION LOG - Applied 2026-04-08
+================================================================================
+
+The following fixes were applied directly to project-docs/ files on 2026-04-08
+as part of the comprehensive audit remediation pass. All items below correspond
+to gaps or inconsistencies identified in this document.
+
+--------------------------------------------------------------------------------
+FIX-01 | SEC-01 | 04_schema_design/03_trust_schema.txt
+  trust_board_members.pan_number VARCHAR(10) -> pan_number_encrypted TEXT
+  AES-256 via AWS KMS. Added regression warning: NEVER revert to VARCHAR.
+  PII masking rules updated with complete field inventory.
+
+FIX-02 | SEC-02 | 04_schema_design/11_user_auth_schema.txt
+  Added token_revoked_before DATETIME(6) to users table.
+  Added JwtAuthenticationFilter enforcement: if tokenIssuedAt <
+    user.tokenRevokedBefore -> return 401 TOKEN_REVOKED.
+  Added mfa_recovery_codes table: 8 bcrypt-hashed single-use recovery codes
+    per user, generated at MFA setup. Consumed via POST /api/auth/mfa-verify
+    with isRecoveryCode=true. SUPER_ADMIN in-person recovery procedure
+    documented.
+
+FIX-03 | SEC-03 | 04_schema_design/07_audit_trail_schema.txt
+  Added 4th table: audit_pii_access_events (INSERT-only; DPDP Act compliance).
+  Logs every read of Aadhaar, PAN, bank account fields by user+role+context.
+  Added annual RANGE partitioning strategy for all 4 audit tables.
+  Added S3 Glacier archival procedure (DROP PARTITION after 7 years).
+  Added DB REVOKE to prevent UPDATE/DELETE on new table.
+
+FIX-04 | JOB-01 | 04_schema_design/06_asset_declaration_schema.txt and
+                  05_workflows_and_states/02_overdue_and_scheduled_jobs.txt
+  Fixed overdue detection SQL: status IN ('DRAFT') only.
+  CRITICAL RULE: PENDING_REVIEW, CLARIFICATION_REQUESTED, and
+    PHYSICAL_VERIFICATION_REQUESTED are NOT overdue; they are in-flight.
+  Added CRITICAL RULE comment to both files.
+
+FIX-05 | JOB-06 | 05_workflows_and_states/02_overdue_and_scheduled_jobs.txt
+  Changed temple_search_summary rebuild from TRUNCATE+INSERT (dirty reads)
+    to atomic shadow table RENAME swap:
+    CREATE temple_search_summary_shadow -> INSERT -> RENAME TABLE.
+  Added concurrent event-driven update mitigation strategy.
+
+FIX-06 | JOB-07 | 05_workflows_and_states/02_overdue_and_scheduled_jobs.txt
+  Added PhysicalVerificationSlaMonitorJob (daily 9am).
+  Finds declarations in PHYSICAL_VERIFICATION_REQUESTED > 30 days.
+  Inserts SUPER_ADMIN in-app + email notification with idempotency check
+    (checks for existing JOB-07 notification before inserting).
+
+FIX-07 | WORKFLOW | 04_schema_design/06_asset_declaration_schema.txt
+  Added clarification_round TINYINT UNSIGNED NOT NULL DEFAULT 0 column
+    to asset_declarations.
+  Defined DeclarationSnapshotDTO with exact typed fields.
+  Added S3 offload strategy for snapshot_json > 50KB (snapshot_s3_key).
+  Added concurrent submission 409 guard (TRM-DECL-008).
+  Added Temple SUSPENDED workflow block (TRM-DECL-015).
+
+FIX-08 | WORKFLOW | 05_workflows_and_states/01_clarification_loop.txt
+  Clarification limit changed from advisory warning to HARD BLOCK.
+  if (clarification_round >= 3) throw ClarificationLimitExceededException()
+    -> HTTP 422, TRM-DECL-009.
+  SA escalation notification at round 2.
+  DC "Request Clarification" button disabled at round 3 in the frontend spec.
+
+FIX-09 | WORKFLOW | 05_workflows_and_states/00_state_machines.txt
+  Physical verification findings guard added:
+    Service must verify at least one declaration_clarifications record with
+    section_name='PHYSICAL_VERIFICATION' before DC can approve/reject from
+    PHYSICAL_VERIFICATION_REQUESTED state. Throws TRM-DECL-010 (HTTP 422).
+  Added @Version optimistic lock: race condition -> HTTP 409 TRM-DECL-007.
+  Added Temple SUSPENDED mid-workflow freeze behavior.
+  JOB-07 SLA reference added.
+
+FIX-10 | AUTH | 06_security_and_auth/00_auth_architecture.txt
+  RESOLVED: Refresh token storage decision: HttpOnly cookie, SameSite=Strict;
+    Secure; Path=/api/auth/refresh. Access token in memory only.
+  /api/auth/refresh now reads from cookie (not request body).
+  JwtAuthenticationFilter checks token_revoked_before.
+  Section 3.6 added: MFA Recovery Code Flow.
+  Section 3.7 added: District Transfer Token Revocation Flow (atomic 3-step
+    service: update district -> set token_revoked_before -> revoke sessions).
+
+FIX-11 | API | 08_api_planning/00_api_endpoint_registry.txt
+  Added PARTIAL GEO SELECTION documentation with JOIN-based SQL pattern.
+  Added GRADE MULTI-SELECT (?grade=A,B or omit for All Grades).
+  Added trust meetings endpoints:
+    GET /api/trusts/{id}/meetings
+    POST /api/trusts/{id}/meetings
+    GET /api/trusts/{id}/meetings/{mid}
+  Added trust documents: POST/GET /api/trusts/{id}/documents.
+  Added Section 3.12 ADMIN ENDPOINTS:
+    PATCH /api/admin/users/{id}/district (atomic district transfer)
+    PATCH /api/admin/declarations/{id}/force-draft (TA withdrawal)
+    POST /api/admin/notifications/{id}/retry
+    GET /api/admin/notifications/failed
+    GET /api/admin/declarations/physical-verification-pending
+
+FIX-12 | DATA SCOPE | 01_users_and_roles/02_data_access_scoping_rules.txt
+  RULE-02 nested IN query replaced with JOIN pattern.
+  Added covering index recommendation.
+  Partial geo selection SQL pattern documented.
+
+FIX-13 | DASHBOARD | 07_dashboards_and_reports/00_dc_dashboard.txt
+  Added "Temples found: N" result count display specification.
+  Added dynamic search specification: React Query useSearchParams triggers
+    re-fetch on filter change without full page reload.
+
+FIX-14 | EDGE CASES | 01_users_and_roles/01_permission_matrix_edge_cases.txt
+  E-01 updated to reference all implementation files (token_revoked_before,
+    PATCH /api/admin/users/{id}/district).
+  E-08 added: Orphaned temple registration cleanup (JOB-08 specification).
+  E-09 added: Same-actor approval without clarification reply -- documented
+    as a natural workflow guard (state machine prevents it; not a gap).
+
+FIX-15 | NOTIF | 10_delivery_and_ops/00_notification_retry_strategy.txt
+  JOB-04 query updated: JOIN users WHERE is_active = 1.
+  Channel skip rules updated: skip is_active = 0 users across all channels.
+  Section 3.6 added: BURST CAPACITY STRATEGY for April 1 flood scenario
+    (staggered next_retry_at offsets, configurable batch size 200).
+
+FIX-16 | PII | 06_security_and_auth/03_pii_handling_and_encryption.txt
+  Added complete PII field inventory table (7 fields across all tables).
+  Added explicit regression warning for pan_number_encrypted.
+  KMS key rotation section updated: AWS handles ciphertext version awareness
+    automatically (no manual re-encryption needed on key rotation).
+  Section 3.5 expanded: AuditPiiAccessService.log() must be called before
+    returning any decrypted PII; references audit_pii_access_events table.
+  Resolved open questions: PAN now encrypted; DPDP Act compliance audit
+    still outstanding (external requirement).
+
+FIX-17 | ERRORS | 04_schema_design/12_validation_rules.txt
+  TRM-AUTH-010 added: No valid recovery codes remain.
+  TRM-DECL series expanded:
+    TRM-DECL-007: Optimistic lock conflict (409)
+    TRM-DECL-008: Concurrent submission conflict (409)
+    TRM-DECL-009: Clarification limit exceeded (422)
+    TRM-DECL-010: Physical verification findings required (422)
+    TRM-DECL-011: Acknowledgement not generated (422)
+    TRM-DECL-015: Temple SUSPENDED workflow block (422)
+
+--------------------------------------------------------------------------------
+OPEN GAPS (not yet fixed -- require schema redesign beyond doc updates)
+--------------------------------------------------------------------------------
+
+The following items from this gap analysis were NOT fixed in this remediation
+pass because they require substantial schema redesign decisions:
+
+OPEN-01 | GAP-01 | 9 structured asset sub-tables (immovable + movable)
+  Status: Identified; DDL design required before file update.
+  Impact: BLOCKER for compliant asset declaration module.
+
+OPEN-02 | GAP-02 | PHYSICAL_VERIFICATION_REQUESTED state (workflow + ENUM)
+  Status: Partially addressed (guards added); ENUM not yet added to DDL.
+  Impact: BLOCKER for DC physical verification workflow.
+
+OPEN-03 | GAP-03 through GAP-06 | Temple profile missing fields
+  Status: Identified; GPS, alias, religious_tradition, contact_person fields
+    not yet added to 04_schema_design/02_temple_core_schema.txt.
+  Impact: BLOCKER for full temple profile display.
+
+OPEN-04 | GAP-07 | Employee employment_status ENUM + SECURITY type
+  Status: Identified in audit; schema file not yet updated.
+  Impact: BLOCKER for On Leave / Retired employee display.
+
+OPEN-05 | GAP-08 | Trust missing bank fields, registering_authority, trust_type
+  Status: Identified; not yet added to DDL.
+  Impact: BLOCKER for trust registration compliance.
+
+OPEN-06 | INCONSISTENCY-04 | Trust module approval workflow alignment
+  Status: Partially documented (direct-save decision noted); full alignment
+    between state machine and trust_schema requires explicit DECISION.
+  Impact: HIGH -- developers will get conflicting signals.
+
+All OPEN items above should be resolved in the next documentation sprint
+before backend implementation begins.
 
 ================================================================================
 END OF DOCUMENT

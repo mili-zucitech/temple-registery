@@ -62,9 +62,31 @@ SOURCE:
 
    3.5 NOTIFICATION CHANNEL SKIPPED RULES
 
-   Skip EMAIL if: users.email IS NULL
-   Skip SMS if:   users.mfa_phone IS NULL
-   Skip IN_APP if: (never skipped - always attempted)
+   Skip EMAIL if: users.email IS NULL OR users.is_active = 0
+   Skip SMS if:   users.mfa_phone IS NULL OR users.is_active = 0
+   Skip IN_APP if: users.is_active = 0  (suppressed for deactivated accounts)
+
+   NOTE: JOB-04 query MUST include a JOIN on users.is_active = 1 to prevent
+   sending emails/SMS to deactivated accounts. Deactivated user notification
+   events are NOT retried; they are marked SKIPPED on the channel level.
+
+   3.6 BURST CAPACITY STRATEGY (APRIL 1 OVERDUE NOTIFICATION FLOOD)
+
+   On April 1, JOB-01 can insert 5,000–30,000 notification_events simultaneously
+   (one per non-compliant temple). JOB-04 processes 50 per 30-second cycle =
+   ~6,000/hour. At peak 10,000 overdue events, drain time = 1.6 hours.
+
+   MITIGATION:
+   - AWS SES default send rate: 14 emails/second = ~50,400/hour.
+     The bottleneck is JOB-04 throughput, not SES capacity.
+   - Increase JOB-04 batch size to 200 on April 1 only (configurable via
+     application.properties: notification.processor.batchSize=200 with
+     @ConditionalOnProperty or environment-aware config).
+   - Alternative: JOB-01 inserts events with staggered next_retry_at values
+     (spacing inserts over 2 hours using a row_number() offset in the INSERT):
+       next_retry_at = DATE_ADD(NOW(), INTERVAL (ROW_NUMBER() / 200) * 30 SECOND)
+   - SUPER_ADMIN is alerted via a special JOB-01 completion event:
+     "Overdue scan complete: {count} temples flagged. Notifications queued."
 
 --------------------------------------------------------------------------------
 
@@ -73,6 +95,10 @@ SOURCE:
    - 3-attempt maximum; no infinite retry
    - After 3 failures: SUPER_ADMIN alert via in_app_notifications
    - Manual retry available to SUPER_ADMIN only (not to DC or Temple Authority)
+   - JOB-04 MUST filter out deactivated users (is_active = 0) to prevent
+     notifications to accounts that no longer exist in production
+   - April 1 burst: configurable batch size; staggered next_retry_at is the
+     preferred approach to avoid thundering herd on SES/SNS
 
 --------------------------------------------------------------------------------
 
