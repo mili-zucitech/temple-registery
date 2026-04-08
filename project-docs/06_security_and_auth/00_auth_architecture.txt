@@ -102,6 +102,91 @@ SOURCE:
      - Store aadhaar_encrypted (AES-256) in users table
      - Complete registration
 
+   3.5 TEMP TOKEN LIFECYCLE (between login and MFA verify)
+
+   When a user submits valid username/password via POST /api/auth/login but MFA is
+   required, the server does NOT issue a full access token. Instead it issues a
+   short-lived TEMP TOKEN.
+
+   Format: Short-lived RS256 JWT (same signing key as access tokens)
+   Claims: {
+     "purpose": "MFA_CHALLENGE",
+     "sub":     "123" (user ID as string),
+     "iat":     epoch,
+     "exp":     iat + 300  (5-minute TTL)
+   }
+   Return channel: Response body JSON field "tempToken" (NOT a cookie)
+   Frontend storage: In-memory variable ONLY (same as access token). Never
+     persisted to localStorage, sessionStorage, or cookie.
+   Usage: Sent as Authorization: Bearer <tempToken> on POST /api/auth/mfa-verify
+   On expiry: server returns HTTP 401 TRM-AUTH-001; user must restart login flow.
+
+   JwtAuthenticationFilter MUST reject temp tokens on all endpoints EXCEPT
+   /api/auth/mfa-verify and /api/auth/mfa-setup/confirm. A request bearing a
+   temp token to any other endpoint returns 401 Forbidden.
+
+   Guard in MfaVerificationService:
+     1. Parse JWT; assert claims.purpose == "MFA_CHALLENGE"
+     2. Assert token not expired (exp > NOW)
+     3. Assert no matching row in token_revoked_before (user not transferred mid-session)
+     4. Proceed to TOTP/recovery-code verification
+
+   3.5a MFA SETUP FLOW (new users + re-enrollment)
+
+   Triggered when: (a) user.mfa_type IS NULL (never configured MFA), or
+                   (b) user.mfa_reenrollment_required = 1 (recovery code used).
+
+   RE-ENROLLMENT ENFORCEMENT:
+   After successful login (access token issued), JwtAuthenticationFilter checks
+   the users.mfa_reenrollment_required flag. If true:
+     - Allow all GET requests to proceed (read-only access preserved)
+     - Block all write methods (POST, PUT, PATCH, DELETE) except /api/auth/mfa-setup*
+     - Return HTTP 403 with body:
+       { "error": "MFA_REENROLLMENT_REQUIRED",
+         "message": "Please re-configure MFA before performing write operations.",
+         "setupUrl": "/api/auth/mfa-setup" }
+
+   MFA SETUP ENDPOINT FLOW:
+   POST /api/auth/mfa-setup  (Authenticated; requires valid access token)
+   Guard:  Reject if user.mfa_enabled = 1 AND user.mfa_reenrollment_required = 0
+           (prevents accidental reset of working MFA)
+   Service logic:
+     1. Generate 20-byte cryptographically random TOTP secret (SecureRandom)
+     2. Base32-encode the secret
+     3. Encrypt secret via AesEncryptionConverter; store in users.mfa_secret_encrypted
+        (at this point MFA is NOT yet activated — mfa_enabled stays unchanged)
+     4. Generate a setupToken: short-lived RS256 JWT (claims: purpose=MFA_SETUP,
+        userId, exp=NOW+600s)
+     5. Build QR code URI:
+        otpauth://totp/TRM:{username}?secret={base32secret}&issuer=TRM&algorithm=SHA1&digits=6&period=30
+     6. Return:
+        { "totpSecret": "{base32secret}",
+          "qrCodeUri":  "otpauth://totp/TRM:{username}?secret=...",
+          "setupToken": "{setupToken}" }
+   NOTE: The TOTP secret is shown ONCE here so the user can manually enter it if
+   QR scan fails. It is never returned again after the confirm step.
+
+   POST /api/auth/mfa-setup/confirm  (Authenticated)
+   Request: { "setupToken": "string", "mfaCode": "6-digit string" }
+   Guard:   Validate setupToken (purpose=MFA_SETUP, not expired, userId = caller)
+   Service logic:
+     1. Retrieve mfa_secret_encrypted from DB; decrypt to base32 secret
+     2. Validate mfaCode against current TOTP window (allow 1 step tolerance = ±30s)
+     3. On success:
+          UPDATE users SET mfa_enabled = 1, mfa_type = 'TOTP',
+                           mfa_reenrollment_required = 0  WHERE id = :userId
+          Mark all existing mfa_recovery_codes used_at = NOW() (invalidate old set)
+          INSERT 8 new rows into mfa_recovery_codes (bcrypt-hashed)
+          Invalidate setupToken (INSERT to block-list or short expiry is sufficient)
+     4. Return plaintext recovery codes ONCE:
+        { "recoveryCodes": ["aaaa-1111", "bbbb-2222", ...8 items],
+          "message": "MFA configured. Store these recovery codes safely.
+                      They will not be shown again." }
+   On incorrect TOTP code:
+     - Return HTTP 400 TRM-AUTH-006: "Invalid MFA code during setup"
+     - Increment failed_setup_attempts counter (max 5; lock setup after 5 failures)
+     - Do NOT activate MFA (users.mfa_enabled stays unchanged)
+
    3.6 MFA RECOVERY CODE FLOW
 
    Used when a user cannot access their primary MFA device (lost TOTP authenticator,
@@ -167,15 +252,16 @@ SOURCE:
    - RESOLVED: refreshToken stored in HttpOnly cookie (SameSite=Strict; Secure); access token in memory only
    - RESOLVED: token_revoked_before enforced in JwtAuthenticationFilter; DC district transfer invalidates tokens instantly
    - MFA recovery codes: 8 codes generated at setup; bcrypt-hashed; single-use; force re-enrollment after use
+   - RESOLVED: mfa_reenrollment_required = 1 blocks all write operations (except /api/auth/mfa-setup*) at filter layer. User is shown a banner on login that explains they must re-configure MFA. Reenrollment is done in the same session via the MFA setup flow (see Section 3.5a).
+   - RESOLVED: Temp token between login and mfa-verify is a 5-minute RS256 JWT with purpose=MFA_CHALLENGE claim. Frontend holds it in memory only (see Section 3.5).
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
 
    - RESOLVED: refreshToken is stored in HttpOnly cookie (see Decision above).
-   - OUTSTANDING: How is the UIDAI eKYC integration licensed? Government NeSL or commercial?
-   - OUTSTANDING: Should mfa_reenrollment_required flag trigger a forced re-enrollment
-     page on next login, or an email notification with a link?
+   - RESOLVED: UIDAI eKYC is used only at registration (not login). Sandbox/mock environment used for dev; production integration requires procurement from NeSL or UIDAI RES partner.
+   - RESOLVED: mfa_reenrollment_required triggers an enforced re-enrollment flow. Writes are blocked (HTTP 403) until MFA is re-configured via /api/auth/mfa-setup. See Section 3.5a.
 
 --------------------------------------------------------------------------------
 
