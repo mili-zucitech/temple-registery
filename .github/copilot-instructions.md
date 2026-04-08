@@ -12,7 +12,7 @@ Never invent alternate layers. Follow existing patterns in this codebase.
 ## Technology Stack
 
 **Backend:** Java 21 · Spring Boot 3.x · Spring Data JPA · Spring Security + JWT · MapStruct · Lombok (controlled) · MySQL · Flyway · Swagger/OpenAPI  
-**Frontend:** React 18 + TypeScript · Ant Design (antd) · Redux Toolkit · RTK Query · Zod · Axios (fallback only)
+**Frontend:** React 18 + TypeScript · Shadcn UI · Redux Toolkit · RTK Query · Zod · Axios (fallback only)
 
 ---
 
@@ -63,12 +63,12 @@ States: `DRAFT → SUBMITTED → APPROVED → REJECTED`
 
 - JWT stored in `httpOnly` cookie only. Never `localStorage`, `sessionStorage`, or Redux state.
 - RTK Query for all server state and API calls. Redux slices for UI-only state only.
-- Ant Design components exclusively. No MUI, Chakra, or other component libraries.
+- Shadcn UI components exclusively. No MUI, Chakra, or other component libraries.
 - No API calls inside components — all data fetching inside custom hooks.
 - Every data-displaying component must handle loading, empty, and error states.
 - Global RTK Query error-logger middleware handles API errors centrally.
 - `<ErrorBoundary>` required at the application root.
-- Zod for all form schema validation. Ant Design Form is primary. React Hook Form only for dynamic field arrays.
+- Zod for all form schema validation. Shadcn UI Form is primary. React Hook Form only for dynamic field arrays.
 
 ---
 
