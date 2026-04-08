@@ -68,7 +68,7 @@ States: `DRAFT → SUBMITTED → APPROVED → REJECTED`
 - Every data-displaying component must handle loading, empty, and error states.
 - Global RTK Query error-logger middleware handles API errors centrally.
 - `<ErrorBoundary>` required at the application root.
-- Zod for all form schema validation. Shadcn UI Form is primary. React Hook Form only for dynamic field arrays.
+- Zod for all form schema validation. Shadcn UI Form (built on React Hook Form + `zodResolver`) is the standard for all forms. Use `useFieldArray` from React Hook Form for dynamic field arrays.
 
 ---
 

@@ -1310,7 +1310,7 @@ Dark mode is defined via CSS custom properties in `.dark` class on the root elem
 - Animate everything — be selective
 - Use `!important` in CSS
 - Skip focus states on interactive elements
-- Use default Ant Design / shadcn styling without customization
+- Use default Shadcn UI component styling without customization
 - Create cluttered layouts — when in doubt, add whitespace
 - Use inline styles — always use Tailwind classes or CSS variables
 

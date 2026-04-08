@@ -133,10 +133,10 @@ Apply at minimum to: `/api/v1/auth/login`, `/api/v1/auth/register`, any OTP endp
 
 ---
 
-### G15 — "antd Insufficient" Criterion Undefined ✅
-**Gap:** React Hook Form was listed as "only when antd Form is insufficient" but the trigger condition was not defined.  
-**Risk:** React Hook Form used arbitrarily; Ant Design Form abandoned; two form libraries in the codebase.  
-**Resolution:** `frontend.instructions.md` defines the exact trigger: **React Hook Form is permitted only for dynamic field arrays (`useFieldArray`)**. All other forms use Ant Design Form.
+### G15 — Form Library Strategy Undefined ✅
+**Gap:** No clear rule on which form library to use and when.  
+**Risk:** Multiple form libraries used arbitrarily across the codebase.  
+**Resolution:** `frontend.instructions.md` mandates Shadcn UI Form (built on React Hook Form + `zodResolver`) for all forms. `useFieldArray` from React Hook Form is permitted only for dynamic field arrays.
 
 ---
 
@@ -152,7 +152,7 @@ Apply at minimum to: `/api/v1/auth/login`, `/api/v1/auth/register`, any OTP endp
 **Risk:** Unrestricted file types and sizes uploaded; MIME type spoofing not prevented; BLOBs stored in DB.  
 **Resolution:**
 - `backend.instructions.md`: max 5 MB, allowed types `image/jpeg / image/png / application/pdf`, store file path (not binary) in DB.
-- `frontend.instructions.md`: `antd Upload` + `beforeUpload` client-side validation with same constraints.
+- `frontend.instructions.md`: Shadcn `<Input type="file">` inside a `FormControl` with `onChange` client-side validation (type + size) before any network request.
 
 ---
 

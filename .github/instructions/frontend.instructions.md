@@ -80,13 +80,13 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 ---
 
-## Ant Design Rules
+## Shadcn UI Rules
 
-- Use Ant Design components exclusively. No MUI, Chakra UI, Tailwind UI components, or custom CSS component libraries.
-- **Tables:** must include `pagination`, `sortOrder`, and at minimum one filter column.
-- **Forms:** use `antd Form` with `Form.Item` + `name` bindings as the primary form solution. React Hook Form is permitted only for dynamic field arrays (`useFieldArray`).
-- **Modals/Drawers:** use for create/edit flows. Inline editing is acceptable for simple single-field updates.
-- **Feedback:** use `message.success` / `message.error` / `notification` for user feedback. Never use browser `alert`.
+- Use Shadcn UI components exclusively. No MUI, Chakra UI, Ant Design, or other component libraries.
+- **Tables:** Use Shadcn `<Table>` for simple display tables. For sortable, filterable, or paginated data tables use TanStack Table (`@tanstack/react-table`) with Shadcn primitives. Every data table must include pagination.
+- **Forms:** Use Shadcn `Form` with `FormField`, `FormItem`, `FormLabel`, `FormControl`, and `FormMessage`. All forms must be wired to `useForm` from `react-hook-form` via `zodResolver`. Use `useFieldArray` for dynamic field arrays.
+- **Modals/Drawers:** Use Shadcn `Dialog` for modal flows and `Sheet` for drawer/side-panel flows. Inline editing is acceptable for simple single-field updates.
+- **Feedback:** Use Shadcn `Sonner` toast (or `useToast` + `<Toaster>`) for all user feedback. Never use browser `alert`.
 
 ---
 
@@ -94,7 +94,7 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 - Every form schema defined with Zod in the feature's `*Types.ts` file.
 - Zod schemas are the single source of truth — `z.infer<typeof schema>` produces the TypeScript type. Never define a separate interface and validator for the same shape.
-- Connect Zod to Ant Design Form via a custom `validator` on `Form.Item` rules.
+- Connect Zod to Shadcn Form via `zodResolver` passed to `useForm`. This is the only supported pattern — never use manual `validate` callbacks.
 - `PaginatedResponse<T>` and all shared API response shapes must be defined as TypeScript types in `templeTypes.ts` (or a shared `commonTypes.ts`).
 
 ---
@@ -110,16 +110,16 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 ## File Uploads
 
-- Use `antd Upload` with `beforeUpload` for client-side validation before any network request.
-- Allowed types: `image/jpeg`, `image/png`, `application/pdf`. Maximum size: 5 MB. Reject and show `message.error` if either check fails.
+- Use a Shadcn `<Input type="file">` inside a `FormControl` with an `onChange` handler for client-side validation before any network request.
+- Allowed types: `image/jpeg`, `image/png`, `application/pdf`. Maximum size: 5 MB. Reject and display a `Sonner` toast error if either check fails.
 - Use RTK Query mutation to POST to the upload endpoint. Never use `XMLHttpRequest` directly.
 
 ---
 
 ## Accessibility
 
-- Every `Form.Item` must have a `label` prop.
-- Every interactive element (`Button`, `Input`, etc.) must be keyboard-navigable (antd handles this by default — do not override).
+- Every `FormItem` must use a `FormLabel` — Shadcn Form wires the label/input association automatically via `FormControl`.
+- Shadcn UI is built on Radix UI primitives, which are keyboard-navigable and screen-reader accessible by default. Do not disable or override Radix accessibility behavior.
 - Avoid disabling focus outlines (`outline: none` is prohibited).
 - Provide descriptive `aria-label` on icon-only buttons.
 
