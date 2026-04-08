@@ -38,11 +38,19 @@ SOURCE:
 
    Step 1 (DC Action): DC reviews PENDING_REVIEW declaration.
      - DC identifies specific fields needing correction
+     - SERVICE GUARD: Before allowing this transition, check:
+         if (declaration.clarification_round >= 3) {
+           throw new ClarificationLimitExceededException(
+             "Maximum clarification rounds reached. You must APPROVE or REJECT."
+           );  // HTTP 422, error code TRM-DECL-009
+         }
      - DC submits a ClarificationRequestDTO:
          { declarationId, sectionName, fieldNames: [...], commentText }
      - System action:
          a. INSERT into declaration_clarifications (direction=DC_TO_TEMPLE)
-         b. UPDATE asset_declarations SET status = 'CLARIFICATION_REQUESTED'
+         b. UPDATE asset_declarations SET
+              status = 'CLARIFICATION_REQUESTED',
+              clarification_round = clarification_round + 1  -- ATOMIC INCREMENT
          c. INSERT notification_events for TEMPLE_AUTHORITY
 
    Step 2 (Temple Action): Temple receives notification; opens declaration.
@@ -98,13 +106,27 @@ SOURCE:
    Response: { changedFields: [{field, oldValue, newValue}] }
    Computed in application layer by comparing JSON field values.
 
-   3.5 CLARIFICATION ROUND LIMIT
+   3.5 CLARIFICATION ROUND LIMIT (ENFORCED)
 
-   No hard limit in DB for v1. Application logic:
-   - Count clarification entries with direction=DC_TO_TEMPLE for declaration
-   - If count >= 3: add a warning banner in DC UI
-     "This declaration has had 3 clarification rounds. Consider rejecting."
-   - SUPER_ADMIN is notified if count >= 5 (notification_events insert)
+   Hard limit: 3 rounds. Enforced at service layer on the CLARIFICATION_REQUESTED transition.
+
+   Implementation in DeclarationService.requestClarification():
+     if (declaration.getClarificationRound() >= 3) {
+       throw new ClarificationLimitExceededException();  // TRM-DECL-009 / HTTP 422
+     }
+     // Proceed with clarification
+     declaration.setClarificationRound(declaration.getClarificationRound() + 1);
+
+   SUPER_ADMIN ESCALATION (automatic, not advisory):
+   After round 2 (clarification_round = 2), the DC UI shows a hard warning:
+   "Round 2 of 3. Next clarification request is the last; after that you must
+   APPROVE or REJECT."
+   After round 3 is exhausted, DC's "Request Clarification" button is DISABLED.
+
+   Additionally, when clarification_round reaches 2, insert a SUPER_ADMIN notification:
+     INSERT notification_events (template_key='CLARIFICATION_ESCALATION', priority=2)
+   This notifies SUPER_ADMIN that a declaration has had 2 clarification rounds
+   and may need administrative oversight.
 
 --------------------------------------------------------------------------------
 
@@ -114,6 +136,9 @@ SOURCE:
    - declaration_clarifications.field_names_json is a JSON array of field names
    - Resubmit after rejection creates a NEW version (version_number + 1);
      it does NOT reuse the rejected version record
+   - Max clarification rounds = 3. Hard-blocked at service layer (not advisory).
+     DB column asset_declarations.clarification_round tracks count.
+   - SUPER_ADMIN notified at round 2 (escalation); DC blocked from further rounds at 3.
 
 --------------------------------------------------------------------------------
 

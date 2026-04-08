@@ -59,7 +59,25 @@ SOURCE:
    3.2 MASKING IN API RESPONSE DTOs
 
    DTOs must NEVER return the decrypted value directly.
-   Masking utility:
+
+   COMPLETE PII FIELD INVENTORY (all fields requiring encryption + masking):
+
+   Table                        | Column                          | Encrypted | Masking Rule
+   -----------------------------|----------------------------------|-----------|----------------------------------------
+   users                        | aadhaar_encrypted               | AES-256   | XXXX-XXXX-1234 (last 4 digits)
+   users                        | mfa_secret_encrypted            | AES-256   | Never returned in any API response
+   trust_registrations          | pan_number_encrypted            | AES-256   | SA: XXXXX9999X; DC: XXXXX9999X (same)
+   trust_registrations          | bank_account_number_encrypted   | AES-256   | XXXXXXXX1234 (last 4 digits, all roles)
+   trust_board_members          | aadhaar_encrypted               | AES-256   | XXXX-XXXX-1234 (all roles)
+   trust_board_members          | pan_number_encrypted            | AES-256   | XXXXX9999X (all roles; NEVER unmasked)
+   decl_mov_financial           | account_or_folio_no_encrypted   | AES-256   | XXXXXXXX1234 (last 4 digits)
+
+   NOTE ON trust_board_members.pan_number_encrypted:
+   This field was previously stored as plain VARCHAR(10) — a SEC-01 violation.
+   It has been corrected to pan_number_encrypted TEXT with AES-256 via KMS.
+   ANY developer who changes this back to VARCHAR or removes the @Convert annotation
+   is introducing a PII security regression. This field is NEVER returned unmasked
+   in any API response regardless of the caller's role.
 
    public class PiiMaskingUtil {
      // XXXX-XXXX-1234
@@ -88,25 +106,42 @@ SOURCE:
      }
    }
 
-   3.3 KMS KEY POLICY
+   3.4 KMS KEY ROTATION AND CIPHERTEXT VERSION HANDLING
 
    - One KMS key per environment (prod, staging, dev)
    - Key policy: only trm-app IAM role can use Encrypt/Decrypt
-   - Key rotation: automatic annual rotation enabled
+   - Key rotation: automatic annual rotation enabled (AWS KMS key rotation does NOT
+     change the key ID; it adds a new key version under the same key ID)
+   - AWS KMS retains ALL previous key versions for decryption automatically.
+     The ciphertext blob contains metadata identifying which key version encrypted it.
+     The KMS.decrypt() API selects the correct version automatically.
+     IMPLICATION: AesEncryptionConverter.convertToEntityAttribute() does NOT need to
+     handle key version explicitly. The KMS Decrypt API handles this transparently.
+     RISK IF IGNORED: Developers who manually implement AES outside of KMS SDK may
+     break decryption for records encrypted with old key versions. Use KMS SDK only.
    - Key alias: alias/trm-pii-key-prod (or -staging, -dev)
+   - Key deletion: disabled in production (deletion requires 7-day pending period;
+     must be explicitly approved by HR&CE IT team)
 
-   3.4 LOGGING RULES FOR ENCRYPTED FIELDS
+   3.5 AUDIT LOGGING FOR PII ACCESS
 
    MANDATORY: Any method that returns a decrypted _encrypted field value
    must NOT log the return value. Apply a @Sensitive annotation (custom marker)
    and add a checkstyle or FindBugs rule to flag any toString() / log calls
    that include @Sensitive fields.
 
+   Additionally, DPDP Act compliance requires that read access to PII fields
+   is logged. implement via AuditPiiAccessService called from the service layer
+   before returning decrypted values. This inserts into audit_pii_access_events
+   (see 04_schema_design/07_audit_trail_schema.txt section 3.4).
+
    Code review checklist item:
    [ ] No log.debug/info/warn/error calls include a variable holding
        decrypted aadhaar, pan, or bank account number.
+   [ ] Service methods that return decrypted PII call AuditPiiAccessService.log()
+       before returning the value.
 
-   3.5 DATA IN TRANSIT
+   3.6 DATA IN TRANSIT
 
    - DB connection: SSL/TLS required for RDS connections
      spring.datasource.url=jdbc:mysql://...?useSSL=true&requireSSL=true
@@ -120,14 +155,15 @@ SOURCE:
 
    - AES-256 via AWS KMS for all _encrypted columns (not application-managed keys)
    - Masking applied in DTO layer; entities hold decrypted values in memory only
-   - KMS key rotation: annual automatic rotation enabled
-
---------------------------------------------------------------------------------
+   - KMS key rotation: annual automatic rotation enabled; AWS handles version-aware decryption automatically
+   - RESOLVED: trust_board_members.pan_number is encrypted (pan_number_encrypted TEXT)
+   - RESOLVED: audit_pii_access_events table logs all PII read access for DPDP Act compliance
 
 5. OPEN QUESTIONS
 
-   - Is DPDP Act (India) compliance audit required before go-live?
-   - Should trust_board_members.pan_number be upgraded to encrypted storage?
+   - RESOLVED: trust_board_members.pan_number is now encrypted (SEC-01 fix).
+   - OUTSTANDING: Is formal DPDP Act compliance audit required before go-live?
+     (OQ-05 from open_questions_and_gaps.txt — needs legal/business sign-off)
 
 --------------------------------------------------------------------------------
 

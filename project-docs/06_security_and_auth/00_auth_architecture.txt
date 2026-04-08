@@ -40,20 +40,31 @@ SOURCE:
      - On failure: log to audit_auth_events; count MFA failures separately
 
    Step 4: Token Response
-     { accessToken, refreshToken, expiresIn: 900 }
+     { accessToken, expiresIn: 900 }
      - accessToken: RS256 JWT, 15-minute TTL
      - refreshToken: opaque UUID, stored as SHA-256 hash in DB
-     - refreshToken is HttpOnly cookie OR response body (decision TBD)
+     - DECISION (RESOLVED): refreshToken is stored in an HttpOnly cookie.
+       Cookie attributes: HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh
+       Access token is returned in the response body and stored in React memory
+       (NOT localStorage, NOT sessionStorage).
+       CSRF analysis: SameSite=Strict blocks cross-origin requests to /api/auth/refresh.
+       No CSRF token required for the refresh endpoint since it uses HttpOnly cookie
+       with SameSite=Strict (not a standard form POST from a different origin).
+       For all other mutating endpoints (POST/PUT/DELETE on /api/**), CSRF is not a
+       risk because they use the Authorization: Bearer header (not cookie-based auth).
+       The access token is in memory and unreachable from cross-site scripts.
 
    3.2 TOKEN REFRESH FLOW
 
-   POST /api/auth/refresh { refreshToken }
+   POST /api/auth/refresh
+     - Read refreshToken from HttpOnly cookie (NOT request body)
      - Hash the provided token with SHA-256
      - Lookup in refresh_tokens WHERE token_hash = :hash AND revoked_at IS NULL
      - Verify expires_at > NOW()
      - Verify user is still active and not locked
+     - Check token_revoked_before: if token issuedAt < user.token_revoked_before -> 401
      - Rotate: revoke old token (set revoked_at), issue new token pair
-     - Return new { accessToken, refreshToken }
+     - Return new { accessToken } in body; set new refreshToken in HttpOnly cookie
 
    3.3 SPRING SECURITY FILTER CHAIN
 
@@ -68,6 +79,9 @@ SOURCE:
    - Extract Bearer token from Authorization header
    - Verify RS256 signature using public key
    - Check claims: exp, sub, role
+   - Load user record from DB (or cache); check user.is_active = true
+   - Check token_revoked_before: if (tokenIssuedAt < user.tokenRevokedBefore) -> return 401
+     This enforces immediate token revocation when SUPER_ADMIN transfers a DC's district.
    - Build UsernamePasswordAuthenticationToken with authorities from role claim
    - Set in SecurityContextHolder
 
@@ -85,7 +99,45 @@ SOURCE:
      - Store aadhaar_encrypted (AES-256) in users table
      - Complete registration
 
-   3.5 PASSWORD POLICY ENFORCEMENT
+   3.6 MFA RECOVERY CODE FLOW
+
+   Used when a user cannot access their primary MFA device (lost TOTP authenticator,
+   phone replacement, etc.). Recovery codes are generated at MFA setup time.
+   See schema: 04_schema_design/11_user_auth_schema.txt (section 3.4 mfa_recovery_codes).
+
+   POST /api/auth/mfa-verify { tempToken, mfaCode, isRecoveryCode: true }
+   Service logic:
+     1. Load all unused recovery codes for user (mfa_recovery_codes WHERE used_at IS NULL)
+     2. For each: if (bcrypt.verify(submittedCode, row.code_hash)) -> MATCH
+     3. On match: UPDATE mfa_recovery_codes SET used_at = NOW() WHERE id = :rowId
+     4. Issue access token + refresh token (same as normal MFA success)
+     5. Log to audit_auth_events (event_type = 'MFA_RECOVERY_USED')
+     6. Set user.mfa_reenrollment_required = 1 (require TOTP re-setup on next session)
+     7. Insert SUPER_ADMIN in-app notification: "Recovery code used for {username} at {ip}"
+   On failure (no matching code or all codes used):
+     - Return HTTP 401 with error TRM-AUTH-010: "No valid recovery codes available.
+       Contact HR&CE system administrator."
+     - Log to audit_auth_events (event_type = 'MFA_FAILURE', reason = 'RECOVERY_CODE_INVALID')
+
+   GET /api/auth/recovery-codes  (Authenticated; any role)
+   - Returns count of remaining unused codes only (not the codes themselves)
+   - Used by frontend to warn users when codes are running low (< 3 remaining)
+
+   POST /api/auth/recovery-codes/regenerate  (Authenticated; requires current MFA pass)
+   - Requires MFA re-verification before regenerating
+   - Marks all existing codes used_at = NOW() (invalidates old set)
+   - Generates 8 new codes; returns them ONCE in response body (shown once in UI)
+
+   3.7 DISTRICT TRANSFER TOKEN REVOCATION FLOW
+
+   See: 04_schema_design/11_user_auth_schema.txt (TOKEN_REVOKED_BEFORE section)
+   API: PATCH /api/admin/users/{userId}/district  (SUPER_ADMIN only)
+   Service atomically:
+     1. UPDATE users SET district_id = :newDistrictId, token_revoked_before = NOW(6)
+     2. UPDATE refresh_tokens SET revoked_at = NOW(6) WHERE user_id = :userId AND revoked_at IS NULL
+     3. INSERT audit_data_events (table=users, operation=UPDATE, action=DISTRICT_REASSIGNMENT)
+   Effect: All existing JWT access tokens for this user become invalid on next request.
+   The user must re-login and will receive a JWT with the new district_id claim.
 
    At API layer (registration + password change):
    - Minimum 10 characters
@@ -107,14 +159,18 @@ SOURCE:
    - Access token: 15-minute TTL; Refresh token: 7-day TTL, single-use rotation
    - MFA is mandatory for ALL users; no bypass endpoint exists
    - Aadhaar eKYC only at registration; not at every login
+   - RESOLVED: refreshToken stored in HttpOnly cookie (SameSite=Strict; Secure); access token in memory only
+   - RESOLVED: token_revoked_before enforced in JwtAuthenticationFilter; DC district transfer invalidates tokens instantly
+   - MFA recovery codes: 8 codes generated at setup; bcrypt-hashed; single-use; force re-enrollment after use
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
 
-   - Should refreshToken be stored in an HttpOnly cookie (more secure) or
-     returned in response body (simpler frontend integration)?
-   - How is the UIDAI eKYC integration licensed? Government NeSL or commercial?
+   - RESOLVED: refreshToken is stored in HttpOnly cookie (see Decision above).
+   - OUTSTANDING: How is the UIDAI eKYC integration licensed? Government NeSL or commercial?
+   - OUTSTANDING: Should mfa_reenrollment_required flag trigger a forced re-enrollment
+     page on next login, or an email notification with a link?
 
 --------------------------------------------------------------------------------
 
@@ -126,6 +182,18 @@ SOURCE:
      after rotation to allow for retry.
    - RS256 private key compromise: rotate immediately via Secrets Manager;
      all active tokens become invalid (users re-login).
+   - Pre-signed URL TTL (S3 documents): 15-minute TTL may be insufficient for
+     large PDF downloads over slow rural/government network connections.
+     MITIGATION: Frontend generates the pre-signed URL immediately before the
+     user clicks "Download" (not when the page loads). This starts the 15-minute
+     window at the right time. The download request begins within seconds of URL
+     generation; the TTL covers the actual transfer.
+   - Session expiry mid-form: If a user is filling in a large asset declaration
+     form and their session expires, all unsaved data is lost. Frontend should
+     auto-save DRAFT state every 60 seconds using PATCH /api/declarations/{id}.
+   - Deactivated user receiving notifications: JOB-04 must filter
+     recipient_user_id to only active users (is_active = 1) before sending
+     EMAIL/SMS. IN_APP is also suppressed for deactivated users.
 
 --------------------------------------------------------------------------------
 
@@ -134,4 +202,5 @@ SOURCE:
    - All auth endpoints are under /api/auth/** (unauthenticated)
    - All other endpoints require a valid access token
    - Frontend stores access token in memory (not localStorage); refresh
-     token in HttpOnly cookie
+     token in HttpOnly cookie (SameSite=Strict; Secure; Path=/api/auth/refresh)
+   - mfa_reenrollment_required column added to users table in future migration if needed

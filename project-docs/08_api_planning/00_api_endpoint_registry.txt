@@ -81,10 +81,10 @@ RELATED REQUIREMENTS:
    page               | int     | No       | Default 0
    size               | int     | No       | Default 25; max 100
    sort               | string  | No       | e.g. 'temple_name,asc'
-   district_id        | long    | DC role: YES | Auto-populated from JWT claim for DC
-   taluk_id           | long    | No       | Optional sub-district filter
-   hobli_id           | long    | No       | Optional hobli filter
-   grade              | string  | No       | Values: A, B, C (comma-separated for multi)
+   district_id        | long    | DC role: YES | Auto-populated from JWT claim for DC; ignored if provided by DC (JWT wins)
+   taluk_id           | long    | No       | Optional sub-district filter (PARTIAL GEO SELECTION SUPPORTED)
+   hobli_id           | long    | No       | Optional hobli filter (PARTIAL GEO SELECTION SUPPORTED)
+   grade              | string  | No       | Values: A, B, C (comma-separated for multi-select e.g. 'A,B'); omit for All Grades
    keyword            | string  | No       | Partial match on temple_name
    deityName          | string  | No       | Case-insensitive LIKE match on deity_name
    tradition          | string  | No       | Exact match: SHAIVITE, VAISHNAVITE, SHAKTA, JAIN, BUDDHIST, OTHER
@@ -93,9 +93,21 @@ RELATED REQUIREMENTS:
    establishedYearFrom| int     | No       | Inclusive lower bound (e.g. 1200)
    establishedYearTo  | int     | No       | Inclusive upper bound (e.g. 1900)
 
-   SCOPING RULE: For DC and DC_STAFF roles, district_id is always enforced
-   from the JWT claim (even if provided in query param, JWT value wins).
-   SUPER_ADMIN may omit district_id to search across all districts.
+   PARTIAL GEO SELECTION: All geo parameters (taluk_id, hobli_id) are individually
+   optional. A DC can search at district level only (taluk_id absent = search entire
+   district). SQL pattern for partial geo scope:
+     WHERE t.hobli_id IN (
+       SELECT h.id FROM geo_hoblis h
+       JOIN geo_taluks tal ON tal.id = h.taluk_id
+       WHERE (:talukId IS NULL OR tal.id = :talukId)
+       AND (:hobliId IS NULL OR h.id = :hobliId)
+       AND tal.district_id = :districtId
+     )
+   This correctly returns all temples in the district when taluk_id is omitted.
+
+   GRADE MULTI-SELECT: comma-separated for multiple grades:
+     ?grade=A,B  --> filter for Grade A and Grade B only
+     (omit grade param entirely = "All Grades" equivalent)
 
    3.5 TRUST ENDPOINTS
 
@@ -110,6 +122,22 @@ RELATED REQUIREMENTS:
    PUT    | /api/trusts/{id}/board-members/{bid} | TA (own), SA | Update board member
    POST   | /api/trusts/{id}/financials        | TA (own), SA | Submit annual financials
    GET    | /api/trusts/{id}/financials        | DC, TA, SA   | List annual financials
+   GET    | /api/trusts/{id}/meetings          | DC, TA, SA   | List meeting records
+   POST   | /api/trusts/{id}/meetings          | TA (own), SA | Record meeting (with optional minutes PDF)
+   GET    | /api/trusts/{id}/meetings/{mid}    | DC, TA, SA   | Meeting detail
+   POST   | /api/trusts/{id}/documents         | TA (own), SA | Upload trust document (PDF, max 10MB)
+   GET    | /api/trusts/{id}/documents         | DC, TA, SA   | List trust documents
+
+   POST /api/trusts/{id}/meetings REQUEST BODY:
+     { meetingDate: "YYYY-MM-DD" (required),
+       meetingType: "ANNUAL_GENERAL|EXTRAORDINARY|BOARD" (required),
+       agenda: "string max 2000 chars" (required),
+       resolutionSummary: "string" (optional),
+       minutesDocumentId: UUID (optional -- pre-uploaded document_id from /api/documents/upload) }
+   Response: 201 Created with meeting detail.
+   Guard: TA must own the temple linked to this trust.
+   ACCESS CONTROL: DC and SA have read access to meeting records. Meeting minutes
+   documents follow standard document authorization (RULE-07 from data_access_scoping_rules.txt).
 
    3.6 EMPLOYEE ENDPOINTS
 
@@ -193,6 +221,30 @@ RELATED REQUIREMENTS:
    GET    | /api/notifications                | Auth   | List in-app notifications
    POST   | /api/notifications/{id}/read      | Auth   | Mark notification as read
    POST   | /api/notifications/read-all       | Auth   | Mark all as read
+
+   3.12 ADMIN ENDPOINTS (SUPER_ADMIN only)
+
+   Method | Path                                          | Role | Description
+   -------|-----------------------------------------------|------|------------------------------------------
+   PATCH  | /api/admin/users/{id}/district                | SA   | Transfer DC to new district (atomically updates district_id + token_revoked_before + revokes all refresh tokens)
+   PATCH  | /api/admin/declarations/{id}/force-draft      | SA   | Return PENDING_REVIEW -> DRAFT (TA withdrawal use-case; SA only; logged in audit trail)
+   POST   | /api/admin/notifications/{id}/retry           | SA   | Retry a FAILED notification event
+   GET    | /api/admin/notifications/failed               | SA   | List FAILED notification events (paginated)
+   GET    | /api/admin/declarations/physical-verification-pending | SA | List declarations in PHYSICAL_VERIFICATION_REQUESTED > 30 days
+
+   PATCH /api/admin/users/{id}/district REQUEST BODY:
+     { newDistrictId: long (required), reason: "string max 500 chars" (required for audit) }
+   Service atomically performs:
+     1. UPDATE users SET district_id = :newDistrictId, token_revoked_before = NOW(6)
+     2. UPDATE refresh_tokens SET revoked_at = NOW(6) WHERE user_id = :id
+     3. INSERT audit_data_events (operation=UPDATE, action=DISTRICT_REASSIGNMENT, before/after values)
+   Response: 200 OK
+
+   PATCH /api/admin/declarations/{id}/force-draft REQUEST BODY:
+     { reason: "string max 500 chars" (required) }
+   Guard: declaration.status must be PENDING_REVIEW (not APPROVED or REJECTED).
+   Transitions: PENDING_REVIEW -> DRAFT, stores reason in review_comment field.
+   Use case: Temple Authority submitted for wrong financial year; SUPER_ADMIN use only.
 
    3.11 EXPORT ENDPOINTS
 
