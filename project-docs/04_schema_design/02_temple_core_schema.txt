@@ -1,0 +1,256 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 02_temple_core_schema.txt
+TITLE: Temple Core Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from temple core and profile versioning schema design (prior analysis).
+
+RELATED REQUIREMENTS:
+  Section 3.2 (Temple Profile Management) - Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the temples master table and the 3-table temple profile versioning
+   pattern (staging, current, history) used to track DC-reviewed profile changes.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   5 tables: temples (master), temple_profile_staging, temple_profile_current,
+   temple_profile_history, and temple_documents (junction).
+   Profile changes follow: DRAFT -> PENDING_REVIEW -> APPROVED (with history).
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 temples - MASTER TABLE
+
+   CREATE TABLE temples (
+     id                    BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     registration_number   VARCHAR(50)      NOT NULL,
+     name                  VARCHAR(255)     NOT NULL,
+     grade                 ENUM('A','B','C') NOT NULL,
+     hobli_id              BIGINT UNSIGNED  NOT NULL,
+     address_line1         VARCHAR(255)     NOT NULL,
+     address_line2         VARCHAR(255)     DEFAULT NULL,
+     pincode               CHAR(6)          NOT NULL,
+     deity_name            VARCHAR(255)     NOT NULL,
+     alias_name            VARCHAR(200)      DEFAULT NULL,       -- MANDATORY: local/popular alternate name
+     religious_tradition   ENUM('SHAIVITE','VAISHNAVITE','SHAKTA','JAIN','BUDDHIST','OTHER')
+                           NOT NULL DEFAULT 'OTHER',            -- MANDATORY: drives DC search filter
+     gps_latitude          DECIMAL(10,7)     DEFAULT NULL,       -- MANDATORY: range -90 to 90
+     gps_longitude         DECIMAL(10,7)     DEFAULT NULL,       -- MANDATORY: range -180 to 180
+     landmark              VARCHAR(500)      DEFAULT NULL,       -- OPTIONAL: nearest landmark for map display
+     established_year      SMALLINT UNSIGNED DEFAULT NULL,
+     historical_significance TEXT           DEFAULT NULL,
+     status                ENUM('ACTIVE','INACTIVE','SUSPENDED')
+                           NOT NULL DEFAULT 'ACTIVE',
+     created_at            DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at            DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                            ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by            BIGINT UNSIGNED  NOT NULL,
+     updated_by            BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_registration_number (registration_number),
+     CONSTRAINT fk_temple_hobli FOREIGN KEY (hobli_id)
+       REFERENCES geo_hoblis(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   VALIDATION CONSTRAINTS (enforced at DTO layer):
+     gps_latitude:  @DecimalMin("-90.0") @DecimalMax("90.0")  (when provided)
+     gps_longitude: @DecimalMin("-180.0") @DecimalMax("180.0") (when provided)
+     religious_tradition: @NotNull
+
+   3.2 temple_profile_staging - PENDING CHANGES
+
+   CREATE TABLE temple_profile_staging (
+     id                            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id                     BIGINT UNSIGNED  NOT NULL,
+     version                       INT UNSIGNED     NOT NULL,
+     status                        ENUM('DRAFT','PENDING_REVIEW','APPROVED',
+                                        'REJECTED','SUPERSEDED')
+                                   NOT NULL DEFAULT 'DRAFT',
+     -- Contact
+     phone                         VARCHAR(15)      DEFAULT NULL,
+     email                         VARCHAR(255)     DEFAULT NULL,
+     website                       VARCHAR(500)     DEFAULT NULL,
+     contact_person_name           VARCHAR(255)     DEFAULT NULL,  -- MANDATORY: point-of-contact name
+     contact_person_designation    VARCHAR(100)     DEFAULT NULL,  -- MANDATORY: e.g. 'Executive Officer'
+     -- Temple photo
+     photo_s3_key                  VARCHAR(500)     DEFAULT NULL,  -- MANDATORY: S3 key for entrance/idol photo
+     -- Worship details
+     languages_of_worship          VARCHAR(500)     DEFAULT NULL,  -- OPTIONAL: comma-separated e.g. 'Kannada, Sanskrit'
+     linked_institution_name       VARCHAR(500)     DEFAULT NULL,  -- OPTIONAL: linked mutt or sub-temple name (text; no FK in v1)
+     -- Bank details
+     bank_name                     VARCHAR(100)     DEFAULT NULL,
+     bank_account_number_encrypted TEXT             DEFAULT NULL,
+     bank_ifsc                     VARCHAR(11)      DEFAULT NULL,
+     -- Operational details
+     description                   TEXT             DEFAULT NULL,
+     annual_festivals              TEXT             DEFAULT NULL,
+     -- Workflow timestamps
+     submitted_at                  DATETIME(6)      DEFAULT NULL,
+     submitted_by                  BIGINT UNSIGNED  DEFAULT NULL,
+     reviewed_at                   DATETIME(6)      DEFAULT NULL,
+     reviewed_by                   BIGINT UNSIGNED  DEFAULT NULL,
+     review_comment                TEXT             DEFAULT NULL,
+     -- Audit
+     created_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                                ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by                    BIGINT UNSIGNED  NOT NULL,
+     updated_by                    BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_temple_staging_version (temple_id, version),
+     CONSTRAINT fk_tps_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.3 temple_profile_current - APPROVED LIVE VERSION
+
+   CREATE TABLE temple_profile_current (
+     id                            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id                     BIGINT UNSIGNED  NOT NULL,
+     version                       INT UNSIGNED     NOT NULL,
+     phone                         VARCHAR(15)      DEFAULT NULL,
+     email                         VARCHAR(255)     DEFAULT NULL,
+     website                       VARCHAR(500)     DEFAULT NULL,
+     contact_person_name           VARCHAR(255)     DEFAULT NULL,
+     contact_person_designation    VARCHAR(100)     DEFAULT NULL,
+     photo_s3_key                  VARCHAR(500)     DEFAULT NULL,
+     languages_of_worship          VARCHAR(500)     DEFAULT NULL,
+     linked_institution_name       VARCHAR(500)     DEFAULT NULL,
+     bank_name                     VARCHAR(100)     DEFAULT NULL,
+     bank_account_number_encrypted TEXT             DEFAULT NULL,
+     bank_ifsc                     VARCHAR(11)      DEFAULT NULL,
+     description                   TEXT             DEFAULT NULL,
+     annual_festivals              TEXT             DEFAULT NULL,
+     published_at                  DATETIME(6)      NOT NULL,
+     published_by                  BIGINT UNSIGNED  NOT NULL,
+     created_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                                ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by                    BIGINT UNSIGNED  NOT NULL,
+     updated_by                    BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_temple_current (temple_id),
+     CONSTRAINT fk_tpc_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.4 temple_profile_history - IMMUTABLE ARCHIVE
+
+   CREATE TABLE temple_profile_history (
+     id                            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id                     BIGINT UNSIGNED  NOT NULL,
+     version                       INT UNSIGNED     NOT NULL,
+     phone                         VARCHAR(15)      DEFAULT NULL,
+     email                         VARCHAR(255)     DEFAULT NULL,
+     website                       VARCHAR(500)     DEFAULT NULL,
+     contact_person_name           VARCHAR(255)     DEFAULT NULL,
+     contact_person_designation    VARCHAR(100)     DEFAULT NULL,
+     photo_s3_key                  VARCHAR(500)     DEFAULT NULL,
+     languages_of_worship          VARCHAR(500)     DEFAULT NULL,
+     linked_institution_name       VARCHAR(500)     DEFAULT NULL,
+     bank_name                     VARCHAR(100)     DEFAULT NULL,
+     bank_account_number_encrypted TEXT             DEFAULT NULL,
+     bank_ifsc                     VARCHAR(11)      DEFAULT NULL,
+     description                   TEXT             DEFAULT NULL,
+     annual_festivals              TEXT             DEFAULT NULL,
+     published_at                  DATETIME(6)      NOT NULL,
+     published_by                  BIGINT UNSIGNED  NOT NULL,
+     archived_at                   DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     archived_by                   BIGINT UNSIGNED  NOT NULL,
+     created_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at                    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                                ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by                    BIGINT UNSIGNED  NOT NULL,
+     updated_by                    BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_history_version (temple_id, version),
+     CONSTRAINT fk_tph_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.5 APPROVAL TRANSACTION (PSEUDOCODE)
+
+   When DC approves a temple_profile_staging record:
+
+   BEGIN TRANSACTION;
+     -- 1. Move current to history
+     INSERT INTO temple_profile_history
+       SELECT *, NOW(6), :dc_user_id FROM temple_profile_current
+       WHERE temple_id = :temple_id;
+
+     -- 2. Delete current (or UPDATE with new values)
+     DELETE FROM temple_profile_current WHERE temple_id = :temple_id;
+
+     -- 3. Promote staging to current
+     INSERT INTO temple_profile_current (temple_id, version, phone, email, ...)
+       SELECT temple_id, version, phone, email, ...
+       FROM   temple_profile_staging
+       WHERE  id = :staging_id;
+
+     -- 4. Update staging status
+     UPDATE temple_profile_staging
+       SET status = 'APPROVED', reviewed_at = NOW(6), reviewed_by = :dc_user_id
+       WHERE id = :staging_id;
+   COMMIT;
+
+   3.6 KEY INDEXES
+
+   -- Search temples by district (join through hobli -> taluk -> district)
+   CREATE INDEX idx_temples_hobli       ON temples(hobli_id, status);
+   CREATE INDEX idx_temples_grade       ON temples(grade, status);
+   CREATE INDEX idx_temples_name        ON temples(name);
+   CREATE INDEX idx_temples_tradition   ON temples(religious_tradition, status);  -- tradition search filter
+   CREATE INDEX idx_temples_year        ON temples(established_year);             -- year range filter
+
+   -- Profile staging: find active (non-terminal) staging for a temple
+   CREATE INDEX idx_tps_temple_status ON temple_profile_staging(temple_id, status);
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - temple_profile_current has UNIQUE on temple_id (one live version per temple)
+   - temple_profile_history is INSERT-only; no UPDATE, no DELETE
+   - Approval is a 4-step DB transaction; must be atomic
+   - Bank account number is AES-256 encrypted in all 3 profile tables
+   - alias_name, contact_person, photo, languages, linked_institution: versioned in profile tables (DC approval required on change)
+   - religious_tradition, GPS coordinates, landmark: in temples master table (registered attributes; seldom changed)
+   - photo_s3_key: points to a document in documents table (MIME validated as image/jpeg, image/png, or application/pdf); max 5 MB for temple photos
+   - languages_of_worship: stored as comma-separated string in v1; no normalization table required
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should temple_profile_staging version number auto-increment in the DB
+     (DB trigger) or in the application layer?
+     Recommended: Application layer (service), to keep logic testable.
+   - Should temples.established_year be nullable (many ancient temples have
+     no documentable founding year)?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - If approval transaction fails mid-way (e.g., after moving to history but
+     before inserting new current), the temple has no current profile and
+     appears as incomplete. Handle with a compensating check on startup.
+   - Multiple simultaneous DC reviews: Only one pending staging should exist
+     per temple at a time. Enforce with a compound partial unique index:
+     UNIQUE(temple_id) WHERE status = 'PENDING_REVIEW'
+     (MySQL doesn't support partial unique indexes natively; enforce at
+     application service layer with a pre-check.)
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - One temple has at most one active staging record at a time
+   - SUPER_ADMIN can force-approve or override profile without staging flow
+   - The first profile entry for a new temple bypasses PENDING_REVIEW
+     (auto-approved on first creation by Temple Authority after registration)

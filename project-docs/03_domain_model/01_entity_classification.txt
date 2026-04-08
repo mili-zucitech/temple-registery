@@ -1,0 +1,188 @@
+﻿FOLDER: /project-docs/03_domain_model
+FILE: 01_entity_classification.txt
+TITLE: Entity Classification - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - Entity classification analysis (prior session)
+  - 00_domain_entities.txt (all 23 entities)
+  - Temple_Registry_Requirements_v1.1.pdf
+
+RELATED REQUIREMENTS:
+  Sections 3.x (Functional Modules), 4.x (Data Requirements) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document classifies each of the 23 domain entities by lifecycle type.
+   Classification drives decisions about versioning strategies, deletion rules,
+   caching eligibility, and API design patterns.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   Three classification types:
+     - MASTER DATA: Low-change reference data, managed by Super Admin
+     - TRANSACTIONAL: Core operational records created by users over time
+     - DERIVED / COMPUTED: Generated from other records; not directly edited
+
+   Additionally, each entity is tagged with its Change Frequency and
+   Deletion Strategy.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 CLASSIFICATION TABLE
+
+   Entity                  | Type          | Change Freq | Deletion Strategy
+   ------------------------|---------------|-------------|--------------------
+   geo_states              | MASTER DATA   | Rare        | No delete (immutable)
+   geo_cities              | MASTER DATA   | Rare        | No delete (immutable)
+   geo_districts           | MASTER DATA   | Rare        | No delete; retire flag
+   geo_taluks              | MASTER DATA   | Rare        | No delete; retire flag
+   geo_hoblis              | MASTER DATA   | Rare        | No delete; retire flag
+   temples                 | MASTER DATA   | Low         | Status=INACTIVE only
+   temple_profile_current  | DERIVED       | On approval | Replace (never UPDATE)
+   temple_profile_staging  | TRANSACTIONAL | Medium      | Status=SUPERSEDED
+   temple_profile_history  | DERIVED       | On approval | INSERT only; no delete
+   trust_registrations     | TRANSACTIONAL | Low         | Status=DISSOLVED
+   trust_board_members     | TRANSACTIONAL | Medium      | cessation_date set
+   trust_financials        | TRANSACTIONAL | Annual      | No delete
+   employees               | TRANSACTIONAL | Medium      | Soft delete (deleted_at)
+   employee_succession     | TRANSACTIONAL | Low         | No delete
+   contractors             | TRANSACTIONAL | Medium      | Soft delete (deleted_at)
+   contractor_documents    | TRANSACTIONAL | Low         | Cascade with contractor
+   asset_declarations      | TRANSACTIONAL | Annual      | Append-only; no delete
+   declaration_clarifications| TRANSACTIONAL| Per review | No delete (audit-critical)
+   documents               | TRANSACTIONAL | Per upload  | Logical delete (s3_key kept)
+   document_access_log     | DERIVED       | Per access  | INSERT only; no delete
+   users                   | MASTER DATA   | Low         | is_active = false
+   refresh_tokens          | TRANSACTIONAL | Per session | revoked_at set
+   audit_data_events       | DERIVED       | Per change  | INSERT only; no delete
+
+   3.2 MASTER DATA ENTITIES (DETAIL)
+
+       Entities in this class are managed exclusively by SUPER_ADMIN through
+       dedicated admin screens. They change rarely and are referenced by many
+       other records. They are eligible for application-level caching.
+
+       Caching strategy:
+         - geo_* tables: Cache entire tree at application startup.
+           Invalidate on SUPER_ADMIN update.
+         - temples table (basic fields): Cache per district for DC search.
+           Invalidate on temple status change.
+         - users (basic profile): Cache session-scoped; invalidate on logout.
+
+       SUPER_ADMIN operations:
+         - Create / retire geo hierarchy entries
+         - Create / deactivate user accounts
+         - Merge duplicate temple records
+         - Update temple grade (A/B/C) classification
+
+   3.3 TRANSACTIONAL ENTITIES (DETAIL)
+
+       Entities created and modified as part of normal business operations.
+       Each entity in this class has a defined lifecycle:
+
+       Temple Profile (Staging -> Current -> History):
+         DRAFT: Temple Authority editing, not yet submitted.
+         PENDING_REVIEW: Submitted to DC.
+         APPROVED: DC approved; becomes the new _current record.
+         REJECTED: DC rejected; Temple Authority must create new staging.
+         SUPERSEDED: A newer submission was approved; this is archived.
+
+       Asset Declarations (Append-Only):
+         DRAFT -> PENDING_REVIEW -> APPROVED (final)
+                                 -> CLARIFICATION_REQUESTED -> PENDING_REVIEW (loop)
+                                 -> REJECTED -> DRAFT (new version)
+         Note: APPROVED and REJECTED records are immutable after state change.
+
+       Employees and Contractors (Soft Delete):
+         Active: deleted_at IS NULL
+         Terminated/Ended: deleted_at IS NOT NULL
+         Query default: WHERE deleted_at IS NULL (apply in all list queries)
+
+       Trust Board Members (Cessation Date):
+         Active: cessation_date IS NULL OR cessation_date > CURRENT_DATE
+         Historical: cessation_date <= CURRENT_DATE
+         Note: Must not be hard-deleted; needed for audit of trust governance.
+
+   3.4 DERIVED / COMPUTED ENTITIES (DETAIL)
+
+       Entities that are generated by the system, not directly authored by users.
+       They must never be directly edited via API. They are populated only by
+       system events.
+
+       temple_profile_current:
+         Populated by: DC approval event (service method, not direct API)
+         Trigger: When temple_profile_staging transitions to APPROVED
+         Action: Copy staging record to _current; old _current moves to _history
+
+       temple_profile_history:
+         Populated by: Replacement of _current (see above)
+         Rules: INSERT only; no UPDATE, no DELETE ever
+
+       document_access_log:
+         Populated by: Pre-signed URL generation endpoint
+         Every call to the generatePresignedUrl service method
+         MUST write one row to this table before returning the URL.
+
+       audit_data_events:
+         Populated by: @EntityListeners / Spring AOP aspects on all entities
+         Rules: INSERT only. DB user has no UPDATE/DELETE on this table.
+
+   3.5 VERSION-CONTROLLED ENTITIES
+
+       Three entities follow the Current + Staging + History version pattern:
+         - temple_profile_*
+         - (by analogy) trust data could follow same pattern in v2
+
+       Asset declarations use a different versioning model:
+         - Linear append-only: version 1, 2, 3... per financial year
+         - Latest version is the canonical one for the financial year
+         - All prior versions retained and visible in Version History tab
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Geo hierarchy entities: no hard delete; use is_retired flag (v2)
+     For v1, simply do not delete; handle edge cases via SUPER_ADMIN console
+   - temple_profile_current is a read-only projection; writable only via staging
+   - Audit tables are append-only at the database permission level
+   - Soft delete WHERE clause must be added to all repository default queries
+     to prevent accidentally returning deleted staff/contractors in active lists
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should trust_registrations and trust_board_members follow the same
+     Current/Staging/History pattern as temple_profile? (Currently classified
+     as plain transactional - DC never "approves" trust changes)
+   - Is there a regulatory requirement for version history on employee records
+     beyond soft delete? (E.g., salary grade changes)
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Soft delete index: without a partial index on deleted_at IS NULL,
+     full table scans on employee and contractor tables as data grows.
+     Add: CREATE INDEX idx_employees_active ON employees(temple_id)
+     WHERE deleted_at IS NULL;
+   - Cache invalidation on geo data: if a SUPER_ADMIN retires a Hobli that
+     has active temples, the temple records must be reviewed before retirement.
+     Add a pre-check constraint in the SUPER_ADMIN retirement flow.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - "No delete" for geo entities is v1 only; v2 may add is_retired flag
+   - All monetary values stored as DECIMAL(15,2) in INR (no FX conversion)
+   - document_access_log growth is unbounded; plan archival after 2 years

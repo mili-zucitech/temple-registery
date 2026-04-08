@@ -1,0 +1,253 @@
+FOLDER: /project-docs/08_api_planning
+FILE: 00_api_endpoint_registry.txt
+TITLE: API Endpoint Registry - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from domain model, workflows, and architecture analysis.
+
+RELATED REQUIREMENTS:
+  All functional sections of Temple_Registry_Requirements_v1.1.pdf
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Registry of all planned REST API endpoints. Serves as the contract between
+   backend and frontend teams. Formal OpenAPI/Swagger spec to be generated
+   from Spring Boot annotations; this document is the planning baseline.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 CONVENTIONS
+
+   - Base URL: /api/v1
+   - All endpoints return: ResponseEntity<ApiResponse<T>>
+   - ApiResponse<T>:  { success: bool, data: T, error: string|null,
+                        timestamp: ISO8601, requestId: UUID }
+   - Auth: Bearer token in Authorization header (all endpoints except /auth/**)
+   - Pagination: { page, size, sort } query params; response includes { totalElements }
+   - Error codes: HTTP 400 (validation), 401 (unauth), 403 (forbidden),
+                  404 (not found), 409 (conflict), 500 (server error)
+
+   3.2 AUTH ENDPOINTS
+
+   Method | Path                      | Role        | Description
+   -------|---------------------------|-------------|---------------------------
+   POST   | /api/auth/login           | Public      | Login (returns temp token)
+   POST   | /api/auth/mfa-verify      | Public      | Verify MFA code; issue JWT
+   POST   | /api/auth/refresh         | Public      | Refresh access token
+   POST   | /api/auth/logout          | Authenticated| Revoke refresh token
+   POST   | /api/auth/aadhaar-otp-req | Public      | Request Aadhaar OTP (reg)
+   POST   | /api/auth/aadhaar-otp-verify | Public   | Verify Aadhaar OTP (reg)
+   POST   | /api/auth/register        | Public      | Complete user registration
+   POST   | /api/auth/password-reset-req | Public   | Request password reset email
+   POST   | /api/auth/password-reset  | Public      | Complete password reset
+
+   3.3 GEO HIERARCHY ENDPOINTS
+
+   Method | Path                          | Role  | Description
+   -------|-------------------------------|-------|---------------------------
+   GET    | /api/geo/states               | Auth  | List all states
+   GET    | /api/geo/states/{id}/cities   | Auth  | Cities in state
+   GET    | /api/geo/cities/{id}/districts| Auth  | Districts in city
+   GET    | /api/geo/districts/{id}/taluks| Auth  | Taluks in district
+   GET    | /api/geo/taluks/{id}/hoblis   | Auth  | Hoblis in taluk
+   POST   | /api/geo/states               | SA    | Create state
+   POST   | /api/geo/cities               | SA    | Create city
+   POST   | /api/geo/districts            | SA    | Create district
+   POST   | /api/geo/taluks               | SA    | Create taluk
+   POST   | /api/geo/hoblis               | SA    | Create hobli
+
+   3.4 TEMPLE ENDPOINTS
+
+   Method | Path                        | Role          | Description
+   -------|-----------------------------|---------------|---------------------------
+   GET    | /api/temples                | DC, SA        | Search temples (with filters)
+   POST   | /api/temples                | TA, SA        | Create temple
+   GET    | /api/temples/{id}           | DC, TA, SA    | Get temple detail
+   PUT    | /api/temples/{id}           | TA (own), SA  | Update temple basic info
+   GET    | /api/temples/{id}/profile   | DC, TA, SA    | Get current profile
+   POST   | /api/temples/{id}/profile/staging | TA, SA  | Create/update staging profile
+   POST   | /api/temples/{id}/profile/submit  | TA      | Submit staging for review
+   POST   | /api/temples/{id}/profile/approve | DC, SA  | Approve staging profile
+   POST   | /api/temples/{id}/profile/reject  | DC, SA  | Reject staging profile
+   GET    | /api/temples/{id}/profile/history | DC, TA, SA | Profile version history
+
+   GET /api/temples QUERY PARAMETERS:
+   Param              | Type    | Required | Notes
+   -------------------|---------|----------|----------------------------------------------
+   page               | int     | No       | Default 0
+   size               | int     | No       | Default 25; max 100
+   sort               | string  | No       | e.g. 'temple_name,asc'
+   district_id        | long    | DC role: YES | Auto-populated from JWT claim for DC
+   taluk_id           | long    | No       | Optional sub-district filter
+   hobli_id           | long    | No       | Optional hobli filter
+   grade              | string  | No       | Values: A, B, C (comma-separated for multi)
+   keyword            | string  | No       | Partial match on temple_name
+   deityName          | string  | No       | Case-insensitive LIKE match on deity_name
+   tradition          | string  | No       | Exact match: SHAIVITE, VAISHNAVITE, SHAKTA, JAIN, BUDDHIST, OTHER
+   trustRegistered    | boolean | No       | true=only trusted temples, false=untrusted
+   declarationStatus  | string  | No       | PENDING, APPROVED, OVERDUE (maps to summary counters)
+   establishedYearFrom| int     | No       | Inclusive lower bound (e.g. 1200)
+   establishedYearTo  | int     | No       | Inclusive upper bound (e.g. 1900)
+
+   SCOPING RULE: For DC and DC_STAFF roles, district_id is always enforced
+   from the JWT claim (even if provided in query param, JWT value wins).
+   SUPER_ADMIN may omit district_id to search across all districts.
+
+   3.5 TRUST ENDPOINTS
+
+   Method | Path                               | Role         | Description
+   -------|------------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/trusts           | DC, TA, SA   | List trust registrations
+   POST   | /api/temples/{id}/trusts           | TA, SA       | Create trust registration
+   GET    | /api/trusts/{id}                   | DC, TA, SA   | Trust detail
+   PUT    | /api/trusts/{id}                   | TA (own), SA | Update trust
+   GET    | /api/trusts/{id}/board-members     | DC, TA, SA   | List board members
+   POST   | /api/trusts/{id}/board-members     | TA (own), SA | Add board member
+   PUT    | /api/trusts/{id}/board-members/{bid} | TA (own), SA | Update board member
+   POST   | /api/trusts/{id}/financials        | TA (own), SA | Submit annual financials
+   GET    | /api/trusts/{id}/financials        | DC, TA, SA   | List annual financials
+
+   3.6 EMPLOYEE ENDPOINTS
+
+   Method | Path                          | Role         | Description
+   -------|-------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/employees   | DC, TA, SA   | List active employees
+   POST   | /api/temples/{id}/employees   | TA (own), SA | Add employee
+   GET    | /api/employees/{id}           | DC, TA, SA   | Employee detail
+   PUT    | /api/employees/{id}           | TA (own), SA | Update employee
+   DELETE | /api/employees/{id}           | TA (own), SA | Soft delete employee
+
+   3.7 CONTRACTOR ENDPOINTS
+
+   Method | Path                            | Role         | Description
+   -------|---------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/contractors   | DC, TA, SA   | List active contractors
+   POST   | /api/temples/{id}/contractors   | TA (own), SA | Add contractor
+   GET    | /api/contractors/{id}           | DC, TA, SA   | Contractor detail
+   PUT    | /api/contractors/{id}           | TA (own), SA | Update contractor
+   DELETE | /api/contractors/{id}           | TA (own), SA | Soft delete contractor
+
+   3.8 DECLARATION ENDPOINTS
+
+   Method | Path                                             | Role    | Description
+   -------|--------------------------------------------------|---------|--------------------
+   GET    | /api/temples/{id}/declarations                   | DC,TA,SA| List declarations
+   POST   | /api/temples/{id}/declarations                   | TA, SA  | Create DRAFT
+   GET    | /api/declarations/{id}                           | DC,TA,SA| Declaration detail
+   PUT    | /api/declarations/{id}                           | TA (own)| Update DRAFT fields
+   POST   | /api/declarations/{id}/submit                    | TA (own)| DRAFT->PENDING_REVIEW
+   POST   | /api/declarations/{id}/approve                   | DC, SA  | PENDING_REVIEW->APPROVED
+   POST   | /api/declarations/{id}/reject                    | DC, SA  | PENDING_REVIEW or PHYSICAL_VERIFICATION_REQUESTED->REJECTED
+   POST   | /api/declarations/{id}/clarification             | DC, SA  | PENDING_REVIEW->CLARIFICATION_REQUESTED
+   POST   | /api/declarations/{id}/flag-physical-verification| DC, SA  | PENDING_REVIEW->PHYSICAL_VERIFICATION_REQUESTED
+   POST   | /api/declarations/{id}/resubmit                  | TA (own)| CLARIFICATION_REQUESTED->PENDING_REVIEW
+   GET    | /api/declarations/{id}/diff                      | DC,TA,SA| Version diff
+   GET    | /api/declarations/{id}/acknowledgement           | TA (own)| Download ack PDF (pre-signed URL)
+
+   POST /api/declarations/{id}/flag-physical-verification REQUEST BODY:
+     { "notes": "string (mandatory, max 2000 chars) -- reason for physical verification" }
+   Response: 204 No Content on success.
+   Guard: declaration.status must be PENDING_REVIEW; DC must be in same district.
+
+   POST /api/declarations/{id}/resubmit REQUEST BODY:
+     { "correction_notes": "string (mandatory, max 2000 chars) -- explains what was corrected",
+       "[updated declaration fields as per PUT schema]" }
+   Behaviour: Applies corrections to declaration fields, transitions CLARIFICATION_REQUESTED
+     -> PENDING_REVIEW, logs correction_notes to declaration_clarifications
+     (direction='TEMPLE_TO_DC').
+
+   GET /api/declarations/{id}/acknowledgement:
+   Returns: { "download_url": "pre-signed S3 URL (expires in 15 minutes)",
+              "acknowledgement_number": "TRM/ACK/2025-26/000142",
+              "generated_at": "ISO8601" }
+   Guard: declaration.status must be APPROVED; TA must own the temple, DC must be in district.
+
+   3.9 DOCUMENT ENDPOINTS
+
+   Method | Path                      | Role          | Description
+   -------|---------------------------|---------------|------------------------
+   POST   | /api/documents/upload     | TA, SA        | Upload PDF document
+   GET    | /api/documents/{id}/url   | DC, TA, SA    | Get pre-signed download URL
+   GET    | /api/documents/{id}       | DC, TA, SA    | Document metadata
+
+   GET /api/documents/{id}/url ACCESS CONTROL (enforced before S3 pre-sign):
+   Before generating the pre-signed URL the service MUST:
+     1. Load the document record; check documents.is_deleted = 0
+     2. If caller role = TEMPLE_AUTHORITY:
+          assert documents.temple_id = caller.temple_id (403 if mismatch)
+     3. If caller role = DISTRICT_COLLECTOR or DC_STAFF:
+          JOIN to get temple.district_id; assert district_id = caller.district_id (403 if mismatch)
+     4. INSERT INTO document_access_log (document_id, accessed_by, access_type='DOWNLOAD',
+          accessed_at=NOW(), role=caller.role)
+     5. Return pre-signed URL with 15-minute expiry
+   Failure to pass any check returns 403 Forbidden (no stack trace in body).
+
+   3.10 NOTIFICATION ENDPOINTS
+
+   Method | Path                              | Role   | Description
+   -------|-----------------------------------|--------|------------------------
+   GET    | /api/notifications                | Auth   | List in-app notifications
+   POST   | /api/notifications/{id}/read      | Auth   | Mark notification as read
+   POST   | /api/notifications/read-all       | Auth   | Mark all as read
+
+   3.11 EXPORT ENDPOINTS
+
+   Method | Path                  | Role         | Description
+   -------|-----------------------|--------------|------------------------
+   POST   | /api/export/temples   | DC, SA       | Export temple list (PDF/CSV)
+   POST   | /api/export/declarations | DC, SA    | Export declarations (PDF/CSV)
+
+   EXPORT JURISDICTION SCOPING (MANDATORY):
+   For DC and DC_STAFF roles, all export queries MUST apply the same
+   district_id scoping as the search endpoint (district_id = JWT claim value).
+   SUPER_ADMIN exports are unscoped (all districts).
+   A DC must never receive data from outside their assigned district in an export.
+
+   EXPORT AUDIT LOGGING (MANDATORY):
+   On every successful export generation, INSERT into audit_export_events:
+     user_id, role, district_id (null for SA), export_type ('TEMPLES' or 'DECLARATIONS'),
+     record_count (number of rows exported), filters_applied_json (the request body),
+     generated_at = NOW(6)
+
+   3.12 SUPER ADMIN ENDPOINTS
+
+   Method | Path                          | Role | Description
+   -------|-------------------------------|------|------------------------
+   GET    | /api/admin/users              | SA   | List all users
+   POST   | /api/admin/users              | SA   | Create user
+   PUT    | /api/admin/users/{id}         | SA   | Update user
+   PUT    | /api/admin/users/{id}/activate| SA   | Activate/deactivate user
+   POST   | /api/admin/search-summary/rebuild | SA | Trigger full rebuild
+   GET    | /api/admin/audit-events       | SA   | Search audit data events
+   GET    | /api/admin/auth-events        | SA   | Search auth events
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - All endpoints return ApiResponse<T> wrapper (never raw entity)
+   - Pagination via Spring Pageable (page/size/sort query params)
+   - Document upload is a separate single endpoint; linked to module entity
+     by separate junction table entries
+   - DELETE is soft-delete for employees and contractors; no hard DELETE API
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should /api/v1 versioning be in path or Accept header?
+     Decision: path versioning (/api/v1) for simplicity.
+   - Are WebSocket notifications needed for real-time DC alerts, or is
+     polling (React Query refetch) sufficient for v1?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - OpenAPI/Swagger UI available at /swagger-ui.html in non-production envs
+   - All list endpoints support pagination (none return unbounded lists)
+   - No GraphQL; REST only for v1

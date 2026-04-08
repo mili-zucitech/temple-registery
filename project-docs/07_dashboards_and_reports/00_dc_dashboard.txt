@@ -1,0 +1,104 @@
+FOLDER: /project-docs/07_dashboards_and_reports
+FILE: 00_dc_dashboard.txt
+TITLE: DC Dashboard Design - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from DC end-to-end flow (02_user_flows/00_dc_end_to_end_flow.txt)
+  and friction points analysis.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the data elements, query strategy, and UX layout for the
+   District Collector (and DC_STAFF) dashboard.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 DASHBOARD WIDGETS
+
+   Widget                         | Data Source             | Refresh
+   -------------------------------|-------------------------|------------------
+   Total Temples in District      | temple_search_summary   | On login
+   Pending Declarations           | temple_search_summary   | Every 5 min
+   Overdue Declarations           | temple_search_summary   | Every 5 min
+   Pending Profile Reviews        | temple_search_summary   | Every 5 min
+   Recently Approved Declarations | asset_declarations      | On action
+   Temple Grade Distribution      | temples (aggregate)     | Daily
+   Recent Activity Feed           | in_app_notifications    | Real-time
+
+   3.2 QUERY: DC DASHBOARD SUMMARY
+
+   SELECT
+     COUNT(*) AS total_temples,
+     SUM(pending_declarations) AS total_pending_decl,
+     SUM(overdue_declarations) AS total_overdue_decl,
+     SUM(pending_profile_review) AS total_pending_profiles,
+     SUM(CASE WHEN temple_grade = 'A' THEN 1 ELSE 0 END) AS grade_a_count,
+     SUM(CASE WHEN temple_grade = 'B' THEN 1 ELSE 0 END) AS grade_b_count,
+     SUM(CASE WHEN temple_grade = 'C' THEN 1 ELSE 0 END) AS grade_c_count
+   FROM temple_search_summary
+   WHERE district_id = :dc_district_id
+   AND temple_status = 'ACTIVE';
+
+   3.3 SEARCH RESULTS TABLE COLUMNS
+
+   Column               | Source                    | Sortable
+   ---------------------|---------------------------|----------
+   Temple Name          | temple_name               | Y
+   Grade                | temple_grade              | Y
+   Hobli                | hobli_name                | N
+   Taluk                | taluk_name                | Y
+   Pending Actions      | pending_declarations +    | Y (default sort)
+                        | pending_profile_review    |
+   Overdue              | overdue_declarations > 0  | Y
+   Last Update          | last_declaration_at OR    | Y
+                        | last_profile_update_at    |
+   Actions              | View button               | N
+
+   Default sort: pending_declarations DESC, overdue_declarations DESC,
+                  last_declaration_at DESC
+
+   3.4 FILTER PANEL
+
+   - Grade: A / B / C (multi-select checkboxes)
+   - Taluk: dropdown (filtered to DC's district)
+   - Hobli: dropdown (filtered to selected Taluk)
+   - Status: Active / Inactive / Suspended
+   - Pending Only: checkbox (shows only temples with pending_declarations > 0)
+   - Overdue Only: checkbox
+
+   Filters persist in URL query params to support back-navigation.
+
+   3.5 EXPORT
+
+   - Export button: available for DC and DC_STAFF
+   - Formats: PDF (official report) and CSV (data analysis)
+   - Scope: current filtered view only (not all 30,000 temples)
+   - Both formats include DC name, district, date on cover/header
+   - Action logged in audit_export_events
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Dashboard data sourced from temple_search_summary (not real-time joins)
+   - Pending actions sort is the default; DC cannot change default sort
+   - Export scope limited to current filtered view for performance
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should the dashboard show a map view of temple locations in the district?
+   - Is there a KPI for DC (e.g., "average time to process a declaration")?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - DC_STAFF dashboard is identical to DC dashboard but without approve/reject
+     action buttons
+   - Dashboard widgets use React Query with staleTime = 5 minutes

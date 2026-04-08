@@ -1,0 +1,188 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 00_schema_overview.txt
+TITLE: Schema Design Overview - Temple Registry & Management Portal
+
+SOURCE:
+  Consolidated from all schema design sessions.
+  See individual schema files in /project-docs/04_schema_design/ for detail.
+
+RELATED REQUIREMENTS:
+  All data requirement sections of Temple_Registry_Requirements_v1.1.pdf
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document serves as the index and design principles guide for all
+   11 schema design documents in this folder. Each table or group of tables
+   has its own dedicated file. Read this file first before diving into
+   individual schema files.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   The TRM database is MySQL 8 with STRICT_TRANS_TABLES. The schema is
+   spread across 7 conceptual modules, each with its own file. Shared
+   conventions apply to all tables without exception.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 FILE INDEX
+
+       File                                     | Content
+       -----------------------------------------|-----------------------------
+       00_schema_overview.txt                   | This file
+       01_geo_hierarchy_schema.txt              | State/City/District/Taluk/Hobli tables
+       02_temple_core_schema.txt                | temples + profile versioning tables
+       03_trust_schema.txt                      | trust_registrations, board members,
+                                                | trust_financials
+       04_employee_schema.txt                   | employees, employee_succession
+       05_contractor_schema.txt                 | contractors, contractor_documents
+       06_asset_declaration_schema.txt          | asset_declarations,
+                                                | declaration_clarifications
+       07_audit_trail_schema.txt                | audit_data_events, audit_auth_events,
+                                                | audit_export_events
+       08_document_storage_schema.txt           | documents, junction tables,
+                                                | document_access_log
+       09_notification_schema.txt               | notification_events,
+                                                | in_app_notifications
+       10_search_summary_and_indexes.txt        | temple_search_summary pre-computed
+                                                | table + index strategy
+       11_user_auth_schema.txt                  | users, refresh_tokens
+
+   3.2 GLOBAL NAMING CONVENTIONS
+
+       - All table and column names: snake_case
+       - Primary key: id (BIGINT UNSIGNED AUTO_INCREMENT)
+       - Foreign key columns: {referenced_table_singular}_id
+         e.g., district_id, temple_id, user_id
+       - Boolean columns: is_{attribute} (e.g., is_active, is_hereditary)
+       - Timestamp columns: {event}_at (e.g., created_at, deleted_at, locked_until)
+       - Actor columns: {event}_by (e.g., created_by, reviewed_by, submitted_by)
+         (FK -> users.id, stored as user UUID or BIGINT reference)
+       - Encrypted field suffix: _encrypted
+         e.g., aadhaar_encrypted, pan_number_encrypted
+       - JSON column suffix: _json (e.g., snapshot_json, field_names_json)
+       - Status/enum columns: status, direction, role, module_reference
+
+   3.3 COMMON COLUMNS (ALL TABLES)
+
+       Every entity table must have:
+         created_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+         updated_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                      ON UPDATE CURRENT_TIMESTAMP(6)
+         created_by   BIGINT UNSIGNED NOT NULL  -- FK -> users.id
+         updated_by   BIGINT UNSIGNED NOT NULL  -- FK -> users.id
+
+       Exception: Append-only audit/log tables (audit_*, document_access_log,
+       notification_events) use only created_at; no updated_at.
+
+   3.4 SOFT DELETE CONVENTION
+
+       Tables with soft delete:
+         deleted_at   DATETIME(6) DEFAULT NULL  -- NULL = active record
+         deleted_by   BIGINT UNSIGNED DEFAULT NULL
+
+       Required: Add partial index on (temple_id) WHERE deleted_at IS NULL
+       for employees and contractors to ensure active-record queries stay fast.
+
+       Tables using soft delete: employees, contractors
+
+   3.5 ENCRYPTION CONVENTION
+
+       All _encrypted columns store the AES-256 ciphertext encoded as Base64.
+       Column type: TEXT (not VARCHAR; ciphertext length varies by key version).
+       The JPA @Convert(converter = AesEncryptionConverter.class) handles
+       transparent encrypt/decrypt at the application layer.
+
+       Tables with _encrypted columns:
+         trust_board_members.aadhaar_encrypted
+         employees.aadhaar_encrypted
+         trust_registrations.pan_number_encrypted
+         contractors.pan_number_encrypted
+         temple_profile_*.bank_account_number_encrypted
+         users.mfa_secret_encrypted
+         refresh_tokens (token stored as SHA-256 hash, not encrypted)
+
+   3.6 MYSQL MODE REQUIREMENT
+
+       sql_mode must include:
+         STRICT_TRANS_TABLES
+         NO_ZERO_DATE
+         NO_ZERO_IN_DATE
+         ERROR_FOR_DIVISION_BY_ZERO
+         NO_ENGINE_SUBSTITUTION
+
+       Set in RDS parameter group or mysql.conf:
+         sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,
+                     ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'
+
+   3.7 FLYWAY MIGRATION STRATEGY
+
+       - All schema changes via Flyway versioned migrations.
+       - Migration files: backend/src/main/resources/db/migration/
+       - Naming: V{version}__{description}.sql
+         e.g., V1__create_geo_hierarchy_tables.sql
+       - No DDL changes outside of Flyway migrations.
+       - Rollback scripts (U{version}__*.sql) for non-destructive changes.
+       - Production: Flyway set to validate mode after initial build.
+
+   3.8 RECOMMENDED CREATION ORDER (FOR FLYWAY BASELINE)
+
+       V1  - geo_hierarchy (no FKs to other tables)
+       V2  - users (no FK to temples; district FK to geo_districts)
+       V3  - temples (FK to geo_hoblis)
+       V4  - temple_profile_current, temple_profile_staging,
+             temple_profile_history
+       V5  - trust_registrations, trust_board_members, trust_financials
+       V6  - employees, employee_succession
+       V7  - contractors
+       V8  - asset_declarations, declaration_clarifications
+       V9  - documents, contractor_documents, declaration_documents,
+             temple_documents, employee_documents, trust_documents
+       V10 - document_access_log
+       V11 - audit_data_events, audit_auth_events, audit_export_events
+       V12 - notification_events, in_app_notifications
+       V13 - refresh_tokens
+       V14 - temple_search_summary
+       V15 - All indexes (separation of DDL for readability)
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - MySQL 8 with STRICT_TRANS_TABLES is the only supported database
+   - Flyway for all schema migrations; no ad-hoc DDL in production
+   - snake_case for all DB identifiers
+   - BIGINT UNSIGNED for all primary and foreign keys
+   - DATETIME(6) (microsecond precision) for all timestamp columns
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should BIGINT UNSIGNED or UUID (CHAR(36)) be used for primary keys?
+     BIGINT is faster for joins; UUID is better for distributed ID generation.
+     Decision: BIGINT UNSIGNED for v1 (simpler, no distribution concern).
+   - Archival strategy for audit tables after 7 years?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Flyway migration history table (flyway_schema_history) must be seeded
+     before any manual DB initialization scripts are run against a new env.
+   - If RDS parameter group does not include STRICT_TRANS_TABLES, silent data
+     truncation can corrupt records. Verify in startup health check.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Single database instance (no sharding or multi-tenancy in v1)
+   - All tables in one schema: trm_db
+   - Flyway is the only mechanism for schema changes; no ORM auto-DDL
+     (spring.jpa.hibernate.ddl-auto = validate)

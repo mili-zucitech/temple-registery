@@ -1,0 +1,185 @@
+﻿FOLDER: /project-docs/00_context
+FILE: 01_design_constraints.txt
+TITLE: Design Constraints - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - 15 design constraints
+  - Temple_Registry_Requirements_v1.1.pdf (Sections 3, 6, 7)
+  - .github/copilot-instructions.md (Security Non-Negotiables section)
+
+RELATED REQUIREMENTS:
+  Sections 3.x (Functional), 6.x (Security), 7.x (Non-Functional) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document catalogs all binding design constraints for the TRM system -
+   rules that restrict design choices and must be enforced across all modules
+   without exception. Constraints differ from requirements: requirements say
+   what the system does; constraints say what the system must be.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   15 constraints identified across 4 categories: technology stack, security &
+   compliance, data integrity, and user-interface. All are non-negotiable.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 TECHNOLOGY STACK CONSTRAINTS (TC)
+
+       TC-01  JAVA 21 + SPRING BOOT 3.x
+              The backend must use Java 21 as the JVM and Spring Boot 3.x as
+              the application framework. No alternative JVM languages or
+              frameworks are permitted.
+
+       TC-02  MYSQL 8
+              The production database must be MySQL 8. Features requiring
+              other databases (e.g., MongoDB, Redis as primary store) are
+              not permitted. MySQL STRICT_TRANS_TABLES mode must be enabled.
+
+       TC-03  REACT + VITE + TYPESCRIPT
+              The frontend must be built with React (Vite toolchain) and
+              TypeScript. No other frontend frameworks (Angular, Vue, etc.)
+              are permitted.
+
+       TC-04  AWS DEPLOYMENT
+              All production infrastructure must run on AWS. This encompasses
+              compute (ECS or EC2), database (RDS), storage (S3), and
+              notifications (SES/SNS).
+
+       TC-05  S3 PRIVATE BUCKET ONLY
+              All document uploads must go to a private S3 bucket. No public
+              URLs at any time. Documents are accessed only via pre-signed
+              URLs with a maximum 15-minute TTL.
+
+   3.2 SECURITY & COMPLIANCE CONSTRAINTS (SC)
+
+       SC-01  MFA IS MANDATORY FOR ALL USERS
+              Multi-Factor Authentication (TOTP or OTP-based) must be enforced
+              for every login, for all user roles including SUPER_ADMIN.
+              There are no exceptions or bypass mechanisms.
+
+       SC-02  ACCOUNT LOCKOUT AFTER 5 FAILED ATTEMPTS
+              After 5 consecutive failed login attempts, accounts are locked
+              for 30 minutes. Lockout events must be logged in the audit trail.
+
+       SC-03  SESSION TIMEOUT AFTER 30 MINUTES OF INACTIVITY
+              Sessions must automatically expire after 30 minutes of
+              inactivity. The frontend must refresh the access token before
+              expiry or redirect to login.
+
+       SC-04  PASSWORD POLICY (MINIMUM)
+              Passwords must be: min 10 characters, contain uppercase,
+              lowercase, at least one digit, and at least one special
+              character. Enforced server-side without exception.
+              bcrypt cost factor must be >= 12.
+
+       SC-05  AADHAAR PII STORAGE RULES
+              Aadhaar numbers must be stored AES-256 encrypted (AWS KMS).
+              They must be displayed masked (XXXX-XXXX-1234) in all UI
+              contexts. Full numbers must never appear in logs, exports,
+              or API responses to non-privileged roles.
+
+       SC-06  NO STACK TRACES IN API RESPONSES
+              API error responses must never expose stack traces, exception
+              class names, or internal implementation details. All exceptions
+              must pass through GlobalExceptionHandler.
+
+       SC-07  DOCUMENT MIME TYPE VALIDATION IS SERVER-SIDE
+              Document upload MIME validation must occur server-side by
+              reading the file magic bytes (not trusting Content-Type header
+              or file extension). Only application/pdf (magic: %PDF) is
+              accepted. Max 10 MB per file.
+
+       SC-08  RBAC ENFORCED AT SPRING SECURITY METHOD LEVEL
+              Role-based access control must be enforced via @PreAuthorize
+              annotations at the service method level. Frontend route guards
+              are supplementary only and cannot be the sole enforcement layer.
+
+       SC-09  JURISDICTION SCOPING FOR DC
+              A DC user can only see and act on temples within their assigned
+              district. This constraint must be enforced in every query (WHERE
+              clause), not only at the API gateway level.
+
+   3.3 DATA INTEGRITY CONSTRAINTS (DI)
+
+       DI-01  ASSET DECLARATIONS ARE APPEND-ONLY
+              Once an asset declaration reaches PENDING_REVIEW state, it must
+              never be overwritten. Corrections require creating a new version.
+              UNIQUE(temple_id, financial_year, version_number) enforced by DB.
+
+       DI-02  AUDIT TRAIL IS INSERT-ONLY
+              The audit trail tables (audit_data_events, audit_auth_events,
+              audit_export_events) must be INSERT-only. The DB user for the
+              application must not have UPDATE or DELETE grants on audit tables.
+
+       DI-03  SOFT DELETES FOR STAFF AND CONTRACTORS
+              Employee and contractor records use soft deletes (deleted_at
+              timestamp). Hard DELETE operations are not permitted on these
+              tables to preserve historical context for audit.
+
+       DI-04  PARAMETERIZED QUERIES ONLY
+              No raw SQL string concatenation is permitted. All database
+              access must use JPA / Hibernate or Spring Data parameterized
+              queries. This is absolute; no exceptions for admin utilities.
+
+   3.4 USER INTERFACE CONSTRAINTS (UI)
+
+       UI-01  CASCADING GEO-DROPDOWNS MUST RESET CHILDREN
+              When a parent geo-level dropdown changes (e.g., District),
+              all child dropdowns (Taluk, Hobli) must be reset to empty
+              before new options are loaded. No stale child selections
+              are permitted.
+
+       UI-02  REACT QUERY FOR ALL SERVER STATE
+              All server data fetching and mutation must use TanStack React
+              Query. No raw useEffect fetch calls for server state are
+              permitted in any feature module.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - All 15 constraints above are non-negotiable for v1
+   - Constraints TC-01 through TC-05 were set by project brief
+   - Constraints SC-01 through SC-09 derive from HR&CE Act compliance
+     and OWASP Top 10 requirements
+   - Constraints DI-01 through DI-04 derive from audit and legal obligations
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - SC-01: Will TOTP (Google Authenticator style) or SMS OTP be the primary
+     MFA method? Requirements permit both; implementation choice affects
+     Aadhaar eKYC integration path.
+   - SC-05: Is UIDAI-based eKYC in scope for v1, or only email OTP MFA
+     for the initial launch?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - SC-02: Account lockout can be weaponized as a DoS attack against
+     temple authorities by repeated deliberate failures. Consider CAPTCHA
+     after 3 failures.
+   - SC-03: Session timeout plus MFA re-authentication can degrade UX for
+     DC users running long export operations. Implement background token
+     refresh with warning modal at T-5 minutes.
+   - DI-01: Append-only declarations can grow large over years. Partition
+     asset_declarations by financial_year or implement archival after 7 years.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Constraints listed are complete for v1 scope
+   - No waiver process exists for any constraint listed above
+   - Third-party SSO (Google, Microsoft) is not in scope

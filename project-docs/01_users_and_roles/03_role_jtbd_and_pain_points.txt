@@ -1,0 +1,203 @@
+﻿FOLDER: /project-docs/01_users_and_roles
+FILE: 03_role_jtbd_and_pain_points.txt
+TITLE: Role Jobs-to-be-Done (JTBD) and Pain Points
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - role JTBD and pain points (5 roles)
+  - Temple_Registry_Requirements_v1.1.pdf (Section 2.1 - Stakeholders,
+    Section 3 - Functional Requirements)
+
+RELATED REQUIREMENTS:
+  Section 2.1 (Stakeholders), Section 3.x (Functional Requirements) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document maps each user role to their primary Jobs-to-be-Done (JTBD)
+   and the pain points TRM must solve. This is the UX and product design
+   reference. All feature prioritization should trace back to these JTBD.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   5 roles analysed. Each role has 3-5 primary jobs and 3-5 current pain
+   points that TRM resolves. These are derived from the requirements document
+   and typical government portal user research patterns.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 ROLE: DISTRICT COLLECTOR (DC)
+
+       PRIMARY JTBD:
+         JOB-DC-01  "When I need to inspect a temple's financial health,
+                     I want to retrieve its latest asset declaration
+                     so I can assess if it's compliant."
+         JOB-DC-02  "When I receive a submission, I want to review it,
+                     annotate concerns, and approve or reject it
+                     so the temple has an official record of my decision."
+         JOB-DC-03  "When my district has multiple pending submissions,
+                     I want to see a prioritized list of overdue ones
+                     so I can act on time-sensitive cases first."
+         JOB-DC-04  "When a higher authority requests a report on temples
+                     in my district, I want to export a formatted summary
+                     so I can respond quickly to official queries."
+         JOB-DC-05  "When I approve a declaration, I want to generate an
+                     official acknowledgement letter
+                     so the temple has a legally valid receipt."
+
+       CURRENT PAIN POINTS (pre-TRM):
+         PAIN-DC-01  Paper files are stored at District Revenue Office;
+                     DC must physically request files to review a temple's
+                     history. Takes 1-3 days.
+         PAIN-DC-02  No standardized submission format; different temples
+                     submit documents in different formats, forcing manual
+                     review effort.
+         PAIN-DC-03  No alert system; DC staff manually track submission
+                     deadlines; overdue submissions are often missed.
+         PAIN-DC-04  Generating official letters requires separate word
+                     processor workflows; no audit of which letters
+                     were issued.
+
+   3.2 ROLE: DC_STAFF
+
+       PRIMARY JTBD:
+         JOB-STAFF-01  "When the DC asks for information on a temple,
+                        I want to quickly look it up and share a summary
+                        so the DC can make decisions without delay."
+         JOB-STAFF-02  "When I need to prepare a summary report for the
+                        DC's weekly review, I want to export a list of
+                        pending submissions so the DC knows what needs
+                        attention."
+         JOB-STAFF-03  "When a temple authority calls the DC office asking
+                        about their submission status, I want to check the
+                        current status quickly so I can answer accurately."
+
+       CURRENT PAIN POINTS (pre-TRM):
+         PAIN-STAFF-01  No centralized record; DC staff must contact
+                        sub-offices or dig through physical files.
+         PAIN-STAFF-02  No visibility into submission status in real time;
+                        staff had to call field offices for updates.
+         PAIN-STAFF-03  Risk of sharing wrong/outdated information; no
+                        single source of truth.
+
+   3.3 ROLE: TEMPLE_AUTHORITY
+
+       PRIMARY JTBD:
+         JOB-TA-01  "When it is time to submit our annual asset declaration,
+                     I want to fill out a structured digital form and
+                     attach supporting documents so I can submit to the DC
+                     without traveling to the office."
+         JOB-TA-02  "When the DC requests clarification on our submission,
+                     I want to see exactly what was questioned, amend the
+                     relevant sections, and resubmit so I can resolve the
+                     query efficiently."
+         JOB-TA-03  "When we have a new board member on our trust, I want
+                     to update the trust details quickly so our records
+                     are always current."
+         JOB-TA-04  "When our declaration is approved, I want to download
+                     the official acknowledgement letter so we have a
+                     legal record of compliance."
+         JOB-TA-05  "When I need to update our temple's profile (new deity
+                     addition, address change), I want to make the change
+                     online without paperwork."
+
+       CURRENT PAIN POINTS (pre-TRM):
+         PAIN-TA-01  Annual submission requires physically visiting DC
+                     office and often involves long queues.
+         PAIN-TA-02  No record of clarification threads; temple authorities
+                     receive terse rejection letters with no context.
+         PAIN-TA-03  Travel cost and time burden, especially for Grade C
+                     temples in remote Hoblis that are far from district HQ.
+         PAIN-TA-04  No digital acknowledgement; paper acknowledgements
+                     can be lost, creating compliance uncertainty.
+         PAIN-TA-05  Updating records requires resubmitting everything even
+                     for minor changes (no incremental update).
+
+   3.4 ROLE: SUPER_ADMIN
+
+       PRIMARY JTBD:
+         JOB-SA-01  "When a new District Collector is appointed, I want to
+                     create their account and assign district scope
+                     so they can begin work immediately."
+         JOB-SA-02  "When Karnataka reorganizes administrative boundaries,
+                     I want to update the geo master data so all district
+                     and taluk assignments remain accurate."
+         JOB-SA-03  "When a temple authority registers, I want to verify
+                     their identity and activate their account so only
+                     legitimate representatives access temple data."
+         JOB-SA-04  "When an audit query arrives, I want to pull the full
+                     audit trail for any user or temple so I can respond
+                     within the mandated 48-hour window."
+         JOB-SA-05  "When a security incident is suspected, I want to
+                     immediately lock a user's account and revoke all
+                     sessions so the threat is contained."
+
+       CURRENT PAIN POINTS (pre-TRM):
+         PAIN-SA-01  No centralized user management; accounts for district
+                     offices managed differently in each district.
+         PAIN-SA-02  Geo master data stored in spreadsheets; updates are
+                     error-prone and must be manually communicated to field
+                     offices.
+         PAIN-SA-03  Audit trail is paper-based; responding to audit queries
+                     takes weeks of manual file searching.
+
+   3.5 ROLE: AUDIT / EXTERNAL VIEWER (future role, not in v1)
+
+       NOTE: Requirements PDF does not explicitly define this role for v1.
+       State Government and Audit Bodies are listed as stakeholders but
+       no portal access is defined for them in v1. This is captured as
+       a future role.
+
+       ANTICIPATED JTBD (for v2 planning):
+         JOB-AUD-01  "When conducting a government audit, I want to view
+                      a read-only snapshot of approved declarations for all
+                      temples in a date range so I can assess compliance
+                      without relying on district offices."
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - JTBD-DC-05 (acknowledgement letter generation) is in scope for v1
+   - JTBD-TA-02 (clarification thread visibility) is in scope for v1;
+     see /project-docs/05_workflows_and_states/01_clarification_loop.txt
+   - External Auditor role is explicitly deferred to v2
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - PAIN-TA-03: Should there be a mobile-friendly (responsive) version
+     of the portal to support temple authorities in remote areas?
+     Currently: web-only scope.
+   - PAIN-DC-03: Should DCs receive daily digest emails summarizing pending
+     submissions, or only event-triggered notifications?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - JOB-DC-04 (Export): If a DC exports data for a report and the data
+     changes before the report is submitted to superiors, the exported data
+     is stale. Consider timestamping exports and including a "snapshot as-of"
+     date in all export documents.
+   - JOB-SA-05 (Emergency lockout): Must be near-instant (sub-5 seconds).
+     Requires refresh token revocation AND JWT validation against revocation
+     timestamp on every request.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Pain points listed are representative of the intended stakeholder group
+     even if formal user research was not conducted for this document
+   - All JTBD are addressable through the features defined in the requirements
+     PDF within v1 scope
+   - SUPER_ADMIN is a technical/administrative role, not a field user; does
+     not require mobile-optimized UX

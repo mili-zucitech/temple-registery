@@ -1,0 +1,221 @@
+FOLDER: /project-docs/04_schema_design
+FILE: 10_search_summary_and_indexes.txt
+TITLE: Search Summary Table & Index Strategy - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from DC search indexing design session (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the temple_search_summary pre-computed table that powers fast DC
+   search queries, and document the complete index strategy for all high-traffic
+   query patterns.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 temple_search_summary - PRE-COMPUTED SEARCH TABLE
+
+   CREATE TABLE temple_search_summary (
+     temple_id              BIGINT UNSIGNED NOT NULL,
+     -- Denormalized geo path (avoid joins on every search)
+     state_id               BIGINT UNSIGNED NOT NULL,
+     state_name             VARCHAR(100)    NOT NULL,
+     city_id                BIGINT UNSIGNED NOT NULL,
+     city_name              VARCHAR(100)    NOT NULL,
+     district_id            BIGINT UNSIGNED NOT NULL,
+     district_name          VARCHAR(100)    NOT NULL,
+     taluk_id               BIGINT UNSIGNED NOT NULL,
+     taluk_name             VARCHAR(100)    NOT NULL,
+     hobli_id               BIGINT UNSIGNED NOT NULL,
+     hobli_name             VARCHAR(100)    NOT NULL,
+     -- Temple basics
+     temple_name            VARCHAR(255)    NOT NULL,
+     temple_grade           ENUM('A','B','C') NOT NULL,
+     temple_status          ENUM('ACTIVE','INACTIVE','SUSPENDED') NOT NULL,
+     deity_name             VARCHAR(255)    DEFAULT NULL,
+     religious_tradition    ENUM('SHAIVITE','VAISHNAVITE','SHAKTA','JAIN','BUDDHIST','OTHER')
+                            DEFAULT NULL,                    -- synced from temples.religious_tradition; drives filter
+     registration_number    VARCHAR(50)     NOT NULL,
+     established_year       SMALLINT UNSIGNED DEFAULT NULL,  -- synced from temples.established_year; drives year range filter
+     -- Trust status
+     trust_registered       TINYINT(1)      NOT NULL DEFAULT 0,  -- 1 if an ACTIVE trust_registration exists for this temple
+     -- Pending action counters
+     pending_declarations   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+     overdue_declarations   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+     pending_profile_review TINYINT(1)      NOT NULL DEFAULT 0,
+     -- Last activity
+     last_declaration_at    DATETIME(6)     DEFAULT NULL,
+     last_profile_update_at DATETIME(6)     DEFAULT NULL,
+     -- Sync metadata
+     refreshed_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     PRIMARY KEY (temple_id),
+     CONSTRAINT fk_tss_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.2 INDEXES ON temple_search_summary
+
+   -- DC primary search: filter by district + grade + status
+   CREATE INDEX idx_tss_district_grade
+     ON temple_search_summary(district_id, temple_grade, temple_status);
+
+   -- DC taluk-level filter
+   CREATE INDEX idx_tss_taluk
+     ON temple_search_summary(taluk_id, temple_status);
+
+   -- DC hobli-level filter
+   CREATE INDEX idx_tss_hobli
+     ON temple_search_summary(hobli_id, temple_status);
+
+   -- Sort by pending actions first (DC default sort)
+   CREATE INDEX idx_tss_pending
+     ON temple_search_summary(district_id, pending_declarations DESC,
+                              overdue_declarations DESC, last_declaration_at DESC);
+
+   -- Name search
+   CREATE INDEX idx_tss_name
+     ON temple_search_summary(district_id, temple_name);
+
+   -- Registration number lookup
+   CREATE INDEX idx_tss_reg
+     ON temple_search_summary(registration_number);
+
+   -- Religious tradition filter (DC specific)
+   CREATE INDEX idx_tss_tradition
+     ON temple_search_summary(district_id, religious_tradition, temple_status);
+
+   -- Trust registration status filter
+   CREATE INDEX idx_tss_trust_reg
+     ON temple_search_summary(district_id, trust_registered, temple_status);
+
+   -- Year of establishment range filter
+   CREATE INDEX idx_tss_year
+     ON temple_search_summary(district_id, established_year);
+
+   3.3 REFRESH STRATEGY
+
+   temple_search_summary is refreshed via application events (not DB trigger):
+
+   Events that trigger a refresh for a specific temple_id:
+   - temple profile approved / rejected
+   - asset declaration submitted / approved / rejected / clarification
+   - overdue flag set by scheduler
+   - temple grade changed
+
+   Refresh method (called asynchronously via @Async Spring service):
+     UPDATE temple_search_summary
+     SET temple_name            = (SELECT name FROM temples WHERE id = :id),
+         temple_grade           = (SELECT grade FROM temples WHERE id = :id),
+         temple_status          = (SELECT status FROM temples WHERE id = :id),
+         pending_declarations   = (SELECT COUNT(*) FROM asset_declarations
+                                   WHERE temple_id = :id
+                                   AND status IN ('PENDING_REVIEW',
+                                                  'CLARIFICATION_REQUESTED')),
+         overdue_declarations   = (SELECT COUNT(*) FROM asset_declarations
+                                   WHERE temple_id = :id AND is_overdue = 1
+                                   AND status != 'APPROVED'),
+         pending_profile_review = (SELECT COUNT(*) FROM temple_profile_staging
+                                   WHERE temple_id = :id
+                                   AND status = 'PENDING_REVIEW'),
+         last_declaration_at    = (SELECT MAX(submitted_at) FROM asset_declarations
+                                   WHERE temple_id = :id),
+         religious_tradition    = (SELECT religious_tradition FROM temples WHERE id = :id),
+         established_year       = (SELECT established_year FROM temples WHERE id = :id),
+         trust_registered       = (SELECT COUNT(*) > 0 FROM trust_registrations
+                                   WHERE temple_id = :id AND status = 'ACTIVE'),
+         refreshed_at           = NOW(6)
+     WHERE temple_id = :id;
+
+   Refresh trigger events (extended):
+   - trust status changed (ACTIVE -> DISSOLVED or new trust created): refresh trust_registered
+   - temples.religious_tradition updated: refresh religious_tradition
+   - temples.established_year updated: refresh established_year
+
+   Full rebuild (SUPER_ADMIN or on startup):
+     TRUNCATE temple_search_summary;
+     INSERT INTO temple_search_summary (temple_id, ...)
+     SELECT t.id, s.id, s.name, ci.id, ci.name, d.id, d.name,
+            ta.id, ta.name, h.id, h.name, t.name, t.grade, ...
+     FROM temples t
+     JOIN geo_hoblis h ON h.id = t.hobli_id
+     JOIN geo_taluks ta ON ta.id = h.taluk_id
+     JOIN geo_districts d ON d.id = ta.district_id
+     JOIN geo_cities ci ON ci.id = d.city_id
+     JOIN geo_states s ON s.id = ci.state_id;
+
+   3.4 DC SEARCH QUERY PATTERN
+
+   -- DC searches temples in their district with full filter support + pagination
+   SELECT temple_id, temple_name, temple_grade, religious_tradition,
+          hobli_name, taluk_name, district_name,
+          pending_declarations, overdue_declarations, pending_profile_review,
+          trust_registered, last_declaration_at
+   FROM   temple_search_summary
+   WHERE  district_id = :dc_district_id        -- MANDATORY jurisdiction scope
+   AND    temple_status = 'ACTIVE'
+   AND    (:grade IS NULL OR temple_grade = :grade)               -- optional grade filter
+   AND    (:taluk_id IS NULL OR taluk_id = :taluk_id)             -- optional taluk
+   AND    (:hobli_id IS NULL OR hobli_id = :hobli_id)             -- optional hobli
+   AND    (:name IS NULL OR temple_name LIKE :name_pattern)       -- optional name keyword
+   AND    (:deity_name IS NULL OR deity_name LIKE :deity_pattern) -- optional deity filter
+   AND    (:tradition IS NULL OR religious_tradition = :tradition) -- optional tradition filter
+   AND    (:trust_reg IS NULL OR trust_registered = :trust_reg)   -- optional trust filter (0 or 1)
+   AND    (:year_from IS NULL OR established_year >= :year_from)  -- optional year range start
+   AND    (:year_to IS NULL OR established_year <= :year_to)      -- optional year range end
+   ORDER BY pending_declarations DESC,
+            overdue_declarations DESC,
+            last_declaration_at DESC
+   LIMIT :page_size OFFSET :offset;
+
+   PARTIAL GEO SELECTION RULE:
+   All geo params (taluk_id, hobli_id) are individually optional.
+   district_id is MANDATORY for DC and DC_STAFF roles (enforced by RBAC).
+   SUPER_ADMIN may pass district_id=null to search all districts.
+
+   3.5 KEYSET PAGINATION ALTERNATIVE
+
+   For better performance on large datasets, use keyset pagination instead of
+   OFFSET:
+
+   WHERE district_id = :dc_district_id
+   AND   (pending_declarations, overdue_declarations, temple_id)
+         < (:last_pending, :last_overdue, :last_id)
+   ORDER BY pending_declarations DESC, overdue_declarations DESC, temple_id DESC
+   LIMIT 25;
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - temple_search_summary is event-driven refresh (not real-time joins)
+   - Full rebuild available to SUPER_ADMIN via admin API
+   - OFFSET pagination acceptable for v1; keyset pagination is preferred
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should temple_search_summary use MySQL full-text index on temple_name
+     for fuzzy name search, or is LIKE '%term%' sufficient for v1?
+   - Is Elasticsearch/OpenSearch needed for v2 scale?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Stale data: if the async refresh fails silently, search results show
+     wrong pending counts. Add a staleness check: alert if refreshed_at
+     is older than 5 minutes for temples with recent activity.
+   - Full rebuild on startup should be paginated (1000 temples at a time)
+     to avoid memory pressure and table lock on large datasets.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - temple_search_summary covers all 30,000+ temples
+   - Refresh latency of up to 30 seconds after an event is acceptable
+   - DC search results are not real-time; brief staleness is acceptable
