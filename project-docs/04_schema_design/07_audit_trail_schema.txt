@@ -177,18 +177,26 @@ SOURCE: Derived from audit trail schema design session (prior analysis).
    );
 
    ARCHIVAL STRATEGY (after 7 years):
-   1. Export partition to S3 Glacier: mysqldump --tables audit_data_events --where="YEAR(event_time) = 2026"
-   2. Compress and upload to s3://trm-audit-archive/{year}/audit_data_events.sql.gz
-   3. DROP PARTITION p2026 from the live table
-   This keeps the live table lean while meeting the 7-year minimum retention requirement.
+   LOCAL DEV: Export partition to a compressed SQL file on the local filesystem:
+     mysqldump trm_db audit_data_events \
+       --where="YEAR(event_time) = 2026" | gzip > ./archive/audit_data_2026.sql.gz
+     DROP PARTITION p2026 from the live table.
+
+   PRODUCTION: Export to durable cold storage:
+     mysqldump ... | gzip > audit_data_events_{year}.sql.gz
+     Upload to S3 Glacier (production) or equivalent long-term archive.
+     DROP PARTITION from live table after confirming upload integrity.
+   This keeps the live table lean while meeting the 7-year minimum retention.
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
-   - Should audit data be replicated to a separate read-only Aurora replica
+   - Should audit data be replicated to a separate read-only DB replica
      to prevent audit queries from impacting application performance?
    - What is the acceptable archival strategy after 7 years?
-     (Compress and move to S3 Glacier, or keep in RDS?)
+     LOCAL DEV: compressed .sql.gz files on local disk.
+     PRODUCTION: S3 Glacier or equivalent cold storage.
+     Both paths must include an integrity check before DROP PARTITION.
 
 --------------------------------------------------------------------------------
 
@@ -203,6 +211,7 @@ SOURCE: Derived from audit trail schema design session (prior analysis).
 
 7. ASSUMPTIONS
    - Spring AOP aspect or JPA @EntityListeners handles audit event generation
-   - Async audit queue uses an in-memory queue (Spring @Async) for v1;
-     upgrade to SQS for v2 if volume requires
+   - Async audit queue uses Spring @Async with a bounded task executor for
+     both local dev and v1 production; upgrade to a persistent queue (e.g.
+     SQS, or DB-backed async) in v2 if audit volume requires it
    - 7-year retention is the minimum; keep longer if storage cost permits
