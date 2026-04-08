@@ -98,8 +98,12 @@ SOURCE:
    For each row:
      1. UPDATE status = 'PROCESSING'
      2. For each channel in channels JSON:
-        - EMAIL: call AWS SES SendEmail API
-        - SMS: call AWS SNS Publish API
+        - EMAIL: call EmailGateway.send(recipientEmail, templateKey, params)
+            LOCAL DEV: logs email body to console (NoOpEmailGateway)
+            PRODUCTION: delegates to AWS SES SendEmail API
+        - SMS: call SmsGateway.send(phoneNumber, messageBody)
+            LOCAL DEV: logs SMS body to console (ConsoleSmsGateway)
+            PRODUCTION: delegates to AWS SNS Publish API
         - IN_APP: INSERT into in_app_notifications
      3. On success: UPDATE individual channel status = 'SENT'
      4. On all channels sent: UPDATE status = 'SENT'

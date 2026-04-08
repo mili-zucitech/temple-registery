@@ -30,7 +30,10 @@ SOURCE:
 
    Step 2: MFA Challenge
      - If mfa_type = TOTP: return { mfaRequired: true, challengeType: "TOTP" }
-     - If mfa_type = SMS_OTP: generate OTP, send via SNS, return challengeType: "SMS_OTP"
+     - If mfa_type = SMS_OTP: generate OTP, send via notification channel,
+       return challengeType: "SMS_OTP"
+       LOCAL DEV NOTE: SMS_OTP path logs the OTP to the application console
+       (SmsGateway mock); no real SMS is sent. Use TOTP for all local testing.
      - Frontend presents MFA input screen
 
    Step 3: POST /api/auth/mfa-verify { tempToken, mfaCode }
@@ -155,7 +158,9 @@ SOURCE:
 
 4. DECISIONS LOCKED
 
-   - RS256 (asymmetric) for JWT signing; private key stored in AWS Secrets Manager
+   - RS256 (asymmetric) for JWT signing; private key stored securely per
+     environment (production: AWS Secrets Manager; local dev: classpath
+     resource /keys/jwt-private.pem excluded from git via .gitignore)
    - Access token: 15-minute TTL; Refresh token: 7-day TTL, single-use rotation
    - MFA is mandatory for ALL users; no bypass endpoint exists
    - Aadhaar eKYC only at registration; not at every login
@@ -182,9 +187,9 @@ SOURCE:
      after rotation to allow for retry.
    - RS256 private key compromise: rotate immediately via Secrets Manager;
      all active tokens become invalid (users re-login).
-   - Pre-signed URL TTL (S3 documents): 15-minute TTL may be insufficient for
+   - Pre-signed document URL TTL: 15-minute TTL may be insufficient for
      large PDF downloads over slow rural/government network connections.
-     MITIGATION: Frontend generates the pre-signed URL immediately before the
+     MITIGATION: Frontend generates the download token immediately before the
      user clicks "Download" (not when the page loads). This starts the 15-minute
      window at the right time. The download request begins within seconds of URL
      generation; the TTL covers the actual transfer.

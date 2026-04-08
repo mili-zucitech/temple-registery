@@ -77,11 +77,13 @@ SOURCE:
    ~6,000/hour. At peak 10,000 overdue events, drain time = 1.6 hours.
 
    MITIGATION:
-   - AWS SES default send rate: 14 emails/second = ~50,400/hour.
-     The bottleneck is JOB-04 throughput, not SES capacity.
+   - Email delivery rate is governed by the email channel in use:
+       Local dev (console logger): instant (no real delivery; no rate limit)
+       Production (SMTP relay, e.g. Brevo free tier): ~300 emails/day cap
+       Production (AWS SES production mode): 14 emails/second = ~50,400/hour
+     The bottleneck in all cases is JOB-04 throughput, not the channel.
    - Increase JOB-04 batch size to 200 on April 1 only (configurable via
-     application.properties: notification.processor.batchSize=200 with
-     @ConditionalOnProperty or environment-aware config).
+     application.properties: notification.processor.batchSize=200).
    - Alternative: JOB-01 inserts events with staggered next_retry_at values
      (spacing inserts over 2 hours using a row_number() offset in the INSERT):
        next_retry_at = DATE_ADD(NOW(), INTERVAL (ROW_NUMBER() / 200) * 30 SECOND)
@@ -112,6 +114,16 @@ SOURCE:
 
 7. ASSUMPTIONS
 
+   LOCAL DEVELOPMENT:
+   - EMAIL channel: JavaMailSender writes to console (NoOpMailSender or
+     MailHog on port 1025). No real emails are sent. Developers inspect
+     the console or MailHog web UI to verify email content.
+   - SMS channel: The SmsGateway mock logs the OTP/message to the
+     application console. No real SMS network call occurs.
+   - IN_APP notifications are always deliverable (no external dependency)
+   - Users.mfa_phone is still validated for format but SMS is never sent
+
+   PRODUCTION:
    - AWS SES and SNS are in production mode (not sandbox) at go-live
    - Users.mfa_phone is in E.164 format (+91XXXXXXXXXX)
-   - IN_APP notifications are always deliverable (no external dependency)
+   - DLT registration for SMS sender ID is complete before go-live

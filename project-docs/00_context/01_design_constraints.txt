@@ -49,15 +49,23 @@ RELATED REQUIREMENTS:
               TypeScript. No other frontend frameworks (Angular, Vue, etc.)
               are permitted.
 
-       TC-04  AWS DEPLOYMENT
-              All production infrastructure must run on AWS. This encompasses
-              compute (ECS or EC2), database (RDS), storage (S3), and
-              notifications (SES/SNS).
+       TC-04  CLOUD DEPLOYMENT (PRODUCTION TARGET)
+              All production infrastructure is targeted for AWS. This
+              encompasses compute (ECS or EC2), database (RDS), storage (S3),
+              and notifications (SES/SNS).
+              LOCAL DEVELOPMENT OVERRIDE: Run everything on a single local
+              machine. MySQL 8 runs locally. Files are stored on the local
+              filesystem via LocalFileStorageService. Email is logged to
+              console. No cloud account is required for development or demo.
 
-       TC-05  S3 PRIVATE BUCKET ONLY
-              All document uploads must go to a private S3 bucket. No public
-              URLs at any time. Documents are accessed only via pre-signed
-              URLs with a maximum 15-minute TTL.
+       TC-05  PRIVATE DOCUMENT STORAGE ONLY
+              All document uploads must go to a private storage location. No
+              public file URLs at any time. Documents are accessed only via
+              time-limited tokens with a maximum 15-minute TTL.
+              LOCAL DEVELOPMENT OVERRIDE: Documents are stored under
+              ./uploads/ relative to the application working directory.
+              Pre-signed URLs are replaced by short-lived signed JWT tokens
+              issued by the backend for each download request.
 
    3.2 SECURITY & COMPLIANCE CONSTRAINTS (SC)
 
@@ -82,10 +90,14 @@ RELATED REQUIREMENTS:
               bcrypt cost factor must be >= 12.
 
        SC-05  AADHAAR PII STORAGE RULES
-              Aadhaar numbers must be stored AES-256 encrypted (AWS KMS).
+              Aadhaar numbers must be stored AES-256 encrypted at rest.
               They must be displayed masked (XXXX-XXXX-1234) in all UI
               contexts. Full numbers must never appear in logs, exports,
               or API responses to non-privileged roles.
+              PRODUCTION: Use AWS KMS envelope encryption.
+              LOCAL DEVELOPMENT: Use AES-256-GCM with a master key loaded
+              from the ENCRYPT_MASTER_KEY environment variable
+              (set in application-local.yml or .env file; never commit to git).
 
        SC-06  NO STACK TRACES IN API RESPONSES
               API error responses must never expose stack traces, exception
@@ -152,6 +164,14 @@ RELATED REQUIREMENTS:
    - Constraints SC-01 through SC-09 derive from HR&CE Act compliance
      and OWASP Top 10 requirements
    - Constraints DI-01 through DI-04 derive from audit and legal obligations
+
+   LOCAL DEVELOPMENT OVERRIDES (do not apply in production):
+   - TC-04: Cloud infra replaced by local machine (MySQL on localhost,
+     filesystem storage, console email)
+   - TC-05: S3 replaced by local ./uploads/ directory with JWT-signed tokens
+   - SC-05: AWS KMS replaced by AES-256-GCM with env-var master key
+   - SC-01 SMS OTP path: TOTP-only for local dev; SMS re-enabled in prod
+   - Aadhaar eKYC (UIDAI): Mocked via MockUidaiGateway (@Profile("local"))
 
 --------------------------------------------------------------------------------
 
