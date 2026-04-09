@@ -70,19 +70,53 @@ SOURCE: Derived from audit trail schema design session (prior analysis).
      INDEX idx_aee_time (event_time)
    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-   3.4 DB PERMISSIONS MODEL
+   3.4 audit_pii_access_events - PII READ ACCESS LOG
+
+   Captures every read of sensitive/PII fields (Aadhaar, PAN, bank account numbers).
+   This is required under India's DPDP Act for demonstrating lawful access.
+   INSERT ONLY; no UPDATE or DELETE grant for trm_app DB user.
+
+   CREATE TABLE audit_pii_access_events (
+     id              BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     actor_user_id   BIGINT UNSIGNED  NOT NULL,
+     accessed_entity VARCHAR(100)     NOT NULL,  -- e.g. 'trust_board_members', 'trust_registrations'
+     record_id       BIGINT UNSIGNED  NOT NULL,
+     field_accessed  VARCHAR(100)     NOT NULL,  -- e.g. 'aadhaar', 'pan_number', 'bank_account_number'
+     access_reason   VARCHAR(255)     DEFAULT NULL,  -- populated from X-Access-Reason header (optional)
+     event_time      DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     ip_address      VARCHAR(45)      DEFAULT NULL,
+     request_id      VARCHAR(100)     DEFAULT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_pii_actor (actor_user_id, event_time),
+     INDEX idx_pii_record (accessed_entity, record_id, event_time),
+     INDEX idx_pii_time (event_time)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   IMPLEMENTATION: The AesEncryptionConverter.convertToEntityAttribute() must call
+   AuditPiiAccessService.log(currentUserId, entityName, recordId, fieldName) BEFORE
+   returning the decrypted value. This is enforced via Spring AOP around the service
+   methods that return decrypted PII (e.g. getBoardMemberDetail, getTrustDetail).
+
+   SCOPE: Log PII access only when the decrypted value is included in an API response.
+   Internal audit queries by SUPER_ADMIN that access PII are also logged.
+   Notification processing that reads encrypted fields for masking DOES NOT log
+   (no PII is exposed to outside the system in that path).
+
+   3.5 DB PERMISSIONS MODEL (UPDATED)
 
    -- Application DB user (trm_app):
    GRANT SELECT, INSERT, UPDATE, DELETE ON trm_db.* TO 'trm_app'@'%';
    REVOKE UPDATE, DELETE ON trm_db.audit_data_events FROM 'trm_app'@'%';
    REVOKE UPDATE, DELETE ON trm_db.audit_auth_events FROM 'trm_app'@'%';
    REVOKE UPDATE, DELETE ON trm_db.audit_export_events FROM 'trm_app'@'%';
+   REVOKE UPDATE, DELETE ON trm_db.audit_pii_access_events FROM 'trm_app'@'%';
    REVOKE UPDATE, DELETE ON trm_db.document_access_log FROM 'trm_app'@'%';
 
    -- Audit read-only user (trm_audit):
    GRANT SELECT ON trm_db.audit_data_events TO 'trm_audit'@'%';
    GRANT SELECT ON trm_db.audit_auth_events TO 'trm_audit'@'%';
    GRANT SELECT ON trm_db.audit_export_events TO 'trm_audit'@'%';
+   GRANT SELECT ON trm_db.audit_pii_access_events TO 'trm_audit'@'%';
 
    3.5 KEY INVESTIGATION QUERIES
 
@@ -113,18 +147,56 @@ SOURCE: Derived from audit trail schema design session (prior analysis).
 --------------------------------------------------------------------------------
 
 4. DECISIONS LOCKED
-   - All 3 audit tables: INSERT only at DB permission level
+   - All 4 audit tables: INSERT only at DB permission level
    - before_value and after_value stored as JSON (flexible schema)
    - IP address stored as VARCHAR(45) to support both IPv4 and IPv6
    - Retention: 7 years minimum for all audit tables
+   - audit_pii_access_events: mandatory for DPDP Act compliance; not optional
+   - audit_pii_access_events is logged from AuditPiiAccessService, NOT from controller layer
+
+   TABLE PARTITIONING STRATEGY (production requirement):
+   All 4 audit tables must use RANGE partitioning on event_time (yearly partitions).
+   This is essential for long-term performance; audit tables will reach hundreds of
+   millions of rows within 3-5 years at 30,000 temples.
+
+   Example for audit_data_events (apply same pattern to all audit tables):
+
+   ALTER TABLE audit_data_events
+   PARTITION BY RANGE (YEAR(event_time)) (
+     PARTITION p2026 VALUES LESS THAN (2027),
+     PARTITION p2027 VALUES LESS THAN (2028),
+     PARTITION p2028 VALUES LESS THAN (2029),
+     PARTITION p_future VALUES LESS THAN MAXVALUE
+   );
+
+   YEARLY MAINTENANCE (add partition before year end, via Flyway migration):
+   ALTER TABLE audit_data_events
+   REORGANIZE PARTITION p_future INTO (
+     PARTITION p2029 VALUES LESS THAN (2030),
+     PARTITION p_future VALUES LESS THAN MAXVALUE
+   );
+
+   ARCHIVAL STRATEGY (after 7 years):
+   LOCAL DEV: Export partition to a compressed SQL file on the local filesystem:
+     mysqldump trm_db audit_data_events \
+       --where="YEAR(event_time) = 2026" | gzip > ./archive/audit_data_2026.sql.gz
+     DROP PARTITION p2026 from the live table.
+
+   PRODUCTION: Export to durable cold storage:
+     mysqldump ... | gzip > audit_data_events_{year}.sql.gz
+     Upload to S3 Glacier (production) or equivalent long-term archive.
+     DROP PARTITION from live table after confirming upload integrity.
+   This keeps the live table lean while meeting the 7-year minimum retention.
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
-   - Should audit data be replicated to a separate read-only Aurora replica
+   - Should audit data be replicated to a separate read-only DB replica
      to prevent audit queries from impacting application performance?
    - What is the acceptable archival strategy after 7 years?
-     (Compress and move to S3 Glacier, or keep in RDS?)
+     LOCAL DEV: compressed .sql.gz files on local disk.
+     PRODUCTION: S3 Glacier or equivalent cold storage.
+     Both paths must include an integrity check before DROP PARTITION.
 
 --------------------------------------------------------------------------------
 
@@ -139,6 +211,7 @@ SOURCE: Derived from audit trail schema design session (prior analysis).
 
 7. ASSUMPTIONS
    - Spring AOP aspect or JPA @EntityListeners handles audit event generation
-   - Async audit queue uses an in-memory queue (Spring @Async) for v1;
-     upgrade to SQS for v2 if volume requires
+   - Async audit queue uses Spring @Async with a bounded task executor for
+     both local dev and v1 production; upgrade to a persistent queue (e.g.
+     SQS, or DB-backed async) in v2 if audit volume requires it
    - 7-year retention is the minimum; keep longer if storage cost permits

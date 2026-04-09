@@ -45,6 +45,23 @@ SOURCE:
 
    3.3 SEARCH RESULTS TABLE COLUMNS
 
+   RESULT COUNT DISPLAY:
+   Per requirements §3.1.1e, the search result count MUST be displayed prominently
+   ABOVE the results list, before any record is rendered:
+     "Temples found: {totalElements}" (e.g. "Temples found: 47")
+   This is populated from the pagination wrapper in the API response:
+     GET /api/temples response includes: { data: { content: [...], totalElements: 47, ... } }
+   The frontend renders this count before the table component loads.
+   On filter change, the count updates in-place (no full page navigation).
+   If 0 results: display "No temples match your current filters." (not a 404).
+
+   DYNAMIC SEARCH (no page reload):
+   Filter changes must trigger React Query re-fetch, NOT full page navigation.
+   Implementation: All active filters are stored as URL query params (useSearchParams).
+   React Query's queryKey includes the filter object; any filter change invalidates
+   the query and triggers background re-fetch with loading indicator on the results panel.
+   The URL updates as filters change, supporting back-navigation and link sharing.
+
    Column               | Source                    | Sortable
    ---------------------|---------------------------|----------
    Temple Name          | temple_name               | Y

@@ -41,10 +41,23 @@ RELATED REQUIREMENTS:
                 Implementation: if (role == SUPER_ADMIN) { // no scope filter }
 
        RULE-02  DISTRICT_COLLECTOR - DISTRICT SCOPE
-                All temple-related queries must add:
-                  WHERE t.district_id = :dcDistrictId
+                All temple-related queries must scope to district via JOIN (not nested IN).
+                Nested IN subqueries are non-deterministically optimized by MySQL and can
+                cause full-table scans at 30,000+ temple scale.
+
+                CORRECT implementation (JOIN with covering indexes):
+                  SELECT t.* FROM temples t
+                  JOIN geo_hoblis h ON h.id = t.hobli_id
+                  JOIN geo_taluks tal ON tal.id = h.taluk_id
+                  WHERE tal.district_id = :dcDistrictId
+
+                For partial geo selection (taluk and hobli are optional):
+                  AND (:talukId IS NULL OR tal.id = :talukId)
+                  AND (:hobliId IS NULL OR h.id = :hobliId)
+
                 district_id claim is extracted from JWT. If the claim is
                 absent, the request must be rejected with 403.
+                This JOIN pattern is also required for RULE-03 (DC_STAFF).
 
        RULE-03  DC_STAFF - SAME DISTRICT SCOPE AS DC
                 DC_STAFF uses the same district_id scoping as
