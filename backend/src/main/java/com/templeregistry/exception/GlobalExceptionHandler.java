@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import org.springframework.http.HttpHeaders;
+
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -102,6 +104,29 @@ public class GlobalExceptionHandler {
         log.warn("Account locked attempt: retryAfter={}", ex.getRetryAfterEpochSeconds());
         return ResponseEntity.status(HttpStatus.LOCKED)
                 .body(ApiResponse.error(ex.getMessage(), "ACCOUNT_LOCKED"));
+    }
+
+    @ExceptionHandler(AcknowledgementNumberConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAckConflict(AcknowledgementNumberConflictException ex) {
+        log.error("Acknowledgement sequence conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Acknowledgement generation failed. Please retry.", "TRM-ACK-001"));
+    }
+
+    @ExceptionHandler(ExportQueueFullException.class)
+    public ResponseEntity<ApiResponse<Void>> handleExportQueueFull(ExportQueueFullException ex) {
+        log.warn("Export queue full: retryAfter={}s", ex.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ApiResponse.error(ex.getMessage(), "TRM-EXPORT-QUEUE-FULL"));
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimit(RateLimitExceededException ex) {
+        log.warn("Rate limit exceeded: retryAfter={}s", ex.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ApiResponse.error(ex.getMessage(), "TRM-RATE-LIMIT"));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

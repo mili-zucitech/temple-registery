@@ -31,6 +31,7 @@ export function useCurrentUser() {
 
 export function useLogin() {
   const [login, { isLoading }] = useLoginMutation()
+  const [verify] = useMfaVerifyMutation()
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
 
@@ -41,6 +42,20 @@ export function useLogin() {
       if ('tempToken' in payload) {
         // MFA required — navigate to MFA page carrying temp token
         navigate(ROUTE_PATHS.MFA_VERIFY, { state: { tempToken: payload.tempToken, mfaType: (payload as MfaChallengeResponse).challengeType } })
+        const { tempToken, mfaRequired } = payload as MfaChallengeResponse
+        if (!mfaRequired) {
+          // MFA disabled — auto-verify with no OTP code
+          const verifyResult = await verify({ tempToken, mfaCode: null })
+          if ('data' in verifyResult && verifyResult.data.success) {
+            toast.success('Login successful')
+            navigate(ROUTE_PATHS.DC_DASHBOARD)
+          } else {
+            toast.error('Login failed. Please try again.')
+          }
+        } else {
+          // MFA required — navigate to MFA page carrying temp token
+          navigate(ROUTE_PATHS.MFA_VERIFY, { state: { tempToken, mfaType: (payload as MfaChallengeResponse).mfaType } })
+        }
       } else {
         const tokens = payload as AuthTokenResponse
         dispatch(setAccessToken(tokens.accessToken))

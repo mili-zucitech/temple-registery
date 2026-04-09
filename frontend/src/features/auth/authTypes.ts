@@ -10,7 +10,7 @@ export const loginSchema = z.object({
 
 export const mfaVerifySchema = z.object({
   tempToken: z.string().min(1),
-  code: z.string().length(6, 'OTP must be 6 digits'),
+  mfaCode: z.string().length(6, 'OTP must be 6 digits').optional().nullable(),
 })
 
 export const aadhaarOtpRequestSchema = z.object({
@@ -78,6 +78,9 @@ export interface MfaChallengeResponse {
   mfaRequired: boolean
   tempToken: string
   challengeType: 'TOTP' | 'SMS_OTP'
+  mfaRequired: boolean
+  mfaType: 'TOTP' | 'SMS'
+  maskedMobile?: string
 }
 
 export interface AadhaarOtpResponse {
