@@ -69,6 +69,20 @@ SOURCE:
 
    3.5 MONITORING RECOMMENDATIONS
 
+   LOCAL DEVELOPMENT:
+   - All job execution outcomes are logged to the application console and
+     logfile (src/main/resources/logback-spring.xml). Watch for these markers:
+       [JOB-01] Overdue scan complete: N temples flagged
+       [JOB-04] Processed N notifications; FAILED: N
+       [JOB-06] Search summary rebuild complete in Nms
+   - Spring Boot Actuator endpoint /actuator/scheduledtasks shows all
+     registered scheduled tasks and their last execution time.
+   - To check notification queue health: query the DB directly:
+       SELECT status, COUNT(*) FROM notification_events GROUP BY status;
+   - HikariCP pool metrics via Actuator:
+       GET /actuator/metrics/hikaricp.connections.active
+
+   PRODUCTION (AWS):
    - CloudWatch Alarms:
      * ECS CPU > 80% for 5 minutes
      * RDS connections > 80% of max_connections
@@ -90,6 +104,15 @@ SOURCE:
 
 7. ASSUMPTIONS
 
+   LOCAL DEVELOPMENT:
+   - Spring Boot application runs in IST timezone: set JVM arg
+     -Duser.timezone=Asia/Kolkata in IDE run configuration or
+     in application-local.yml: spring.jackson.time-zone=Asia/Kolkata
+   - ShedLock is NOT required for local dev (single JVM instance);
+     the ShedLock dependency stays in pom.xml but is not activated
+   - Jobs run as scheduled within the same JVM as the API server
+
+   PRODUCTION:
    - Spring Boot application runs in IST timezone (JVM -Duser.timezone=Asia/Kolkata)
    - ShedLock uses the same MySQL DB (not a separate Redis lock store)
    - ECS tasks are in the same AWS region as RDS (low latency for ShedLock)

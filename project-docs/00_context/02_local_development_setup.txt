@@ -1,0 +1,303 @@
+FOLDER: /project-docs/00_context
+FILE: 02_local_development_setup.txt
+TITLE: Local Development Setup - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from zero-cost MVP analysis and local-dev documentation sprint
+  (2026-04-08). Companion to 00_context/01_design_constraints.txt.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document is the single source of truth for running the TRM system
+   entirely on a local machine with no cloud accounts, no paid services, and
+   no internet-dependent infrastructure. All mocked services, local alternatives,
+   and developer setup steps are documented here.
+
+   Audience: Any developer joining the project. Read this before writing any code.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY OF LOCAL REPLACEMENTS
+
+   Cloud / Prod Service         | Local Dev Replacement
+   -----------------------------|--------------------------------------------------
+   AWS S3 (document storage)    | Local filesystem (./uploads/) via LocalFileStorageGateway
+   AWS SES (email delivery)     | Console logger / MailHog SMTP (NoOpEmailGateway)
+   AWS SNS (SMS delivery)       | Console logger (ConsoleSmsGateway)
+   AWS KMS (PII encryption)     | AES-256-GCM with ENCRYPT_MASTER_KEY env var
+   AWS Secrets Manager          | application-local.yml + .env file (git-ignored)
+   AWS RDS MySQL 8              | MySQL 8 Community Edition on localhost
+   TLS/HTTPS                    | Plain HTTP on localhost (no certificate needed)
+   UIDAI Aadhaar eKYC API       | MockUidaiGateway (@Profile("local")) - OTP = "123456"
+   AWS CloudWatch               | Application console logs + Spring Boot Actuator
+   ShedLock (multi-instance)    | Not activated (single JVM in local dev)
+
+--------------------------------------------------------------------------------
+
+3. PREREQUISITES
+
+   Install locally:
+   - Java 21 (e.g. Eclipse Temurin, via SDKMAN or Adoptium installer)
+   - MySQL 8 Community Server (https://dev.mysql.com/downloads/mysql/)
+   - Node.js 20+ and npm (for frontend)
+   - Maven 3.9+ or use the Maven Wrapper (./mvnw) in the repo
+
+   Optional but recommended:
+   - MailHog (local SMTP + web UI to inspect sent emails)
+       Install: go install github.com/mailhog/MailHog@latest
+       Run:     MailHog   (listens on smtp :1025, web UI on http://localhost:8025)
+
+--------------------------------------------------------------------------------
+
+4. DATABASE SETUP
+
+   Step 1: Start MySQL 8 locally.
+
+   Step 2: Create database and users:
+
+     CREATE DATABASE trm_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+     -- Application user (read/write, no audit table delete)
+     CREATE USER 'trm_app'@'localhost' IDENTIFIED BY 'DevPassword123!';
+     GRANT SELECT, INSERT, UPDATE, DELETE ON trm_db.* TO 'trm_app'@'localhost';
+     REVOKE UPDATE, DELETE ON trm_db.audit_data_events FROM 'trm_app'@'localhost';
+     REVOKE UPDATE, DELETE ON trm_db.audit_auth_events FROM 'trm_app'@'localhost';
+     REVOKE UPDATE, DELETE ON trm_db.audit_export_events FROM 'trm_app'@'localhost';
+     REVOKE UPDATE, DELETE ON trm_db.audit_pii_access_events FROM 'trm_app'@'localhost';
+
+     -- Audit read-only user
+     CREATE USER 'trm_audit'@'localhost' IDENTIFIED BY 'AuditPassword123!';
+     GRANT SELECT ON trm_db.audit_data_events TO 'trm_audit'@'localhost';
+     GRANT SELECT ON trm_db.audit_auth_events TO 'trm_audit'@'localhost';
+     GRANT SELECT ON trm_db.audit_export_events TO 'trm_audit'@'localhost';
+     GRANT SELECT ON trm_db.audit_pii_access_events TO 'trm_audit'@'localhost';
+
+     FLUSH PRIVILEGES;
+
+   Step 3: Flyway migrations run automatically on application startup
+   (spring.flyway.enabled=true in application-local.yml). No manual DDL needed.
+
+   STRICT_TRANS_TABLES: Add to MySQL local config (my.ini or my.cnf):
+     [mysqld]
+     sql_mode = STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION
+
+--------------------------------------------------------------------------------
+
+5. APPLICATION CONFIGURATION
+
+   Create src/main/resources/application-local.yml (git-ignored):
+
+   spring:
+     datasource:
+       url: jdbc:mysql://localhost:3306/trm_db?useSSL=false&serverTimezone=Asia/Kolkata
+       username: trm_app
+       password: DevPassword123!
+     flyway:
+       enabled: true
+     mail:
+       # MailHog (if installed):
+       host: localhost
+       port: 1025
+       # Without MailHog — just no-op:
+       # (set email.gateway.type=console in app properties)
+
+   storage:
+     root-path: ./uploads        # Files saved here; excluded from git
+
+   jwt:
+     private-key-path: classpath:keys/jwt-private.pem   # git-ignored
+     public-key-path: classpath:keys/jwt-public.pem
+
+   ENCRYPT_MASTER_KEY: <generate once using: openssl rand -base64 32>
+
+   mock:
+     uidai:
+       enabled: true
+       fixed-otp: "123456"
+
+   Also add to .env (git-ignored, loaded by IDE or startup script):
+     ENCRYPT_MASTER_KEY=<your 32-byte base64 key>
+     SPRING_PROFILES_ACTIVE=local
+
+   Add to .gitignore:
+     application-local.yml
+     .env
+     /uploads/
+     src/main/resources/keys/
+
+--------------------------------------------------------------------------------
+
+6. JWT KEY PAIR GENERATION (ONE-TIME)
+
+   Generate an RSA-2048 key pair for local development:
+
+     mkdir -p src/main/resources/keys
+     openssl genrsa -out src/main/resources/keys/jwt-private.pem 2048
+     openssl rsa -in src/main/resources/keys/jwt-private.pem \
+                 -pubout -out src/main/resources/keys/jwt-public.pem
+
+   IMPORTANT: src/main/resources/keys/ must be git-ignored.
+   Add to .gitignore:
+     src/main/resources/keys/
+
+   The Spring Boot application reads the private key from the classpath:
+     @Value("${jwt.private-key-path}")
+     The path resolves to the keys/ directory above at startup.
+
+--------------------------------------------------------------------------------
+
+7. MOCKED SERVICES (PROFILE: "local")
+
+   7.1 UIDAI eKYC — MockUidaiGateway
+
+   Activation: @Profile("local")
+   Behavior:
+   - POST /api/auth/aadhaar-otp-request always succeeds; returns a mock
+     transactionId (e.g. "MOCK-TXN-<uuid>")
+   - POST /api/auth/aadhaar-otp-verify succeeds if otp = "123456"
+   - Any other OTP value returns a 401 (simulates real UIDAI OTP failure)
+   - Logs a WARNING to console: "MOCK UIDAI SERVICE: real eKYC not active"
+
+   7.2 Email — NoOpEmailGateway / MailHog
+
+   Option A (simplest): Set email.gateway.type=console
+   - The EmailGateway logs the full email body (subject, recipient, HTML) to
+     the application console at INFO level.
+   - No SMTP server required.
+
+   Option B (recommended for testing templates): MailHog
+   - Start MailHog before the application.
+   - All emails are captured at http://localhost:8025
+   - No emails reach any real inbox.
+
+   7.3 SMS — ConsoleSmsGateway
+
+   Activation: @Profile("local")
+   Behavior:
+   - All SMS messages (MFA OTP, overdue reminders) are logged to console:
+     [SMS MOCK] To: +91XXXXXXXXXX | Message: Your OTP is 482910
+   - No real network call. no real phone number required in test data.
+
+   7.4 PII Encryption — LocalAesEncryptionConverter
+
+   Activation: @Profile("local")
+   Behavior:
+   - AES-256-GCM encryption/decryption using ENCRYPT_MASTER_KEY env var.
+   - Functionally identical to production (ciphertext stored in DB as
+     base64-encoded IV + ciphertext blob).
+   - No AWS SDK dependency active in local profile.
+
+--------------------------------------------------------------------------------
+
+8. DOCUMENT STORAGE — LOCAL FILESYSTEM
+
+   Activation: @Profile("local")
+   Implementation: LocalFileStorageGateway
+
+   Upload:
+   - Files are written to {storage.root-path}/{key}, where key follows the
+     pattern: {module}/{temple_id}/{year_month}/{uuid}.pdf
+   - Parent directories are created automatically.
+   - The original filename is never used as the storage key (UUID only).
+
+   Download (time-limited access):
+   - The backend generates a short-lived JWT (15-minute TTL) containing
+     the storage key as a claim: { "purpose": "doc_download", "key": "<key>" }
+   - This JWT is returned to the frontend in place of a pre-signed URL.
+   - The GET /api/documents/{id}/content endpoint verifies the JWT, then
+     streams the file as application/pdf.
+   - The document_access_log row is written before the token is issued
+     (same as production behaviour).
+
+   Security note:
+   - The ./uploads/ directory must NOT be mapped as a Spring static resource.
+   - No file in ./uploads/ should be directly accessible via HTTP.
+   - All access must go through the download endpoint.
+
+--------------------------------------------------------------------------------
+
+9. MFA IN LOCAL DEVELOPMENT
+
+   Default MFA type for all local dev users: TOTP
+
+   Setup flow:
+   1. After registration, the user is prompted to set up TOTP.
+   2. A QR code URL is returned (otpauth://totp/...) suitable for scanning
+      with Google Authenticator, Authy, or similar.
+   3. Use any TOTP app — the same libraries are used as in production.
+
+   SMS OTP path:
+   - mfa_type = SMS_OTP is supported in code but the ConsoleSmsGateway logs
+     the OTP to console instead of sending a real SMS.
+   - Recommended: use TOTP only during development to avoid console clutter.
+
+   MFA Recovery codes:
+   - Generated at TOTP setup (8 codes). Displayed once in the UI.
+   - In local dev, recovery codes work identically to production.
+   - SUPER_ADMIN in-person recovery: documented in 06_security_and_auth/
+     00_auth_architecture.txt section 3.6.
+
+--------------------------------------------------------------------------------
+
+10. RUNNING THE APPLICATION
+
+   Backend:
+     cd backend/
+     mvn spring-boot:run -Dspring-boot.run.profiles=local
+
+   Frontend:
+     cd frontend/
+     npm install
+     npm run dev     # Vite dev server on http://localhost:5173
+
+   API base URL: http://localhost:8080/api/v1
+   Swagger UI:   http://localhost:8080/swagger-ui.html
+   Actuator:     http://localhost:8080/actuator
+
+   MailHog (optional): http://localhost:8025
+
+--------------------------------------------------------------------------------
+
+11. SEED DATA
+
+   Flyway migrations include a seed data script (V99__seed_dev_data.sql) that:
+   - Inserts the Karnataka geo-hierarchy (30 districts, taluks, hoblis)
+   - Creates one SUPER_ADMIN user (username: admin@trm.local, password must be
+     set via the first-run setup endpoint /api/auth/setup-admin)
+   - Creates sample temples for each grade (A, B, C) for testing
+
+   The seed script is run only when spring.profiles.active=local (guarded by
+   a Flyway callback that checks the active profile before executing seed data).
+
+--------------------------------------------------------------------------------
+
+12. LIMITATIONS OF LOCAL SETUP
+
+   Limitation                    | Impact                     | Workaround
+   ------------------------------|----------------------------|-------------------------------
+   No real UIDAI eKYC            | Can't verify real Aadhaar  | MockUidaiGateway accepts "123456"
+   No real email delivery        | Emails go to console/MailHog| Check console or MailHog UI
+   No SMS delivery               | SMS logged to console      | Read OTP from console output
+   No HTTPS                      | Plain HTTP on localhost     | Acceptable; browsers allow HTTP localhost
+   Encryption key in env var     | Less secure than KMS       | Never commit .env to git
+   Single JVM, no HA             | No failover                | Acceptable for dev; restart on crash
+   No audit archival to cloud    | Compressed SQL files only  | ./archive/*.sql.gz per year
+   No ShedLock                   | Duplicate job risk if 2 JVMs| Run only one instance locally
+
+--------------------------------------------------------------------------------
+
+13. PRODUCTION UPGRADE PATH
+
+   When moving to AWS production:
+   1. Change spring.profiles.active from "local" to "prod"
+   2. Add application-prod.yml with RDS URL, KMS key ID, S3 bucket names
+   3. Configure AWS IAM roles for ECS task (S3, KMS, SES, SNS, Secrets Manager)
+   4. All gateway implementations switch automatically:
+      LocalFileStorageGateway -> S3StorageGateway
+      NoOpEmailGateway        -> SesEmailGateway
+      ConsoleSmsGateway       -> SnsGateway
+      LocalAesEncryptionConverter -> KmsAesEncryptionConverter
+      MockUidaiGateway        -> UidaiApiGateway
+   5. No business logic, RBAC, workflow, or schema changes required.

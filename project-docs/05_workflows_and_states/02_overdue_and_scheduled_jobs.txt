@@ -18,39 +18,50 @@ SOURCE:
 
    3.1 SCHEDULED JOBS REGISTRY
 
-   Job ID | Name                      | Cron Schedule    | Description
-   -------|---------------------------|------------------|---------------------------
-   JOB-01 | OverdueDeclarationScanner | 0 5 0 1 4 *      | Mark overdue on Apr 1;
-          |                           |                  | runs once per year
-   JOB-02 | OverdueReminderJob        | 0 0 8 * * *      | Daily 8am; send email/SMS
-          |                           |                  | reminders for overdue
-   JOB-03 | PreDeadlineReminderJob    | 0 0 8 * * *      | Daily 8am; send 30-day,
-          |                           |                  | 7-day, 1-day warnings
-   JOB-04 | NotificationProcessorJob  | */30 * * * * *   | Every 30 sec; process
-          |                           |                  | pending notification_events
-   JOB-05 | TokenCleanupJob           | 0 0 2 * * *      | Daily 2am; purge expired
-          |                           |                  | refresh_tokens
-   JOB-06 | SearchSummaryRebuildJob   | 0 0 3 * * *      | Daily 3am; full rebuild
-          |                           |                  | of temple_search_summary
+   Job ID | Name                              | Cron Schedule    | Description
+   -------|-----------------------------------|------------------|---------------------------
+   JOB-01 | OverdueDeclarationScanner         | 0 5 0 1 4 *      | Mark overdue on Apr 1;
+          |                                   |                  | DRAFT-only; runs once/year
+   JOB-02 | OverdueReminderJob                | 0 0 8 * * *      | Daily 8am; send email/SMS
+          |                                   |                  | reminders for overdue
+   JOB-03 | PreDeadlineReminderJob            | 0 0 8 * * *      | Daily 8am; send 30-day,
+          |                                   |                  | 7-day, 1-day warnings
+   JOB-04 | NotificationProcessorJob          | */30 * * * * *   | Every 30 sec; process
+          |                                   |                  | pending notification_events
+   JOB-05 | TokenCleanupJob                   | 0 0 2 * * *      | Daily 2am; purge expired
+          |                                   |                  | refresh_tokens
+   JOB-06 | SearchSummaryRebuildJob           | 0 0 3 * * *      | Daily 3am; atomic full
+          |                                   |                  | rebuild via shadow table swap
+   JOB-07 | PhysicalVerificationSlaMonitorJob | 0 0 9 * * *      | Daily 9am; alert SA when
+          |                                   |                  | PHYSICAL_VERIFICATION_REQUESTED
+          |                                   |                  | exceeds 30 days with no action
 
    3.2 JOB-01: OVERDUE DECLARATION SCANNER
 
    Trigger: April 1 at 00:05 (start of new financial year)
    Cron: 0 5 0 1 4 *
 
+   CRITICAL RULE: Only temples with status = DRAFT (i.e., never submitted)
+   are overdue. Temples with status in (PENDING_REVIEW, CLARIFICATION_REQUESTED,
+   PHYSICAL_VERIFICATION_REQUESTED) have submitted; the delay is DC-side.
+   Marking those temples overdue is factually incorrect and must NOT occur.
+
    Logic:
-     -- Financial year ended March 31. On April 1, scan for non-approved
-     -- declarations for the year just ended.
      DECLARE prev_year = CONCAT(YEAR(NOW()) - 1, '-', RIGHT(YEAR(NOW()), 2));
 
+     -- Case 1: Temple has a DRAFT declaration (submitted but not progressed)
      UPDATE asset_declarations
      SET is_overdue = 1,
          overdue_flagged_at = NOW(6)
      WHERE financial_year = prev_year
-     AND status NOT IN ('APPROVED')
+     AND status = 'DRAFT'             -- ONLY DRAFT; not PENDING_REVIEW etc.
      AND is_overdue = 0;
 
-     -- For each flagged temple, insert a notification event
+     -- Case 2: Temple has NO declaration at all for the year
+     -- (handled by inserting a synthetic DRAFT record to represent the gap;
+     --  see 04_schema_design/06_asset_declaration_schema.txt section 3.4)
+
+     -- For each newly flagged temple, insert a notification event
      INSERT INTO notification_events (recipient_user_id, template_key,
        template_params, channels, priority, status, created_by, updated_by)
      SELECT u.id, 'DECLARATION_OVERDUE',
@@ -60,10 +71,8 @@ SOURCE:
      JOIN users u ON u.temple_id = d.temple_id
      WHERE d.financial_year = prev_year
      AND d.is_overdue = 1
-     AND u.role = 'TEMPLE_AUTHORITY';
-
-     -- Refresh search summary for affected temples
-     -- (via async service call, not inline SQL)
+     AND u.role = 'TEMPLE_AUTHORITY'
+     AND u.is_active = 1;            -- Skip deactivated users
 
    3.3 JOB-03: PRE-DEADLINE REMINDER
 
@@ -89,8 +98,12 @@ SOURCE:
    For each row:
      1. UPDATE status = 'PROCESSING'
      2. For each channel in channels JSON:
-        - EMAIL: call AWS SES SendEmail API
-        - SMS: call AWS SNS Publish API
+        - EMAIL: call EmailGateway.send(recipientEmail, templateKey, params)
+            LOCAL DEV: logs email body to console (NoOpEmailGateway)
+            PRODUCTION: delegates to AWS SES SendEmail API
+        - SMS: call SmsGateway.send(phoneNumber, messageBody)
+            LOCAL DEV: logs SMS body to console (ConsoleSmsGateway)
+            PRODUCTION: delegates to AWS SNS Publish API
         - IN_APP: INSERT into in_app_notifications
      3. On success: UPDATE individual channel status = 'SENT'
      4. On all channels sent: UPDATE status = 'SENT'
@@ -107,12 +120,78 @@ SOURCE:
      AND created_at < DATE_SUB(NOW(6), INTERVAL 7 DAY);
      -- Keep recent revoked tokens for 7 days for audit purposes
 
-   3.6 JOB-06: SEARCH SUMMARY REBUILD
+   3.6 JOB-06: SEARCH SUMMARY REBUILD (ATOMIC SHADOW TABLE SWAP)
 
    Trigger: Daily at 3am
-   Logic: Full rebuild of temple_search_summary (see schema file 10).
-   Note: This is a safety net; event-driven refresh keeps it current
-         throughout the day.
+   CRITICAL: Use shadow table + RENAME TABLE to prevent dirty reads during rebuild.
+   A TRUNCATE + INSERT pattern leaves the table empty for seconds during rebuild,
+   causing DC dashboard queries to return zero results. Use the following pattern:
+
+   Logic:
+     Step 1: Create shadow table (if not exists):
+       CREATE TABLE IF NOT EXISTS temple_search_summary_rebuild LIKE temple_search_summary;
+
+     Step 2: Truncate shadow table:
+       TRUNCATE TABLE temple_search_summary_rebuild;
+
+     Step 3: Populate shadow table (full JOIN query for all temples):
+       INSERT INTO temple_search_summary_rebuild
+         SELECT ... (same query as current rebuild logic)
+
+     Step 4: Atomic swap:
+       RENAME TABLE
+         temple_search_summary TO temple_search_summary_old,
+         temple_search_summary_rebuild TO temple_search_summary;
+
+     Step 5: Drop old table:
+       DROP TABLE temple_search_summary_old;
+
+   CONCURRENT EVENT-DRIVEN UPDATES:
+   Event-driven updates (on declaration submit/approve/reject) should target the
+   LIVE table (temple_search_summary) using UPSERT (INSERT ... ON DUPLICATE KEY UPDATE).
+   The atomic swap in step 4 replaces the live table; event-driven updates that arrive
+   between steps 3 and 4 will target the pre-swap table and be lost in the swap.
+   MITIGATION: After the RENAME, re-apply any pending event-driven updates by checking
+   notification_events for events that occurred after the rebuild start time.
+   Alternative: Use application-level distributed lock (Redis or DB advisory lock)
+   around the 3am rebuild window to block event-driven updates for < 30 seconds.
+
+   Note: This is a daily safety-net rebuild. Event-driven refresh keeps the summary
+   current throughout the day via UPSERT calls in the service layer.
+
+   3.7 JOB-07: PHYSICAL VERIFICATION SLA MONITOR
+
+   Trigger: Daily at 9am
+   Cron: 0 0 9 * * *
+
+   Logic:
+     -- Find declarations stuck in PHYSICAL_VERIFICATION_REQUESTED for > 30 days
+     SELECT d.id, d.temple_id, d.financial_year, d.updated_at,
+            t.name AS temple_name, dist.name AS district_name
+     FROM asset_declarations d
+     JOIN temples t ON t.id = d.temple_id
+     JOIN geo_hoblis h ON h.id = t.hobli_id
+     JOIN geo_taluks tal ON tal.id = h.taluk_id
+     JOIN geo_districts dist ON dist.id = tal.district_id
+     WHERE d.status = 'PHYSICAL_VERIFICATION_REQUESTED'
+     AND d.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
+
+     -- For each: insert SUPER_ADMIN in-app notification
+     INSERT INTO notification_events (recipient_user_id, template_key,
+       template_params, channels, priority, status, created_by, updated_by)
+     SELECT sa.id, 'PHYSICAL_VERIFICATION_SLA_BREACH',
+            JSON_OBJECT(
+              'declaration_id', d.id,
+              'temple_name', t.name,
+              'district_name', dist.name,
+              'days_pending', DATEDIFF(NOW(), d.updated_at)
+            ),
+            '["IN_APP","EMAIL"]', 1, 'PENDING', 1, 1
+     FROM ... (same JOIN as above)
+     JOIN users sa ON sa.role = 'SUPER_ADMIN' AND sa.is_active = 1;
+
+   Idempotency: Check that no SLA notification was already sent in the last
+   7 days for the same declaration_id before inserting (prevent duplicate alerts).
 
 --------------------------------------------------------------------------------
 
