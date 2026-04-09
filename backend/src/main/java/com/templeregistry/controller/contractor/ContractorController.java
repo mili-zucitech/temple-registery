@@ -1,4 +1,4 @@
-package com.templeregistry.controller.contractor;
+﻿package com.templeregistry.controller.contractor;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
@@ -20,7 +20,7 @@ public class ContractorController {
 
     private final ContractorService contractorService;
 
-    @GetMapping("/api/temples/{templeId}/contractors")
+    @GetMapping("/api/v1/temples/{templeId}/contractors")
     public ResponseEntity<ApiResponse<PaginatedResponse<ContractorResponse>>> list(
             @PathVariable Long templeId,
             @RequestParam(defaultValue = "0") int page,
@@ -29,25 +29,25 @@ public class ContractorController {
                 contractorService.listByTemple(templeId, page, size)));
     }
 
-    @PostMapping("/api/temples/{templeId}/contractors")
+    @PostMapping("/api/v1/temples/{templeId}/contractors")
     public ResponseEntity<ApiResponse<ContractorResponse>> create(
             @PathVariable Long templeId, @Valid @RequestBody CreateContractorRequest rq) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Contractor created.", contractorService.create(templeId, rq)));
     }
 
-    @GetMapping("/api/contractors/{id}")
+    @GetMapping("/api/v1/contractors/{id}")
     public ResponseEntity<ApiResponse<ContractorResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Contractor retrieved.", contractorService.getById(id)));
     }
 
-    @PutMapping("/api/contractors/{id}")
+    @PutMapping("/api/v1/contractors/{id}")
     public ResponseEntity<ApiResponse<ContractorResponse>> update(
             @PathVariable Long id, @Valid @RequestBody CreateContractorRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Contractor updated.", contractorService.update(id, rq)));
     }
 
-    @DeleteMapping("/api/contractors/{id}")
+    @DeleteMapping("/api/v1/contractors/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         contractorService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success("Contractor removed."));

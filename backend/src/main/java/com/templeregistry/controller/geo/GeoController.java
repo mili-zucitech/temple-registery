@@ -1,4 +1,4 @@
-package com.templeregistry.controller.geo;
+﻿package com.templeregistry.controller.geo;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.dto.request.geo.*;
@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/geo")
+@RequestMapping("/api/v1/geo")
 @RequiredArgsConstructor
-@Tag(name = "Geo Hierarchy", description = "Cascading State → City → District → Taluk → Hobli lookup")
+@Tag(name = "Geo Hierarchy", description = "Cascading State â†’ City â†’ District â†’ Taluk â†’ Hobli lookup")
 public class GeoController {
 
     private final GeoService geoService;

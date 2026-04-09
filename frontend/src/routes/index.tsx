@@ -15,6 +15,7 @@ const DcTempleSearchPage = lazy(() => import('@/features/dc/pages/DcTempleSearch
 const DcTempleProfilePage = lazy(() => import('@/features/dc/pages/DcTempleProfilePage/DcTempleProfilePage').then(m => ({ default: m.DcTempleProfilePage })))
 const DcDeclarationListPage = lazy(() => import('@/features/declaration/pages/DeclarationListPage/DeclarationListPage').then(m => ({ default: m.DeclarationListPage })))
 const DcDeclarationReviewPage = lazy(() => import('@/features/declaration/pages/DeclarationReviewPage/DeclarationReviewPage').then(m => ({ default: m.DeclarationReviewPage })))
+const DcExportPage = lazy(() => import('@/features/dc/pages/DcExportPage/DcExportPage').then(m => ({ default: m.DcExportPage })))
 const TaDeclarationListPage = lazy(() => import('@/features/declaration/pages/DeclarationListPage/DeclarationListPage').then(m => ({ default: m.DeclarationListPage })))
 const TaDeclarationCreatePage = lazy(() => import('@/features/declaration/pages/DeclarationCreatePage/DeclarationCreatePage').then(m => ({ default: m.DeclarationCreatePage })))
 const TaDashboardPage = lazy(() => import('@/features/dashboard/pages/TaDashboardPage/TaDashboardPage').then(m => ({ default: m.TaDashboardPage })))
@@ -56,6 +57,7 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.DC_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationReviewPage /></Suspense> },
+              { path: ROUTE_PATHS.DC_EXPORT, element: <Suspense fallback={<PageLoader />}><DcExportPage /></Suspense> },
             ],
           },
           // Temple Authority

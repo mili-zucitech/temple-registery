@@ -70,14 +70,14 @@ export function SearchFilters({
       <div className="flex flex-wrap gap-3">
         {/* Grade */}
         <Select
-          value={filters.grade?.[0] ?? ''}
-          onValueChange={(v) => onFilterChange({ grade: v ? [v] : undefined })}
+          value={filters.grade?.[0] ?? 'all'}
+          onValueChange={(v) => onFilterChange({ grade: v && v !== 'all' ? [v] : undefined })}
         >
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Grade" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All grades</SelectItem>
+            <SelectItem value="all">All grades</SelectItem>
             {GRADES.map((g) => (
               <SelectItem key={g} value={g}>Grade {g}</SelectItem>
             ))}
@@ -86,14 +86,14 @@ export function SearchFilters({
 
         {/* Tradition */}
         <Select
-          value={filters.tradition ?? ''}
-          onValueChange={(v) => onFilterChange({ tradition: v || undefined })}
+          value={filters.tradition ?? 'all'}
+          onValueChange={(v) => onFilterChange({ tradition: v && v !== 'all' ? v : undefined })}
         >
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Tradition" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All traditions</SelectItem>
+            <SelectItem value="all">All traditions</SelectItem>
             {TRADITIONS.map((t) => (
               <SelectItem key={t} value={t}>
                 {t.charAt(0) + t.slice(1).toLowerCase()}
@@ -104,14 +104,14 @@ export function SearchFilters({
 
         {/* Declaration status */}
         <Select
-          value={filters.declarationStatus ?? ''}
-          onValueChange={(v) => onFilterChange({ declarationStatus: v || undefined })}
+          value={filters.declarationStatus ?? 'all'}
+          onValueChange={(v) => onFilterChange({ declarationStatus: v && v !== 'all' ? v : undefined })}
         >
           <SelectTrigger className="w-56">
             <SelectValue placeholder="Declaration status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             {DECLARATION_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {s.replace(/_/g, ' ')}
@@ -127,7 +127,7 @@ export function SearchFilters({
               ? 'true'
               : filters.trustRegistered === false
                 ? 'false'
-                : ''
+                : 'any'
           }
           onValueChange={(v) =>
             onFilterChange({
@@ -140,7 +140,7 @@ export function SearchFilters({
             <SelectValue placeholder="Trust registered" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Any</SelectItem>
+            <SelectItem value="any">Any</SelectItem>
             <SelectItem value="true">Trust registered</SelectItem>
             <SelectItem value="false">Not registered</SelectItem>
           </SelectContent>

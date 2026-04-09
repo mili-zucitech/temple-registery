@@ -48,13 +48,15 @@ public class UserProfileServiceImpl implements UserProfileService {
         }
 
         return UserProfileResponse.builder()
-                .id(user.getId())
+                .userId(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .isActive(user.isActive())
+                .districtId(user.getDistrictId())
                 .templeId(user.getTempleId())
+                .aadhaarVerified(user.isAadhaarVerified())
                 .completionChecklist(checklist)
                 .build();
     }

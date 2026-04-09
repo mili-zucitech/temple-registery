@@ -1,4 +1,4 @@
-package com.templeregistry.controller.admin;
+﻿package com.templeregistry.controller.admin;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @Tag(name = "Admin", description = "Super-admin: user management, audit logs, search summary rebuild")
 public class AdminController {
@@ -31,7 +31,7 @@ public class AdminController {
     private final AuditAuthEventRepository authEventRepo;
     private final PaginationUtil paginationUtil;
 
-    /* ───── Users ───── */
+    /* â”€â”€â”€â”€â”€ Users â”€â”€â”€â”€â”€ */
 
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PaginatedResponse<UserAdminResponse>>> listUsers(
@@ -69,7 +69,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("User activated."));
     }
 
-    /* ───── Audit logs ───── */
+    /* â”€â”€â”€â”€â”€ Audit logs â”€â”€â”€â”€â”€ */
 
     @GetMapping("/audit-events")
     @Operation(summary = "Paginated data mutation audit log (SA only)")
@@ -89,7 +89,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Auth events retrieved.", PaginatedResponse.of(result)));
     }
 
-    /* ───── Search summary ───── */
+    /* â”€â”€â”€â”€â”€ Search summary â”€â”€â”€â”€â”€ */
 
     @PostMapping("/search-summary/rebuild")
     @Operation(summary = "Trigger async rebuild of temple_search_summary table")
@@ -98,10 +98,10 @@ public class AdminController {
         return ResponseEntity.accepted().body(ApiResponse.success("Search summary rebuild queued."));
     }
 
-    /* ───── Declaration admin actions ───── */
+    /* â”€â”€â”€â”€â”€ Declaration admin actions â”€â”€â”€â”€â”€ */
 
     @PatchMapping("/declarations/{id}/force-draft")
-    @Operation(summary = "Force a SUBMITTED declaration back to DRAFT (SA only — for data correction)")
+    @Operation(summary = "Force a SUBMITTED declaration back to DRAFT (SA only â€” for data correction)")
     public ResponseEntity<ApiResponse<Void>> forceDeclarationDraft(@PathVariable Long id) {
         declarationService.forceDraft(id);
         return ResponseEntity.ok(ApiResponse.success("Declaration forced back to DRAFT."));
