@@ -13,6 +13,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -44,6 +46,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final StatusTransitionValidator transitionValidator;
     private final AcknowledgementNumberGenerator ackGenerator;
     private final PaginationUtil paginationUtil;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -195,6 +198,61 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<DeclarationDiffResponse> getDiff(Long id) {
+        AssetDeclaration d = findOrThrow(id);
+        assertAccess(d);
+        if (d.getSnapshotJson() == null || d.getSnapshotJson().isBlank()) {
+            return List.of(); // no snapshot yet — first submission or pre-submission
+        }
+        // Compare key numeric fields between snapshot values and current entity values.
+        // snapshotJson is a JSON object; parse and compare selected fields.
+        List<DeclarationDiffResponse> diffs = new ArrayList<>();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            java.util.Map<?, ?> snapshot = mapper.readValue(d.getSnapshotJson(), java.util.Map.class);
+            compareField(diffs, "agriculturalLandAcres", snapshot, d.getAgriculturalLandAcres());
+            compareField(diffs, "agriculturalLandValue",  snapshot, d.getAgriculturalLandValue());
+            compareField(diffs, "buildingsSqft",          snapshot, d.getBuildingsSqft());
+            compareField(diffs, "buildingsValue",         snapshot, d.getBuildingsValue());
+            compareField(diffs, "goldGrams",              snapshot, d.getGoldGrams());
+            compareField(diffs, "silverGrams",            snapshot, d.getSilverGrams());
+            compareField(diffs, "financialAssetsValue",   snapshot, d.getFinancialAssetsValue());
+            compareField(diffs, "otherMovableValue",      snapshot, d.getOtherMovableValue());
+        } catch (Exception e) {
+            log.warn("Failed to parse snapshot JSON for declaration [{}]: {}", id, e.getMessage());
+        }
+        return diffs;
+    }
+
+    @Override
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Transactional
+    public void forceDraft(Long id) {
+        AssetDeclaration d = findOrThrow(id);
+        if (d.getStatus() != DeclarationStatus.PENDING_REVIEW) {
+            throw new IllegalStateException(
+                    "Only PENDING_REVIEW declarations can be force-reverted to DRAFT. Current status: " + d.getStatus());
+        }
+        d.setStatus(DeclarationStatus.DRAFT);
+        declarationRepository.save(d);
+        auditService.logDataEvent(currentUserId(), "SUPER_ADMIN", "UPDATE", "AssetDeclaration", id,
+                "Force-reverted declaration to DRAFT by SA");
+        log.info("Declaration [{}] force-reverted to DRAFT by SA [{}]", id, currentUserId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public PaginatedResponse<DeclarationResponse> getPhysicalVerificationPending(int page, int size) {
+        LocalDateTime threshold = LocalDateTime.now().minusDays(30);
+        Page<AssetDeclaration> result = declarationRepository.findPhysicalVerificationPendingOlderThan(
+                threshold, PageRequest.of(page, paginationUtil.clampSize(size)));
+        return PaginatedResponse.of(result.map(this::toResponse));
+    }
+
+    @Override
     @Scheduled(cron = "0 0 6 * * *") // daily at 6 AM
     @Transactional
     public void flagOverdue() {
@@ -265,5 +323,15 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .financialAssetsValue(d.getFinancialAssetsValue()).otherMovableValue(d.getOtherMovableValue())
                 .submittedAt(d.getSubmittedAt()).reviewedAt(d.getReviewedAt())
                 .acknowledgementNumber(d.getAcknowledgementNumber()).dueDate(d.getDueDate()).build();
+    }
+
+    private void compareField(List<DeclarationDiffResponse> diffs, String field,
+                              java.util.Map<?, ?> snapshot, Object currentValue) {
+        Object snapshotValue = snapshot.get(field);
+        String snv = snapshotValue != null ? snapshotValue.toString() : null;
+        String curv = currentValue != null ? currentValue.toString() : null;
+        if (!java.util.Objects.equals(snv, curv)) {
+            diffs.add(DeclarationDiffResponse.builder().field(field).oldValue(snv).newValue(curv).build());
+        }
     }
 }

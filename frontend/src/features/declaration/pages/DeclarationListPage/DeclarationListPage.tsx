@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useListAllDeclarationsQuery } from '../declarationApi'
+import { useListAllDeclarationsQuery } from '../../declarationApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { TableSkeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select'
-import { DECLARATION_STATUSES } from '../declarationTypes'
+import { DECLARATION_STATUSES } from '../../declarationTypes'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { FileText } from 'lucide-react'
 

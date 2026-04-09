@@ -3,12 +3,13 @@ import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   TempleResponse, TempleSearchResultResponse, CreateTempleRequest, TempleSearchFilterRequest,
+  TempleProfileStagingResponse, CreateTempleProfileStagingRequest,
 } from './templeTypes'
 
 export const templeApi = createApi({
   reducerPath: 'templeApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Temple', 'TempleSearch'],
+  tagTypes: ['Temple', 'TempleSearch', 'TempleStaging'],
   endpoints: (builder) => ({
     searchTemples: builder.query<
       ApiResponse<PaginatedResponse<TempleSearchResultResponse>>,
@@ -35,6 +36,40 @@ export const templeApi = createApi({
       query: ({ id, body }) => ({ url: `/temples/${id}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Temple', id }, 'TempleSearch'],
     }),
+
+    // ── Temple Profile Staging Workflow (TA → DC) ──────────────────────────
+
+    getActiveStaging: builder.query<ApiResponse<TempleProfileStagingResponse | null>, number>({
+      query: (templeId) => `/temples/${templeId}/profile/staging/active`,
+      providesTags: (_r, _e, templeId) => [{ type: 'TempleStaging', id: templeId }],
+    }),
+
+    createOrUpdateDraft: builder.mutation<
+      ApiResponse<TempleProfileStagingResponse>,
+      { templeId: number; body: CreateTempleProfileStagingRequest }
+    >({
+      query: ({ templeId, body }) => ({ url: `/temples/${templeId}/profile/staging`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'TempleStaging', id: templeId },
+        { type: 'Temple', id: templeId },
+      ],
+    }),
+
+    submitForReview: builder.mutation<ApiResponse<TempleProfileStagingResponse>, number>({
+      query: (templeId) => ({ url: `/temples/${templeId}/profile/submit`, method: 'POST' }),
+      invalidatesTags: (_r, _e, templeId) => [{ type: 'TempleStaging', id: templeId }],
+    }),
+
+    getStagingHistory: builder.query<
+      ApiResponse<PaginatedResponse<TempleProfileStagingResponse>>,
+      { templeId: number; page?: number; size?: number }
+    >({
+      query: ({ templeId, page = 0, size = 10 }) => ({
+        url: `/temples/${templeId}/profile/history`,
+        params: { page, size },
+      }),
+      providesTags: (_r, _e, { templeId }) => [{ type: 'TempleStaging', id: `history-${templeId}` }],
+    }),
   }),
 })
 
@@ -43,4 +78,8 @@ export const {
   useGetTempleByIdQuery,
   useCreateTempleMutation,
   useUpdateTempleMutation,
+  useGetActiveStagingQuery,
+  useCreateOrUpdateDraftMutation,
+  useSubmitForReviewMutation,
+  useGetStagingHistoryQuery,
 } = templeApi

@@ -11,6 +11,7 @@ import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
 import com.templeregistry.util.StatusTransitionValidator;
@@ -41,6 +42,7 @@ class DeclarationServiceImplTest {
     @Mock StatusTransitionValidator transitionValidator;
     @Mock AcknowledgementNumberGenerator ackGenerator;
     @Mock PaginationUtil paginationUtil;
+    @Mock AuditService auditService;
 
     @InjectMocks DeclarationServiceImpl declarationService;
 
@@ -52,11 +54,11 @@ class DeclarationServiceImplTest {
                 .templeId(1L).districtId(10L)
                 .status(DeclarationStatus.DRAFT).build();
 
-        // Mock security context
+        // Mock security context — lenient; not all test paths reach this
         SecurityContext ctx = mock(SecurityContext.class);
         Authentication auth = mock(Authentication.class);
-        when(ctx.getAuthentication()).thenReturn(auth);
-        when(auth.getPrincipal()).thenReturn(mock(com.templeregistry.security.ScopeHelper.Claims.class));
+        lenient().when(ctx.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getPrincipal()).thenReturn(mock(com.templeregistry.security.ScopeHelper.Claims.class));
         SecurityContextHolder.setContext(ctx);
     }
 

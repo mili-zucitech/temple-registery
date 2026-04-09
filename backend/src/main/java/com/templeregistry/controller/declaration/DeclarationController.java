@@ -102,4 +102,10 @@ public class DeclarationController {
         return ResponseEntity.ok(ApiResponse.success("Acknowledgement URL generated.",
                 declarationService.getAcknowledgement(id)));
     }
+
+    @GetMapping("/api/declarations/{id}/diff")
+    @Operation(summary = "Show field-level diff between current submitted values and last approved snapshot")
+    public ResponseEntity<ApiResponse<?>> getDiff(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Diff retrieved.", declarationService.getDiff(id)));
+    }
 }

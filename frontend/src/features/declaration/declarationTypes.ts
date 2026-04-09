@@ -47,3 +47,16 @@ export interface ClarificationThreadItem {
 export interface AcknowledgementResponse {
   acknowledgementNumber: string; downloadUrl: string; generatedAt: string
 }
+
+export interface DeclarationDiffItem {
+  fieldName: string
+  oldValue: string | null
+  newValue: string | null
+  category: string
+}
+
+export const resubmitDeclarationSchema = createDeclarationSchema.extend({
+  clarificationResponse: z.string().min(1, 'Response is required').max(2000),
+})
+
+export type ResubmitDeclarationRequest = z.infer<typeof resubmitDeclarationSchema>

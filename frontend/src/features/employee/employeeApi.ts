@@ -1,14 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
-
-export type EmployeeType = 'PRIEST' | 'ADMINISTRATIVE' | 'MAINTENANCE' | 'SECURITY'
-export type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'RETIRED'
-
-export interface EmployeeResponse {
-  id: number; templeId: number; fullName: string; employeeType: EmployeeType
-  status: EmployeeStatus; designation?: string; mobile?: string; joiningDate?: string
-}
+import type { EmployeeResponse, CreateEmployeeRequest, UpdateEmployeeRequest } from './employeeTypes'
 
 export const employeeApi = createApi({
   reducerPath: 'employeeApi',
@@ -19,11 +12,15 @@ export const employeeApi = createApi({
       query: ({ templeId, page = 0, size = 10 }) => ({ url: `/temples/${templeId}/employees`, params: { page, size } }),
       providesTags: ['Employee'],
     }),
-    createEmployee: builder.mutation<ApiResponse<EmployeeResponse>, { templeId: number; body: Partial<EmployeeResponse> }>({
+    getEmployeeById: builder.query<ApiResponse<EmployeeResponse>, number>({
+      query: (id) => `/employees/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'Employee', id }],
+    }),
+    createEmployee: builder.mutation<ApiResponse<EmployeeResponse>, { templeId: number; body: CreateEmployeeRequest }>({
       query: ({ templeId, body }) => ({ url: `/temples/${templeId}/employees`, method: 'POST', body }),
       invalidatesTags: ['Employee'],
     }),
-    updateEmployee: builder.mutation<ApiResponse<EmployeeResponse>, { id: number; body: Partial<EmployeeResponse> }>({
+    updateEmployee: builder.mutation<ApiResponse<EmployeeResponse>, { id: number; body: UpdateEmployeeRequest }>({
       query: ({ id, body }) => ({ url: `/employees/${id}`, method: 'PUT', body }),
       invalidatesTags: ['Employee'],
     }),
@@ -34,4 +31,10 @@ export const employeeApi = createApi({
   }),
 })
 
-export const { useListEmployeesQuery, useCreateEmployeeMutation, useUpdateEmployeeMutation, useDeleteEmployeeMutation } = employeeApi
+export const {
+  useListEmployeesQuery,
+  useGetEmployeeByIdQuery,
+  useCreateEmployeeMutation,
+  useUpdateEmployeeMutation,
+  useDeleteEmployeeMutation,
+} = employeeApi

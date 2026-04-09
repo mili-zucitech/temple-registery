@@ -86,7 +86,7 @@ public class TempleServiceImpl implements TempleService {
     }
 
     @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Transactional
     public TempleResponse update(Long id, UpdateTempleRequest request) {
         Temple temple = findOrThrow(id);
@@ -108,17 +108,22 @@ public class TempleServiceImpl implements TempleService {
         if (rq.getAliasName() != null)          temple.setAliasName(rq.getAliasName());
         if (rq.getGrade() != null)              temple.setGrade(rq.getGrade());
         if (rq.getPrimaryDeity() != null)       temple.setPrimaryDeity(rq.getPrimaryDeity());
+        if (rq.getTradition() != null)          temple.setTradition(com.templeregistry.entity.temple.ReligiousTradition.valueOf(rq.getTradition()));
         if (rq.getYearEstablished() != null)    temple.setYearEstablished(rq.getYearEstablished());
         if (rq.getHistory() != null)            temple.setHistory(rq.getHistory());
         if (rq.getDoorNumber() != null)         temple.setDoorNumber(rq.getDoorNumber());
         if (rq.getStreet() != null)             temple.setStreet(rq.getStreet());
         if (rq.getVillageTown() != null)        temple.setVillageTown(rq.getVillageTown());
         if (rq.getPinCode() != null)            temple.setPinCode(rq.getPinCode());
+        if (rq.getHobliId() != null)            temple.setHobliId(rq.getHobliId());
+        if (rq.getTalukId() != null)            temple.setTalukId(rq.getTalukId());
         if (rq.getLatitude() != null)           temple.setLatitude(rq.getLatitude());
         if (rq.getLongitude() != null)          temple.setLongitude(rq.getLongitude());
         if (rq.getContactName() != null)        temple.setContactName(rq.getContactName());
+        if (rq.getContactDesignation() != null) temple.setContactDesignation(rq.getContactDesignation());
         if (rq.getContactMobile() != null)      temple.setContactMobile(rq.getContactMobile());
         if (rq.getContactEmail() != null)       temple.setContactEmail(rq.getContactEmail());
+        if (rq.getLanguagesOfWorship() != null) temple.setLanguagesOfWorship(rq.getLanguagesOfWorship());
     }
 
     private Specification<TempleSearchSummary> buildSpec(TempleSearchFilterRequest f, Long districtId) {

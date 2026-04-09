@@ -8,6 +8,7 @@ import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.repository.audit.AuditAuthEventRepository;
 import com.templeregistry.repository.audit.AuditDataEventRepository;
 import com.templeregistry.service.admin.AdminService;
+import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.PaginationUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
 
     private final AdminService adminService;
+    private final DeclarationService declarationService;
     private final AuditDataEventRepository dataEventRepo;
     private final AuditAuthEventRepository authEventRepo;
     private final PaginationUtil paginationUtil;
@@ -94,5 +96,23 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Void>> rebuildSearchSummary() {
         adminService.rebuildSearchSummary();
         return ResponseEntity.accepted().body(ApiResponse.success("Search summary rebuild queued."));
+    }
+
+    /* ───── Declaration admin actions ───── */
+
+    @PatchMapping("/declarations/{id}/force-draft")
+    @Operation(summary = "Force a SUBMITTED declaration back to DRAFT (SA only — for data correction)")
+    public ResponseEntity<ApiResponse<Void>> forceDeclarationDraft(@PathVariable Long id) {
+        declarationService.forceDraft(id);
+        return ResponseEntity.ok(ApiResponse.success("Declaration forced back to DRAFT."));
+    }
+
+    @GetMapping("/declarations/physical-verification-pending")
+    @Operation(summary = "List declarations flagged for physical verification > 30 days ago (SA only)")
+    public ResponseEntity<ApiResponse<PaginatedResponse<?>>> getPhysicalVerificationPending(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success("Physical verification pending list retrieved.",
+                declarationService.getPhysicalVerificationPending(page, size)));
     }
 }

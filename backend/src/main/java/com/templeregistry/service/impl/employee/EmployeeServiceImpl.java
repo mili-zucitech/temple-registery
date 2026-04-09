@@ -2,10 +2,12 @@ package com.templeregistry.service.impl.employee;
 
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.employee.CreateEmployeeRequest;
+import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.employee.EmployeeStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
@@ -19,10 +21,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EmployeeServiceImpl implements EmployeeService {
+
+    private static final Set<EmployeeStatus> TERMINAL_STATUSES = Set.of(EmployeeStatus.RETIRED, EmployeeStatus.RESIGNED);
 
     private final EmployeeRepository employeeRepository;
     private final OwnershipGuard ownershipGuard;
@@ -66,11 +72,35 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
-    public EmployeeResponse update(Long id, CreateEmployeeRequest rq) {
+    public EmployeeResponse update(Long id, UpdateEmployeeRequest rq) {
         Employee emp = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
-        emp.setFullName(rq.getFullName()); emp.setEmployeeType(rq.getEmployeeType());
-        emp.setDesignation(rq.getDesignation()); emp.setSalaryGrade(rq.getSalaryGrade());
+
+        // VAL-012: terminal state guard — RESIGNED/RETIRED → ACTIVE is blocked
+        if (rq.getStatus() != null && rq.getStatus() == EmployeeStatus.ACTIVE
+                && TERMINAL_STATUSES.contains(emp.getStatus())) {
+            throw new IllegalStatusTransitionException(
+                    "Employee in terminal status [" + emp.getStatus() + "] cannot be transitioned back to ACTIVE. "
+                            + "Create a new employee record for re-hire. Error: TRM-EMP-TERMINAL");
+        }
+
+        // VAL-015: dateOfLeaving required when transitioning to a terminal status
+        if (rq.getStatus() != null && TERMINAL_STATUSES.contains(rq.getStatus())
+                && rq.getDateOfLeaving() == null) {
+            throw new IllegalArgumentException(
+                    "date_of_leaving is required when transitioning employee to " + rq.getStatus() + " (VAL-015).");
+        }
+
+        if (rq.getFullName() != null)       emp.setFullName(rq.getFullName());
+        if (rq.getEmployeeType() != null)   emp.setEmployeeType(rq.getEmployeeType());
+        if (rq.getDesignation() != null)    emp.setDesignation(rq.getDesignation());
+        if (rq.getSalaryGrade() != null)    emp.setSalaryGrade(rq.getSalaryGrade());
+        if (rq.getStatus() != null) {
+            emp.setStatus(rq.getStatus());
+            if (rq.getDateOfLeaving() != null) emp.setDateOfLeaving(rq.getDateOfLeaving());
+        }
+
+        log.info("Employee updated: id=[{}] newStatus=[{}]", id, emp.getStatus());
         return toResponse(employeeRepository.save(emp));
     }
 

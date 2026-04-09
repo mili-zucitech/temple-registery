@@ -2,8 +2,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { createDeclarationSchema, type CreateDeclarationRequest } from '../declarationTypes'
-import { useCreateDeclarationMutation, useSubmitDeclarationMutation } from '../declarationApi'
+import { createDeclarationSchema, type CreateDeclarationRequest } from '../../declarationTypes'
+import { useCreateDeclarationMutation, useSubmitDeclarationMutation } from '../../declarationApi'
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage
 } from '@/components/ui/form'
