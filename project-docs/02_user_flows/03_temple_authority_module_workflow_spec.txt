@@ -1,0 +1,2198 @@
+FOLDER: /project-docs/02_user_flows
+FILE: 03_temple_authority_module_workflow_spec.txt
+TITLE: Temple Authority - Complete Module Workflow Specification
+
+SOURCE:
+  Derived from:
+  - 01_temple_authority_end_to_end_flow.txt (v1 summary, superseded by this document)
+  - 05_workflows_and_states/00_state_machines.txt
+  - 03_domain_model/00_domain_entities.txt
+  - 04_schema_design/* (all schema files)
+  - Implemented backend: 101 Java source files, all modules complete
+  - Alignment session confirming: UIDAI v1, staging workflow for temple profile, SUBMITTED status label
+
+SCOPE: Temple Authority persona ONLY.
+  No DC internal workflows. No DC search/filter/reporting logic.
+  No Super Admin configuration logic, except where it directly gates TA actions.
+
+STATUS AS OF: April 2026 — backend complete; frontend TA-specific pages partially complete.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document defines the complete end-to-end workflow for a Temple Authority
+   (TA) user of the Temple Registry & Management Portal. It covers all nine
+   lifecycle phases: registration and authentication, temple profile management,
+   trust and board management, employee management, contractor management, asset
+   declaration (the primary workflow), document management, dashboard, and
+   notifications. It serves as the authoritative implementation reference for
+   all TA-facing frontend pages, hooks, validation rules, and status transitions.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   A Temple Authority user first registers via the portal and completes Aadhaar
+   eKYC plus MFA setup before their account is activated by a Super Admin. Upon
+   first login they are prompted with a setup checklist to complete their temple
+   profile (which requires DC approval via a staging workflow), add trust and
+   board details (direct-save, no DC approval), record employees and contractors
+   (direct-save), and ultimately submit their annual asset declaration to the DC.
+   The declaration follows the main approval cycle: DRAFT → SUBMITTED → DC
+   response (APPROVED / CLARIFICATION_REQUESTED / PHYSICAL_VERIFICATION_REQUESTED
+   / REJECTED). Approved declarations are terminal and all their attached
+   documents become immutable. Rejected declarations require a new version.
+   Clarification loops are capped at 3 rounds. Throughout, the dashboard tracks
+   module completion status and surfaces pending actions, while an in-app
+   notification system routes all event alerts.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+================================================================================
+PHASE 1 — REGISTRATION & AADHAAR eKYC
+================================================================================
+
+Step 1.1 — Navigate to Portal & Start Registration
+  Actor    : Temple Authority (unauthenticated)
+  User     : Navigates to portal URL; clicks [Register as Temple Authority]
+  System   : Displays registration form with two sections:
+               Section A — Identity & Contact
+               Section B — Temple Location (geo hierarchy)
+
+Step 1.2 — Fill Registration Form
+  Actor    : Temple Authority
+  User     : Completes Section A:
+               - Full legal name (mandatory)
+               - Email address (mandatory, unique in system)
+               - Mobile number (mandatory, unique in system, 10-digit)
+               - Password (mandatory)
+                   Policy: minimum 10 characters, at least one uppercase letter,
+                   one lowercase letter, one digit, one special character
+                   (! @ # $ % ^ & * ( ) _ + - = [ ] { })
+             Completes Section B — cascading geo dropdowns:
+               - State (pre-selected: Karnataka; read-only)
+               - City / Town (loaded from /api/geo/states/{stateId}/cities)
+               - District (loaded from /api/geo/cities/{cityId}/districts)
+               - Taluk (loaded from /api/geo/districts/{districtId}/taluks)
+               - Hobli (loaded from /api/geo/taluks/{talukId}/hoblis)
+               - Temple Name (text; the name under which temple is registered)
+
+Step 1.3 — Backend Validation on Submit
+  System   : POST /api/auth/register
+             Validates (all in one atomic call, returns first failure):
+               - Email not already registered (TRM-USR-001 if duplicate)
+               - Mobile not already registered (TRM-USR-002 if duplicate)
+               - No existing TEMPLE_AUTHORITY account for this Hobli + temple
+                 name combination (TRM-USR-006 if duplicate)
+             On validation pass:
+               - Creates User record (role=TEMPLE_AUTHORITY, status=PENDING_ACTIVATION)
+               - Creates Temple record (status=DRAFT, grade will be set by Super Admin)
+               Both writes are in a single transaction; either both succeed or both fail.
+             Sends email to Super Admin: "New temple authority registration
+               awaiting activation for [Temple Name], [District]"
+
+Step 1.4 — Aadhaar eKYC
+  Actor    : Temple Authority
+  User     : Enters 12-digit Aadhaar number into the eKYC widget
+  System   : POST /api/auth/aadhaar-otp-request
+             Sends OTP request to UIDAI via licensed UIDAI Aadhaar API.
+             Displays "OTP sent to the mobile number linked to your Aadhaar"
+  User     : Types 6-digit OTP received on Aadhaar-linked mobile
+             (Resend link available after 60-second cooldown; max 3 resend attempts
+              before the session is locked and user must restart registration)
+  System   : POST /api/auth/aadhaar-otp-verify
+             On UIDAI verification success:
+               - Stores verified full name and date of birth from UIDAI response
+               - Stores Aadhaar number encrypted at rest (AES-256 via KMS)
+               - Sets User.aadhaarVerified = true
+             On failure (wrong OTP, UIDAI error): returns descriptive error;
+               user can retry up to 3 times before session lock.
+
+Step 1.5 — MFA Setup
+  Actor    : Temple Authority
+  User     : Chooses MFA type:
+               Option A — TOTP (Authenticator App):
+                 - System displays QR code for scanning with Google Authenticator or Authy
+                 - TA scans and enters the first 6-digit TOTP to confirm setup
+               Option B — SMS OTP:
+                 - System sends OTP to the mobile number provided in Step 1.2
+                 - TA enters OTP to confirm setup
+             System displays one-time backup codes (8 codes, each 10 characters).
+               TA is required to save these before proceeding.
+               Backup codes are hashed and stored; they are never shown again.
+
+Step 1.6 — Registration Submitted & Awaiting Activation
+  System   : Sets User.status = PENDING_ACTIVATION
+             Sends confirmation email to TA:
+               "Registration received for [Temple Name]. Your account is pending
+               review by the Super Administrator. You will receive an email when
+               your account is activated."
+  User     : No further action possible until Super Admin activates the account.
+
+Step 1.7 — Super Admin Activates Account
+  Actor    : Super Admin (out of scope for TA workflow; shown for completeness)
+  System   : POST /api/admin/users/{id}/activate
+             Sets User.status = ACTIVE
+             Sends activation email to TA with login link.
+
+  EDGE CASES — Phase 1:
+  EC-1.1  UIDAI API downtime: If Aadhaar OTP delivery fails after 3 resend
+          attempts, display UIDAI support contact and allow TA to save progress
+          and retry eKYC later from login page (before account is activated).
+  EC-1.2  Duplicate temple: Error TRM-USR-006 with message: "A Temple Authority
+          account already exists for this temple location. Contact the Super
+          Administrator if you believe this is an error."
+  EC-1.3  Weak password: Inline field-level validation with specific policy hint
+          (not just a generic "invalid password" message).
+
+================================================================================
+PHASE 2 — LOGIN, MFA & SESSION MANAGEMENT
+================================================================================
+
+Step 2.1 — Login
+  Actor    : Temple Authority
+  User     : Navigates to /login; enters email and password
+             Clicks [Log In]
+  System   : POST /api/auth/login
+             Validates credentials. On success:
+               - Returns MfaChallengeResponse (contains mfa_session_token)
+               - Redirects to /mfa-verify
+             On failure (wrong email or wrong password):
+               - Attempt counter incremented server-side per account
+               - After 5 consecutive failed attempts: account is locked for
+                 30 minutes (User.loginLockedUntil = NOW() + 30 min)
+               - HTTP 401 with specific error: TRM-AUTH-LOCKED
+               - Response message: "Too many failed login attempts. Your
+                 account is locked for 30 minutes. Contact the Super
+                 Administrator if you need immediate access."
+               - Lockout timer resets on successful login.
+               - Account unlock paths:
+                   (a) Auto-unlock after 30-minute cooling-off period.
+                   (b) SA unlocks via POST /api/admin/users/{id}/unlock-login.
+
+Step 2.2 — MFA Challenge
+  Actor    : Temple Authority
+  User     : On /mfa-verify:
+               If TOTP: enters 6-digit code from authenticator app
+               If SMS OTP: enters 6-digit code received on registered mobile
+             Clicks [Verify]
+             Alternative: [Use Backup Code] link is shown below the MFA field
+               User enters one of the 8 one-time backup codes generated at Step 1.5
+               POST /api/auth/mfa-verify  { type: "BACKUP_CODE", code: "..." }
+               Backend validates against stored hashed backup codes.
+               On success: invalidates the used backup code (one-time use).
+               If ≤2 backup codes remain: system sends email to TA:
+                 "You have used a backup code. Only [N] backup codes remain.
+                  Log in and generate new backup codes from Account Settings."
+               If 0 backup codes remain: see MFA backup exhaustion flow below.
+  System   : POST /api/auth/mfa-verify
+             On success:
+               - Issues JWT as an httpOnly cookie (Set-Cookie header; Secure; SameSite=Strict)
+               - Access token (short-lived) dispatched to Redux store (volatile; not persisted)
+               - Refresh token stored server-side; refresh cookie issued separately
+               - Redirects to /ta/dashboard
+             On failure: increments attempt counter; lockout after 5 failed attempts.
+
+  MFA BACKUP CODE EXHAUSTION FLOW:
+    Trigger  : TA attempts login with backup code but 0 valid codes remain.
+    Response : HTTP 422; TRM-AUTH-MFA-EXHAUSTED
+    Frontend : "All backup codes have been used. Contact the Super Administrator
+               to reset your MFA enrollment."
+    SA action: DELETE /api/admin/users/{id}/mfa
+               Deletes all MFA enrollment records for the user.
+               On TA's next login: after password step, redirected to /mfa-enrollment
+               to re-enroll (same flow as Step 1.5).
+    Email sent to TA: "Your MFA has been reset by the Super Administrator.
+                       Please log in to set up a new authenticator or SMS OTP."
+
+Step 2.3 — First-Login Checklist
+  System   : On first login (User.lastLoginAt IS NULL before this session):
+             Displays a "Get Started" modal with checklist:
+               [ ] Complete Temple Profile  → links to /ta/temple
+               [ ] Add Trust Details         → links to /ta/trust
+               [ ] Add Board Members         → links to /ta/trust#board
+               [ ] Add Permanent Staff       → links to /ta/employees
+               [ ] Submit First Declaration  → links to /ta/declarations/new
+             Progress persists; checklist reflects real-time completion.
+
+  CHECKLIST DISMISS RULES:
+    - Modal always has an [X] dismiss button and a [Do This Later] link.
+      Either action closes the modal for the current session.
+    - On every subsequent login the modal re-appears until all 5 items are
+      marked complete by the system (not by the user manually).
+    - Completion of each item is determined by the system:
+        Temple Profile   → staging record exists in any status (DRAFT+)
+        Trust Details    → at least 1 Trust record exists
+        Board Members    → at least 1 is_current=true board member exists
+        Permanent Staff  → at least 1 ACTIVE employee exists
+        First Declaration→ at least 1 declaration record exists in any status
+    - Once all 5 items resolve to complete in the same login session, the modal
+      is auto-dismissed and User.setupComplete = true is written.
+    - For users where User.setupComplete = true the modal is never shown again.
+
+Step 2.4 — Session Lifecycle
+  System   : Access token TTL: 15 minutes
+             Refresh token TTL: 7 days (httpOnly cookie)
+             On 401 response: baseQueryWithReauth attempts one token refresh via
+               POST /api/auth/refresh. If refresh fails, redirects to /login.
+             Session timeout: after 30 minutes of browser inactivity, TA is
+               prompted with "Your session is about to expire" modal with option
+               to extend or logout.
+
+  SESSION TIMEOUT DURING FILE UPLOAD:
+    - An active multipart file upload in progress counts as browser activity.
+      The inactivity timer is reset for the duration of any ongoing upload.
+    - If a session nonetheless expires mid-upload (e.g., upload begins, then
+      browser is idle for 30+ minutes before the upload API call completes):
+        - The upload response returns HTTP 401.
+        - Frontend intercepts the 401 before baseQueryWithReauth discards context.
+        - Shows toast: "Your session expired during file upload. Please log in
+          again. The file was not saved — please re-upload after logging in."
+        - Redirects to /login; after re-login, TA is returned to the page where
+          the upload was attempted (using navigation state / redirect param).
+
+Step 2.5 — Password Reset
+  User     : From /login, clicks [Forgot Password]
+             Enters registered email; clicks [Send Reset Link]
+  System   : POST /api/auth/password-reset-req
+             Sends time-limited reset link to email (TTL: 1 hour)
+  User     : Clicks link in email → /reset-password?token=...
+             Enters new password (same policy as registration)
+  System   : POST /api/auth/password-reset
+             Validates token; updates password; invalidates all active sessions
+             (refresh tokens revoked). TA must log in again.
+
+Step 2.6 — Logout
+  User     : Clicks [Logout] in sidebar
+  System   : POST /api/auth/logout
+             Backend clears httpOnly cookie; revokes refresh token server-side.
+             Redirects to /login.
+
+================================================================================
+PHASE 3 — TEMPLE PROFILE MANAGEMENT (DC Approval Staging Workflow)
+================================================================================
+
+Step 3.1 — View Current Published Profile
+  Actor    : Temple Authority
+  Route    : /ta/temple
+  User     : Sees the currently published (APPROVED) temple profile in read-only
+             view. If profile has never been approved, a banner states:
+             "Your temple profile has not been published yet. Complete and
+             submit it for District Collector review."
+  System   : GET /api/temples/{templeId}
+             Fields displayed (all read-only in published view):
+               - Temple Name
+               - Registration Number (read-only always; set by Super Admin)
+               - Temple Grade: A / B / C (read-only always; set by Super Admin)
+               - Primary Deity and alias names
+               - Religious Tradition (Shaivite / Vaishnavite / Shakta / Jain /
+                 Buddhist / Other)
+               - Languages of Worship
+               - Year of Establishment / Historical Period
+               - Full Address: Door No., Street, Village/Town, Hobli, Taluk,
+                 District, PIN Code
+               - GPS Coordinates (Latitude, Longitude) with embedded map preview
+               - Contact Person Name, Designation, Mobile, Email
+               - Temple Photograph (uploaded image)
+               - Bank Details: Bank Name, Branch, IFSC, Account Number
+                 (only last 4 digits displayed; full value encrypted at rest)
+                 NOTE: This is the TEMPLE'S own operational bank account (e.g.,
+                 for hundi/hundial deposits and government grants). It is distinct
+                 from the Trust's bank account recorded in Phase 4 Step 4.2.
+                 Both accounts exist independently and serve different legal purposes.
+               - Linked Mutts or Sub-Temples (multi-select reference list)
+
+Step 3.2 — Initiate an Edit (Create Draft Staging Record)
+  User     : Clicks [Edit Profile]
+  System   : Checks for an existing staging record in DRAFT or SUBMITTED status:
+               If an existing DRAFT staging exists: opens that draft for editing
+               If a SUBMITTED staging exists: shows read-only staging with message
+                 "Profile update is currently under DC review. Editing is locked
+                 until a decision is received."
+               If no active staging: creates new staging record (version = current + 1)
+               GET/PUT /api/temples/{templeId}
+  User     : Edits any of the following (Grade and Registration Number are
+             always read-only and must not be rendered as editable inputs):
+               - Temple Name
+               - Deity names (primary and aliases)
+               - Religious tradition, languages of worship, year of establishment
+               - Full address (door no., street, village, PIN)
+               - GPS coordinates (latitude, longitude)
+               - Contact person name, designation, mobile, email
+               - Bank details: account number, IFSC, bank name and branch
+                 MASKED FIELD CONTRACT: The current bank account number is
+                 displayed as last-4 digits only (VAL-008). On the edit form,
+                 the bank account field renders as empty (not pre-filled with
+                 masked value). If TA leaves the field blank on save, the server
+                 PRESERVES the existing encrypted account number unchanged.
+                 If TA fills in a new value, the server replaces the encrypted
+                 value with the new one. This prevents silent data loss on save.
+               - Temple photograph: drag-and-drop or file picker (mandatory upload
+                 for new profile; optional replacement for existing)
+                   File constraints: JPEG or PNG only; max size 5 MB
+               - Linked mutts / sub-temples: multi-select from registered temple list
+                 NOTE: Self-referential link is blocked (VAL-025).
+
+  GPS CONFIRMATION PROMPT:
+    If TA enters GPS coordinates that fall outside Karnataka bounding box
+    (~12.0–18.4°N, ~74.0–78.6°E), the form shows an inline amber warning
+    immediately on blur from the field:
+      "⚠ These coordinates appear to be outside Karnataka. Please verify."
+    The [Save Draft] and [Submit for Review] buttons REMAIN enabled (soft warning
+    per VAL-019/020), but the confirmation modal on submit additionally shows:
+      "Note: The GPS coordinates you entered appear to be outside Karnataka.
+       Please confirm these are correct before submitting."
+    With [Go Back & Correct] and [Submit Anyway] options.
+    The server does NOT reject the coordinates; this is a frontend-only UX guard.
+
+Step 3.3 — Save as Draft
+  User     : Clicks [Save Draft] at any point
+  System   : PUT /api/temples/{templeId}
+             Staging record status: DRAFT (no change)
+             Section-level completeness indicators update in the sidebar.
+             No notifications triggered.
+
+Step 3.4 — Submit Profile for DC Review
+  User     : Clicks [Submit for Review]
+  System   : Pre-submission frontend validation:
+               - All mandatory fields completed (name, address, deity, contact, bank)
+               - At minimum one supporting document attached (e.g., temple registration cert)
+             Confirmation modal: "Submit your temple profile to the District Collector
+               for review? You will not be able to edit it until a decision is received."
+  User     : Confirms
+  System   : Staging status: DRAFT → SUBMITTED
+             DC notified in-app and by email: "Temple profile update submitted by
+               [Temple Name] and is awaiting your review."
+             TA cannot edit profile until DC responds.
+
+Step 3.5 — DC Approves Profile
+  System   : Staging record marked APPROVED
+             Published profile (temple_profile_current) updated with staged values
+             Previous current record archived (temple_profile_history)
+             Old staging record marked SUPERSEDED on next approval cycle
+             TA notified in-app and email: "Your temple profile has been approved
+               and is now published."
+             [Edit Profile] button re-enabled on /ta/temple
+
+  DC PROFILE REVIEW SLA:
+    The DC is expected to review a submitted temple profile within 15 days.
+    SLA escalation chain (mirrors physical verification alerts):
+      Day 8  : In-app reminder sent to DC: "[Temple Name] submitted a profile
+               update 8 days ago. Please review."
+      Day 15 : In-app + Email alert sent to DC and SA: "[Temple Name] profile
+               update has not been reviewed for 15 days. Action required."
+    The TA is NOT notified of the SLA breach (it is an internal admin escalation).
+    If DC has still not acted after 15 days, TA sees on /ta/temple:
+      "Your profile update is still pending review. If you need urgent assistance,
+       contact the District Collector's office."
+    There is no auto-approval; DC must take explicit action.
+
+Step 3.6 — DC Rejects Profile
+  System   : Staging record marked REJECTED with DC's rejection comment
+             TA notified in-app and email with rejection reason
+  User     : Opens /ta/temple; sees REJECTED banner with DC comment
+             Clicks [Create New Draft]; system creates a new staging record
+               (version incremented; previous REJECTED staging preserved in history)
+             Follows Steps 3.2 → 3.4 again
+
+  EDGE CASES — Phase 3:
+  EC-3.1  Temple suspended: if Temple.status = SUSPENDED, the [Edit Profile]
+          button is disabled with a banner: "Your temple account is currently
+          suspended. Contact the District Collector's office."
+  EC-3.2  GPS coordinates: optional field. If left blank, map preview section
+          is hidden. If provided, map is rendered via embedded static map.
+  EC-3.3  Bank account masking: the full account number is never echoed in the
+          API response or displayed in the UI. Display last 4 digits only.
+  EC-3.4  Photograph upload failure: show retry prompt with upload progress.
+          Do not clear other form fields on upload failure.
+
+================================================================================
+PHASE 4 — TRUST & BOARD DETAILS (Direct-Save; No DC Approval)
+================================================================================
+
+IMPORTANT: Trust data is DIRECT-SAVE in v1. Changes made by the Temple Authority
+take effect immediately and are visible to the DC in read-only mode. There is no
+staging or approval cycle for trust data.
+
+Step 4.1 — View Trust Details
+  Actor    : Temple Authority
+  Route    : /ta/trust
+  User     : Sees current active trust registration details and board member list.
+  System   : GET /api/temples/{templeId}/trusts
+
+Step 4.2 — Create or Edit Trust Registration
+  User     : Fills or updates the following fields:
+               Trust Name (mandatory)
+               Trust Registration Number (mandatory; alphanumeric)
+               Date of Registration DD/MM/YYYY (mandatory)
+               Registering Authority (mandatory; text)
+               Trust Type: Public / Private (mandatory; dropdown)
+               Trust PAN Number (mandatory; must match /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/)
+               Bank Account Number (mandatory; numeric; stored encrypted; masked display)
+               Bank Name & Branch (mandatory; text)
+               Annual Income — approximate INR (optional)
+  System   : POST /api/temples/{templeId}/trusts  (first creation)
+             PUT  /api/trusts/{trustId}            (update)
+             Changes persist immediately. DC can view at any time.
+
+Step 4.3 — Manage Board Members
+  User     : Opens [Board Members] tab (same page; two sub-tabs: Current / Historical)
+             Current tab: lists all members where is_current = true
+             Historical tab: lists all members where is_current = false
+
+  Adding a new board member:
+  User     : Clicks [Add Board Member], fills form:
+               Full Name (mandatory)
+               Aadhaar Number (mandatory; stored encrypted AES-256; displayed as
+                 XXXX-XXXX-{last4} after save — never shown in full)
+               Designation (mandatory; e.g., Chairman, Secretary, Trustee)
+               Appointment Date DD/MM/YYYY (mandatory)
+               Tenure End Date DD/MM/YYYY (optional)
+               Contact Number (mandatory)
+               Full Address (mandatory)
+  System   : POST /api/trusts/{trustId}/board-members
+             Member added to Current tab immediately.
+
+  Marking a board member as resigned/retired:
+  User     : In Current tab, clicks [Mark as Resigned] on a member row
+             Enters Cessation Date DD/MM/YYYY (mandatory for this action)
+  System   : PUT /api/trusts/{trustId}/board-members/{memberId}
+             Sets cessation_date, sets is_current = false
+             Member moves from Current tab to Historical tab.
+             Board member record is NEVER hard-deleted; history is preserved.
+
+Step 4.4 — Upload Board Meeting Minutes
+  User     : In [Documents] section of trust page, clicks [Upload Meeting Minutes]
+             Selects PDF file (max 10 MB)
+  System   : POST /api/documents/upload
+               { ownerType: "TRUST", ownerId: trustId, label: "Meeting Minutes" }
+             File stored; listed in trust document section.
+
+Step 4.5 — Submit Annual Financial Data
+  User     : Clicks [Submit Annual Financials], fills form for the financial year:
+               Annual Income (INR) — actual figure
+               Annual Expenditure (INR)
+               Closing Bank Balance (INR)
+               FD Details (optional)
+  System   : POST /api/trusts/{trustId}/financials
+             IMMUTABLE after submission. The submit button for the same financial
+             year is disabled after one successful submission.
+             Note: If the same financial year's financials have already been
+             submitted, the form is shown in read-only mode with a label
+             "Submitted on [date]". No edit or delete is permitted.
+
+Step 4.6 — Trust Dissolution
+  User     : Clicks [Dissolve Trust] (visible only to TA; protected by confirmation modal)
+             Enters dissolution date and reason
+  System   : ACTIVE DECLARATION GUARD — Before rendering the dissolution confirmation
+             modal, the system checks whether a non-terminal declaration exists:
+               GET /api/temples/{templeId}/declarations?status=DRAFT,SUBMITTED,
+                 CLARIFICATION_REQUESTED,PHYSICAL_VERIFICATION_REQUESTED
+               If one or more such declarations exist, the confirmation modal shows
+               an additional amber warning panel:
+                 "⚠ An asset declaration is currently in progress for FY YYYY-YY
+                  (status: [STATUS]). Dissolving the trust now will be visible to
+                  the District Collector during their review. This will NOT cancel
+                  your declaration — it will remain in its current status.
+                  Are you sure you want to continue?"
+               Buttons: [Cancel] and [Dissolve Trust Anyway]
+               If no active declaration: standard confirmation modal only.
+  User     : Confirms (with or without the active-declaration warning)
+  System   : PUT /api/trusts/{trustId}
+             Sets Trust.status = DISSOLVED
+             After dissolution: all edit controls on the trust page are disabled.
+             A DISSOLVED trust cannot be reactivated by TA (only Super Admin can override).
+
+  EDGE CASES — Phase 4:
+  EC-4.1  PAN format validation: validated client-side by Zod regex and server-side.
+          Error: "PAN number must be in the format AAAAA9999A"
+  EC-4.2  Board member Aadhaar: full Aadhaar digits entered on the form are stored
+          encrypted; only XXXX-XXXX-{last4} displayed after save. Never log or
+          echo the full Aadhaar in API responses.
+  EC-4.3  Trust not yet created: if no trust exists for the temple, the trust page
+          shows an empty state with [Create Trust Registration] as the primary action.
+  EC-4.4  Multiple trust records: a temple may have multiple trust records over
+          time (e.g., after dissolution and re-registration). Historical trusts
+          are displayed in a collapsed [Trust History] accordion below the active trust.
+
+================================================================================
+PHASE 5 — EMPLOYEE MANAGEMENT (Direct-Save; No DC Approval)
+================================================================================
+
+Step 5.1 — View Employees
+  Actor    : Temple Authority
+  Route    : /ta/employees
+  User     : Sees paginated employee list. Tabs filter by type:
+               All | Archaka (Priest) | Administrative | Maintenance | Security
+  System   : GET /api/temples/{templeId}/employees (paginated; default page size 10)
+             Only employees with deleted_at IS NULL are shown (soft-delete filter).
+
+Step 5.2 — Add New Employee
+  User     : Clicks [Add Employee]; fills form:
+               Full Legal Name (mandatory)
+               Employee ID (mandatory; internal HR identifier; must be unique per temple)
+               Employee Type (mandatory; dropdown):
+                 PRIEST (Archaka) | ADMINISTRATIVE | MAINTENANCE | SECURITY
+               Date of Joining DD/MM/YYYY (mandatory)
+               Designation / Role Title (mandatory)
+               Salary Grade (mandatory; text; e.g., "Grade III")
+               Mobile Number (mandatory)
+               Full Address (mandatory)
+  System   : POST /api/temples/{templeId}/employees
+             Employee created with employment_status = ACTIVE automatically.
+             Confirmation toast: "Employee record added."
+
+Step 5.3 — Edit Employee Record
+  User     : Clicks [Edit] on an employee row; updates any editable field
+             (Employee Type and Date of Joining cannot be changed after creation;
+              displayed read-only in edit form)
+  System   : PUT /api/employees/{employeeId}
+
+Step 5.4 — Update Employment Status
+  User     : Clicks [Change Status] on an employee row; selects new status.
+             Status transitions allowed for TEMPLE_AUTHORITY:
+               ACTIVE    → ON_LEAVE        (temporary; date_of_leaving NOT set)
+               ON_LEAVE  → ACTIVE          (return from leave)
+               ACTIVE    → RETIRED         (requires date_of_leaving; mandatory field)
+               ACTIVE    → RESIGNED        (requires date_of_leaving; mandatory field)
+             TERMINAL STATES: RETIRED and RESIGNED cannot be transitioned further.
+               If a retired/resigned employee returns, a NEW employee record must be
+               created (new date of joining, new employee ID).
+  System   : PUT /api/employees/{employeeId}
+             Guard: if target status is RETIRED or RESIGNED, validates that
+               date_of_leaving is present in the request body.
+             Guard: RETIRED → ACTIVE or RESIGNED → ACTIVE attempts are rejected
+               with HTTP 422 (TRM-EMP-TERMINAL).
+
+Step 5.5 — Soft-Delete Employee (Super Admin Only)
+  RESTRICTED: TA cannot delete employee records. The [Delete] action is not
+  rendered for TEMPLE_AUTHORITY role. Only SUPER_ADMIN can set deleted_at via
+  DELETE /api/employees/{id}. TAs should use status transitions instead.
+
+  EDGE CASES — Phase 5:
+  EC-5.1  Duplicate Employee ID: if the same employee ID already exists for
+          this temple, server returns TRM-EMP-001. UI shows inline error on field.
+  EC-5.2  Archaka display: Archaka (Priest) type employees are displayed with a
+          distinct visual indicator (e.g., a diya icon) given their hereditary
+          significance. No functional difference.
+  EC-5.3  Pagination: list defaults to 10 per page; max 100 per page enforced server-side.
+
+================================================================================
+PHASE 6 — CONTRACTOR MANAGEMENT (Direct-Save; No DC Approval)
+================================================================================
+
+Step 6.1 — View Contractors
+  Actor    : Temple Authority
+  Route    : /ta/contractors
+  User     : Sees paginated contractor list. Toggle view: Active / Ended
+               Active: contractors where deleted_at IS NULL
+               Ended: contractors where deleted_at IS NOT NULL (historical view)
+  System   : GET /api/temples/{templeId}/contractors (paginated; default 10 per page)
+
+Step 6.2 — Add New Contractor
+  User     : Clicks [Add Contractor]; fills form:
+               Contractor Name (mandatory; individual or company name)
+               GST Registration Number (mandatory; must match
+                 /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
+               Type of Service (mandatory; text; e.g., "Electrical Maintenance")
+               Contract Reference Number (mandatory; alphanumeric)
+               Work Order Date DD/MM/YYYY (mandatory)
+               Contract Start Date DD/MM/YYYY (mandatory)
+               Contract End Date DD/MM/YYYY (optional; can be set later)
+               Contract Value INR (mandatory; positive number)
+               Payment Status (mandatory; free text; e.g., "Fully Paid", "Pending")
+  System   : POST /api/temples/{templeId}/contractors
+
+Step 6.3 — Upload Contract Document
+  User     : After creating contractor (or when editing), clicks [Upload Contract]
+             Selects PDF file (max 10 MB)
+  System   : POST /api/documents/upload
+               { ownerType: "CONTRACTOR", ownerId: contractorId, label: "Contract" }
+
+Step 6.4 — Edit Contractor Record
+  User     : Clicks [Edit] on an active contractor row; updates any field
+  System   : PUT /api/contractors/{contractorId}
+
+Step 6.5 — End a Contract
+  User     : Clicks [End Contract] on an active contractor row
+             Confirms via modal; enters optional Contract End Date if not already set
+  System   : DELETE /api/contractors/{contractorId}
+             Sets deleted_at = NOW() (soft delete; record is NOT permanently deleted)
+             Contractor moves from Active tab to Ended tab.
+             Ended contractor records are read-only; no further edits permitted.
+
+  EDGE CASES — Phase 6:
+  EC-6.1  GST format validation: validated client-side by Zod regex.
+          Error: "Please enter a valid 15-character GST Identification Number"
+  EC-6.2  Ended contractor visibility: Ended tab shows all historically ended
+          contractors with deletion date. TA can view the uploaded contract
+          document but cannot edit or re-open the record.
+
+================================================================================
+PHASE 7 — ASSET DECLARATION WORKFLOW (Core Approval Cycle)
+================================================================================
+
+This is the primary data-exchange workflow between Temple Authority and the
+District Collector. It has four sub-phases: drafting, document attachment,
+submission, and response handling.
+
+Declaration Status Lifecycle:
+  DRAFT
+    └─ [TA submits]                → SUBMITTED
+         ├─ [DC approves]          → APPROVED   (terminal)
+         ├─ [DC requests clarity]  → CLARIFICATION_REQUESTED
+         │    └─ [TA resubmits]    → SUBMITTED  (repeat; max 3 clarification rounds total)
+         ├─ [DC flags phys. ver.]  → PHYSICAL_VERIFICATION_REQUESTED
+         │    ├─ [DC approves]     → APPROVED   (terminal)
+         │    └─ [DC rejects]      → REJECTED
+         └─ [DC rejects]           → REJECTED
+              └─ [TA creates new]  → DRAFT (new version; previous preserved)
+
+Financial Year: April 1 to March 31. Declarations are per-FY per temple.
+
+────────────────────────────────────────────────────────────────────────────────
+SUB-PHASE 7A — CREATE OR RESUME A DRAFT DECLARATION
+────────────────────────────────────────────────────────────────────────────────
+
+Step 7A.1 — Initiate Declaration
+  Actor    : Temple Authority
+  Route    : /ta/declarations/new  OR  [Submit Declaration] on dashboard
+  User     : Selects Financial Year from dropdown (current FY pre-selected)
+
+Step 7A.2 — Financial Year Guard
+  System   : Checks existing declarations for selected FY:
+               SCENARIO A — No declaration exists for this FY:
+                 Creates new declaration record (status=DRAFT, version=1)
+                 Navigates to declaration form
+               SCENARIO B — DRAFT or SUBMITTED exists for this FY:
+                 Prompts: "You have an existing [DRAFT/SUBMITTED] declaration for
+                   FY YYYY-YY. Do you want to continue editing it?"
+                 [Continue]  → navigates to existing declaration form
+                 [Cancel]    → stays on dashboard (no new declaration created)
+               SCENARIO C — APPROVED exists for this FY:
+                 Shows read-only message: "An approved declaration already exists
+                   for FY YYYY-YY. No further submissions are needed for this year."
+                 [View Approved Declaration] → navigates to declaration detail
+               SCENARIO D — REJECTED exists for this FY:
+                 Prompts: "Your declaration for FY YYYY-YY was rejected. You may
+                   create a new submission. The rejected declaration will remain
+                   in your history."
+                 [Create New]  → creates DRAFT (version = rejected version + 1)
+                 [Cancel]      → stays on current page
+
+Step 7A.3 — Declaration Form Sections
+  User     : Fills the declaration form. The form is divided into 5 sections;
+             each section can be saved independently. Completion indicators show
+             filled / not filled status per section.
+
+  SECTION 1 — TEMPLE INCOME
+  Fields:
+    Hundi (Hundial) Collection          INR  (mandatory)
+    Devotee Offerings & Donations        INR  (mandatory)
+    Rental Income from Temple Properties INR  (optional)
+    Government Grants Received           INR  (optional)
+    Other Income (with description)      INR  (optional)
+    Total Income (auto-calculated)       INR  (display only)
+
+  SECTION 2 — TEMPLE EXPENDITURE
+  Fields:
+    Maintenance & Repairs                INR  (mandatory)
+    Staff Salaries & Wages               INR  (mandatory)
+    Festival & Ritual Expenses           INR  (optional)
+    Infrastructure / Construction        INR  (optional)
+    Administrative Expenses              INR  (optional)
+    Other Expenditure (with description) INR  (optional)
+    Total Expenditure (auto-calculated)  INR  (display only)
+    Net Surplus / Deficit (auto-calc)    INR  (display only)
+
+  SECTION 3 — PROPERTY SCHEDULE
+  Sub-section 3a — Immovable Assets:
+    Land Parcels (repeating rows; [Add Land Parcel] button):
+      Survey Number              text  (mandatory per row)
+      Area                       decimal + unit (acres / sq. ft.)  (mandatory)
+      Land Type                  dropdown: Agricultural / Temple Complex /
+                                   Leased / Other  (mandatory)
+      Estimated Market Value INR (mandatory)
+      Location / Village         text  (mandatory)
+    Buildings (repeating rows; [Add Building] button):
+      Building Type              dropdown: Temple Hall / Office / Quarters /
+                                   Other  (mandatory)
+      Total Area (sq. ft.)       (mandatory)
+      Year of Construction       (optional)
+      Estimated Value INR        (mandatory)
+      Description                text  (optional)
+  Sub-section 3b — Movable Assets:
+    Gold & Silver Items (repeating rows):
+      Description                text  (mandatory)
+      Weight (grams)             (mandatory)
+      Estimated Value INR        (mandatory)
+    Idols & Sacred Artifacts:
+      Description                text  (mandatory)
+      Estimated Value INR        (optional)
+    Vehicles (repeating rows):
+      Type / Model               text  (mandatory)
+      Registration Number        text  (mandatory)
+      Year of Purchase           (mandatory)
+      Estimated Value INR        (mandatory)
+    Electronic & Office Equipment:
+      Description                text  (mandatory)
+      Approximate Value INR      (optional)
+    Financial Assets:
+      FD Account Number          text  (optional)
+      FD Bank & Branch           text  (optional)
+      FD Amount INR              (optional)
+      Maturity Date              DD/MM/YYYY  (optional)
+
+  SECTION 4 — BANK BALANCES
+  Fields:
+    Savings Account Balance INR   (mandatory)
+    Current Account Balance INR   (optional)
+    Fixed Deposit Total INR       (optional; should reconcile with Section 3 FDs)
+    Investment Balance INR        (optional)
+
+  SECTION 5 — PENDING LITIGATIONS (optional section)
+  Fields:
+    Court Name                    text  (optional)
+    Case Number                   text  (optional)
+    Nature of Dispute             text  (optional)
+    Current Status                text  (optional)
+    [Add Another Litigation]      repeating rows
+
+Step 7A.4 — Save as Draft
+  User     : Clicks [Save Draft] (available at all times from the form header)
+  System   : PUT /api/declarations/{declarationId}
+             Status remains DRAFT; no notification triggered.
+             Section completion indicators refresh.
+             A toast confirms: "Draft saved at [time]."
+
+────────────────────────────────────────────────────────────────────────────────
+SUB-PHASE 7B — ATTACH SUPPORTING DOCUMENTS
+────────────────────────────────────────────────────────────────────────────────
+
+Step 7B.1 — Access Document Panel
+  User     : Opens [Documents] tab within the declaration form
+             (Tab is accessible at any point during DRAFT; disabled after SUBMITTED)
+
+Step 7B.2 — Upload Documents
+  User     : Clicks [Upload Document] or drags file into drop zone
+             Selects file and document type label:
+               Labels: Audited Accounts | Property Certificate | Bank Statement |
+                       Registration Document | Court Order | Other
+  System   : Validates before upload:
+               File type: PDF only (MIME type application/pdf)
+               File size: maximum 10 MB
+               Duplicate filename check (VAL-023): if a document with the same
+                 filename already exists for this declaration, show confirmation:
+                 "A file named [filename] already exists. What would you like to do?"
+                 [Upload Anyway — keep both] | [Replace existing file]
+                 If [Replace]: system issues DELETE /api/documents/{oldId} first,
+                 then proceeds with the upload (only if delete is permitted).
+                 If declaration is not in DRAFT: only [Upload Anyway] is permitted
+                 (delete is not allowed in SUBMITTED state).
+               If validation fails: inline error under the upload zone
+                 (file type error or file size error shown distinctly)
+             On validation pass:
+               POST /api/documents/upload (multipart/form-data)
+               { ownerType: "DECLARATION", ownerId: declarationId, label: "..." }
+             Upload progress bar shown (percentage complete)
+             On success: file listed in document table with name, size, upload date,
+               and [Delete] icon.
+
+Step 7B.3 — Delete an Uploaded Document
+  User     : Clicks [Delete] (trash icon) on a document row
+             Confirmation popover: "Delete [filename]? This cannot be undone."
+  System   : DELETE /api/documents/{documentId}
+             Document removed from list.
+             Note: Delete is only permitted while declaration is in DRAFT status.
+               After submission (SUBMITTED or beyond), the delete icon is hidden.
+
+  KEY RULE: At least 1 document must be attached before the declaration can be
+  submitted. A pre-submission guard enforces this (see Step 7C.2).
+
+────────────────────────────────────────────────────────────────────────────────
+SUB-PHASE 7C — SUBMIT DECLARATION TO DC
+────────────────────────────────────────────────────────────────────────────────
+
+Step 7C.1 — Review Before Submit
+  User     : Tabs to [Review & Submit] section; sees a read-only summary of
+             all sections with completeness indicators:
+               ✓ Income — Complete
+               ✓ Expenditure — Complete
+               ✗ Property — 2 required fields missing
+               ✓ Bank Balances — Complete
+               ○ Litigations — Not started (optional; skipped)
+               ✓ Documents — 3 files attached
+
+Step 7C.2 — Pre-Submission Validation
+  System   : Frontend validates before enabling the [Submit to DC] button:
+               - Section 1 (Income): Hundi and Devotee Offerings filled
+               - Section 2 (Expenditure): Maintenance and Salaries filled
+               - Section 3 (Property): at least one land parcel or building row
+               - Section 4 (Bank Balances): Savings Account Balance filled
+               - Documents: at least 1 document attached
+             If any guard fails: the [Submit to DC] button remains disabled and
+               inline section banners indicate what is missing.
+
+Step 7C.3 — Submission Confirmation
+  User     : Clicks [Submit to DC]
+             Confirmation modal displays:
+               "Submit declaration for FY YYYY-YY to the District Collector?
+
+               Important: Once submitted, you will not be able to edit this
+               declaration. If the DC requests clarification, you may update
+               specific sections in response to their remarks."
+
+               [Cancel]        [Confirm & Submit]
+
+Step 7C.4 — Submit API Call
+  User     : Clicks [Confirm & Submit]
+  System   : POST /api/declarations/{declarationId}/submit
+             Backend operations (all in one transaction):
+               1. Validates that declaration is in DRAFT status (guard)
+               2. Validates that at least 1 document is attached (guard)
+               3. Writes snapshot_json (frozen, immutable copy of all form data)
+               4. Sets status: DRAFT → SUBMITTED
+               5. Sets submitted_at = NOW(), submitted_by = authenticated user ID
+               6. Records audit event in audit_data_events
+               7. Fires @Async notification to DC: "New declaration submitted by
+                  [Temple Name] for FY YYYY-YY. Please review."
+             Frontend:
+               - Dashboard status card updates to SUBMITTED (blue badge)
+               - [Submit to DC] button replaced with [View Submission]
+               - All form inputs become read-only
+               - Documents tab: delete icon hidden for all documents
+
+────────────────────────────────────────────────────────────────────────────────
+SUB-PHASE 7D — HANDLING DC RESPONSE
+────────────────────────────────────────────────────────────────────────────────
+
+The following four response types can occur after a declaration is SUBMITTED or
+in CLARIFICATION_REQUESTED / PHYSICAL_VERIFICATION_REQUESTED status.
+
+────────────────
+RESPONSE: APPROVED
+────────────────
+Step 7D-A.1  TA receives in-app notification (bell icon badge increments) and
+             email: "Your declaration for FY YYYY-YY has been approved by the
+             District Collector."
+
+Step 7D-A.2  TA navigates to /ta/declarations/{id}
+             Declaration detail view shows:
+               Status badge: APPROVED (green)
+               DC Name and designation who reviewed
+               Approval Date and Time
+               DC Official Remarks (if any)
+               [Download Acknowledgement] button (prominent, primary action)
+
+Step 7D-A.3  TA clicks [Download Acknowledgement]
+  System   : GET /api/declarations/{declarationId}/acknowledgement
+             If pre-generated PDF exists:
+               Returns AcknowledgementResponse with pre-signed S3/storage URL
+               Browser triggers download immediately
+             If not yet generated (async):
+               Triggers background PDF generation
+               Displays: "Your acknowledgement is being generated and will be
+                 sent to your registered email address when ready.
+                 This typically takes a few minutes."
+
+Step 7D-A.4  All documents attached to this declaration become immutable:
+             - Delete icon hidden permanently for all documents on this declaration
+             - Documents are accessible via [Documents] tab in read-only mode
+
+  FINALITY: APPROVED is a terminal state. No transitions out of APPROVED exist.
+  A new declaration for the same FY cannot be created once one is APPROVED.
+
+────────────────────────────────────────────────────────────────────────────────
+RESPONSE: CLARIFICATION_REQUESTED
+────────────────────────────────────────────────────────────────────────────────
+Step 7D-B.1  TA receives in-app notification and email:
+             "The District Collector has requested clarification on your
+              declaration for FY YYYY-YY. Please review the remarks and resubmit."
+
+Step 7D-B.2  TA navigates to /ta/declarations/{id}
+             Declaration detail shows:
+               Status badge: CLARIFICATION REQUESTED (amber)
+               Clarification Round indicator: "Round 1 of 3 maximum"
+               Two-panel layout:
+                 LEFT PANEL  — Submitted Snapshot (frozen; read-only)
+                               All sections from the snapshot_json, shown for reference
+                 RIGHT PANEL — DC Remarks & Editable Staging Layer
+                               DC's remarks displayed per section, highlighted in amber
+                               Editable input fields for the flagged sections only
+
+Step 7D-B.3  TA reads DC remarks and makes corrections in the right-panel staging layer.
+             TA may also:
+               - Upload additional documents (Documents tab opens; [Upload Document]
+                 button is re-enabled for this clarification round)
+               - Replace an existing document by deleting the old and uploading new
+
+Step 7D-B.4  TA completes corrections and clicks [Review & Resubmit]
+             Reviews the same section-level summary as in Step 7C.1.
+
+Step 7D-B.5  Resubmit Confirmation modal:
+             "Resubmit declaration for FY YYYY-YY with your clarifications?
+              DC will be notified of your resubmission."
+             [Cancel]   [Confirm Resubmit]
+
+Step 7D-B.6  TA confirms
+  System   : POST /api/declarations/{declarationId}/resubmit
+               { clarificationResponse: "..." (TA's written explanation) }
+             Validation (VAL-024): clarificationResponse must be between 10 and
+               2000 characters. Frontend shows a live character counter beneath
+               the text area. [Confirm Resubmit] button stays disabled until
+               the minimum of 10 characters is reached.
+             Backend:
+               1. Validates declaration in CLARIFICATION_REQUESTED status (guard)
+               2. Validates clarification_round ≤ 3 (guard; if round > 3, throws
+                  TRM-DECL-LIMIT-001 with HTTP 422)
+               3. Increments clarification_round counter
+               4. Writes new snapshot_json (updated snapshot; the prior snapshot
+                  remains in declaration_clarifications thread for history)
+               5. Status: CLARIFICATION_REQUESTED → SUBMITTED
+               6. DC notified: "Temple Authority has resubmitted the clarified
+                  declaration for [Temple Name] FY YYYY-YY."
+               7. Audit event recorded
+             Frontend:
+               Status badge updates to SUBMITTED (blue)
+               Clarification thread moves to collapse section [View Clarification History]
+
+  CLARIFICATION ROUND LIMIT:
+  If TA attempts a 4th resubmission, the backend returns HTTP 422 with error code
+  TRM-DECL-LIMIT-001. Frontend displays:
+    "Maximum 3 clarification rounds have been reached for this declaration.
+     Please contact the District Collector's office directly for further guidance."
+  The [Resubmit] button remains disabled.
+
+────────────────────────────────────────────────────────────────────────────────
+RESPONSE: PHYSICAL_VERIFICATION_REQUESTED
+────────────────────────────────────────────────────────────────────────────────
+Step 7D-C.1  TA receives in-app notification:
+             "The District Collector has requested a physical verification of
+              your temple's assets for FY YYYY-YY. A field visit is expected.
+              No action is required from you at this time."
+
+Step 7D-C.2  TA navigates to /ta/declarations/{id}
+             Declaration detail shows:
+               Status badge: PHYSICAL VERIFICATION REQUESTED (saffron/orange)
+               Info banner:
+                 "The District Collector has flagged this declaration for physical
+                  verification. A field visit to your temple will be scheduled.
+                  This process typically completes within 30 days. You will be
+                  notified once a decision is reached."
+               All form sections: read-only
+               All action buttons except [View Documents]: hidden
+
+Step 7D-C.3  TA waits. No further action is available. If DC SLA (30 days) is
+             exceeded, TA receives a second in-app notification:
+             "Physical verification of your declaration is taking longer than
+              expected. Please contact the District Collector's office if you
+              have not yet been contacted for scheduling."
+
+Step 7D-C.4  After DC records physical verification findings and makes a decision:
+               DC APPROVES → same flow as RESPONSE: APPROVED (Step 7D-A.*)
+               DC REJECTS  → same flow as RESPONSE: REJECTED (Step 7D-D.*)
+             TA is notified per the outcome.
+
+────────────────────────────────────────────────────────────────────────────────
+RESPONSE: REJECTED
+────────────────────────────────────────────────────────────────────────────────
+Step 7D-D.1  TA receives in-app notification and email:
+             "Your declaration for FY YYYY-YY has been rejected by the District
+              Collector. Please review the rejection reason and file a new submission."
+
+Step 7D-D.2  TA navigates to /ta/declarations/{id}
+             Declaration detail shows:
+               Status badge: REJECTED (red)
+               DC Name, rejection date/time
+               Rejection Reason (mandatory; provided by DC)
+               All form sections: read-only (rejected declaration is immutable)
+               Action button: [Create New Declaration for FY YYYY-YY] (prominent)
+
+Step 7D-D.3  TA clicks [Create New Declaration for FY YYYY-YY]
+  System   : Creates a new DRAFT declaration:
+               version_number = rejected_declaration.version_number + 1
+               Financial year: same as the rejected declaration
+             Navigates to new declaration form (Step 7A.3)
+             The rejected declaration remains accessible in the [Declaration History]
+               tab on /ta/declarations with a REJECTED badge.
+
+  EDGE CASES — Phase 7:
+  EC-7.1  FY overdue flag: If FY deadline (default 30 June of the following year)
+          passes while declaration is in DRAFT or CLARIFICATION_REQUESTED status,
+          the system flags it as overdue. Dashboard shows: "Annual declaration for
+          FY YYYY-YY is overdue (due by DD MMM YYYY)." The warning does NOT block
+          submission; TA can still submit after the deadline.
+          Declarations in SUBMITTED or PHYSICAL_VERIFICATION_REQUESTED status are
+          NOT flagged OVERDUE; the TA has fulfilled their obligation and DC is
+          pending. These instead show: "Awaiting DC response (submitted DD MMM YYYY)."
+          in the dashboard pending actions panel.
+  EC-7.2  Optimistic lock conflict: If a DC and Super Admin simultaneously act on
+          the same declaration, the second actor receives HTTP 409 with error code
+          TRM-DECL-007: "This declaration was modified by another user. Please
+          refresh and try again." The frontend shows a conflict toast and reloads
+          the declaration.
+  EC-7.3  Large file upload: Files near 10 MB on slow connections should show
+          a persistent upload progress bar. On upload failure (network error or
+          server error), the error is shown with a [Retry] button. Other form
+          fields are not affected by an upload failure.
+  EC-7.4  Temple suspended mid-workflow: If Temple.status = SUSPENDED after a
+          declaration is SUBMITTED, the DC cannot act on it (guarded at DC side).
+          TA sees a suspension banner. The declaration is not auto-rejected;
+          it remains in its current status until suspension is resolved by SA.
+  EC-7.5  Declaration resubmit stale snapshot: If TA edits the staging layer
+          and then the declaration status unexpectedly changes (e.g., DC issues
+          a second clarification before TA resubmits), the resubmit API returns
+          422. Frontend behavior on receiving 422 from the resubmit call:
+            1. Before displaying the error or navigating, save the current
+               right-panel clarification draft text to sessionStorage under:
+               key = "decl_{declarationId}_clarification_draft"
+            2. Show toast: "This declaration has been updated. Please refresh
+               and review before resubmitting."
+            3. On page reload, if the key exists in sessionStorage, pre-fill
+               the clarification text area with the saved value and show a
+               banner: "Your previous draft response has been restored."
+            4. After successful resubmit, clear the sessionStorage key.
+
+================================================================================
+PHASE 8 — DOCUMENT MANAGEMENT
+================================================================================
+
+Step 8.1 — View All Documents
+  Actor    : Temple Authority
+  Route    : /ta/documents
+  User     : Sees all documents uploaded across all modules, grouped by module
+             in collapsible accordion sections:
+               TEMPLE PROFILE DOCUMENTS
+               TRUST DOCUMENTS
+               DECLARATION DOCUMENTS
+                 FY 2024-25 (sub-group)
+                 FY 2023-24 (sub-group)
+                 ...
+               EMPLOYEE DOCUMENTS (if any)
+               CONTRACTOR DOCUMENTS
+  System   : GET /api/documents?ownerType=TEMPLE&ownerId={templeId}
+             GET /api/documents?ownerType=TRUST&ownerId={trustId}
+             GET /api/documents?ownerType=DECLARATION&ownerId={declarationId}
+             ... (one call per module; results aggregated client-side)
+
+Step 8.2 — Document Table Columns
+  Each document row displays:
+    File Name (truncated with tooltip for long names)
+    Module (label: "Trust" / "FY 2024-25 Declaration" etc.)
+    Document Label (as set on upload: "Audited Accounts" / "Bank Statement" etc.)
+    Upload Date
+    File Size
+    [Download] button  — always visible
+    [Delete] icon      — visible only if document is NOT attached to an APPROVED declaration
+
+Step 8.3 — Download a Document
+  User     : Clicks [Download] on any document row
+  System   : GET /api/documents/{documentId}/url
+             Returns a time-limited pre-signed URL (do not cache; fetch on each click).
+             Browser opens the URL to trigger download or inline view.
+
+Step 8.4 — Upload a Document from the Documents Page
+  User     : Clicks [Upload Document] (top-right of page)
+             Selects module from dropdown: Temple Profile / Trust / Declaration (by FY)
+             If Declaration: selects specific declaration from sub-dropdown
+             Selects document label, then selects file
+  System   : POST /api/documents/upload (multipart)
+             File constraints: PDF only, max 10 MB
+
+Step 8.5 — Delete a Document
+  User     : Clicks [Delete] icon on a deletable document row
+             Confirmation popover: "Delete [filename]? This cannot be undone."
+  System   : DELETE /api/documents/{documentId}
+             If document belongs to APPROVED declaration: server returns HTTP 403.
+             Frontend should hide the delete icon for such documents; the 403 is a
+             safety fallback only.
+
+  EDGE CASES — Phase 8:
+  EC-8.1  Pre-signed URL expiry: URLs are time-limited (e.g., 15 minutes). Do not
+          cache the URL in the component state; fetch a fresh URL from the API on
+          every download click.
+  EC-8.2  File type enforcement: MIME type is validated server-side (application/pdf).
+          Client-side file picker should restrict to .pdf but server-side validation
+          is authoritative.
+
+================================================================================
+PHASE 9 — DASHBOARD & NOTIFICATIONS
+================================================================================
+
+Step 9.1 — Dashboard Overview
+  Actor    : Temple Authority
+  Route    : /ta/dashboard
+  System   : GET /api/temples/{templeId} (for profile status)
+             GET /api/temples/{templeId}/trusts (for trust status and board count)
+             GET /api/temples/{templeId}/employees (page 1, page size 1 for count)
+             GET /api/temples/{templeId}/contractors (page 1, page size 1 for count)
+             GET /api/temples/{templeId}/declarations (page 1, page size 3 for recent)
+             GET /api/notifications (page 1, unread count)
+
+Step 9.2 — Module Completion Status Cards
+  User     : Sees a horizontal row of status cards:
+               [ Profile     SUBMITTED  ] — yellow badge while awaiting DC approval
+               [ Trust       COMPLETE   ] — green badge if trust exists
+               [ Staff       4 records  ] — count of active employees
+               [ Contractors 2 active   ] — count of active contractors
+               [ Declaration DRAFT      ] — status badge of current FY declaration
+                 or
+               [ Declaration APPROVED   ] — FY 2023-24; with [View] link
+
+  Dashboard Progress Bar:
+    The overall completion progress bar above the status cards is calculated as
+    a weighted average across 4 mandatory modules. Optional modules (Employees,
+    Contractors, Board Members) contribute to warning banners but do NOT affect
+    the progress percentage.
+
+    Module weights and credit rules:
+      (1) Temple Profile (25% weight)
+            APPROVED              → 25 pts (full credit)
+            SUBMITTED             → 19 pts (~75%)
+            DRAFT (with content)  → 6 pts  (~25%)
+            DRAFT (empty) / none  → 0 pts
+
+      (2) Trust Registration (25% weight)
+            ≥1 active trust record → 25 pts (full credit)
+            0 records               → 0 pts
+
+      (3) Annual Declaration — current FY (25% weight)
+            APPROVED                     → 25 pts (full credit)
+            SUBMITTED or PHYSICAL_VER.   → 12 pts (~50%)
+            CLARIFICATION_REQUESTED      → 12 pts (~50%)
+            DRAFT (any content)          → 6 pts  (~25%)
+            Not started                  → 0 pts
+
+      (4) Bank Details on Temple Profile (25% weight)
+            Bank account + IFSC on file  → 25 pts (full credit)
+            Missing                      → 0 pts
+
+    Total progress % = sum of pts across all 4 modules (max 100)
+
+    Progress bar color:
+      0–33%   → red     (Shadcn bg-destructive)
+      34–66%  → amber   (bg-amber-500)
+      67–99%  → yellow  (bg-yellow-400)
+      100%    → green   (bg-green-500)
+
+    Blocking submission indicator:
+      If Temple Profile is in DRAFT state, the dashboard shows a red banner
+      beneath the status card row:
+        "Your temple profile must be submitted before you can submit a declaration."
+      The [New Declaration] quick-action link is disabled as long as this condition holds.
+
+Step 9.3 — Pending Actions Panel
+  User     : Sees ordered list of pending actions (highest priority first):
+               1. Declaration OVERDUE:
+                  "Annual declaration for FY YYYY-YY is overdue (due by DD MMM YYYY).
+                   [Submit Now]"
+                  Badge: OVERDUE (red destructive)
+               2. Clarification Required:
+                  "Your declaration for FY YYYY-YY requires clarification (Round N of 3).
+                   [View Remarks]"
+                  Badge: CLARIFICATION REQUESTED (amber)
+               3. Profile Pending Review:
+                  "Your temple profile update is under DC review."
+                  Badge: SUBMITTED (blue)
+               4. No pending actions:
+                  Empty state: "All up to date. Nothing requires your attention."
+
+Step 9.4 — Quick Action Links
+  User     : Sees quick-access links:
+               [Edit Temple Profile]    → /ta/temple
+               [Manage Trust]           → /ta/trust
+               [Manage Employees]       → /ta/employees
+               [View Declarations]      → /ta/declarations
+               [New Declaration]        → /ta/declarations/new  (visible only if no
+                                          active SUBMITTED declaration for current FY)
+
+Step 9.5 — Notification Bell
+  User     : Notification bell icon in the top bar shows unread badge count
+             (from notificationSlice.unreadCount in Redux)
+  User     : Clicks bell → notification dropdown opens (notificationSlice.dropdownOpen = true)
+             Shows latest 10 notifications in reverse chronological order:
+               Each item: icon (by event type), title, relative timestamp, read/unread dot
+  User     : Clicks a notification item → navigates to the referenced entity;
+             notification marked as read (POST /api/notifications/{id}/read)
+
+Step 9.6 — Notifications List Page
+  Route    : /ta/notifications (optional full-page view)
+  User     : Sees full paginated notification list with [Mark All Read] button
+  System   : GET /api/notifications (paginated)
+             POST /api/notifications/read-all (mark all)
+             unreadCount in Redux updated to 0 on mark-all.
+
+================================================================================
+PHASE 10 — QUERIES & NOTICES (Inbox)
+================================================================================
+
+NOTE: This phase addresses GAP-01. Requirements §4.2 lists "Queries & Notices"
+as a TA data-submission capability. This phase defines the v1 scope: a read-only
+inbox for formal notices issued by DC or Super Admin, with an optional response
+upload. No asynchronous messaging thread is implemented in v1.
+
+Step 10.1 — View Notices Inbox
+  Actor    : Temple Authority
+  Route    : /ta/notices
+  User     : Sees paginated list of formal notices/queries issued to this temple.
+             Columns: Date Issued | Issued By | Subject | Status | Action
+             Status values: UNREAD | READ | RESPONDED | CLOSED
+             Badge on sidebar navigation icon: count of UNREAD notices.
+  System   : GET /api/temples/{templeId}/notices (paginated; default 10 per page)
+             On page load, any UNREAD notices fetched in this request are NOT
+             automatically marked as read. TA must open a notice to mark it read.
+
+Step 10.2 — Open and Read a Notice
+  User     : Clicks on a notice row.
+  System   : GET /api/notices/{noticeId}
+             Notice status: UNREAD → READ (on first open; PATCH to update status)
+             Notice detail displays:
+               - Date Issued
+               - Issuing Authority (DC name / Super Admin)
+               - Subject
+               - Notice Body (free text or formatted content)
+               - Attached Files (if any; downloadable via pre-signed URL)
+               - Response window (if notice is RESPONDED: shows TA's response)
+               - Status badge
+
+Step 10.3 — Respond to a Notice
+  User     : If the notice requires a TA response (notice.responseRequired = true):
+               Sees a [Respond] panel below the notice body.
+               Types a response (text area; min 10 chars, max 2000 chars).
+               Optionally uploads a supporting document (PDF; max 10 MB; VAL-004/005).
+             Clicks [Submit Response].
+  System   : POST /api/notices/{noticeId}/response
+               { responseText: "...", documentId: "..." (optional) }
+             Notice status: READ → RESPONDED
+             DC / SA notified in-app: "[Temple Name] has responded to notice [Subject]."
+             Response is IMMUTABLE after submission; TA cannot edit or retract it.
+
+Step 10.4 — Closed Notices
+  System   : When DC or SA marks a notice CLOSED:
+             TA receives in-app notification: "Notice '[Subject]' has been closed."
+             CLOSED notices are displayed in greyed-out rows in the inbox.
+             TA cannot respond to a CLOSED notice.
+
+  EDGE CASES — Phase 10:
+  EC-10.1  No notices issued: empty state on /ta/notices:
+           "No notices or queries have been issued to your temple. Check back later."
+  EC-10.2  Notice response already submitted: [Respond] panel replaced with
+           read-only "Responded on [date]" block; response text displayed.
+  EC-10.3  Notice has attached file: download via GET /api/documents/{id}/url
+           (same pre-signed URL mechanism as Phase 8; no URL caching).
+
+Step 9.7 — Submission History
+  Route    : /ta/history  (tab on /ta/dashboard labelled [Submission History])
+  Actor    : Temple Authority
+  Purpose  : Provides a consolidated, chronological log of all TA submission
+             events across all modules. Satisfies Requirements §4.4.
+  User     : Tab visible in dashboard navigation. Displays a filterable table:
+               Columns: Date/Time | Module | Event | Status | Actor
+               Example rows:
+                 12 Jan 2026 | Temple Profile  | Submitted for review  | SUBMITTED | TA
+                 14 Jan 2026 | Temple Profile  | Approved              | APPROVED  | DC
+                 01 Feb 2026 | Declaration     | Draft saved           | DRAFT     | TA
+                 15 Mar 2026 | Declaration     | Submitted to DC       | SUBMITTED | TA
+                 22 Mar 2026 | Trust Details   | Trust registration saved | —        | TA
+               Filters: Module (All / Profile / Trust / Declaration / Employee /
+                         Contractor) and Date Range picker.
+  System   : GET /api/audit/events?actorId={userId}&entityTypes=TEMPLE,TRUST,
+               DECLARATION,EMPLOYEE,CONTRACTOR (paginated; default 20 per page)
+             Events sourced from audit_data_events table. Actions are read-only
+             for TA (they cannot delete or modify audit records).
+
+Step 9.8 — Downloads Panel
+  Route    : /ta/downloads  (tab on /ta/dashboard labelled [Downloads])
+  Actor    : Temple Authority
+  Purpose  : Quick-access list of all downloadable outputs. Satisfies Req §4.4.
+  User     : Tab visible in dashboard navigation. Displays a downloads table:
+               Columns: Name | Type | Related Entity | Generated On | Action
+               Types shown:
+                 Acknowledgement PDF  — per approved declaration
+                 Declaration Documents — links to /ta/documents filtered by FY
+                 Exported Data        — if export feature is available in role
+               Action per row: [Download] button (fetches fresh pre-signed URL)
+  System   : GET /api/declarations?status=APPROVED (to list acknowledgements)
+             GET /api/declarations/{id}/acknowledgement (on download click)
+             Follows same pre-signed URL pattern as Step 8.3 (no URL caching).
+--------------------------------------------------------------------------------
+
+Module               | States                                            | TA Can Initiate
+---------------------|---------------------------------------------------|------------------
+User Account         | PENDING_ACTIVATION → ACTIVE                       | No (SA activates)
+Temple Profile       | DRAFT → SUBMITTED → APPROVED / REJECTED           | DRAFT, SUBMITTED
+                     |   APPROVED → SUPERSEDED (system; on re-approval)  |
+Trust Registration   | ACTIVE → DISSOLVED                                | All (direct-save)
+Board Member         | active (is_current=true) → historical             | All (direct-save)
+Trust Financials     | (no status; immutable after submission)            | Submit once per FY
+Employee             | ACTIVE ↔ ON_LEAVE, ACTIVE → RETIRED/RESIGNED      | All except delete
+                     |   (RETIRED / RESIGNED are terminal)               |
+Contractor           | active → ended (soft delete)                      | Create, Edit, End
+Asset Declaration    | DRAFT → SUBMITTED                                 | DRAFT, SUBMITTED
+                     |   SUBMITTED → CLARIFICATION_REQUESTED (DC only)  |
+                     |   CLARIFICATION_REQUESTED → SUBMITTED (TA)       | Resubmit
+                     |   SUBMITTED → PHYSICAL_VERIFICATION (DC only)    |
+                     |   PHYSICAL_VERIFICATION → APPROVED/REJECTED (DC) |
+                     |   SUBMITTED → APPROVED (DC only; terminal)        |
+                     |   SUBMITTED → REJECTED (DC only)                  |
+                     |   REJECTED → DRAFT (TA; new version)             | New version
+
+--------------------------------------------------------------------------------
+5. VALIDATION RULES REFERENCE
+--------------------------------------------------------------------------------
+
+Rule ID   | Field / Context                | Rule
+----------|-------------------------------|----------------------------------------------
+VAL-001   | Password                       | Min 10 chars; 1 uppercase; 1 lowercase; 1 digit; 1 special char
+VAL-002   | Trust PAN Number               | /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/ (10 chars)
+VAL-003   | GST Registration Number        | /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/ (15 chars)
+VAL-004   | Document upload — file type    | PDF only (MIME: application/pdf); enforced client + server
+VAL-005   | Document upload — file size    | Max 10 MB per file; enforced client + server
+VAL-006   | Temple profile photograph      | JPEG or PNG only; max 5 MB; enforced client + server
+VAL-007   | Board member Aadhaar display   | Never display full Aadhaar; use format XXXX-XXXX-{last4}
+VAL-008   | Bank account display           | Last 4 digits only shown; full number stored encrypted (AES-256)
+VAL-009   | Declaration submission guard   | All mandatory sections complete AND at least 1 document attached
+VAL-010   | Clarification round limit      | Maximum 3 rounds; 4th attempt blocked (HTTP 422; TRM-DECL-LIMIT-001)
+VAL-011   | Declaration FY uniqueness      | At most 1 declaration per FY per temple in status DRAFT, SUBMITTED,
+          |                                |   CLARIFICATION_REQUESTED, or PHYSICAL_VERIFICATION_REQUESTED.
+          |                                |   A new DRAFT may only be created if the existing FY declaration
+          |                                |   is APPROVED or REJECTED.
+VAL-012   | Employee terminal state guard  | RETIRED / RESIGNED employees cannot be transitioned back to ACTIVE
+VAL-013   | Annual financials uniqueness   | One financial submission per trust per FY; immutable after submit
+VAL-014   | Cessation date for resignation | Required when marking a board member as resigned
+VAL-015   | Employee date_of_leaving       | Required when transitioning employee to RETIRED or RESIGNED
+VAL-016   | Mobile number                  | Exactly 10 digits; numeric only; no country code prefix; unique in system
+VAL-017   | Email address                  | RFC 5322-compliant format; enforced by @Email (Jakarta Validation); unique in system
+VAL-018   | Aadhaar number input           | Exactly 12 digits; numeric only; validated before encryption; never stored raw, logged, or returned in responses
+VAL-019   | GPS Latitude                   | Decimal; range -90.0 to +90.0; soft UI warning if outside India bounds (~8.0 to 37.0); not a hard block
+VAL-020   | GPS Longitude                  | Decimal; range -180.0 to +180.0; soft UI warning if outside India bounds (~68.0 to 97.0); not a hard block
+VAL-021   | Bank IFSC Code                 | /^[A-Z]{4}0[A-Z0-9]{6}$/ (11 chars); validated client-side by Zod + server-side
+VAL-022   | Temple address PIN Code        | Exactly 6 digits; numeric only; India postal code format
+VAL-023   | Duplicate document filename    | On upload, if a file with the same name exists for the same owner
+          |                                |   entity, show confirmation prompt: upload anyway or replace old file.
+          |                                |   Replace = auto-delete old + upload new (only if delete is permitted).
+VAL-024   | Clarification response text    | Min 10 characters; max 2000 characters; shown with character counter
+          |                                |   on the resubmit form. Required field; empty string blocked.
+VAL-025   | Linked temple self-reference   | linked_temple_id must NOT equal the parent templeId.
+          |                                |   Backend guard: HTTP 422, errorCode TRM-TEMPLE-SELF-LINK.
+
+--------------------------------------------------------------------------------
+6. NOTIFICATION TRIGGERS
+--------------------------------------------------------------------------------
+
+Event                                           | Recipient   | Channel
+------------------------------------------------|-------------|-------------------
+1. TA registration submitted                    | SA          | Email
+2. Account activated by Super Admin             | TA          | Email
+3. Temple profile SUBMITTED for review          | DC          | In-app + Email
+4. Temple profile APPROVED                      | TA          | In-app + Email
+5. Temple profile REJECTED                      | TA          | In-app + Email
+6. Declaration SUBMITTED                        | DC          | In-app + Email
+7. Declaration APPROVED                         | TA          | In-app + Email
+8. Clarification requested by DC               | TA          | In-app + Email
+9. TA resubmits after clarification            | DC          | In-app
+10. Physical verification flagged by DC         | TA          | In-app
+11. Physical verification SLA day 15 reminder   | DC          | In-app
+12. Physical verification SLA day 30 alert      | SA + DC     | In-app + Email
+13. Declaration REJECTED                        | TA          | In-app + Email
+14. Declaration OVERDUE (scheduled job)         | TA          | In-app
+15. Acknowledgement PDF ready (async)           | TA          | Email
+16. Profile review SLA day 8 (no DC action)     | DC          | In-app
+17. Profile review SLA day 15 (no DC action)    | SA + DC     | In-app + Email
+
+--------------------------------------------------------------------------------
+7. EDGE CASES REGISTER
+--------------------------------------------------------------------------------
+
+EC-ID  | Phase | Scenario                                       | Handling
+-------|-------|------------------------------------------------|------------------------------------------
+EC-01  | 1     | UIDAI API down during Aadhaar OTP              | Retry with 60-sec cooldown; 3 resend max; show UIDAI support link
+EC-02  | 1     | Duplicate temple + TA combination              | HTTP 409; error TRM-USR-006; show descriptive message with SA contact
+EC-03  | 3     | Temple suspended — profile edit attempted      | [Edit Profile] disabled; suspension banner shown
+EC-04  | 3     | Submitted profile — edit attempted             | Edit locked; "Under DC review" banner; read-only display
+EC-05  | 4     | Trust already dissolved — edit attempted       | All edit controls disabled; dissolution date/reason shown
+EC-06  | 4     | Annual financials already submitted            | Form shown read-only with "Submitted on [date]" label
+EC-07  | 5     | Duplicate Employee ID within same temple       | HTTP 422; error TRM-EMP-001; inline field error
+EC-08  | 5     | Transition RETIRED→ACTIVE attempted            | HTTP 422; error TRM-EMP-TERMINAL; toast: "Create a new record for re-hire"
+EC-09  | 7     | FY deadline passes mid-workflow               | Declaration flagged OVERDUE; pending actions banner; submit NOT blocked
+EC-10  | 7     | Optimistic lock conflict (concurrent DC acts)  | HTTP 409; error TRM-DECL-007; toast to refresh
+EC-11  | 7     | Clarification round 4 attempted               | HTTP 422; error TRM-DECL-LIMIT-001; button disabled; contact DC message
+EC-12  | 7     | Temple suspended mid-declaration workflow      | Suspension banner on declaration page; DC cannot act; status preserved
+EC-13  | 7     | Large file on slow connection                  | Upload progress bar; [Retry] on failure; other fields unaffected
+EC-14  | 7     | Acknowledgement PDF not yet generated          | Async trigger; "Email when ready" message shown
+EC-15  | 7     | Physical verification SLA exceeded (day 30)    | SA + DC alerted; TA notified to contact DC office
+EC-16  | 8     | Download URL expired                           | Fetch fresh URL from GET /api/documents/{id}/url on each click (no caching)
+EC-17  | 8     | Delete attempted on APPROVED-declaration doc   | HTTP 403 from server; delete icon not rendered by frontend (double guard)
+EC-18  | 2     | Login locked after 5 failed password attempts  | HTTP 401 TRM-AUTH-LOCKED; auto-unlock after 30 min or SA unlock via admin API
+EC-19  | 2     | Session expires during active file upload      | Upload returns 401; toast explains session expiry; redirect to login; TA re-uploads after re-login
+EC-20  | 3     | GPS coordinates outside Karnataka bounds       | Amber inline warning on blur; confirmation prompt on submit asking TA to verify; server accepts value
+EC-21  | 1/2   | MFA backup code usage during login             | POST /api/auth/mfa-verify { type: BACKUP_CODE }; code invalidated; warning email if ≤2 codes remain
+EC-22  | 4     | Trust dissolved with active declaration in FY  | Additional amber warning shown in dissolution modal; dissolution not blocked; DC sees DISSOLVED trust on declaration
+
+--------------------------------------------------------------------------------
+8. DECISIONS LOCKED
+--------------------------------------------------------------------------------
+
+DECISION-01  Declaration status label is SUBMITTED (not PENDING_REVIEW).
+             Backend DeclarationStatus enum uses SUBMITTED; all UI and comms
+             must use this label consistently.
+
+DECISION-02  Clarification rounds are capped at 3.
+             The state machine document (05_workflows_and_states/00_state_machines.txt)
+             takes precedence over the requirements doc which stated unlimited rounds.
+             The clarification_round column tracks count; service layer enforces the cap.
+
+DECISION-03  Temple profile edits go through a DC approval staging workflow.
+             DRAFT → SUBMITTED → APPROVED / REJECTED / SUPERSEDED.
+             Grade and Registration Number are read-only for TA at all times.
+
+DECISION-04  Aadhaar OTP via UIDAI is included in v1.
+             Full eKYC flow (Aadhaar input → OTP → UIDAI verification) is in scope.
+             The AadhaarService and AadhaarOtpRequest/AadhaarOtpResponse DTOs
+             are already implemented in the backend.
+
+DECISION-05  Trust, Employee, and Contractor data are direct-save.
+             No staging or DC approval cycle for these modules in v1.
+             DC views these records read-only at any time.
+
+DECISION-06  APPROVED declarations and their documents are immutable.
+             No update, delete, or replacement of documents after approval.
+             Enforced at service layer (403 for delete attempts).
+
+DECISION-07  REJECTED declarations are preserved as history.
+             New submissions for the same FY create a versioned DRAFT
+             (version_number + 1). The rejected record is never overwritten.
+
+DECISION-08  snapshot_json is written at SUBMITTED and updated at RESUBMIT.
+             Each resubmission overwrites the snapshot with the new staging data;
+             the previous snapshot version is preserved in declaration_clarifications
+             thread for audit reference.
+
+DECISION-09  Soft-delete for all employees and contractors.
+             TA cannot hard-delete; only Super Admin can set deleted_at.
+             TAs manage removal via status transitions (employees) or End Contract
+             action (contractors).
+
+DECISION-10  Annual trust financials are immutable after submission.
+             One submission per trust per financial year; no edit or resubmit path.
+
+--------------------------------------------------------------------------------
+9. OPEN QUESTIONS (Flagged for Future Review)
+--------------------------------------------------------------------------------
+
+OQ-01  Can a Super Admin reopen an APPROVED declaration post-approval?
+       (e.g., fraud discovered after approval; current answer: no — APPROVED is
+       terminal. If required in future, a new v2 endpoint must be designed.)
+
+OQ-02  Is there a version cap on REJECTED declarations?
+       (e.g., after 5 rejected versions, should the system auto-flag for SA review?
+       Current assumption: no cap in v1.)
+
+--------------------------------------------------------------------------------
+10. MODULE COMPLETION DEPENDENCIES & SUBMISSION PREREQUISITES
+--------------------------------------------------------------------------------
+
+This section defines which module states BLOCK declaration submission (hard rules)
+versus which raise dashboard warnings without blocking (soft rules).
+
+10.1 HARD BLOCKING RULES
+  These guards are enforced in the frontend (disables [Submit to DC] button) AND
+  in the backend (POST /api/declarations/{id}/submit returns HTTP 422 if violated).
+
+  RULE DCMP-001 — Temple Profile must not be in DRAFT state.
+    Condition : Temple's active staging record status = DRAFT (or no profile submitted
+                at all — i.e., the temple has never had an APPROVED or SUBMITTED profile)
+    Guard     : Pre-submission check at Step 7C.2
+    Frontend  : [Submit to DC] button disabled; inline section banner:
+                  "Your temple profile must be submitted for DC review before you can
+                   submit a declaration. Go to Temple Profile →"
+    Backend   : Returns HTTP 422, errorCode TRM-DECL-PREREQ-001 as a safety fallback.
+
+  RULE DCMP-002 — At least 1 document must be attached to the declaration.
+    (Defined as VAL-009; listed here for cross-reference completeness.)
+
+  RULE DCMP-003 — All mandatory declaration sections must be completed.
+    Section 1: Hundi Collection + Devotee Offerings
+    Section 2: Maintenance & Repairs + Staff Salaries
+    Section 3: ≥1 land parcel OR ≥1 building row
+    Section 4: Savings Account Balance
+    (Defined at Step 7C.2; listed here for cross-reference completeness.)
+
+10.2 SOFT WARNING RULES
+  These conditions show a warning banner on the dashboard but do NOT block submission.
+  The TA may submit a declaration even if these warnings are present.
+
+  MODULE              | THRESHOLD                         | DASHBOARD WARNING
+  --------------------|-----------------------------------|--------------------------------------------
+  Trust Registration  | No active trust record exists     | "Trust registration not on file. A complete
+                      |                                   |  submission should include trust details."
+  Board Members       | No is_current=true members        | "No current board members are recorded for
+                      |                                   |  this trust."
+  Employees           | 0 ACTIVE employee records         | "No employee records are on file. Add staff
+                      |                                   |  if your temple has active employees."
+  Contractors         | (no warning; fully optional)      | No warning shown.
+
+10.3 MODULE COMPLETION STATES — REFERENCE TABLE
+  Defines what "complete" means per module for dashboard status card display.
+
+  MODULE              | COMPLETE WHEN                              | DASHBOARD BADGE
+  --------------------|--------------------------------------------|---------------------------
+  Temple Profile      | Status = APPROVED                          | COMPLETE (green)
+                      | Status = SUBMITTED (awaiting DC)           | PENDING REVIEW (yellow)
+                      | Status = DRAFT, content present            | IN PROGRESS (grey)
+                      | Status = REJECTED, no new draft yet        | NEEDS ATTENTION (red)
+                      | No profile ever submitted                  | NOT STARTED (grey)
+  Trust Registration  | ≥1 active trust record exists              | COMPLETE (green)
+                      | No trust record                            | NOT STARTED (grey)
+  Board Members       | ≥1 is_current=true board member            | COMPLETE (green; shows count)
+                      | 0 is_current=true members                  | NOT STARTED (grey)
+  Employees           | ≥1 ACTIVE employee                         | COMPLETE (green; shows count)
+                      | 0 ACTIVE employees                         | NOT STARTED (grey)
+  Contractors         | ≥1 active contractor                       | Shows active count (grey/green)
+                      | 0 active contractors                       | Shows "None" (grey)
+  Declaration         | Status = APPROVED for current FY           | APPROVED (green)
+                      | Status = SUBMITTED                         | PENDING REVIEW (yellow)
+                      | Status = CLARIFICATION_REQUESTED           | NEEDS ATTENTION (amber)
+                      | Status = PHYSICAL_VERIFICATION_REQUESTED   | IN VERIFICATION (saffron)
+                      | Status = DRAFT                             | DRAFT (grey)
+                      | Status = REJECTED                          | REJECTED (red; [Create New] CTA)
+                      | No declaration for current FY              | NOT STARTED (grey)
+
+--------------------------------------------------------------------------------
+11. VERSIONING LIFECYCLE
+--------------------------------------------------------------------------------
+
+This section formalises version numbering across modules that support multiple
+versions over time. Version numbers are system-managed integers; TA never sets them.
+
+11.1 TEMPLE PROFILE VERSIONS
+
+  Trigger             : Each new DRAFT staging record created for the temple profile.
+  Starting version    : 1 (first DRAFT ever created for the temple)
+  Increment rule      : +1 on each [Edit Profile] → create new draft after REJECTED
+                        (REJECTED → new DRAFT = version + 1)
+  On APPROVAL         : The APPROVED staging record becomes the published profile.
+                        The previously published record is archived to history.
+                        The approved staging record is marked SUPERSEDED on the
+                        next approval cycle.
+  Version display     : Not shown to TA in the UI; used internally for audit trail.
+
+  VERSION HISTORY:
+  version      | status              | result
+  -------------|---------------------|-------------------------------------------
+  1            | APPROVED            | Published; archived on next approval
+  2            | REJECTED            | Preserved in history; TA creates v3
+  3            | SUBMITTED           | Awaiting DC review
+  (none active)| (prior APPROVED)    | Still the published profile until v3 approved
+
+11.2 ASSET DECLARATION VERSIONS
+
+  Trigger             : Each new DRAFT created after a REJECTED declaration.
+  Starting version    : 1 (first DRAFT for a given FY)
+  Increment rule      : version_number = rejected_declaration.version_number + 1
+  On REJECTED         : The rejected declaration is preserved with its version number.
+                        TA initiates a new DRAFT which begins the next version.
+  On APPROVED         : The approved declaration is terminal; no further versioning.
+  Version display     : Shown in declaration list as e.g. "FY 2024-25 (v3)"
+                        and in the declaration detail header.
+
+  VERSION GUARD:
+  At most 1 non-REJECTED, non-APPROVED active declaration per FY per temple.
+  (VAL-011). If a DRAFT or SUBMITTED declaration already exists for the FY,
+  a new DRAFT cannot be created until the existing one is REJECTED.
+
+11.3 MODULES WITHOUT VERSIONING
+
+  MODULE              | VERSIONING POLICY
+  --------------------|---------------------------------------------------------
+  Trust Registration  | No versioning; each trust is a separate record (by date).
+                      | Historical trusts shown in collapsed accordion.
+  Board Members       | No versioning; is_current flag controls visibility.
+                      | All records preserved; history is shown in Historical tab.
+  Trust Financials    | No versioning; one immutable record per trust per FY.
+  Employees           | No versioning; edit history tracked via audit_data_events.
+  Contractors         | No versioning; ended contracts archived in Ended tab.
+  Documents           | No versioning; delete + re-upload replaces a document.
+
+  EDIT HISTORY: For all direct-save modules (Trust, Employee, Contractor),
+  every PUT operation writes an entry to audit_data_events with the actor,
+  timestamp, changed fields, and before/after values. Audit history is
+  accessible to DC and Super Admin only (not shown to TA in v1).
+
+--------------------------------------------------------------------------------
+12. STATE MACHINES — FORMAL DEFINITION
+--------------------------------------------------------------------------------
+
+Formal state transition tables for all modules managed by the Temple Authority.
+Each table lists: states, transitions, actor who triggers, and guards that apply.
+
+────────────────────────────────────────────────────────────────────────────────
+12.1 USER ACCOUNT STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: PENDING_ACTIVATION | ACTIVE | SUSPENDED | DEACTIVATED
+
+  From                | To                  | Actor       | Guard
+  --------------------|---------------------|-------------|---------------------------
+  (registration)      | PENDING_ACTIVATION  | TA (self)   | Form valid; Aadhaar eKYC passed; MFA set up
+  PENDING_ACTIVATION  | ACTIVE              | SUPER_ADMIN | Manual activation via admin panel
+  ACTIVE              | SUSPENDED           | SUPER_ADMIN | Administrative action
+  SUSPENDED           | ACTIVE              | SUPER_ADMIN | Reinstatement
+  ACTIVE              | DEACTIVATED         | SUPER_ADMIN | Permanent removal; no recovery path
+
+  TA-initiated: registration only (→ PENDING_ACTIVATION).
+  All other transitions: SUPER_ADMIN only.
+  Terminal state: DEACTIVATED.
+
+────────────────────────────────────────────────────────────────────────────────
+12.2 TEMPLE PROFILE STATE MACHINE (Staging Record)
+────────────────────────────────────────────────────────────────────────────────
+
+  States: DRAFT | SUBMITTED | APPROVED | REJECTED | SUPERSEDED
+
+  From         | To          | Actor    | Guard
+  -------------|-------------|----------|---------------------------------------------------
+  (first edit) | DRAFT       | TA       | No existing DRAFT/SUBMITTED staging for this temple
+  REJECTED     | DRAFT       | TA       | [Create New Draft]; version increments; rejected record preserved
+  DRAFT        | DRAFT       | TA       | [Save Draft]; content updated; status unchanged
+  DRAFT        | SUBMITTED   | TA       | Mandatory fields complete; ≥1 supporting document attached
+  SUBMITTED    | APPROVED    | DC       | DC approval action; published profile updated
+  SUBMITTED    | REJECTED    | DC       | DC rejection with mandatory reason text
+  APPROVED     | SUPERSEDED  | SYSTEM   | On next approval cycle for same temple
+  SUBMITTED    | DRAFT       | —        | NOT ALLOWED; submitted profile is locked for TA
+
+  Constraints:
+  - Only 1 DRAFT or SUBMITTED staging record may exist per temple at any time.
+  - Grade and Registration Number: read-only for TA in all states (set by SUPER_ADMIN).
+  - APPROVED and REJECTED staging records: immutable.
+  - TA cannot cancel a SUBMITTED profile; only DC can respond.
+
+────────────────────────────────────────────────────────────────────────────────
+12.3 TRUST REGISTRATION STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: ACTIVE | DISSOLVED
+
+  From       | To        | Actor    | Guard
+  -----------|-----------|----------|-----------------------------------------------
+  (creation) | ACTIVE    | TA       | Trust form complete; POST /api/temples/{id}/trusts
+  ACTIVE     | DISSOLVED | TA       | Dissolution date + reason entered; confirmation modal confirmed
+  DISSOLVED  | (blocked) | —        | No further TA transitions; SUPER_ADMIN override only
+
+  Notes:
+  - A temple may have multiple trust records over time (after dissolution + re-registration).
+  - After DISSOLVED: all edit controls disabled; history accordion shows dissolved record.
+  - Trust PAN and bank details: immutable after dissolution.
+
+────────────────────────────────────────────────────────────────────────────────
+12.4 BOARD MEMBER STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: CURRENT (is_current=true) | HISTORICAL (is_current=false)
+
+  From        | To         | Actor | Guard
+  ------------|------------|-------|-----------------------------------------------
+  (creation)  | CURRENT    | TA    | Add board member form submitted; POST
+  CURRENT     | HISTORICAL | TA    | [Mark as Resigned]; cessation_date REQUIRED (VAL-014)
+  HISTORICAL  | (blocked)  | —     | No reinstatement; create new board member record if needed
+
+  Notes:
+  - Board member records are NEVER hard-deleted; all history is preserved.
+  - CURRENT members: displayed in "Current" sub-tab.
+  - HISTORICAL members: displayed in "Historical" sub-tab.
+
+────────────────────────────────────────────────────────────────────────────────
+12.5 TRUST FINANCIALS STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: NOT_SUBMITTED | SUBMITTED   (per financial year, per trust)
+
+  From           | To        | Actor | Guard
+  ---------------|-----------|-------|------------------------------------------
+  NOT_SUBMITTED  | SUBMITTED | TA    | All mandatory fields filled; unique FY+trust (VAL-013)
+  SUBMITTED      | (blocked) | —     | Immutable; no edit or delete path exists
+
+  Notes:
+  - One submission per trust per FY.
+  - Form is rendered read-only with "Submitted on [date]" label after submission.
+  - There is no APPROVED state; submission itself is final.
+
+────────────────────────────────────────────────────────────────────────────────
+12.6 EMPLOYEE STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: ACTIVE | ON_LEAVE | RETIRED (terminal) | RESIGNED (terminal)
+  Separate axis — soft-delete: not deleted | deleted (SUPER_ADMIN only)
+
+  From         | To         | Actor       | Guard
+  -------------|------------|-------------|-----------------------------------------------
+  (creation)   | ACTIVE     | TA          | Employee form submitted; POST
+  ACTIVE       | ON_LEAVE   | TA          | [Change Status]; date_of_leaving NOT required
+  ON_LEAVE     | ACTIVE     | TA          | [Return from Leave]
+  ACTIVE       | RETIRED    | TA          | date_of_leaving REQUIRED (VAL-015)
+  ACTIVE       | RESIGNED   | TA          | date_of_leaving REQUIRED (VAL-015)
+  RETIRED      | (blocked)  | —           | HTTP 422 TRM-EMP-TERMINAL; re-hire = new record
+  RESIGNED     | (blocked)  | —           | HTTP 422 TRM-EMP-TERMINAL; re-hire = new record
+  any status   | (deleted)  | SUPER_ADMIN | DELETE /api/employees/{id}; soft-delete only
+
+  Notes:
+  - TA cannot delete employee records; [Delete] button is not rendered for TEMPLE_AUTHORITY.
+  - RETIRED and RESIGNED are terminal; return requires a new employee record (new ID, new DOJ).
+  - Employee Type and Date of Joining: read-only after creation.
+
+────────────────────────────────────────────────────────────────────────────────
+12.7 CONTRACTOR STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: ACTIVE (deleted_at IS NULL) | ENDED (deleted_at IS NOT NULL)
+
+  From      | To     | Actor    | Guard
+  ----------|--------|----------|---------------------------------------------
+  (creation)| ACTIVE | TA       | Contractor form submitted; POST
+  ACTIVE    | ENDED  | TA       | [End Contract]; soft-delete; deleted_at = NOW()
+  ENDED     | (read-only) | —   | No reversal; contact SUPER_ADMIN if needed
+
+  Notes:
+  - "ENDED" contractors are displayed in the Ended tab (read-only).
+  - Contract document remains downloadable after ending.
+  - No hard delete; contractor history is always preserved.
+
+────────────────────────────────────────────────────────────────────────────────
+12.8 ASSET DECLARATION STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: DRAFT | SUBMITTED | CLARIFICATION_REQUESTED | PHYSICAL_VERIFICATION_REQUESTED
+          | APPROVED (terminal) | REJECTED
+
+  From                             | To                              | Actor | Guard
+  ---------------------------------|---------------------------------|-------|--------------------------------
+  (initiation — FY guard passes)   | DRAFT (version 1)               | TA    | No active non-REJECTED decl for FY
+  REJECTED (prev version)          | DRAFT (version n+1)             | TA    | [Create New Declaration]
+  DRAFT                            | DRAFT                           | TA    | [Save Draft]; content updated
+  DRAFT                            | SUBMITTED                       | TA    | DCMP-001 + VAL-009 + 7C.2 guards pass
+  SUBMITTED                        | APPROVED                        | DC    | DC approval; terminal
+  SUBMITTED                        | REJECTED                        | DC    | DC rejection; mandatory reason
+  SUBMITTED                        | CLARIFICATION_REQUESTED         | DC    | DC remarks provided per section
+  CLARIFICATION_REQUESTED          | SUBMITTED                       | TA    | clarification_round ≤ 3 (VAL-010)
+  SUBMITTED                        | PHYSICAL_VERIFICATION_REQUESTED | DC    | DC flags for field visit
+  PHYSICAL_VERIFICATION_REQUESTED  | APPROVED                        | DC    | DC records outcome (approved)
+  PHYSICAL_VERIFICATION_REQUESTED  | REJECTED                        | DC    | DC records outcome (rejected)
+  APPROVED                         | (no transition)                 | —     | Terminal; immutable
+  REJECTED                         | DRAFT (new version)             | TA    | [Create New Declaration for FY]
+
+  Clarification Round Guard:
+    clarification_round column tracks count of CLARIFICATION_REQUESTED received.
+    On 4th resubmit attempt: backend returns HTTP 422, TRM-DECL-LIMIT-001.
+    Frontend disables [Resubmit] button permanently; shows contact-DC message.
+
+────────────────────────────────────────────────────────────────────────────────
+12.9 DOCUMENT STATE MACHINE
+────────────────────────────────────────────────────────────────────────────────
+
+  States: ACTIVE | DELETED (soft) | IMMUTABLE
+
+  From        | To        | Actor    | Guard
+  ------------|-----------|----------|--------------------------------------------------
+  (upload)    | ACTIVE    | TA       | Owner entity in DRAFT or CLARIFICATION_REQUESTED
+  ACTIVE      | DELETED   | TA       | [Delete]; owner NOT in SUBMITTED or APPROVED state
+  ACTIVE      | IMMUTABLE | SYSTEM   | Parent declaration transitions to APPROVED
+  IMMUTABLE   | (blocked) | —        | HTTP 403 on delete; delete icon hidden in frontend
+  DELETED     | (gone)    | —        | Soft-deleted; excluded from all list queries
+
+  Document editability rules by parent status:
+  Parent Status                   | Upload Allowed | Delete Allowed
+  --------------------------------|----------------|---------------
+  DRAFT                           | Yes            | Yes
+  CLARIFICATION_REQUESTED         | Yes            | Yes (replace by delete + re-upload)
+  SUBMITTED                       | No             | No (icon hidden)
+  PHYSICAL_VERIFICATION_REQUESTED | No             | No (icon hidden)
+  APPROVED                        | No             | No (icon hidden; HTTP 403 on attempt)
+  REJECTED                        | No             | No (rejected declarations are immutable)
+
+OQ-03  Acknowledgement PDF generation SLA: how long is "typically a few minutes"?
+       Should an in-app polling indicator be shown instead of a one-time email?
+
+OQ-04  Linked mutts / sub-temples in temple profile: what is the source list?
+       Is it drawn from the temples table itself (self-referential join) or from
+       a separate master data table maintained by Super Admin?
+
+OQ-05  Can a TA have multiple active declarations across different FYs simultaneously?
+       (e.g., FY 2022-23 still in CLARIFICATION_REQUESTED while FY 2023-24 is DRAFT?
+       Current assumption: yes, one active cycle per FY independently.)
+
+--------------------------------------------------------------------------------
+10. ASSUMPTIONS
+--------------------------------------------------------------------------------
+
+A-01  Financial year: April 1 to March 31.
+A-02  One active declaration per financial year per temple (one non-REJECTED).
+A-03  Clarification rounds have a hard cap of 3.
+A-04  TA can self-serve contact/address updates via temple profile edit flow.
+      Minor profile changes still require DC approval in this staging model.
+A-05  Trust direct-save: trust data changes are immediately visible to DC.
+      No blocking mechanism exists for trust data in v1.
+A-06  Physical verification SLA: 30 days from the date of flagging.
+A-07  Overdue threshold: 30 June of the year following the financial year end
+      (e.g., FY 2024-25 declaration is overdue after 30 June 2025).
+A-08  All monetary values are in Indian Rupees (INR).
+A-09  The temple search summary (search_summary table) is rebuilt by the system
+      and by Admin as needed; TA has no direct influence over it.
+A-10  TA can view but not download audit trails of their own submissions.
+      Audit data is exposed to AUDITOR and SUPER_ADMIN roles only.
+
+--------------------------------------------------------------------------------
+11. GAP ANALYSIS — REQUIREMENTS vs. WORKFLOW
+--------------------------------------------------------------------------------
+
+This section documents gaps identified by a line-by-line alignment of the
+requirements document (v1.0) against this workflow specification.
+
+KEY:
+  GAP  = requirement present in v1.0 but absent or incomplete in this workflow.
+  DEV  = workflow explicitly deviates from requirements (documented decision).
+  LOOP = potential loophole or undefined edge case not caused by a requirements gap.
+
+────────────────────────────────────────────────────────────────────────────────
+PART A — REQUIREMENTS GAPS (GAP items)
+────────────────────────────────────────────────────────────────────────────────
+
+GAP-01  "Queries & Notices" module not represented in any workflow phase.
+  Source    : Requirements §4.2 — "Data Submission Capabilities" lists:
+              "Temple Profile, Trust Details, Staff Records, Contractor Records,
+               Asset Declaration, Document Upload, Queries & Notices"
+  Problem   : No phase, step, API endpoint, or data model covers how a TA
+              receives, views, downloads, or responds to formal Notices or Queries
+              issued by DC outside the declaration clarification flow. This is a
+              complete module omission.
+  Scope     : Could be a standalone Notices module at /ta/notices, or it could
+              be a lightweight "inbox" attached to the notification system. The
+              requirements do not elaborate further. Resolution required before
+              frontend implementation of this capability.
+  Action    : Define the Queries & Notices feature scope (is it read-only inbox?
+              does TA respond? is there a document upload on a notice?) and add a
+              Phase 10 to this workflow document.
+
+GAP-02  Login lockout policy for failed username/password attempts not defined.
+  Source    : Requirements §4.1 — "Password and lockout policies"
+  Problem   : The workflow defines the MFA lockout (5 failed MFA attempts → locked;
+              Step 2.2) and the password complexity policy (VAL-001), but never
+              defines the lockout rule for the main login step (Step 2.1).
+              E.g., how many failed email+password attempts trigger a lockout?
+              What is the lockout duration? Is it progressive (exponential back-off)
+              or fixed?
+  Risk      : Without this, brute-force of the login endpoint is mitigated only by
+              MFA (which comes after a successful password check), leaving the
+              password check step exposed.
+  Action    : Add to Step 2.1 edge cases: lockout threshold, duration, and account
+              unlock flow (email link? auto expire? SA unlock?).
+
+GAP-03  "Submission history" dashboard feature not specified.
+  Source    : Requirements §4.4 — Dashboard lists "Submission history" as a
+              required dashboard capability.
+  Problem   : Phase 9 (Dashboard) covers module status cards, pending actions,
+              quick links, and notifications. It does NOT include a cross-module
+              submission history view showing a chronological log of all TA
+              submissions (profile drafts, trust saves, declaration submissions,
+              resubmissions, clarification responses, etc.).
+              /ta/declarations does show declaration history per FY, but that is
+              scoped to declarations only.
+  Action    : Decide whether "submission history" is:
+              (a) A tab on the dashboard showing all events across all modules, OR
+              (b) An alias for the existing Declaration History tab.
+              Add a Step 9.7 to Phase 9 covering this, or document explicitly why
+              it is deferred to v2.
+
+GAP-04  "Downloads" listed as a dashboard feature but absent from Phase 9.
+  Source    : Requirements §4.4 — Dashboard lists "Downloads" alongside status
+              tracking and notifications.
+  Problem   : The workflow has no dedicated "Downloads" section on the dashboard.
+              Downloads are accessible from individual module pages and the
+              Documents page (/ta/documents), but there is no quick-access
+              "Downloads" widget or tab on /ta/dashboard.
+  Action    : Decide if this is a downloads shortcut panel on the dashboard
+              (showing recently generated acknowledgements and downloadable
+              reports) or whether the existing Documents page satisfies this
+              requirement. Document the decision.
+
+GAP-05  Employee status "RESIGNED" is not in requirements; "RETIRED" scope unclear.
+  Source    : Requirements §3.4.1 — Employee Status listed as:
+              "Active / On Leave / Retired"
+              (RESIGNED is not mentioned.)
+  Problem   : The workflow adds RESIGNED as a distinct terminal state alongside
+              RETIRED (Step 5.4, Section 12.6). This has service-layer implications
+              (different HR & CE Act treatment for resignation vs. retirement). The
+              requirements document does not sanction this distinction.
+  Note      : This is logged as DEV-03 below; it may be intentional and correct,
+              but has never been confirmed.
+  Action    : Confirm with stakeholders whether RESIGNED is a valid status in the
+              Karnataka HR&CE Act context or whether it should be folded into RETIRED.
+
+GAP-06  DC review SLA for temple profile submissions not defined.
+  Source    : Requirements §4.3 — "Submit, Validate, Review, Approve / Reject, Notify"
+  Problem   : The workflow defines a 30-day SLA for physical verification
+              (Step 7D-C.3) and a 30-day overdue threshold for declarations
+              (A-07). However, no SLA is defined for the DC's review of a
+              submitted temple profile (Step 3.4). If DC never acts, the TA is
+              permanently locked out of editing their profile.
+  Action    : Define DC profile-review SLA (e.g., 15 days). Add an escalation
+              notification chain similar to the physical verification SLA alerts
+              (events 11−12 in Section 6).
+
+GAP-07  Bank account details not listed in requirements §3.2.1 Temple Profile View.
+  Source    : Requirements §3.2.1 does NOT list bank details (Account No., IFSC,
+              Bank Name, Branch) among the Temple Master Information fields.
+              Bank details appear in the Trust module (§3.3.1) under trust PAN
+              and trust bank account.
+  Problem   : The workflow (Step 3.1) includes bank details as part of the temple
+              profile. This may be correct (temples need their own bank account
+              separate from the trust's account), but the requirements are silent
+              on this. If bank details belong only to the trust (not the temple
+              profile), the profile edit form, VAL-008, and IFSC validation (VAL-021)
+              may be misplaced.
+  Action    : Clarify with stakeholders: does the temple profile carry its own
+              bank account distinct from the trust's bank account? If yes, add to
+              requirements. If no, move bank details from Step 3.1/3.2 to Phase 4.
+
+GAP-08  No explicit MFA backup code usage flow during login challenge.
+  Source    : Requirements §4.1 — "MFA enforced"
+  Problem   : Step 1.5 generates 8 one-time backup codes during MFA setup. However,
+              Step 2.2 (MFA Challenge) defines only two paths: TOTP code and SMS OTP.
+              There is no defined flow for a TA who has lost their phone and must
+              authenticate using a backup code.
+  Risk      : If not handled, a TA who loses their authenticator device has no
+              recovery path other than contacting Super Admin, which is unacceptable
+              for a production system.
+  Action    : Add Step 2.2 sub-case: [Use Backup Code] link on MFA challenge page,
+              backed by POST /api/auth/mfa-verify with { type: "BACKUP_CODE", code: "..." }.
+              Define what happens after a backup code is used (prompt to re-enroll MFA?).
+
+────────────────────────────────────────────────────────────────────────────────
+PART B — WORKFLOW LOOPHOLES (LOOP items)
+────────────────────────────────────────────────────────────────────────────────
+
+LOOP-01  Bank account re-entry during temple profile edit is undefined.
+  Scenario  : TA opens the temple profile edit form (Step 3.2). The bank account
+              number is masked (last 4 digits displayed per VAL-008). If TA wants
+              to change the bank account but leaves the field blank, should the
+              system preserve the existing encrypted value or clear it?
+  Risk      : If the system clears the encrypted value on a PUT without a new
+              value provided, the bank account is silently lost. If it preserves
+              the old value, then the TA cannot clear an incorrect bank account
+              without re-entering the full number.
+  Action    : Define explicit API contract: if bank account number is not present
+              in the PUT body, the server preserves the existing encrypted value unchanged.
+              Add to Step 3.2 as a note under Bank Details field.
+
+LOOP-02  Session timeout during active file upload is unhandled.
+  Scenario  : TA is uploading a 9 MB file. The upload takes 3+ minutes on a slow
+              connection. During this time, the 30-minute inactivity timer (Step 2.4)
+              may not be reset if "activity" is only defined by user input events
+              (not ongoing network activity).
+  Risk      : The upload completion triggers an API call on an expired session,
+              returning 401. The file is silently lost and the TA has no indication
+              of what happened.
+  Action    : Define that any active multipart upload resets the session inactivity
+              timer. Add to Step 2.4: "An ongoing file upload counts as activity."
+              Also add error handling: on 401 from upload API, show: "Your session
+              expired during upload. Log back in and re-upload the file."
+
+LOOP-03  Trust dissolution while a declaration is in progress is unhandled.
+  Scenario  : TA dissolves the trust (Step 4.6) while a declaration for the same
+              FY is in SUBMITTED or CLARIFICATION_REQUESTED status.
+  Risk      : The DC who reviews the declaration sees a DISSOLVED trust referenced.
+              The declaration's trust data was captured at draft time (snapshot_json)
+              but future DC queries about the trust will return DISSOLVED status.
+              This creates inconsistency in DC-facing data; no guard or warning exists.
+  Action    : Add a guard in Step 4.6: if a non-terminal declaration (DRAFT,
+              SUBMITTED, CLARIFICATION_REQUESTED, PHYSICAL_VERIFICATION_REQUESTED)
+              exists for the current FY, the [Dissolve Trust] action should show
+              a warning: "An active declaration is in progress. Dissolving the trust
+              now may affect DC review. Are you sure?" (warning, not block).
+
+LOOP-04  Duplicate document filenames are not handled.
+  Scenario  : TA uploads "audit_report.pdf" to a declaration twice (e.g., an
+              update). Both succeed. The document table shows two rows with the
+              same name but different upload dates.
+  Risk      : TA attempts to delete the older version but may click the wrong row.
+              DC reviewer sees duplicate files and is unsure which is authoritative.
+  Action    : Add VAL-023: on upload, if a document with the same filename already
+              exists for the same owner entity, show a confirmation prompt:
+              "A file named [filename] already exists. Upload anyway or replace the
+               existing file?" If "replace": system auto-deletes the old file first
+              then uploads the new one (only permitted if parent status allows delete).
+
+LOOP-05  Clarification response text has no length validation.
+  Scenario  : Step 7D-B.6 sends { clarificationResponse: "..." } to the resubmit
+              API. There is no VAL-xxx rule defining minimum or maximum character
+              length for this field.
+  Risk      : TA submits an empty string or a 50,000-character payload without
+              any client-side or server-side guard.
+  Action    : Add VAL-024: clarificationResponse — minimum 10 characters,
+              maximum 2000 characters. Frontend shows character counter.
+
+LOOP-06  VAL-011 does not explicitly list PHYSICAL_VERIFICATION_REQUESTED as blocked.
+  Exact rule: VAL-011 states "At most 1 non-REJECTED active declaration per FY
+              per temple." The states that qualify as "non-REJECTED" are:
+              DRAFT, SUBMITTED, CLARIFICATION_REQUESTED, PHYSICAL_VERIFICATION_REQUESTED.
+  Risk      : A frontend developer reading VAL-011 may not list
+              PHYSICAL_VERIFICATION_REQUESTED in the guard condition, because the
+              rule only mentions REJECTED as the exclusion. This loophole would
+              allow a second DRAFT to be created for the same FY while one is
+              awaiting physical verification.
+  Action    : Tighten VAL-011: "At most 1 declaration per FY per temple in any of
+              the following statuses: DRAFT, SUBMITTED, CLARIFICATION_REQUESTED,
+              PHYSICAL_VERIFICATION_REQUESTED. A new DRAFT may only be created if
+              the existing declaration for that FY is APPROVED or REJECTED."
+
+LOOP-07  First-login checklist dismissal behavior is not defined.
+  Scenario  : Step 2.3 displays a "Get Started" modal on first login. The workflow
+              does not define:
+              (a) Whether the TA can close/dismiss the modal without completing items.
+              (b) Whether the modal appears on every login until all items are done.
+              (c) Whether a completed checklist is ever shown again.
+  Risk      : If the modal cannot be dismissed and the TA is not ready to complete
+              items in that session, they are blocked from using the portal.
+  Action    : Define: the modal can always be closed via an [X] or [Do This Later]
+              button. Modal re-appears on each login until all 5 items are complete.
+              Once all 5 are complete, the modal is never shown again (User.setupComplete
+              flag is set). Add this to Step 2.3.
+
+LOOP-08  Declaration OVERDUE flag behavior for non-DRAFT states is ambiguous.
+  Current rule: EC-7.1 states the OVERDUE flag applies "while declaration is in
+              DRAFT, SUBMITTED, or CLARIFICATION_REQUESTED." This is correct.
+  Risk      : A declaration in PHYSICAL_VERIFICATION_REQUESTED is not mentioned in
+              EC-7.1. If the FY deadline passes while a declaration is in
+              PHYSICAL_VERIFICATION_REQUESTED (DC is taking longer than the deadline),
+              should it be flagged OVERDUE? This state is beyond TA control.
+  Action    : Clarify EC-7.1: OVERDUE flag applies to DRAFT and CLARIFICATION_REQUESTED
+              states only (where TA can act). SUBMITTED and PHYSICAL_VERIFICATION_REQUESTED
+              declarations are NOT flagged OVERDUE (TA has done their part; DC is pending).
+              Add different banner: "Awaiting DC response" for SUBMITTED cases past deadline.
+
+LOOP-09  Re-enrollment after MFA backup code exhaustion is not defined.
+  Scenario  : TA uses all 8 backup codes over time. On the next login attempt,
+              no backup codes remain and they have lost access to their authenticator.
+  Risk      : TA is permanently locked out with no recovery path defined.
+  Action    : Add flow: when backup codes are exhausted, send a warning email at
+              last-code usage. Define a Super Admin unlock path: SA can reset MFA
+              enrollment for a TA via DELETE /api/admin/users/{id}/mfa, forcing
+              the TA to re-enroll MFA on next login.
+
+LOOP-10  GPS coordinates submitted as soft-warning values are not server-validated.
+  Current rule: VAL-019/020 define GPS ranges as soft UI warnings only (not hard
+              blocks). Server accepts any decimal value for lat/long.
+  Risk      : A TA accidentally submits coordinates pointing outside Karnataka
+              (or outside India entirely) without realising it. The temple profile
+              is submitted to DC with wrong coordinates. DC approves it. The
+              published profile now shows an incorrect map location permanently
+              (until TA creates a new DRAFT and DC approves again).
+  Action    : Consider promoting GPS to a soft server-side validation: if
+              coordinates are provided and fall outside Karnataka bounding box
+              (~12.0–18.4°N, ~74.0–78.6°E), the API returns a
+              WARNING (not error) in the response body alongside HTTP 200, which
+              the frontend can surface as a confirmation prompt before save.
+
+LOOP-11  "Linked mutts / sub-temples" data source not defined (already in OQ-04).
+  Risk      : If the source list is the temples table itself (self-referential),
+              a temple could link itself, creating a circular reference. No guard
+              defined.
+  Action    : Add API guard in POST /api/temples/{templeId}: linked_temple_id
+              must NOT equal templeId. Add as VAL-025.
+
+LOOP-12  SUBMITTED declaration resubmit stale snapshot (EC-7.5) specifies 422
+         but does not prescribe the frontend recovery flow in full.
+  Current text: "Frontend shows: 'This declaration has been updated. Please refresh
+              and review before resubmitting.'"
+  Risk      : On refresh, the TA's unsaved clarification edits in the right panel
+              are lost. The workflow does not specify whether the right-panel staging
+              layer is auto-saved locally (localStorage/IndexedDB) before the 422,
+              or whether edits simply vanish.
+  Action    : Define: on 422 from resubmit API, the frontend saves the current
+              right-panel text to sessionStorage under key
+              "decl_{declarationId}_clarification_draft" before displaying the
+              error, so it can be restored after the page refresh. Add to EC-7.5.
+
+────────────────────────────────────────────────────────────────────────────────
+PART C — DOCUMENTED DEVIATIONS FROM REQUIREMENTS (DEV items)
+────────────────────────────────────────────────────────────────────────────────
+
+DEV-01  Clarification round cap: 3 (workflow) vs. unlimited (requirements v1.0).
+  Req       : Requirements §3.5.3 does not specify a cap on clarification rounds.
+  Workflow  : DECISION-02 caps at 3 rounds (VAL-010).
+  Rationale : Cap prevents indefinite loops; aligns with 05_workflows_and_states/
+              00_state_machines.txt.
+  Status    : Confirmed in DECISION-02. Stakeholder sign-off required before go-live.
+
+DEV-02  Trust data is direct-save (no DC approval) in v1.
+  Req       : Requirements §4.3 Submission & Approval Workflow implies all
+              temple data goes through an approval cycle.
+  Workflow  : DECISION-05; trust, employee, and contractor data are direct-save.
+  Rationale : Reduces friction; DC can view at any time in read-only mode.
+  Status    : Confirmed in DECISION-05. Explicitly flagged in Phase 4 header.
+
+DEV-03  Employee status "RESIGNED" added beyond requirements scope.
+  Req       : Requirements §3.4.1 lists: "Active / On Leave / Retired" only.
+  Workflow  : Step 5.4 and Section 12.6 include RESIGNED as a distinct terminal status.
+  Rationale : Practical HR distinction (resignation vs. retirement has different
+              legal implications under HR&CE Act).
+  Status    : ⚠ PENDING STAKEHOLDER SIGN-OFF — Must be validated before building
+              the status transition UI. Frontend MUST NOT render the RESIGNED
+              option until this is confirmed. If rejected, remove RESIGNED from
+              Step 5.4, Section 12.6, VAL-012, and the Status Lifecycle Table
+              and fold it into RETIRED.
+
+DEV-04  Aadhaar eKYC mandatory at registration (UIDAI integration in v1 scope).
+  Req       : Requirements §4.1 — "Aadhaar-based verification" mentioned without
+              specifying if it is a full UIDAI OTP eKYC or just Aadhaar number entry.
+  Workflow  : DECISION-04; full UIDAI OTP eKYC implemented (two-step: request OTP,
+              verify OTP via licensed UIDAI API).
+  Rationale : Stronger identity assurance; backend AadhaarService already implemented.
+  Status    : Confirmed in DECISION-04.
+
+DEV-05  Snapshot_json written at SUBMITTED, not at DRAFT save.
+  Req       : Requirements §3.5.3 — "Digital acknowledgement issued" implies
+              a frozen record exists, but doesn't specify when the freeze occurs.
+  Workflow  : DECISION-08; snapshot written only at SUBMITTED (not on DRAFT save).
+  Rationale : Avoids storing redundant snapshots for every draft autosave.
+  Status    : Confirmed in DECISION-08.
+
+DEV-06  APPROVED declarations and their documents are permanently immutable.
+  Req       : Requirements §3.5.3 — "Overdue declarations flagged; Full audit
+              history maintained." Requirements do not explicitly state documents
+              become immutable post-approval.
+  Workflow  : DECISION-06; documents attached to APPROVED declarations cannot be
+              deleted by anyone (HTTP 403; TA delete icon hidden).
+  Rationale : Preserves evidentiary integrity of the DC-approved submission.
+  Status    : Confirmed in DECISION-06.
+
+────────────────────────────────────────────────────────────────────────────────
+SUMMARY SCORECARD
+────────────────────────────────────────────────────────────────────────────────
+
+  All items from the original gap analysis have been resolved in this document
+  except where stakeholder confirmation is still required (DEV-03).
+
+Category                   | Count | Current Status
+---------------------------|-------|---------------------------------------------------
+Requirements gaps (GAP)    | 8     | FIXED: GAP-01 (Phase 10 added), GAP-02 (Step 2.1)
+                           |       |   GAP-03 (Step 9.7), GAP-04 (Step 9.8)
+                           |       |   GAP-06 (Step 3.5 SLA), GAP-07 (Step 3.1 note)
+                           |       |   GAP-08 (Step 2.2)
+                           |       | PENDING SIGN-OFF: GAP-05 / DEV-03
+Workflow loopholes (LOOP)  | 12    | FIXED: LOOP-01 (Step 3.2), LOOP-02 (Step 2.4)
+                           |       |   LOOP-03 (Step 4.6), LOOP-04 (Step 7B.2)
+                           |       |   LOOP-05 (Step 7D-B.6 + VAL-024)
+                           |       |   LOOP-06 (VAL-011 retightened)
+                           |       |   LOOP-07 (Step 2.3), LOOP-08 (EC-7.1)
+                           |       |   LOOP-09 (Step 2.2 MFA exhaustion flow)
+                           |       |   LOOP-10 (Step 3.2 GPS confirmation prompt)
+                           |       |   LOOP-11 (VAL-025), LOOP-12 (EC-7.5)
+Documented deviations (DEV)| 6     | CONFIRMED: DEV-01/02/04/05/06
+                           |       | PENDING SIGN-OFF: DEV-03 (RESIGNED status)
+
+Remaining action before frontend implementation:
+  1. DEV-03 — Confirm RESIGNED employee status with stakeholders.
+              Frontend MUST NOT render RESIGNED option until confirmed.
