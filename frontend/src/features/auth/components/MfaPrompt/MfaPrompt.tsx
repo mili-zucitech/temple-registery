@@ -4,8 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { mfaVerifySchema, type MfaVerifyRequest } from '../authTypes'
-import { useMfaVerify } from '../authHooks'
+import { mfaVerifySchema, type MfaVerifyRequest } from '../../authTypes'
+import { useMfaVerify } from '../../authHooks'
 
 export function MfaPrompt() {
   const location = useLocation()
@@ -15,7 +15,7 @@ export function MfaPrompt() {
 
   const form = useForm<MfaVerifyRequest>({
     resolver: zodResolver(mfaVerifySchema),
-    defaultValues: { tempToken, code: '' },
+    defaultValues: { tempToken, mfaCode: '' },
   })
 
   return (
@@ -29,7 +29,7 @@ export function MfaPrompt() {
 
         <FormField
           control={form.control}
-          name="code"
+          name="mfaCode"
           render={({ field }) => (
             <FormItem>
               <FormLabel>OTP Code</FormLabel>
