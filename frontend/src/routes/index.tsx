@@ -10,9 +10,9 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 // ── Lazy-loaded pages ─────────────────────────────────────────────────────────
 const LoginPage       = lazy(() => import('@/features/auth/pages/LoginPage/LoginPage').then(m => ({ default: m.LoginPage })))
 const MfaVerifyPage   = lazy(() => import('@/features/auth/pages/MfaVerifyPage/MfaVerifyPage').then(m => ({ default: m.MfaVerifyPage })))
-const DcDashboardPage = lazy(() => import('@/features/dashboard/pages/DcDashboardPage/DcDashboardPage').then(m => ({ default: m.DcDashboardPage })))
-const TempleListPage  = lazy(() => import('@/features/temple/pages/TempleListPage/TempleListPage').then(m => ({ default: m.TempleListPage })))
-const TempleDetailPage = lazy(() => import('@/features/temple/pages/TempleDetailPage/TempleDetailPage').then(m => ({ default: m.TempleDetailPage })))
+const DcDashboardPage = lazy(() => import('@/features/dc/pages/DcDashboardPage/DcDashboardPage').then(m => ({ default: m.DcModuleDashboardPage })))
+const DcTempleSearchPage = lazy(() => import('@/features/dc/pages/DcTempleSearchPage/DcTempleSearchPage').then(m => ({ default: m.DcTempleSearchPage })))
+const DcTempleProfilePage = lazy(() => import('@/features/dc/pages/DcTempleProfilePage/DcTempleProfilePage').then(m => ({ default: m.DcTempleProfilePage })))
 const DcDeclarationListPage = lazy(() => import('@/features/declaration/pages/DeclarationListPage/DeclarationListPage').then(m => ({ default: m.DeclarationListPage })))
 const DcDeclarationReviewPage = lazy(() => import('@/features/declaration/pages/DeclarationReviewPage/DeclarationReviewPage').then(m => ({ default: m.DeclarationReviewPage })))
 const TaDeclarationListPage = lazy(() => import('@/features/declaration/pages/DeclarationListPage/DeclarationListPage').then(m => ({ default: m.DeclarationListPage })))
@@ -47,13 +47,13 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          // DC / DC Staff
+          // DC / DC Staff / Super Admin
           {
-            element: <RoleRoute allowedRoles={[USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF]} />,
+            element: <RoleRoute allowedRoles={[USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF, USER_ROLES.SUPER_ADMIN]} />,
             children: [
               { path: ROUTE_PATHS.DC_DASHBOARD, element: <Suspense fallback={<PageLoader />}><DcDashboardPage /></Suspense> },
-              { path: ROUTE_PATHS.DC_TEMPLES, element: <Suspense fallback={<PageLoader />}><TempleListPage /></Suspense> },
-              { path: ROUTE_PATHS.DC_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><TempleDetailPage /></Suspense> },
+              { path: ROUTE_PATHS.DC_TEMPLES, element: <Suspense fallback={<PageLoader />}><DcTempleSearchPage /></Suspense> },
+              { path: ROUTE_PATHS.DC_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationReviewPage /></Suspense> },
             ],

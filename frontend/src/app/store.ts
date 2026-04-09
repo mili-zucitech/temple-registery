@@ -12,6 +12,7 @@ import { documentApi } from '@/features/document/documentApi'
 import { notificationApi } from '@/features/notification/notificationApi'
 import { exportApi } from '@/features/export/exportApi'
 import { adminApi } from '@/features/admin/adminApi'
+import { dcApi } from '@/features/dc/dcApi'
 
 /** Global RTK Query error logger middleware */
 const rtkQueryErrorLogger =
@@ -49,6 +50,7 @@ export const store = configureStore({
       notificationApi.middleware,
       exportApi.middleware,
       adminApi.middleware,
+      dcApi.middleware,
     ),
 })
 
