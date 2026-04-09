@@ -10,6 +10,9 @@ public interface DeclarationService {
 
     PaginatedResponse<DeclarationResponse> listByTemple(Long templeId, int page, int size);
 
+    /** DC/SA: list all declarations for a district, optionally filtered by status. */
+    PaginatedResponse<DeclarationResponse> listByDistrict(Long districtId, String status, int page, int size);
+
     DeclarationResponse create(Long templeId, CreateDeclarationRequest request);
 
     DeclarationResponse getById(Long id);

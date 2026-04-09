@@ -7,6 +7,14 @@ import { Button } from '@/components/ui/button'
 import { loginSchema, type LoginRequest } from '../../authTypes'
 import { useLogin } from '../../authHooks'
 
+const DEV_USERS = [
+  { label: 'DC', username: 'dc_mysuru' },
+  { label: 'DC Staff', username: 'dc_staff_mysuru' },
+  { label: 'Temple Auth', username: 'ta_chamundi' },
+  { label: 'Admin', username: 'super_admin' },
+  { label: 'Auditor', username: 'auditor_dev' },
+] as const
+
 export function LoginForm() {
   const { handleLogin, isLoading } = useLogin()
 
@@ -14,6 +22,11 @@ export function LoginForm() {
     resolver: zodResolver(loginSchema),
     defaultValues: { username: '', password: '' },
   })
+
+  function fillDevUser(username: string) {
+    form.setValue('username', username)
+    form.setValue('password', 'password123')
+  }
 
   return (
     <Form {...form}>
@@ -58,6 +71,27 @@ export function LoginForm() {
             Register as Temple Authority
           </Link>
         </div>
+
+        {/* Dev-only quick fill */}
+        {import.meta.env.DEV && (
+          <div className="border-t border-dashed border-border pt-3">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Dev shortcuts
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEV_USERS.map(({ label, username }) => (
+                <button
+                  key={username}
+                  type="button"
+                  onClick={() => fillDevUser(username)}
+                  className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
     </Form>
   )

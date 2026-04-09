@@ -78,8 +78,6 @@ export interface MfaChallengeResponse {
   mfaRequired: boolean
   tempToken: string
   challengeType: 'TOTP' | 'SMS_OTP'
-  mfaRequired: boolean
-  mfaType: 'TOTP' | 'SMS'
   maskedMobile?: string
 }
 

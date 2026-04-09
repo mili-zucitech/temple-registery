@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-@Repository
+@Repository("dcProfileStagingRepository")
 public interface TempleProfileStagingRepository extends JpaRepository<TempleProfileStaging, Long> {
 
     /**

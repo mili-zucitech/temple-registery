@@ -12,13 +12,15 @@ import lombok.Getter;
 @Builder
 public class UserProfileResponse {
 
-    private Long id;
+    private Long userId;
     private String username;
     private String email;
     private String fullName;
     private UserRole role;
     private boolean isActive;
+    private Long districtId;
     private Long templeId;
+    private boolean aadhaarVerified;
 
     /** Null for non-TEMPLE_AUTHORITY roles. */
     private TempleCompletionChecklist completionChecklist;

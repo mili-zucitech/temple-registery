@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAppSelector } from '@/app/store'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
@@ -14,9 +15,11 @@ export function PrivateRoute() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated)
   const { data, isLoading } = useGetCurrentUserQuery()
 
-  if (data?.data) {
-    dispatch(setCurrentUser(data.data))
-  }
+  useEffect(() => {
+    if (data?.data) {
+      dispatch(setCurrentUser(data.data))
+    }
+  }, [data, dispatch])
 
   if (isLoading) {
     return (

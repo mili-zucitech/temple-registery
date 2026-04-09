@@ -43,10 +43,10 @@ export function DeclarationListPage() {
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <div className="w-48">
           <label className="text-sm font-medium mb-1 block">Status</label>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
+          <Select value={statusFilter || 'all'} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setPage(0) }}>
             <SelectTrigger><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
               {DECLARATION_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
               ))}
