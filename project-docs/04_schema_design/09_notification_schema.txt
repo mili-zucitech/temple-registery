@@ -120,12 +120,145 @@ SOURCE:
      Template params: financial_year, declaration_id
      Priority: 4 (HIGH)
 
-   NOTIFICATION_DELIVERY_FAILED:
-     title:  "Notification delivery failure"
-     body:   "Notification event #{event_id} (template: {template_key}) failed
-              to deliver to user #{recipient_user_id} after {max_attempts} attempts.
-              Last error: {last_error}"
-     Priority: 2 (CRITICAL); IN_APP to SUPER_ADMIN only
+   DECLARATION_CLARIFICATION_REPLY:
+     title:  "Temple Authority has responded to clarification request"
+     body:   "The Temple Authority for {temple_name} has resubmitted their asset
+              declaration for {financial_year} with corrections. Please review
+              the updated declaration."
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: temple_name, financial_year, declaration_id
+     Priority: 5 (HIGH)
+
+   PROFILE_APPROVED:
+     title:  "Temple profile update has been approved"
+     body:   "Your profile update for {temple_name} has been approved by the
+              District Collector. The new profile is now live on the registry."
+     link_url: /dashboard/temples/{temple_id}/profile
+     Template params: temple_name, temple_id
+     Priority: 6 (NORMAL)
+
+   PROFILE_REJECTED:
+     title:  "Temple profile update has been rejected"
+     body:   "Your profile update for {temple_name} has been rejected by the
+              District Collector. Rejection reason: {rejection_reason}. Please
+              review and resubmit the profile."
+     link_url: /dashboard/temples/{temple_id}/profile
+     Template params: temple_name, rejection_reason, temple_id
+     Priority: 5 (HIGH)
+
+   USER_REGISTERED:
+     title:  "Welcome to Temple Registry Management System"
+     body:   "Your account has been created. Username: {username}. Please
+              log in and complete MFA setup immediately. Your first login
+              will prompt you to configure your authenticator app."
+     link_url: /login
+     Template params: username
+     Priority: 6 (NORMAL)
+
+   PASSWORD_RESET:
+     title:  "Password reset request"
+     body:   "A password reset was requested for your account. Click the
+              link below to reset your password. This link expires in
+              {expiry_minutes} minutes. If you did not request this,
+              please ignore this email."
+     link_url: /reset-password?token={reset_token}
+     Template params: expiry_minutes, reset_token
+     Priority: 2 (CRITICAL)
+
+   ACCOUNT_LOCKED:
+     title:  "Your account has been locked"
+     body:   "Your account has been temporarily locked due to {lock_reason}.
+              It will be unlocked at {unlock_at}. If this was not you, contact
+              the system administrator immediately."
+     SMS body: "TRM Alert: Your account locked ({lock_reason}). Unlocks: {unlock_at}"
+     link_url: /login
+     Template params: lock_reason, unlock_at
+     Priority: 1 (CRITICAL)
+
+   DECLARATION_SUBMITTED (template spec):
+     title:  "New declaration submitted for review"
+     body:   "{temple_name} has submitted their asset declaration for {financial_year}.
+              Please review and respond within {review_sla_days} working days."
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: temple_name, financial_year, review_sla_days, declaration_id
+     Priority: 4 (HIGH)
+
+   DECLARATION_APPROVED (template spec):
+     title:  "Your asset declaration has been approved"
+     body:   "The District Collector has approved your asset declaration for
+              {financial_year}. Your acknowledgement number is {acknowledgement_number}."
+     SMS body: "TRM: Declaration {financial_year} APPROVED. Ack#: {acknowledgement_number}"
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: financial_year, acknowledgement_number, declaration_id
+     Priority: 3 (HIGH)
+
+   DECLARATION_REJECTED (template spec):
+     title:  "Your asset declaration has been rejected"
+     body:   "Your asset declaration for {financial_year} has been rejected.
+              Reason: {rejection_reason}. Please contact the DC office if
+              you believe this is an error."
+     SMS body: "TRM: Declaration {financial_year} REJECTED. Reason: {rejection_reason}"
+     link_url: /dashboard/declarations/{declaration_id}
+     Template params: financial_year, rejection_reason, declaration_id
+     Priority: 4 (HIGH)
+
+   DECLARATION_OVERDUE (template spec):
+     title:  "OVERDUE: Asset declaration not submitted"
+     body:   "Your asset declaration for {financial_year} is overdue.
+              Deadline was {deadline_date}. Please submit immediately to
+              avoid further action."
+     SMS body: "TRM OVERDUE: Submit declaration {financial_year} immediately. Deadline was {deadline_date}"
+     link_url: /dashboard/declarations
+     Template params: financial_year, deadline_date
+     Priority: 3 (HIGH)
+
+   3.6 SERVICE-LAYER TRIGGER MAP
+
+   Exactly which service method inserts which notification_event row.
+   All INSERTs use NotificationService.createEvent(templateKey, recipientUserId, params).
+   NotificationService handles recipient resolution, channel determination, and DB write.
+
+   Trigger Site                                     | Template Key                        | Recipient Resolution
+   -------------------------------------------------|-------------------------------------|---------------------------------------------------
+   DeclarationService.submit()                      | DECLARATION_SUBMITTED               | DC_in_district = users WHERE role='DC' AND district_id = temple.district_id
+   DeclarationService.approve()                     | DECLARATION_APPROVED                | temple.contact_user_id (TA who owns temple)
+   DeclarationService.approve()                     | DECLARATION_ACKNOWLEDGEMENT_READY   | temple.contact_user_id (same TA, second event)
+   DeclarationService.reject()                      | DECLARATION_REJECTED                | temple.contact_user_id
+   DeclarationService.requestClarification()        | DECLARATION_CLARIFICATION_REQ       | temple.contact_user_id
+   DeclarationService.resubmit()                    | DECLARATION_CLARIFICATION_REPLY     | DC_in_district (same lookup as submit)
+   DeclarationService.flagPhysicalVerification()    | DECLARATION_PHYSICAL_VERIFICATION   | temple.contact_user_id
+   OverdueDeclarationJob.run()                      | DECLARATION_OVERDUE                 | temple.contact_user_id (one per overdue temple found)
+   PreDeadlineReminderJob.run() [7-day window]      | DECLARATION_OVERDUE_REMINDER_7D     | temple.contact_user_id
+   PreDeadlineReminderJob.run() [30-day window]     | DECLARATION_OVERDUE_REMINDER_30D    | temple.contact_user_id
+   TempleProfileService.approveProfile()            | PROFILE_APPROVED                    | temple.contact_user_id
+   TempleProfileService.rejectProfile()             | PROFILE_REJECTED                    | temple.contact_user_id
+   UserService.createUser()                         | USER_REGISTERED                     | newly created user.id
+   AuthService.initiatePasswordReset()              | PASSWORD_RESET                      | user matching the submitted email
+   AuthService.lockAccount()                        | ACCOUNT_LOCKED                      | user whose account was locked
+   NotificationDispatcher [after max retries]       | NOTIFICATION_DELIVERY_FAILED        | all users WHERE role = 'SUPER_ADMIN'
+
+   DC RECIPIENT RESOLUTION — detailed logic (for DECLARATION_SUBMITTED and CLARIFICATION_REPLY):
+     SELECT u.id FROM users u
+     WHERE u.role = 'DISTRICT_COLLECTOR'
+     AND u.district_id = (SELECT t.district_id FROM temples t WHERE t.id = :templeId)
+     AND u.is_active = 1
+     AND u.is_deleted = 0
+   If the query returns multiple DCs (should not happen but guard exists),
+   create one notification_event per DC.
+   If no DC found (district unassigned), log WARN and INSERT a NOTIFICATION_DELIVERY_FAILED
+   event targeting SUPER_ADMIN immediately (do not wait for retry).
+
+   NotificationService.createEvent() signature (Java):
+     void createEvent(
+       String templateKey,
+       Long recipientUserId,
+       Map<String, String> templateParams
+     );
+   Implementation note: channel list is looked up from the template registry (hardcoded
+   enum or DB table). All DB writes to notification_events MUST be done in the same
+   @Transactional scope as the parent service method (e.g., approve(), submit()).
+   This ensures the notification is always created if the business operation succeeds,
+   and rolled back if the operation fails.
 
    3.4 RETRY STRATEGY
 
@@ -164,15 +297,21 @@ SOURCE:
    - DB-based queue (notification_events table) for v1; no SQS dependency
    - Max 3 retry attempts with exponential backoff (immediate, +2min, +10min)
    - In-app notifications stored in in_app_notifications table
-   - AWS SES for email; AWS SNS for SMS; both in ap-south-1 region
+   - Email: EmailGateway interface — NoOpEmailGateway/MailHog (dev) / SesEmailGateway (prod)
+   - SMS: SmsGateway interface — ConsoleSmsGateway (dev) / SnsGateway (prod)
+   - All notification INSERTs occur in the same @Transactional scope as the triggering service method
+   - NotificationService.createEvent() is the single entry point; callers never insert directly
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
 
-   - Should notification_events be partitioned by created_at for performance?
-   - Is SUPER_ADMIN alerted for delivery failures, or just logged?
-   - Which language should SMS notifications be in: English or Kannada?
+   - RESOLVED: notification_events is not partitioned in v1; partition by created_at
+     can be added via Flyway migration if table grows beyond 1M rows.
+   - RESOLVED: SUPER_ADMIN is alerted via IN_APP notification (see NOTIFICATION_DELIVERY_FAILED
+     template). Failures also logged at WARN level by NotificationDispatcher.
+   - RESOLVED: SMS notifications are in English (short summaries). Kannada translations
+     can be added in v2 if HRCE department requests it.
 
 --------------------------------------------------------------------------------
 
@@ -188,5 +327,8 @@ SOURCE:
 7. ASSUMPTIONS
 
    - Email content is in English; SMS is a shorter English summary
-   - Template rendering uses a simple key-value param substitution
+   - Template rendering uses a simple key-value param substitution (String.replace("{key}", value))
    - Notification delivery is best-effort; no guaranteed delivery SLA for v1
+   - For dev environment: all email goes through MailHog (visible at localhost:8025);
+     all SMS is printed to application log (ConsoleSmsGateway)
+

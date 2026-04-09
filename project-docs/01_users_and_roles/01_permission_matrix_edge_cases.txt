@@ -43,17 +43,20 @@ RELATED REQUIREMENTS:
        during the transition window.
 
        Resolution:
-         - SUPER_ADMIN updates district_id on the DC's user record
-         - All active sessions for this user must be invalidated immediately
-           (refresh tokens revoked; blacklist all outstanding access tokens
-           by setting a user-level revocation timestamp)
-         - Next login will embed new district_id in JWT claims
-         - Audit log entry: actor=SUPER_ADMIN, action=DISTRICT_REASSIGNMENT,
-           old_district=X, new_district=Y
+         - SUPER_ADMIN calls PATCH /api/admin/users/{userId}/district with
+           { newDistrictId, reason }
+         - Service atomically:
+             a. UPDATE users SET district_id = :newDistrictId, token_revoked_before = NOW(6)
+             b. UPDATE refresh_tokens SET revoked_at = NOW(6) WHERE user_id = :userId
+             c. INSERT audit_data_events (DISTRICT_REASSIGNMENT)
+         - Next login embeds new district_id in JWT claims
+         - Any in-flight API request using the old JWT returns 401 because
+           JwtAuthenticationFilter checks: if (tokenIssuedAt < user.tokenRevokedBefore) -> 401
 
        Implementation:
-         - user.token_revoked_before = NOW() in user table at reassignment
-         - JwtFilter checks: if (issuedAt < user.token_revoked_before) -> 401
+         - users.token_revoked_before DATETIME(6) column (see 04_schema_design/11_user_auth_schema.txt)
+         - PATCH /api/admin/users/{id}/district endpoint (see 08_api_planning/00_api_endpoint_registry.txt §3.12)
+         - JwtAuthenticationFilter updated to check token_revoked_before (see 06_security_and_auth/00_auth_architecture.txt §3.3)
          - No grace period; revocation is immediate
 
        -------------------------------------------------------------------
@@ -211,10 +214,12 @@ RELATED REQUIREMENTS:
 4. DECISIONS LOCKED
 
    - E-01: DC transfer invalidates all sessions immediately (no grace period)
+     token_revoked_before column is the mechanism; schema confirmed in 11_user_auth_schema.txt
    - E-02: User registration and temple record creation are atomic
    - E-04: DC_STAFF always gets masked PII regardless of endpoint
    - E-05: Approved declarations are immutable; new version required for changes
-   - E-06: 1:1 mapping enforced by DB UNIQUE constraint
+   - E-06: 1:1 mapping enforced by application-layer validation at registration
+   - E-08 and E-09: New edge cases added (see below)
 
 --------------------------------------------------------------------------------
 
@@ -235,6 +240,53 @@ RELATED REQUIREMENTS:
    - E-06 (Duplicate authority claim): In practice, fraud risk is low but
      procedural disputes are likely. An escalation workflow may be needed.
 
+   E-08  ORPHANED USER ACCOUNT FROM FAILED AADHAAR OTP REGISTRATION
+   ------------------------------------------------------------------
+   Scenario: A Temple Authority starts registration, requests Aadhaar OTP, but
+   the OTP expires (5-minute window) or they abandon the browser. The system has
+   already created a user record (status=PENDING_ACTIVATION) + temple record
+   (status=DRAFT) in the DB.
+
+   Risk: Orphaned PENDING_ACTIVATION users accumulate; they can attempt re-registration
+   (duplicate account risk). Orphaned DRAFT temples pollute search.
+
+   Resolution:
+     - JOB-08 (to be added to scheduled jobs registry):
+       Runs nightly at 01:00. Deletes user records with status=PENDING_ACTIVATION
+       AND created_at < NOW() - INTERVAL 24 HOUR where:
+         a. The user has no completed MFA setup (mfa_enabled = 0)
+         b. The linked temple record is still status=DRAFT
+       Deletes the temple record first (FK dependency), then the user record.
+     - If the user returns within 24 hours and retries OTP: allow re-use of
+       the existing PENDING_ACTIVATION user record (idempotent registration flow).
+
+   Implementation:
+     JOB-08: @Scheduled(cron="0 0 1 * * *") OrphanedRegistrationCleanupJob
+
+   -------------------------------------------------------------------
+
+   E-09  SAME-ACTOR DC APPROVES WITHOUT WAITING FOR CLARIFICATION REPLY
+   -----------------------------------------------------------------------
+   Scenario: DC requests clarification (D_TO_TEMPLE). Temple sends no reply.
+   DC approves the same declaration without waiting. The audit trail records
+   both the clarification request and the approval but no temple response.
+
+   Risk: Government compliance — a DC could approve a declaration they
+   themselves flagged as incomplete. No four-eyes control exists.
+
+   Resolution (v1 — soft control):
+   The service DOES NOT block DC from approving while in CLARIFICATION_REQUESTED
+   state (the state machine only allows CLARIFICATION_REQUESTED -> PENDING_REVIEW
+   for TA; the DC can still approve from PENDING_REVIEW). However:
+     - DC cannot approve directly from CLARIFICATION_REQUESTED status.
+       The declaration must return to PENDING_REVIEW via TA resubmit.
+       If DC wants to approve without waiting: they must REJECT first,
+       or the TA must resubmit (which moves it back to PENDING_REVIEW).
+   This is the natural workflow guard.
+   Hard constraint: HTTP 422 if DC attempts approve on CLARIFICATION_REQUESTED status
+   (state machine guard in service: only PENDING_REVIEW -> APPROVED is allowed).
+   All workflow actions logged in audit_data_events; full trail is auditable.
+
 --------------------------------------------------------------------------------
 
 7. ASSUMPTIONS
@@ -243,3 +295,5 @@ RELATED REQUIREMENTS:
    - DC vacancy is a known operational risk; SUPER_ADMIN alert covers it
    - Role changes take effect on next login (no real-time role push required
      except for the revocation case in E-01)
+   - JOB-08 (orphaned registration cleanup) is added to the scheduled jobs
+     registry in 05_workflows_and_states/02_overdue_and_scheduled_jobs.txt

@@ -61,6 +61,7 @@ SOURCE:
    TRM-AUTH-007   | 409  | Email address is already registered
    TRM-AUTH-008   | 400  | Aadhaar OTP invalid or expired
    TRM-AUTH-009   | 400  | Temple registration number not found for TA registration
+   TRM-AUTH-010   | 401  | No valid MFA recovery codes available; contact system administrator
 
    3.2 TEMPLE (TRM-TEMPLE-NNN)
 
@@ -116,10 +117,15 @@ SOURCE:
    TRM-DECL-004    | 403  | User is not in the same district as this temple (DC action)
    TRM-DECL-005    | 400  | financial_year format must be YYYY-YY (e.g. 2025-26)
    TRM-DECL-006    | 422  | Declaration is not in DRAFT status; cannot update fields
-   TRM-DECL-007    | 422  | Acknowledgement not yet generated (declaration not APPROVED)
-   TRM-DECL-008    | 400  | Clarification notes must not be blank on clarification request
-   TRM-DECL-009    | 400  | Physical verification notes must not be blank
-   TRM-DECL-010    | 400  | Correction notes must not be blank on resubmit
+   TRM-DECL-007    | 409  | Declaration was modified by another actor; refresh and retry (optimistic lock conflict)
+   TRM-DECL-008    | 409  | A declaration for this financial year is already under review (concurrent submission conflict)
+   TRM-DECL-009    | 422  | Maximum clarification rounds (3) reached; must APPROVE or REJECT
+   TRM-DECL-010    | 422  | Physical verification findings required before approving or rejecting
+   TRM-DECL-011    | 422  | Acknowledgement not yet generated (declaration not APPROVED)
+   TRM-DECL-012    | 400  | Clarification notes must not be blank on clarification request
+   TRM-DECL-013    | 400  | Physical verification notes must not be blank
+   TRM-DECL-014    | 400  | Correction notes must not be blank on resubmit
+   TRM-DECL-015    | 422  | Temple is SUSPENDED; declaration workflow actions are blocked
 
    3.7 DOCUMENT (TRM-DOC-NNN)
 

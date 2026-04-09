@@ -17,12 +17,65 @@ SOURCE:
 
 3. DETAILED CONTENT
 
-   3.1 AES-256 ENCRYPTION VIA AWS KMS
+   3.1 AES-256 ENCRYPTION — ENVIRONMENT-SWAPPABLE IMPLEMENTATION
 
-   Every _encrypted column uses a JPA AttributeConverter:
+   The encryption mechanism is abstracted behind the JPA AttributeConverter
+   interface. Two implementations exist: one for local development, one for
+   production. Spring's @Profile annotation activates the correct one.
+
+   INTERFACE (shared contract):
+   @Converter
+   public abstract class AesEncryptionConverter
+       implements AttributeConverter<String, String> {
+       // Only the key-loading and cipher call differ between profiles.
+   }
+
+   LOCAL DEVELOPMENT IMPLEMENTATION (@Profile("local")):
+   Reads master key from ENCRYPT_MASTER_KEY environment variable (32-byte
+   base64-encoded key). Uses AES-256-GCM via BouncyCastle. No external
+   service required.
 
    @Converter
-   public class AesEncryptionConverter
+   @Profile("local")
+   public class LocalAesEncryptionConverter
+       implements AttributeConverter<String, String> {
+
+     @Value("${ENCRYPT_MASTER_KEY}")
+     private String masterKeyBase64;
+
+     @Override
+     public String convertToDatabaseColumn(String plaintext) {
+       if (plaintext == null) return null;
+       byte[] key = Base64.getDecoder().decode(masterKeyBase64);
+       byte[] iv  = new byte[12];
+       new SecureRandom().nextBytes(iv);
+       byte[] ciphertext = AesGcmUtil.encrypt(plaintext.getBytes(UTF_8), key, iv);
+       return Base64.getEncoder().encodeToString(concat(iv, ciphertext));
+     }
+
+     @Override
+     public String convertToEntityAttribute(String encoded) {
+       if (encoded == null) return null;
+       byte[] key  = Base64.getDecoder().decode(masterKeyBase64);
+       byte[] data = Base64.getDecoder().decode(encoded);
+       byte[] iv   = Arrays.copyOf(data, 12);
+       byte[] ct   = Arrays.copyOfRange(data, 12, data.length);
+       return new String(AesGcmUtil.decrypt(ct, key, iv), UTF_8);
+     }
+   }
+
+   Generate master key once during local setup:
+     openssl rand -base64 32
+   Store in application-local.yml (git-ignored) or .env:
+     ENCRYPT_MASTER_KEY=<64-char base64 string>
+
+   PRODUCTION IMPLEMENTATION (@Profile("prod")):
+   Uses AWS KMS envelope encryption. The kmsKeyId is read from AWS Secrets
+   Manager via @Value("${aws.kms.key-id}").
+
+   @Converter
+   @Profile("prod")
+   public class KmsAesEncryptionConverter
        implements AttributeConverter<String, String> {
 
      @Value("${aws.kms.key-id}")
@@ -51,7 +104,7 @@ SOURCE:
      }
    }
 
-   Apply to entity fields:
+   Apply to entity fields (same annotation regardless of profile):
    @Convert(converter = AesEncryptionConverter.class)
    @Column(name = "aadhaar_encrypted", columnDefinition = "TEXT")
    private String aadhaar;
@@ -59,7 +112,25 @@ SOURCE:
    3.2 MASKING IN API RESPONSE DTOs
 
    DTOs must NEVER return the decrypted value directly.
-   Masking utility:
+
+   COMPLETE PII FIELD INVENTORY (all fields requiring encryption + masking):
+
+   Table                        | Column                          | Encrypted | Masking Rule
+   -----------------------------|----------------------------------|-----------|----------------------------------------
+   users                        | aadhaar_encrypted               | AES-256   | XXXX-XXXX-1234 (last 4 digits)
+   users                        | mfa_secret_encrypted            | AES-256   | Never returned in any API response
+   trust_registrations          | pan_number_encrypted            | AES-256   | SA: XXXXX9999X; DC: XXXXX9999X (same)
+   trust_registrations          | bank_account_number_encrypted   | AES-256   | XXXXXXXX1234 (last 4 digits, all roles)
+   trust_board_members          | aadhaar_encrypted               | AES-256   | XXXX-XXXX-1234 (all roles)
+   trust_board_members          | pan_number_encrypted            | AES-256   | XXXXX9999X (all roles; NEVER unmasked)
+   decl_mov_financial           | account_or_folio_no_encrypted   | AES-256   | XXXXXXXX1234 (last 4 digits)
+
+   NOTE ON trust_board_members.pan_number_encrypted:
+   This field was previously stored as plain VARCHAR(10) — a SEC-01 violation.
+   It has been corrected to pan_number_encrypted TEXT with AES-256 via KMS.
+   ANY developer who changes this back to VARCHAR or removes the @Convert annotation
+   is introducing a PII security regression. This field is NEVER returned unmasked
+   in any API response regardless of the caller's role.
 
    public class PiiMaskingUtil {
      // XXXX-XXXX-1234
@@ -88,51 +159,87 @@ SOURCE:
      }
    }
 
-   3.3 KMS KEY POLICY
+   3.4 KEY MANAGEMENT BY ENVIRONMENT
 
-   - One KMS key per environment (prod, staging, dev)
+   LOCAL DEVELOPMENT:
+   - One master key per developer; stored in .env or application-local.yml
+   - File must be git-ignored: add ENCRYPT_MASTER_KEY to .gitignore
+   - Rotate manually if suspected compromise (update .env, restart server;
+     existing encrypted rows must be re-encrypted — write a one-time migration
+     utility if key rotation is needed during dev cycle)
+   - Key format: 32-byte AES-256 key, base64-encoded (44 characters)
+
+   PRODUCTION (AWS KMS):
+   - One KMS Customer Managed Key per environment (prod, staging)
    - Key policy: only trm-app IAM role can use Encrypt/Decrypt
-   - Key rotation: automatic annual rotation enabled
-   - Key alias: alias/trm-pii-key-prod (or -staging, -dev)
+   - Key rotation: automatic annual rotation enabled (AWS KMS key rotation does NOT
+     change the key ID; it adds a new key version under the same key ID)
+   - AWS KMS retains ALL previous key versions for decryption automatically.
+     The ciphertext blob contains metadata identifying which key version encrypted it.
+     The KMS.decrypt() API selects the correct version automatically.
+     IMPLICATION: KmsAesEncryptionConverter.convertToEntityAttribute() does NOT need
+     to handle key version explicitly. The KMS Decrypt API handles this transparently.
+   - Key alias: alias/trm-pii-key-prod (or -staging)
+   - Key deletion: disabled in production (requires 7-day pending period;
+     must be explicitly approved by HR&CE IT team)
 
-   3.4 LOGGING RULES FOR ENCRYPTED FIELDS
+   3.5 AUDIT LOGGING FOR PII ACCESS
 
    MANDATORY: Any method that returns a decrypted _encrypted field value
    must NOT log the return value. Apply a @Sensitive annotation (custom marker)
    and add a checkstyle or FindBugs rule to flag any toString() / log calls
    that include @Sensitive fields.
 
+   Additionally, DPDP Act compliance requires that read access to PII fields
+   is logged. implement via AuditPiiAccessService called from the service layer
+   before returning decrypted values. This inserts into audit_pii_access_events
+   (see 04_schema_design/07_audit_trail_schema.txt section 3.4).
+
    Code review checklist item:
    [ ] No log.debug/info/warn/error calls include a variable holding
        decrypted aadhaar, pan, or bank account number.
+   [ ] Service methods that return decrypted PII call AuditPiiAccessService.log()
+       before returning the value.
 
-   3.5 DATA IN TRANSIT
+   3.6 DATA IN TRANSIT
 
-   - DB connection: SSL/TLS required for RDS connections
+   LOCAL DEVELOPMENT:
+   - DB connection: standard JDBC on localhost; SSL not required for loopback
+     spring.datasource.url=jdbc:mysql://localhost:3306/trm_db
+   - File access: served over HTTP on localhost; HTTPS not required locally
+   - All external API calls are mocked; no real network transit to cloud
+
+   PRODUCTION:
+   - DB connection: SSL/TLS required
      spring.datasource.url=jdbc:mysql://...?useSSL=true&requireSSL=true
-   - S3 uploads: HTTPS only (bucket policy denies HTTP)
+   - Storage access: HTTPS only (bucket policy denies HTTP)
    - KMS API calls: HTTPS (AWS SDK default)
-   - SNS/SES: HTTPS (AWS SDK default)
+   - SES/SNS: HTTPS (AWS SDK default)
 
 --------------------------------------------------------------------------------
 
 4. DECISIONS LOCKED
 
-   - AES-256 via AWS KMS for all _encrypted columns (not application-managed keys)
+   - AES-256 encryption for all _encrypted columns in all environments
+   - Local dev: AES-256-GCM with env-var master key (LocalAesEncryptionConverter)
+   - Production: AWS KMS envelope encryption (KmsAesEncryptionConverter)
+   - Profile-based activation: @Profile("local") vs @Profile("prod")
    - Masking applied in DTO layer; entities hold decrypted values in memory only
-   - KMS key rotation: annual automatic rotation enabled
-
---------------------------------------------------------------------------------
+   - RESOLVED: trust_board_members.pan_number is encrypted (pan_number_encrypted TEXT)
+   - RESOLVED: audit_pii_access_events table logs all PII read access for DPDP Act compliance
 
 5. OPEN QUESTIONS
 
-   - Is DPDP Act (India) compliance audit required before go-live?
-   - Should trust_board_members.pan_number be upgraded to encrypted storage?
+   - RESOLVED: trust_board_members.pan_number is now encrypted (SEC-01 fix).
+   - OUTSTANDING: Is formal DPDP Act compliance audit required before go-live?
+     (OQ-05 from open_questions_and_gaps.txt — needs legal/business sign-off)
 
 --------------------------------------------------------------------------------
 
 7. ASSUMPTIONS
 
-   - AWS KMS is available in the target region (ap-south-1 / Mumbai)
-   - IAM roles have least-privilege KMS access (Encrypt + Decrypt only)
+   - Local dev: ENCRYPT_MASTER_KEY is set in .env or application-local.yml
+     and is never committed to version control
+   - Production: AWS KMS is available in ap-south-1 (Mumbai); IAM roles have
+     least-privilege KMS access (Encrypt + Decrypt only)
    - Application never caches decrypted PII values beyond the request scope
