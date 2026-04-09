@@ -96,8 +96,8 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void submit(Long id) {
         AssetDeclaration d = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(d.getTempleId());
-        transitionValidator.validateDeclarationTransition(d.getStatus().name(), DeclarationStatus.SUBMITTED.name());
-        d.setStatus(DeclarationStatus.SUBMITTED);
+        transitionValidator.validateDeclarationTransition(d.getStatus().name(), DeclarationStatus.PENDING_REVIEW.name());
+        d.setStatus(DeclarationStatus.PENDING_REVIEW);
         d.setSubmittedAt(LocalDateTime.now());
         declarationRepository.save(d);
         log.info("Declaration [{}] submitted.", id);
@@ -168,9 +168,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration d = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(d.getTempleId());
         transitionValidator.validateDeclarationTransition(
-                d.getStatus().name(), DeclarationStatus.SUBMITTED.name());
+                d.getStatus().name(), DeclarationStatus.PENDING_REVIEW.name());
         applyResubmitFields(d, rq);
-        d.setStatus(DeclarationStatus.SUBMITTED);
+        d.setStatus(DeclarationStatus.PENDING_REVIEW);
         d.setSubmittedAt(LocalDateTime.now());
         declarationRepository.save(d);
         saveClarification(id, rq.getCorrectionNotes(), ClarificationDirection.TEMPLE_TO_DC);

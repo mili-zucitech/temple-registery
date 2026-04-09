@@ -11,20 +11,31 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "asset_declarations", indexes = {
-        @Index(name = "idx_decl_temple_id", columnList = "temple_id"),
-        @Index(name = "idx_decl_status",     columnList = "status"),
-        @Index(name = "idx_decl_district_id",columnList = "district_id")
+        @Index(name = "idx_decl_temple_id",    columnList = "temple_id"),
+        @Index(name = "idx_decl_status",       columnList = "status"),
+        @Index(name = "idx_decl_district_id",  columnList = "district_id"),
+        @Index(name = "idx_decl_temple_year",  columnList = "temple_id, financial_year"),
+        @Index(name = "idx_decl_overdue",      columnList = "is_overdue, status, temple_id")
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE asset_declarations SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class AssetDeclaration extends BaseEntity {
 
+    /** JPA optimistic lock — column renamed lock_version per dc_e2e F11 (avoids clash with version_number). */
     @Version
-    @Column(name = "version") private Long version;
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
 
-    @Column(name = "temple_id", nullable = false) private Long templeId;
-    @Column(name = "district_id", nullable = false) private Long districtId;
+    @Column(name = "temple_id",    nullable = false) private Long templeId;
+    @Column(name = "district_id",  nullable = false) private Long districtId;
+
+    /** Financial year in YYYY-YY format (e.g. 2025-26). */
+    @Column(name = "financial_year", length = 7)     private String financialYear;
+
+    /** Submission counter — increments when Temple Authority creates a new version after rejection. */
+    @Column(name = "version_number", nullable = false)
+    private int versionNumber = 1;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40) private DeclarationStatus status = DeclarationStatus.DRAFT;
@@ -47,12 +58,28 @@ public class AssetDeclaration extends BaseEntity {
     @Column(name = "other_movable_value", precision = 18, scale = 2) private BigDecimal otherMovableValue;
 
     // Workflow timestamps
-    @Column(name = "submitted_at") private LocalDateTime submittedAt;
-    @Column(name = "reviewed_at") private LocalDateTime reviewedAt;
-    @Column(name = "reviewed_by") private Long reviewedBy;
+    @Column(name = "submitted_at")  private LocalDateTime submittedAt;
+    @Column(name = "submitted_by")  private Long submittedBy;
+    @Column(name = "reviewed_at")   private LocalDateTime reviewedAt;
+    @Column(name = "reviewed_by")   private Long reviewedBy;
+    @Column(name = "acknowledged_at") private LocalDateTime acknowledgedAt;
+
+    // Workflow counters and flags
+    @Column(name = "clarification_round", nullable = false)
+    private int clarificationRound = 0;
+
+    @Column(name = "is_overdue", nullable = false)
+    private boolean isOverdue = false;
+
+    @Column(name = "overdue_flagged_at") private LocalDateTime overdueFlaggedAt;
 
     // Acknowledgement
-    @Column(name = "acknowledgement_number", length = 50) private String acknowledgementNumber;
+    @Column(name = "acknowledgement_number", length = 50)  private String acknowledgementNumber;
+    @Column(name = "acknowledgement_doc_file_path", length = 1000) private String acknowledgementDocFilePath;
+
+    // Snapshot frozen at PENDING_REVIEW — never modified after
+    @Column(name = "snapshot_json", columnDefinition = "JSON")  private String snapshotJson;
+    @Column(name = "snapshot_file_path", length = 1000)         private String snapshotFilePath;
 
     @Column(name = "due_date") private java.time.LocalDate dueDate;
 }

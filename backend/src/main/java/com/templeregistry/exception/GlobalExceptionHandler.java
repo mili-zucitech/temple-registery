@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @RestControllerAdvice
 @Slf4j
@@ -23,6 +24,28 @@ public class GlobalExceptionHandler {
         log.warn("Entity not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getMessage(), ex.getErrorCode()));
+    }
+
+    /**
+     * District scope violations always return HTTP 404 (never 403) with a FIXED
+     * non-informative body to prevent information leakage about entity existence
+     * in other districts. A random 0-20ms delay prevents timing-oracle attacks
+     * that could distinguish "entity not found" from "entity out of district".
+     * dc_e2e Section 2.4 (R7, R8).
+     */
+    @ExceptionHandler(DistrictScopeViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDistrictScopeViolation(DistrictScopeViolationException ex) {
+        applyTimingDelay();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("The requested resource was not found.", null));
+    }
+
+    private void applyTimingDelay() {
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextLong(0, 21));
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @ExceptionHandler(IllegalStatusTransitionException.class)
