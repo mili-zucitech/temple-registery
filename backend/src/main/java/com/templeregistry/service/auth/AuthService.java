@@ -2,17 +2,16 @@ package com.templeregistry.service.auth;
 
 import com.templeregistry.dto.request.auth.*;
 import com.templeregistry.dto.response.auth.AuthTokenResponse;
-import com.templeregistry.dto.response.auth.MfaChallengeResponse;
 
 public interface AuthService {
 
-    MfaChallengeResponse login(LoginRequest request);
+    Object login(LoginRequest request);
 
     AuthTokenResponse verifyMfa(MfaVerifyRequest request);
 
-    AuthTokenResponse refresh(RefreshTokenRequest request);
+    AuthTokenResponse refresh(String rawRefreshToken);
 
-    void logout(String refreshToken);
+    void logout(String rawRefreshToken);
 
     void requestPasswordReset(PasswordResetRequest request);
 

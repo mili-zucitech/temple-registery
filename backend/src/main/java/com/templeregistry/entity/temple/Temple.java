@@ -110,4 +110,8 @@ public class Temple extends BaseEntity {
 
     @Column(name = "asset_declaration_status", length = 30)
     private String assetDeclarationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TempleStatus status = TempleStatus.ACTIVE;
 }
