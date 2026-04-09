@@ -19,9 +19,9 @@ public class StatusTransitionValidator {
 
     // Declaration state machine
     private static final Map<String, Set<String>> DECLARATION_TRANSITIONS = Map.of(
-            "DRAFT",                           Set.of("SUBMITTED"),
-            "SUBMITTED",                       Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
-            "CLARIFICATION_REQUESTED",         Set.of("SUBMITTED"),
+            "DRAFT",                           Set.of("PENDING_REVIEW"),
+            "PENDING_REVIEW",                  Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
+            "CLARIFICATION_REQUESTED",         Set.of("PENDING_REVIEW"),
             "PHYSICAL_VERIFICATION_REQUESTED", Set.of("APPROVED", "REJECTED")
     );
 

@@ -34,4 +34,6 @@ public class Employee extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20) private EmployeeStatus status = EmployeeStatus.ACTIVE;
+
+    @Column(name = "date_of_leaving") private LocalDate dateOfLeaving;
 }

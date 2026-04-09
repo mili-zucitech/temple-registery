@@ -11,6 +11,7 @@ import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
 import com.templeregistry.util.StatusTransitionValidator;
@@ -41,6 +42,7 @@ class DeclarationServiceImplTest {
     @Mock StatusTransitionValidator transitionValidator;
     @Mock AcknowledgementNumberGenerator ackGenerator;
     @Mock PaginationUtil paginationUtil;
+    @Mock AuditService auditService;
 
     @InjectMocks DeclarationServiceImpl declarationService;
 
@@ -52,11 +54,11 @@ class DeclarationServiceImplTest {
                 .templeId(1L).districtId(10L)
                 .status(DeclarationStatus.DRAFT).build();
 
-        // Mock security context
+        // Mock security context — lenient; not all test paths reach this
         SecurityContext ctx = mock(SecurityContext.class);
         Authentication auth = mock(Authentication.class);
-        when(ctx.getAuthentication()).thenReturn(auth);
-        when(auth.getPrincipal()).thenReturn(mock(com.templeregistry.security.ScopeHelper.Claims.class));
+        lenient().when(ctx.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getPrincipal()).thenReturn(mock(com.templeregistry.security.ScopeHelper.Claims.class));
         SecurityContextHolder.setContext(ctx);
     }
 
@@ -69,13 +71,13 @@ class DeclarationServiceImplTest {
 
         declarationService.submit(1L);
 
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.SUBMITTED);
+        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.PENDING_REVIEW);
         assertThat(draftDeclaration.getSubmittedAt()).isNotNull();
     }
 
     @Test
     void should_approveDeclaration_and_setAcknowledgementNumber() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -99,7 +101,7 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_requestClarification_when_status_is_SUBMITTED() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -114,7 +116,7 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_rejectDeclaration_with_reason_logged_as_clarification() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());

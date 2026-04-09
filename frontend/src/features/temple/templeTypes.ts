@@ -83,3 +83,42 @@ export interface TempleSearchResultResponse {
   latitude?: number
   longitude?: number
 }
+
+// ── Temple Profile Staging ────────────────────────────────────────────────────
+
+export type TempleProfileStagingStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'
+
+export const createTempleProfileStagingSchema = z.object({
+  contactPersonName: z.string().max(255).optional(),
+  contactPersonDesignation: z.string().max(100).optional(),
+  photoFilePath: z.string().max(1000).optional(),
+  bankAccountNumber: z.string().optional(),
+  languagesOfWorship: z.string().max(500).optional(),
+  linkedInstitutions: z.string().optional(),
+  annualFestivals: z.string().optional(),
+  landmark: z.string().optional(),
+  historicalSignificance: z.string().optional(),
+})
+
+export type CreateTempleProfileStagingRequest = z.infer<typeof createTempleProfileStagingSchema>
+
+export interface TempleProfileStagingResponse {
+  id: number
+  templeId: number
+  versionNumber: number
+  statusLabel: TempleProfileStagingStatus
+  contactPersonName?: string
+  contactPersonDesignation?: string
+  photoFilePath?: string
+  bankAccountMasked?: string
+  languagesOfWorship?: string
+  linkedInstitutions?: string
+  annualFestivals?: string
+  landmark?: string
+  historicalSignificance?: string
+  reviewComment?: string
+  submittedAt?: string
+  reviewedAt?: string
+  createdAt: string
+  updatedAt: string
+}

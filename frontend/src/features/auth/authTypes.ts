@@ -69,14 +69,15 @@ export type PasswordResetConfirmRequest = z.infer<typeof passwordResetConfirmSch
 
 export interface AuthTokenResponse {
   accessToken: string
-  tokenType: string
   expiresIn: number
+  role: string
+  userId: number
 }
 
 export interface MfaChallengeResponse {
+  mfaRequired: boolean
   tempToken: string
-  mfaType: 'TOTP' | 'SMS'
-  maskedMobile?: string
+  challengeType: 'TOTP' | 'SMS_OTP'
 }
 
 export interface AadhaarOtpResponse {
@@ -92,4 +93,13 @@ export interface CurrentUser {
   districtId?: number
   templeId?: number
   aadhaarVerified: boolean
+  completionChecklist?: TempleCompletionChecklist
+}
+
+export interface TempleCompletionChecklist {
+  templeProfileStatus: string | null
+  trustExists: boolean
+  employeeCount: number
+  contractorCount: number
+  latestDeclarationStatus: string | null
 }

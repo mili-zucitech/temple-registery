@@ -1,6 +1,7 @@
 package com.templeregistry.entity.temple;
 
 import com.templeregistry.entity.base.BaseEntity;
+import com.templeregistry.entity.geo.Hobli;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -64,6 +65,14 @@ public class Temple extends BaseEntity {
     @Column(name = "hobli_id")
     private Long hobliId;
 
+    /**
+     * Lazy-loaded JPA relationship for assertDistrictScope traversal.
+     * insertable/updatable=false because hobliId (above) owns the FK column.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hobli_id", insertable = false, updatable = false)
+    private Hobli hobli;
+
     @Column(name = "taluk_id")
     private Long talukId;
 
@@ -101,4 +110,8 @@ public class Temple extends BaseEntity {
 
     @Column(name = "asset_declaration_status", length = 30)
     private String assetDeclarationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TempleStatus status = TempleStatus.ACTIVE;
 }

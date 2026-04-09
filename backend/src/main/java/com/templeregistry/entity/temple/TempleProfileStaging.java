@@ -1,0 +1,81 @@
+package com.templeregistry.entity.temple;
+
+import com.templeregistry.entity.base.BaseEntity;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+
+import java.time.LocalDateTime;
+
+/**
+ * Staging record for Temple Authority profile edits awaiting DC review.
+ * Maps to V13 temple_profile_staging table.
+ *
+ * Status lifecycle (per DECISION-01, PENDING_REVIEW is displayed as SUBMITTED in API):
+ *   DRAFT → PENDING_REVIEW → APPROVED → SUPERSEDED (on next approval)
+ *                          → REJECTED  → new DRAFT (version+1)
+ */
+@Entity
+@Table(name = "temple_profile_staging", indexes = {
+        @Index(name = "idx_profile_staging_temple_status", columnList = "temple_id, status")
+})
+@SQLRestriction("is_deleted = false")
+@SQLDelete(sql = "UPDATE temple_profile_staging SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class TempleProfileStaging extends BaseEntity {
+
+    @Column(name = "temple_id", nullable = false)
+    private Long templeId;
+
+    /** Business version counter. Increments on each new submission after rejection. Not an optimistic lock. */
+    @Column(name = "version", nullable = false)
+    private int versionNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TempleProfileStagingStatus status;
+
+    @Column(name = "contact_person_name", length = 255)
+    private String contactPersonName;
+
+    @Column(name = "contact_person_designation", length = 100)
+    private String contactPersonDesignation;
+
+    @Column(name = "photo_file_path", length = 1000)
+    private String photoFilePath;
+
+    @Column(name = "bank_account_number_encrypted", columnDefinition = "TEXT")
+    private String bankAccountNumberEncrypted;
+
+    @Column(name = "languages_of_worship", length = 500)
+    private String languagesOfWorship;
+
+    /** JSON array of linked mutt/sub-temple names, stored as raw JSON string. */
+    @Column(name = "linked_institutions", columnDefinition = "JSON")
+    private String linkedInstitutions;
+
+    @Column(name = "annual_festivals", columnDefinition = "TEXT")
+    private String annualFestivals;
+
+    @Column(name = "landmark", length = 500)
+    private String landmark;
+
+    @Column(name = "historical_significance", columnDefinition = "TEXT")
+    private String historicalSignificance;
+
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
+    @Column(name = "submitted_by")
+    private Long submittedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "reviewed_by")
+    private Long reviewedBy;
+
+    @Column(name = "review_comment", columnDefinition = "TEXT")
+    private String reviewComment;
+}
