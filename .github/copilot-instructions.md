@@ -12,7 +12,7 @@ Never invent alternate layers. Follow existing patterns in this codebase.
 ## Technology Stack
 
 **Backend:** Java 21 · Spring Boot 3.x · Spring Data JPA · Spring Security + JWT · MapStruct · Lombok (controlled) · MySQL · Flyway · Swagger/OpenAPI  
-**Frontend:** React 18 + TypeScript · Ant Design (antd) · Redux Toolkit · RTK Query · Zod · Axios (fallback only)
+**Frontend:** React 18 + TypeScript · shadcn/ui · Tailwind CSS · Redux Toolkit · RTK Query · Zod · Axios (fallback only)
 
 ---
 
@@ -51,7 +51,7 @@ States: `DRAFT → SUBMITTED → APPROVED → REJECTED`
 - Controllers: `ResponseEntity` only, `@Valid` on request bodies, no business logic, no try-catch.
 - Services: all business logic lives here. Interface + Impl pattern. `@Transactional` on write methods; `@Transactional(readOnly = true)` on reads.
 - All exceptions handled by a single `@RestControllerAdvice` — never catch in controllers.
-- Entities always extend `BaseEntity` (UUID PK, audit fields, `is_deleted`). Never expose entities via APIs.
+- Entities always extend `BaseEntity` (BIGINT PK, audit fields, `is_deleted`). Never expose entities via APIs.
 - Repositories: DB access only. Use `@EntityGraph` or `JOIN FETCH` to prevent N+1 queries.
 - All DB schema changes via Flyway migrations only. Never modify the DB schema by hand.
 - Authorization enforced at the service layer via `@PreAuthorize`. Deny by default.
@@ -63,12 +63,12 @@ States: `DRAFT → SUBMITTED → APPROVED → REJECTED`
 
 - JWT stored in `httpOnly` cookie only. Never `localStorage`, `sessionStorage`, or Redux state.
 - RTK Query for all server state and API calls. Redux slices for UI-only state only.
-- Ant Design components exclusively. No MUI, Chakra, or other component libraries.
+- shadcn/ui components with Tailwind CSS exclusively. No MUI, Chakra, antd, or other component libraries.
 - No API calls inside components — all data fetching inside custom hooks.
 - Every data-displaying component must handle loading, empty, and error states.
 - Global RTK Query error-logger middleware handles API errors centrally.
 - `<ErrorBoundary>` required at the application root.
-- Zod for all form schema validation. Ant Design Form is primary. React Hook Form only for dynamic field arrays.
+- Zod for all form schema validation. shadcn/ui Form (React Hook Form + zodResolver) for all forms. useFieldArray for dynamic field arrays.
 
 ---
 

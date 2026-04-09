@@ -1,0 +1,20 @@
+# Git-ignore rules for backend
+target/
+*.class
+
+# Never commit the private key
+src/main/resources/keys/private.pem
+
+# Never commit prod config with real credentials
+src/main/resources/application-prod.yml
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
