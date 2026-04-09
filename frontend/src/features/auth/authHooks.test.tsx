@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { server } from '@/test/mocks/server'
 import { renderWithProviders } from '@/test/utils/renderWithProviders'
-import { LoginPage } from '../pages/LoginPage/LoginPage'
+import { LoginPage } from './pages/LoginPage/LoginPage'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {

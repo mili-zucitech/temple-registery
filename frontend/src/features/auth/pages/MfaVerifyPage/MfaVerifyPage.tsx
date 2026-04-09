@@ -1,4 +1,4 @@
-import { MfaPrompt } from '../components/MfaPrompt/MfaPrompt'
+import { MfaPrompt } from '../../components/MfaPrompt/MfaPrompt'
 
 export function MfaVerifyPage() {
   return (

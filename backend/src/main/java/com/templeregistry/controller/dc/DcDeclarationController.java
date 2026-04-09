@@ -1,0 +1,80 @@
+package com.templeregistry.controller.dc;
+
+import com.templeregistry.common.ApiResponse;
+import com.templeregistry.dto.request.dc.DcClarifyRequest;
+import com.templeregistry.dto.request.dc.WorkflowApproveRequest;
+import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
+import com.templeregistry.dto.response.dc.DeclarationDetailResponse;
+import com.templeregistry.dto.response.dc.WorkflowActionResponse;
+import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.dc.DcTempleProfileService;
+import com.templeregistry.service.dc.DeclarationWorkflowService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/dc/declarations")
+@RequiredArgsConstructor
+@Tag(name = "DC Declaration Workflow", description = "Declaration review and workflow actions for the DC portal")
+public class DcDeclarationController {
+
+    private final DcTempleProfileService dcTempleProfileService;
+    private final DeclarationWorkflowService declarationWorkflowService;
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Returns enriched declaration detail including all sub-table line items and clarification history.")
+    public ResponseEntity<ApiResponse<DeclarationDetailResponse>> getDeclarationDetail(@PathVariable Long id) {
+        DeclarationDetailResponse detail = dcTempleProfileService.getDeclarationDetail(id, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Declaration detail retrieved.", detail));
+    }
+
+    @PostMapping("/{id}/approve")
+    @Operation(summary = "Approve a declaration. Transitions PENDING_REVIEW → APPROVED. Generates acknowledgement and sends notification.")
+    public ResponseEntity<ApiResponse<WorkflowActionResponse>> approve(
+            @PathVariable Long id,
+            @Valid @RequestBody WorkflowApproveRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        WorkflowActionResponse result = declarationWorkflowService.approve(id, request, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Declaration approved.", result));
+    }
+
+    @PostMapping("/{id}/reject")
+    @Operation(summary = "Reject a declaration. Transitions PENDING_REVIEW → REJECTED (immutable).")
+    public ResponseEntity<ApiResponse<WorkflowActionResponse>> reject(
+            @PathVariable Long id,
+            @Valid @RequestBody WorkflowRejectRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        WorkflowActionResponse result = declarationWorkflowService.reject(id, request, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Declaration rejected.", result));
+    }
+
+    @PostMapping("/{id}/clarify")
+    @Operation(summary = "Request clarification on a declaration. Transitions PENDING_REVIEW → CLARIFICATION_REQUESTED.")
+    public ResponseEntity<ApiResponse<WorkflowActionResponse>> clarify(
+            @PathVariable Long id,
+            @Valid @RequestBody DcClarifyRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        WorkflowActionResponse result = declarationWorkflowService.requestClarification(id, request, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Clarification requested.", result));
+    }
+
+    @PostMapping("/{id}/flag-physical")
+    @Operation(summary = "Flag a declaration for physical verification. Transitions PENDING_REVIEW → PHYSICAL_VERIFICATION_REQUESTED.")
+    public ResponseEntity<ApiResponse<WorkflowActionResponse>> flagPhysical(
+            @PathVariable Long id,
+            @Valid @RequestBody DcClarifyRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        WorkflowActionResponse result = declarationWorkflowService.flagPhysicalVerification(id, request, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Flagged for physical verification.", result));
+    }
+
+    private ScopeHelper.Claims currentClaims() {
+        return (ScopeHelper.Claims) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+    }
+}

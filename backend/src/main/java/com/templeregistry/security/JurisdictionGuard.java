@@ -1,5 +1,11 @@
 package com.templeregistry.security;
 
+import com.templeregistry.entity.geo.District;
+import com.templeregistry.entity.geo.Hobli;
+import com.templeregistry.entity.geo.Taluk;
+import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.exception.DistrictScopeViolationException;
+import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.JurisdictionAccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -37,5 +43,69 @@ public class JurisdictionGuard {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof ScopeHelper.Claims c) return c;
         throw new IllegalStateException("Authenticated principal is not a ScopeHelper.Claims instance.");
+    }
+
+    /**
+     * DC module district scope assertion — always throws HTTP 404, never 403.
+     *
+     * Traverses temple → hobli → taluk → district with a full null-guard chain.
+     * If any hop is null (incomplete geo seed data), throws EntityNotFoundException
+     * so the error is surfaced as a data integrity alert, not an uncaught NPE.
+     *
+     * For SUPER_ADMIN principals: returns immediately without any restriction.
+     * For DISTRICT_COLLECTOR and DC_STAFF: if districtId is null, throws
+     * IllegalStateException (corrupted JWT per R4 — never a valid bypass).
+     *
+     * dc_e2e Sections 2.4 (R4, R6, R7), 2.5 (P0-4).
+     *
+     * @param temple  fully-loaded Temple entity (hobli association must be eager-loaded)
+     * @param claims  ScopeHelper.Claims from the current request's SecurityContext
+     */
+    public void assertDistrictScope(Temple temple, ScopeHelper.Claims claims) {
+        String role = claims.role();
+
+        // SUPER_ADMIN is never jurisdiction-scoped
+        if (RoleConstants.SUPER_ADMIN.equals(role)) return;
+
+        // R4 — null districtId on non-SA is always a programming error or corrupted JWT
+        Long principalDistrictId = claims.districtId();
+        if (principalDistrictId == null) {
+            throw new IllegalStateException(
+                    "Non-SUPER_ADMIN principal [role=" + role + "] has null districtId — corrupted JWT or missing claim.");
+        }
+
+        // P0-4 — Three-hop null-guard traversal: temple → hobli → taluk → district
+        Hobli hobli = temple.getHobli();
+        if (hobli == null) {
+            throw new EntityNotFoundException(
+                    "Temple geo data is incomplete: hobli reference is missing for templeId=" + temple.getId(),
+                    "GEO_INCOMPLETE");
+        }
+
+        Taluk taluk = hobli.getTaluk();
+        if (taluk == null) {
+            throw new EntityNotFoundException(
+                    "Temple geo data is incomplete: taluk reference is missing for hobliId=" + hobli.getId(),
+                    "GEO_INCOMPLETE");
+        }
+
+        District district = taluk.getDistrict();
+        if (district == null) {
+            throw new EntityNotFoundException(
+                    "Temple geo data is incomplete: district reference is missing for talukId=" + taluk.getId(),
+                    "GEO_INCOMPLETE");
+        }
+
+        Long templeDistrictId = district.getId();
+        if (templeDistrictId == null) {
+            throw new EntityNotFoundException(
+                    "Temple geo data is incomplete: district id is null for talukId=" + taluk.getId(),
+                    "GEO_INCOMPLETE");
+        }
+
+        // R7 — mismatch → HTTP 404 (never 403) to prevent district existence leakage
+        if (!principalDistrictId.equals(templeDistrictId)) {
+            throw new DistrictScopeViolationException();
+        }
     }
 }
