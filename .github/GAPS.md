@@ -30,8 +30,8 @@ Entries marked 🔴 are high-risk and must be addressed before the first product
 
 ### G02 — No `BaseEntity` / `@MappedSuperclass` Definition ✅
 **Gap:** "Audit fields mandatory" was stated but no base class was defined. Developers would implement audit fields inconsistently.  
-**Risk:** Missing `created_at`, `updated_at`, `is_deleted` on some entities; UUID generation inconsistency.  
-**Resolution:** `backend.instructions.md` defines `BaseEntity` with `@PrePersist` / `@PreUpdate` lifecycle hooks, UUID generation via `UUID.randomUUID()`, and all mandatory audit fields.
+**Risk:** Missing `created_at`, `updated_at`, `is_deleted` on some entities; inconsistent PK strategy across tables.  
+**Resolution:** `backend.instructions.md` defines `BaseEntity` with `@PrePersist` / `@PreUpdate` lifecycle hooks, `BIGINT UNSIGNED` PK via `@GeneratedValue(strategy = GenerationType.IDENTITY)`, and all mandatory audit fields.
 
 ---
 
@@ -87,10 +87,10 @@ public final class RoleConstants {
 
 ---
 
-### G09 — UUID Generation Strategy Not Specified ✅
-**Gap:** `CHAR(36)` was specified for PK storage but it was not decided whether UUID generation is app-side or DB-side.  
-**Risk:** DB-generated UUIDs vary by MySQL version; may conflict with JPA identity strategy.  
-**Resolution:** App-generated via `UUID.randomUUID()` in `@PrePersist`. `backend.instructions.md` specifies this explicitly; never use `@GeneratedValue(strategy = GenerationType.IDENTITY)`.
+### G09 — PK Type Decision Recorded ✅
+**Gap:** `CHAR(36)` (UUID) was initially considered for PK storage alongside `BIGINT UNSIGNED`; no final decision was documented in the instructions.  
+**Risk:** Mixed PK types across tables; index fragmentation with UUID v4; inconsistent JPA identity strategy.  
+**Resolution:** `BIGINT UNSIGNED AUTO_INCREMENT` chosen for v1 (simpler, no distribution concern, faster joins). `backend.instructions.md` mandates `@GeneratedValue(strategy = GenerationType.IDENTITY)` on all entities. Never use `CHAR(36)` as a PK.
 
 ---
 
@@ -133,10 +133,10 @@ Apply at minimum to: `/api/v1/auth/login`, `/api/v1/auth/register`, any OTP endp
 
 ---
 
-### G15 — "antd Insufficient" Criterion Undefined ✅
-**Gap:** React Hook Form was listed as "only when antd Form is insufficient" but the trigger condition was not defined.  
-**Risk:** React Hook Form used arbitrarily; Ant Design Form abandoned; two form libraries in the codebase.  
-**Resolution:** `frontend.instructions.md` defines the exact trigger: **React Hook Form is permitted only for dynamic field arrays (`useFieldArray`)**. All other forms use Ant Design Form.
+### G15 — Form Library Usage Criterion ✅
+**Gap:** React Hook Form integration rule was not clearly defined.  
+**Risk:** Form library inconsistency; two form implementations in the codebase.  
+**Resolution:** `frontend.instructions.md` mandates: **all forms use shadcn/ui Form (React Hook Form + zodResolver)**. `useFieldArray` is used for dynamic field arrays.
 
 ---
 
@@ -152,7 +152,7 @@ Apply at minimum to: `/api/v1/auth/login`, `/api/v1/auth/register`, any OTP endp
 **Risk:** Unrestricted file types and sizes uploaded; MIME type spoofing not prevented; BLOBs stored in DB.  
 **Resolution:**
 - `backend.instructions.md`: max 5 MB, allowed types `image/jpeg / image/png / application/pdf`, store file path (not binary) in DB.
-- `frontend.instructions.md`: `antd Upload` + `beforeUpload` client-side validation with same constraints.
+- `frontend.instructions.md`: shadcn/ui `Input type="file"` + `onChange` client-side validation with same constraints.
 
 ---
 
@@ -175,7 +175,7 @@ Apply at minimum to: `/api/v1/auth/login`, `/api/v1/auth/register`, any OTP endp
 **Risk:** Developers create inconsistent staging table designs across modules.  
 **Resolution:** `backend.instructions.md` defines staging table columns:  
 ```
-id CHAR(36) PK, all main table columns mirrored, status VARCHAR(20) (indexed),
+id BIGINT UNSIGNED PK, all main table columns mirrored, status VARCHAR(20) (indexed),
 submitted_at DATETIME, reviewed_at DATETIME, reviewed_by VARCHAR(100),
 FK to main table (nullable until APPROVED)
 ```
