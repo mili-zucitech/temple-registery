@@ -25,20 +25,13 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
-cloud:
-  aws:
-    s3:
-      bucket-name: temple-registry-docs-dev
-
 app:
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:
     key: "TempleRegistryDevelopmentKey2024"
-  aws:
-    region: ap-south-1
-    bucket-name: temple-registry-docs-dev
-    # In dev, configure AWS credentials via environment/profile; never hardcode here
+  storage:
+    base-dir: ./uploads
 
 logging:
   level:

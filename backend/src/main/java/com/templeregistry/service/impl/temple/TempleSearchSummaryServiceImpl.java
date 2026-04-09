@@ -58,10 +58,20 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .hobliId(t.getHobliId())
                 .talukId(t.getTalukId())
                 .districtId(t.getDistrictId())
+                .cityId(0L)            // populated by DC module refresh() once geo chain is loaded
+                .templeStatus("ACTIVE") // default; DC module refresh() will read temple.status when added
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .yearEstablished(t.getYearEstablished())
                 .photoUrl(t.getPhotoUrl())
+                // DC module counters — initialised to 0 here; DC refresh() will recompute from sub-queries
+                .pendingDeclarations(0)
+                .overdueDeclarations(0)
+                .pendingProfileReview(0)
+                .hasActiveTrust(false)
+                .hasApprovedDeclaration(false)
+                .lastDeclarationAt(null)
+                .lastProfileUpdateAt(null)
                 .build();
     }
 }

@@ -26,7 +26,6 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.5</springdoc.version>
         <testcontainers.version>1.20.6</testcontainers.version>
-        <awssdk.version>2.29.44</awssdk.version>
         <itext.version>8.0.5</itext.version>
         <opencsv.version>5.9</opencsv.version>
         <totp.version>1.7.1</totp.version>
@@ -34,13 +33,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
-                <artifactId>bom</artifactId>
-                <version>${awssdk.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
@@ -130,12 +122,6 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
-        </dependency>
-
-        <!-- ─── AWS S3 ────────────────────────────────────────────── -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
         </dependency>
 
         <!-- ─── PDF Export ───────────────────────────────────────── -->
