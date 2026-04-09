@@ -3,6 +3,7 @@ import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   DeclarationResponse, CreateDeclarationRequest, ClarificationRequest, AcknowledgementResponse,
+  DeclarationDiffItem, ResubmitDeclarationRequest,
 } from './declarationTypes'
 
 export const declarationApi = createApi({
@@ -10,7 +11,8 @@ export const declarationApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Declaration'],
   endpoints: (builder) => ({
-    listAllDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { page?: number; size?: number; status?: string }>({      query: ({ page = 0, size = 10, status }) => ({ url: '/declarations', params: { page, size, status } }),
+    listAllDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { page?: number; size?: number; status?: string }>({
+      query: ({ page = 0, size = 10, status }) => ({ url: '/declarations', params: { page, size, status } }),
       providesTags: ['Declaration'],
     }),
     listDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { templeId: number; page?: number; size?: number }>({
@@ -45,12 +47,16 @@ export const declarationApi = createApi({
       query: ({ id, body }) => ({ url: `/declarations/${id}/clarification`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
-    resubmitDeclaration: builder.mutation<ApiResponse<void>, { id: number; body: ClarificationRequest & CreateDeclarationRequest }>({
+    resubmitDeclaration: builder.mutation<ApiResponse<void>, { id: number; body: ResubmitDeclarationRequest }>({
       query: ({ id, body }) => ({ url: `/declarations/${id}/resubmit`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     getAcknowledgement: builder.query<ApiResponse<AcknowledgementResponse>, number>({
       query: (id) => `/declarations/${id}/acknowledgement`,
+    }),
+    getDeclarationDiff: builder.query<ApiResponse<DeclarationDiffItem[]>, number>({
+      query: (id) => `/declarations/${id}/diff`,
+      providesTags: (_r, _e, id) => [{ type: 'Declaration', id: `diff-${id}` }],
     }),
   }),
 })
@@ -59,5 +65,5 @@ export const {
   useListAllDeclarationsQuery, useListDeclarationsQuery, useGetDeclarationQuery, useCreateDeclarationMutation,
   useUpdateDeclarationMutation, useSubmitDeclarationMutation, useApproveDeclarationMutation,
   useRejectDeclarationMutation, useRequestClarificationMutation,
-  useResubmitDeclarationMutation, useGetAcknowledgementQuery,
+  useResubmitDeclarationMutation, useGetAcknowledgementQuery, useGetDeclarationDiffQuery,
 } = declarationApi

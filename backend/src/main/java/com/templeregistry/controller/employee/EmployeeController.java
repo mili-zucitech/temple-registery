@@ -3,6 +3,7 @@ package com.templeregistry.controller.employee;
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.employee.CreateEmployeeRequest;
+import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.service.employee.EmployeeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,14 +46,14 @@ public class EmployeeController {
     }
 
     @PutMapping("/api/employees/{id}")
-    @Operation(summary = "Update employee")
+    @Operation(summary = "Update employee record or transition status (supports RESIGNED, RETIRED, ON_LEAVE)")
     public ResponseEntity<ApiResponse<EmployeeResponse>> update(
-            @PathVariable Long id, @Valid @RequestBody CreateEmployeeRequest rq) {
+            @PathVariable Long id, @Valid @RequestBody UpdateEmployeeRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Employee updated.", employeeService.update(id, rq)));
     }
 
     @DeleteMapping("/api/employees/{id}")
-    @Operation(summary = "Soft-delete employee")
+    @Operation(summary = "Soft-delete employee (SUPER_ADMIN only)")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         employeeService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success("Employee removed."));

@@ -48,7 +48,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public MfaChallengeResponse login(LoginRequest request) {
+    public Object login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new EntityNotFoundException("Invalid credentials.", "INVALID_CREDENTIALS"));
 
@@ -70,6 +70,13 @@ public class AuthServiceImpl implements AuthService {
 
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
+
+        if (user.getMfaType() == MfaType.NONE) {
+            user.setLastLoginAt(LocalDateTime.now());
+            userRepository.save(user);
+            return issueTokenPair(user);
+        }
+
         userRepository.save(user);
 
         String tempToken = jwtService.generateTempToken(user);
@@ -80,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return MfaChallengeResponse.builder()
-                .mfaRequired(user.getMfaType() != MfaType.NONE)
+                .mfaRequired(true)
                 .challengeType(challengeType)
                 .tempToken(tempToken)
                 .build();
@@ -109,8 +116,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthTokenResponse refresh(RefreshTokenRequest request) {
-        String tokenHash = sha256(request.getRefreshToken());
+    public AuthTokenResponse refresh(String rawRefreshToken) {
+        String tokenHash = sha256(rawRefreshToken);
         tokenRevocationGuard.assertNotRevoked(tokenHash);
 
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)

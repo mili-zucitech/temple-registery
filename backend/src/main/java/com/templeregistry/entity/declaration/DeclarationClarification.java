@@ -23,6 +23,11 @@ public class DeclarationClarification {
 
     @Column(name = "message", nullable = false, columnDefinition = "TEXT") private String message;
 
+    /** Section name for physical verification guard. DC_TO_TEMPLE+PHYSICAL_VERIFICATION required before approval. */
+    @Column(name = "section_name", length = 100) private String sectionName;
+
+    @Column(name = "field_names_json", columnDefinition = "JSON") private String fieldNamesJson;
+
     @Column(name = "author_id", nullable = false) private Long authorId;
 
     @Column(name = "created_at", nullable = false) private LocalDateTime createdAt;

@@ -20,4 +20,8 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
     List<AssetDeclaration> findOverdue(LocalDate today);
 
     Page<AssetDeclaration> findAllByDistrictIdAndStatus(Long districtId, DeclarationStatus status, Pageable pageable);
+
+    /** SA query: declarations stuck in PHYSICAL_VERIFICATION_REQUESTED beyond a date threshold. */
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'PHYSICAL_VERIFICATION_REQUESTED' AND d.submittedAt < :thresholdDateTime")
+    Page<AssetDeclaration> findPhysicalVerificationPendingOlderThan(java.time.LocalDateTime thresholdDateTime, Pageable pageable);
 }
