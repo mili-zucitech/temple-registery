@@ -52,7 +52,7 @@ export const authApi = createApi({
     }),
 
     getCurrentUser: builder.query<ApiResponse<CurrentUser>, void>({
-      query: () => '/dc/me',
+      query: () => '/auth/me',
       providesTags: ['CurrentUser'],
     }),
   }),

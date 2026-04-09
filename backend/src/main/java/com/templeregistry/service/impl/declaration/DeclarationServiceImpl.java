@@ -59,7 +59,21 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    @Transactional(readOnly = true)
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public PaginatedResponse<DeclarationResponse> listByDistrict(Long districtId, String status, int page, int size) {
+        var pageable = PageRequest.of(page, paginationUtil.clampSize(size));
+        Page<AssetDeclaration> result;
+        if (status != null && !status.isBlank()) {
+            DeclarationStatus ds = DeclarationStatus.valueOf(status.toUpperCase());
+            result = declarationRepository.findAllByDistrictIdAndStatus(districtId, ds, pageable);
+        } else {
+            result = declarationRepository.findAllByDistrictId(districtId, pageable);
+        }
+        return PaginatedResponse.of(result.map(this::toResponse));
+    }
+
+
     @Transactional
     public DeclarationResponse create(Long templeId, CreateDeclarationRequest rq) {
         ownershipGuard.assertOwnsTemple(templeId);

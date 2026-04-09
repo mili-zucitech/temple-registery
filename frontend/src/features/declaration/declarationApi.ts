@@ -12,7 +12,7 @@ export const declarationApi = createApi({
   tagTypes: ['Declaration'],
   endpoints: (builder) => ({
     listAllDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { page?: number; size?: number; status?: string }>({
-      query: ({ page = 0, size = 10, status }) => ({ url: '/declarations', params: { page, size, status } }),
+      query: ({ page = 0, size = 10, status }) => ({ url: '/dc/declarations', params: { page, size, status } }),
       providesTags: ['Declaration'],
     }),
     listDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { templeId: number; page?: number; size?: number }>({

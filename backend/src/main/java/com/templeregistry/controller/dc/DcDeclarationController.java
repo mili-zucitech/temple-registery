@@ -1,14 +1,17 @@
 package com.templeregistry.controller.dc;
 
 import com.templeregistry.common.ApiResponse;
+import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.dc.DcClarifyRequest;
 import com.templeregistry.dto.request.dc.WorkflowApproveRequest;
 import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
 import com.templeregistry.dto.response.dc.DeclarationDetailResponse;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
+import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleProfileService;
 import com.templeregistry.service.dc.DeclarationWorkflowService;
+import com.templeregistry.service.declaration.DeclarationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,6 +28,19 @@ public class DcDeclarationController {
 
     private final DcTempleProfileService dcTempleProfileService;
     private final DeclarationWorkflowService declarationWorkflowService;
+    private final DeclarationService declarationService;
+
+    @GetMapping
+    @Operation(summary = "List all declarations in the DC's district, paginated. Optionally filter by status.")
+    public ResponseEntity<ApiResponse<PaginatedResponse<DeclarationResponse>>> listDeclarations(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
+        ScopeHelper.Claims claims = currentClaims();
+        PaginatedResponse<DeclarationResponse> result =
+                declarationService.listByDistrict(claims.districtId(), status, page, size);
+        return ResponseEntity.ok(ApiResponse.success("Declarations retrieved.", result));
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Returns enriched declaration detail including all sub-table line items and clarification history.")

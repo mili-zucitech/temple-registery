@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * Extends BaseEntity: has is_deleted, created_by, updated_by, audit timestamps.
  * dc_e2e Section 4.4 / V13 migration: temple_profile_staging.
  */
-@Entity
+@Entity(name = "DcTempleProfileStaging")
 @Table(
         name = "temple_profile_staging",
         indexes = {

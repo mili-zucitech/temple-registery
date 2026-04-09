@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAppDispatch } from '@/app/store'
-import { setCurrentUser, clearCurrentUser, setAccessToken } from './authSlice'
+import { setCurrentUser, clearCurrentUser } from './authSlice'
 import {
   useLoginMutation,
   useMfaVerifyMutation,
@@ -22,18 +23,18 @@ export function useCurrentUser() {
   const { data, isLoading, isError } = useGetCurrentUserQuery()
   const dispatch = useAppDispatch()
 
-  if (data?.data) {
-    dispatch(setCurrentUser(data.data))
-  }
+  useEffect(() => {
+    if (data?.data) {
+      dispatch(setCurrentUser(data.data))
+    }
+  }, [data, dispatch])
 
   return { user: data?.data ?? null, isLoading, isError }
 }
 
 export function useLogin() {
   const [login, { isLoading }] = useLoginMutation()
-  const [verify] = useMfaVerifyMutation()
   const navigate = useNavigate()
-  const dispatch = useAppDispatch()
 
   const handleLogin = async (values: LoginRequest) => {
     const result = await login(values)
@@ -41,26 +42,15 @@ export function useLogin() {
       const payload = result.data.data
       if ('tempToken' in payload) {
         // MFA required — navigate to MFA page carrying temp token
-        navigate(ROUTE_PATHS.MFA_VERIFY, { state: { tempToken: payload.tempToken, mfaType: (payload as MfaChallengeResponse).challengeType } })
-        const { tempToken, mfaRequired } = payload as MfaChallengeResponse
-        if (!mfaRequired) {
-          // MFA disabled — auto-verify with no OTP code
-          const verifyResult = await verify({ tempToken, mfaCode: null })
-          if ('data' in verifyResult && verifyResult.data.success) {
-            toast.success('Login successful')
-            navigate(ROUTE_PATHS.DC_DASHBOARD)
-          } else {
-            toast.error('Login failed. Please try again.')
-          }
-        } else {
-          // MFA required — navigate to MFA page carrying temp token
-          navigate(ROUTE_PATHS.MFA_VERIFY, { state: { tempToken, mfaType: (payload as MfaChallengeResponse).mfaType } })
-        }
+        const challenge = payload as MfaChallengeResponse
+        navigate(ROUTE_PATHS.MFA_VERIFY, {
+          state: { tempToken: challenge.tempToken, mfaType: challenge.challengeType },
+        })
       } else {
-        const tokens = payload as AuthTokenResponse
-        dispatch(setAccessToken(tokens.accessToken))
+        // Direct auth (MFA=NONE) — tokens are set as httpOnly cookies by the server
+        const meta = payload as AuthTokenResponse
         toast.success('Login successful')
-        navigate(getDashboardPath(tokens.role))
+        navigate(getDashboardPath(meta.role))
       }
     } else if ('error' in result) {
       toast.error('Login failed. Please check your credentials.')
@@ -73,17 +63,14 @@ export function useLogin() {
 export function useMfaVerify() {
   const [verify, { isLoading }] = useMfaVerifyMutation()
   const navigate = useNavigate()
-  const dispatch = useAppDispatch()
 
   const handleVerify = async (values: MfaVerifyRequest) => {
     const result = await verify(values)
     if ('data' in result && result.data.success) {
-      const tokens = result.data.data as { accessToken?: string; role?: string }
-      if (tokens.accessToken) {
-        dispatch(setAccessToken(tokens.accessToken))
-      }
+      // Tokens are set as httpOnly cookies by the server — body has metadata only
+      const meta = result.data.data as { role?: string }
       toast.success('Verification successful')
-      navigate(getDashboardPath(tokens.role))
+      navigate(getDashboardPath(meta.role))
     } else {
       toast.error('Invalid or expired OTP. Please try again.')
     }

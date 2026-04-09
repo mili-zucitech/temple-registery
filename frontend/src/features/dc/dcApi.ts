@@ -38,14 +38,14 @@ export const dcApi = createApi({
     // ─── Context ──────────────────────────────────────────────────────────────
 
     getDcContext: builder.query<ApiResponse<DcContextResponse>, void>({
-      query: () => '/v1/dc/me',
+      query: () => '/dc/me',
       providesTags: ['DcContext'],
     }),
 
     // ─── Dashboard ────────────────────────────────────────────────────────────
 
     getDcDashboard: builder.query<ApiResponse<DcDashboardResponse>, void>({
-      query: () => '/v1/dc/dashboard',
+      query: () => '/dc/dashboard',
       providesTags: ['DcDashboard'],
     }),
 
@@ -56,7 +56,7 @@ export const dcApi = createApi({
       DcTempleSearchFilterRequest
     >({
       query: (params) => ({
-        url: '/v1/dc/temples',
+        url: '/dc/temples',
         params,
       }),
       providesTags: ['DcTempleSearch'],
@@ -65,19 +65,19 @@ export const dcApi = createApi({
     // ─── Temple Profile ───────────────────────────────────────────────────────
 
     getDcTempleProfile: builder.query<ApiResponse<TempleFullProfileResponse>, number>({
-      query: (id) => `/v1/dc/temples/${id}`,
+      query: (id) => `/dc/temples/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'DcTempleProfile', id }],
     }),
 
     getDcPendingProfileStaging: builder.query<ApiResponse<ProfileStagingResponse>, number>({
-      query: (templeId) => `/v1/dc/temples/${templeId}/profile/pending`,
+      query: (templeId) => `/dc/temples/${templeId}/profile/pending`,
       providesTags: (_r, _e, templeId) => [{ type: 'DcProfileStaging', id: templeId }],
     }),
 
     // ─── Declaration Detail ───────────────────────────────────────────────────
 
     getDcDeclarationDetail: builder.query<ApiResponse<DeclarationDetailResponse>, number>({
-      query: (id) => `/v1/dc/declarations/${id}`,
+      query: (id) => `/dc/declarations/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'DcDeclaration', id }],
     }),
 
@@ -88,7 +88,7 @@ export const dcApi = createApi({
       { id: number; body: WorkflowApproveRequest; idempotencyKey?: string }
     >({
       query: ({ id, body, idempotencyKey }) => ({
-        url: `/v1/dc/declarations/${id}/approve`,
+        url: `/dc/declarations/${id}/approve`,
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
@@ -106,7 +106,7 @@ export const dcApi = createApi({
       { id: number; body: WorkflowRejectRequest; idempotencyKey?: string }
     >({
       query: ({ id, body, idempotencyKey }) => ({
-        url: `/v1/dc/declarations/${id}/reject`,
+        url: `/dc/declarations/${id}/reject`,
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
@@ -123,7 +123,7 @@ export const dcApi = createApi({
       { id: number; body: DcClarifyRequest; idempotencyKey?: string }
     >({
       query: ({ id, body, idempotencyKey }) => ({
-        url: `/v1/dc/declarations/${id}/clarify`,
+        url: `/dc/declarations/${id}/clarify`,
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
@@ -139,7 +139,7 @@ export const dcApi = createApi({
       { id: number; body: DcClarifyRequest; idempotencyKey?: string }
     >({
       query: ({ id, body, idempotencyKey }) => ({
-        url: `/v1/dc/declarations/${id}/flag-physical`,
+        url: `/dc/declarations/${id}/flag-physical`,
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
@@ -157,7 +157,7 @@ export const dcApi = createApi({
       { stagingId: number; body: ApproveProfileRequest }
     >({
       query: ({ stagingId, body }) => ({
-        url: `/v1/dc/profiles/${stagingId}/approve`,
+        url: `/dc/profiles/${stagingId}/approve`,
         method: 'POST',
         body,
       }),
@@ -173,7 +173,7 @@ export const dcApi = createApi({
       { stagingId: number; body: RejectProfileRequest }
     >({
       query: ({ stagingId, body }) => ({
-        url: `/v1/dc/profiles/${stagingId}/reject`,
+        url: `/dc/profiles/${stagingId}/reject`,
         method: 'POST',
         body,
       }),
@@ -190,20 +190,20 @@ export const dcApi = createApi({
       { page?: number; size?: number }
     >({
       query: ({ page = 0, size = 10 } = {}) => ({
-        url: '/v1/dc/notifications',
+        url: '/dc/notifications',
         params: { page, size },
       }),
       providesTags: ['DcNotification'],
     }),
 
     getDcUnreadCount: builder.query<ApiResponse<number>, void>({
-      query: () => '/v1/dc/notifications/unread-count',
+      query: () => '/dc/notifications/unread-count',
       providesTags: ['DcNotification'],
     }),
 
     markNotificationRead: builder.mutation<ApiResponse<void>, number>({
       query: (id) => ({
-        url: `/v1/dc/notifications/${id}/read`,
+        url: `/dc/notifications/${id}/read`,
         method: 'PATCH',
       }),
       invalidatesTags: ['DcNotification'],
@@ -211,7 +211,7 @@ export const dcApi = createApi({
 
     markAllNotificationsRead: builder.mutation<ApiResponse<number>, void>({
       query: () => ({
-        url: '/v1/dc/notifications/read-all',
+        url: '/dc/notifications/read-all',
         method: 'POST',
       }),
       invalidatesTags: ['DcNotification'],
@@ -224,7 +224,7 @@ export const dcApi = createApi({
       { body: ExportTemplesRequest; idempotencyKey?: string }
     >({
       query: ({ body, idempotencyKey }) => ({
-        url: '/v1/dc/export/temples',
+        url: '/dc/export/temples',
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
@@ -237,7 +237,7 @@ export const dcApi = createApi({
       { body: ExportDeclarationsRequest; idempotencyKey?: string }
     >({
       query: ({ body, idempotencyKey }) => ({
-        url: '/v1/dc/export/declarations',
+        url: '/dc/export/declarations',
         method: 'POST',
         body,
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
