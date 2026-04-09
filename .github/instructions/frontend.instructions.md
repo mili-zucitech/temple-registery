@@ -80,13 +80,13 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 ---
 
-## Ant Design Rules
+## shadcn/ui + Tailwind CSS Rules
 
-- Use Ant Design components exclusively. No MUI, Chakra UI, Tailwind UI components, or custom CSS component libraries.
+- Use shadcn/ui components with Tailwind CSS exclusively. No MUI, Chakra UI, antd, or other CSS component libraries.
 - **Tables:** must include `pagination`, `sortOrder`, and at minimum one filter column.
-- **Forms:** use `antd Form` with `Form.Item` + `name` bindings as the primary form solution. React Hook Form is permitted only for dynamic field arrays (`useFieldArray`).
+- **Forms:** use shadcn/ui `Form` with `FormField`/`FormItem` (React Hook Form + `zodResolver`) as the primary form solution. `useFieldArray` for dynamic field arrays.
 - **Modals/Drawers:** use for create/edit flows. Inline editing is acceptable for simple single-field updates.
-- **Feedback:** use `message.success` / `message.error` / `notification` for user feedback. Never use browser `alert`.
+- **Feedback:** use `toast()` from Sonner / `useToast()` for user feedback. Never use browser `alert`.
 
 ---
 
@@ -94,7 +94,7 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 - Every form schema defined with Zod in the feature's `*Types.ts` file.
 - Zod schemas are the single source of truth — `z.infer<typeof schema>` produces the TypeScript type. Never define a separate interface and validator for the same shape.
-- Connect Zod to Ant Design Form via a custom `validator` on `Form.Item` rules.
+- Connect Zod to shadcn/ui `Form` via `zodResolver` from `@hookform/resolvers/zod` passed to `useForm`.
 - `PaginatedResponse<T>` and all shared API response shapes must be defined as TypeScript types in `templeTypes.ts` (or a shared `commonTypes.ts`).
 
 ---
@@ -110,7 +110,7 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 ## File Uploads
 
-- Use `antd Upload` with `beforeUpload` for client-side validation before any network request.
+- Use shadcn/ui `Input type="file"` with `onChange` for client-side validation before any network request.
 - Allowed types: `image/jpeg`, `image/png`, `application/pdf`. Maximum size: 5 MB. Reject and show `message.error` if either check fails.
 - Use RTK Query mutation to POST to the upload endpoint. Never use `XMLHttpRequest` directly.
 
@@ -118,8 +118,8 @@ Create a new feature folder (`features/<domain>/`) for every new domain. Never s
 
 ## Accessibility
 
-- Every `Form.Item` must have a `label` prop.
-- Every interactive element (`Button`, `Input`, etc.) must be keyboard-navigable (antd handles this by default — do not override).
+- Every `FormItem` must have a `FormLabel` component.
+- Every interactive element (`Button`, `Input`, etc.) must be keyboard-navigable (shadcn/ui components built on Radix UI handle this by default — do not override).
 - Avoid disabling focus outlines (`outline: none` is prohibited).
 - Provide descriptive `aria-label` on icon-only buttons.
 

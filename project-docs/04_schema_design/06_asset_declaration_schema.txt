@@ -46,6 +46,8 @@ SOURCE:
      -- Overdue flag (set by scheduled job)
      is_overdue            TINYINT(1) NOT NULL DEFAULT 0,
      overdue_flagged_at    DATETIME(6) DEFAULT NULL,
+     -- Clarification round tracking (SEC / Workflow fix)
+     clarification_round   TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- incremented on each CLARIFICATION_REQUESTED transition
      -- Audit
      created_at            DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
      updated_at            DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
@@ -286,22 +288,69 @@ SOURCE:
    3.4 OVERDUE DETECTION SCHEDULER (SQL)
 
    Run daily at 00:05 after financial year end (April 1):
+   -- CRITICAL: Only flag DRAFT declarations as overdue.
+   -- Temples that have submitted (PENDING_REVIEW, CLARIFICATION_REQUESTED,
+   -- PHYSICAL_VERIFICATION_REQUESTED) have fulfilled their obligation; the
+   -- delay is DC-side. Flagging them overdue is factually incorrect.
    UPDATE asset_declarations ad
    SET is_overdue = 1, overdue_flagged_at = NOW(6)
    WHERE ad.financial_year = :previous_year
-   AND ad.status NOT IN ('APPROVED')
+   AND ad.status IN ('DRAFT')          -- ONLY DRAFT = temple has not submitted
    AND ad.is_overdue = 0;
+
+   -- Also flag temples with NO declaration at all for the year:
+   INSERT INTO asset_declarations
+     (temple_id, financial_year, version_number, status, is_overdue, overdue_flagged_at, created_by, updated_by)
+   SELECT t.id, :previous_year, 1, 'DRAFT', 1, NOW(6), 1, 1
+   FROM temples t
+   WHERE t.status = 'ACTIVE'
+   AND NOT EXISTS (
+     SELECT 1 FROM asset_declarations ad2
+     WHERE ad2.temple_id = t.id AND ad2.financial_year = :previous_year
+   )
+   ON DUPLICATE KEY UPDATE is_overdue = 1, overdue_flagged_at = NOW(6);
 
    Also insert overdue notification_events for all affected temples.
 
    3.5 DATA FREEZE (snapshot_json)
 
    At submission time (DRAFT -> PENDING_REVIEW transition), the service
-   must capture a frozen JSON snapshot of:
-     - Temple basic info (name, grade, location)
-     - Active trust details (trust name, board members count)
-     - Employee count by type
-     - Contractor summary (count, total contract value)
+   must capture a frozen JSON snapshot. The structure is formally typed as
+   DeclarationSnapshotDTO and MUST include the following fields only
+   (do NOT inline all employee/contractor records to prevent unbounded size):
+
+   DeclarationSnapshotDTO {
+     templeId:              Long,
+     templeName:            String,
+     templeGrade:           String,          // "A" | "B" | "C"
+     registrationNumber:    String,
+     hobliName:             String,
+     talukName:             String,
+     districtName:          String,
+     gpsLatitude:           BigDecimal,
+     gpsLongitude:          BigDecimal,
+     contactPersonName:     String,
+     contactPersonPhone:    String,
+     trustName:             String,          // null if no active trust
+     trustRegistrationNo:   String,          // null if no active trust
+     activeBoardMembersCount: Integer,
+     activeEmployeesCount:  Integer,         // summary count by type
+     activeContractorsCount: Integer,
+     annualIncome:          BigDecimal,
+     annualExpenditure:     BigDecimal,
+     snapshotTakenAt:       String           // ISO-8601 timestamp
+   }
+
+   SCALABILITY NOTE: For Grade A temples with extensive asset sub-tables,
+   summary totals (annual_income, annual_expenditure) are sufficient for
+   snapshot purposes. The full sub-table data is always available via
+   the declaration sub-table relationships. If snapshot_json exceeds 50KB
+   (detectable in service before INSERT), offload to S3:
+     - Store JSON at: s3://trm-private-bucket/snapshots/{temple_id}/{year}/{version}.json
+     - Store S3 key in new column: snapshot_s3_key VARCHAR(500) DEFAULT NULL
+     - Set snapshot_json = NULL when S3 path is used
+   The diff endpoint (GET /api/declarations/{id}/diff) must resolve from
+   snapshot_s3_key first, then snapshot_json.
 
    This snapshot allows DC to see what the temple looked like at time of
    submission, even if the temple later updates its profile.
@@ -311,24 +360,46 @@ SOURCE:
 4. DECISIONS LOCKED
    - UNIQUE(temple_id, financial_year, version_number) - enforced in DB
    - snapshot_json is written at PENDING_REVIEW transition; never updated after
+   - snapshot_s3_key used when snapshot_json would exceed 50KB; service checks before write
    - APPROVED and REJECTED records: no UPDATE allowed (app-enforced)
    - is_overdue flag set by scheduled job; not by user action
+   - clarification_round incremented atomically in service on each CLARIFICATION_REQUESTED transition
+   - Max clarification rounds = 3 before service blocks further clarification and forces APPROVE/REJECT (see 05_workflows_and_states/01_clarification_loop.txt)
 
 --------------------------------------------------------------------------------
 
 5. OPEN QUESTIONS
-   - What fields constitute movable_assets and immovable_assets?
-     Are these free-text or structured JSON? (Currently TEXT; consider JSON)
-   - Is there a maximum number of clarification rounds before a declaration
-     must be rejected outright?
+   - RESOLVED: snapshot_json structure is defined in section 3.5 (DeclarationSnapshotDTO).
+   - RESOLVED: Max clarification rounds = 3 (enforced in service; see 05_workflows_and_states/01_clarification_loop.txt).
+   - OUTSTANDING: Should DC be able to reopen an APPROVED declaration post-approval?
+     (Not in scope for v1; requires SUPER_ADMIN override endpoint if needed)
+   - OUTSTANDING: Cross-validation between trust_financials.gross_income and
+     asset_declarations.annual_income for the same year. Currently no server-side
+     validation enforces consistency. Consider adding a warning (not blocking error) in v1.
 
 --------------------------------------------------------------------------------
 
 6. RISKS & EDGE CASES
    - Financial year boundary: CHAR(7) format '2025-26' must be validated.
-     Add a regex constraint in the DTO: @Pattern(regexp = "\d{4}-\d{2}")
+     Add a regex constraint in the DTO: @Pattern(regexp = "\\d{4}-\\d{2}")
+     Centralize the financial year calculation in FinancialYearUtil (Spring @Component)
+     to prevent inconsistent derivations across JOB-01, JOB-02, JOB-03.
    - Snapshot_json can become large if temple has many contractors/employees.
-     Cap at summary counts; do not inline all employee records in JSON.
+     Cap at summary counts and apply the 50KB threshold check before deciding
+     between snapshot_json column and snapshot_s3_key (see 3.5).
+   - Concurrent submission: Two browser sessions race to PENDING_REVIEW for the same
+     (temple_id, financial_year). The UNIQUE constraint (temple_id, financial_year,
+     version_number) prevents duplicate versions. The service MUST handle the resulting
+     DataIntegrityViolationException and return HTTP 409 with error TRM-DECL-008:
+     "A declaration for this financial year is already under review."
+   - Temple SUSPENDED while declaration in PENDING_REVIEW: Service must check
+     temple.status = 'ACTIVE' before allowing any state transition on the declaration.
+     If temple is SUSPENDED mid-review, the declaration is frozen (no DC action);
+     SUPER_ADMIN must resolve the suspension before review can proceed.
+   - Trust_financials vs declaration financial totals inconsistency: No blocking
+     validation in v1. The service emits a WARNING in the API response body if
+     |trust_financials.gross_income - asset_declarations.annual_income| > 10%
+     for the same financial year. DC sees this as an advisory flag on the declaration view.
 
 --------------------------------------------------------------------------------
 
