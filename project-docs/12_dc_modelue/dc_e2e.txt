@@ -1,0 +1,1725 @@
+DC MODULE - TEMPLE REGISTRY & MANAGEMENT PORTAL
+END-TO-END SPECIFICATION
+Version: 1.3
+Date: 2026-04-09 (on-prem refactoring — no AWS, no Redis, BIGINT PKs)
+Status: FINAL - IMPLEMENTATION READY (hardened + audit-fixed + on-prem)
+All blockers from pre-specification analysis have been resolved in-place. No TBD items remain. This document is the single source of truth for implementing the District Collector module.
+
+Version 1.1 changes: All F-series (schema), S-series (service layer), R-series (RBAC/security), and testing review findings have been embedded as inline ⚠️ / 🔒 / ⚡ / 🔁 / 🧪 labeled notes throughout Sections 2–12. A new Section 14 (Hardening Summary) lists all findings by code, resolution status, and cross-references.
+
+Version 1.2 changes (requirements gap audit — 2026-04-09): A strict requirements-vs-implementation audit against temple_registry_requirements.txt identified 4 P0 blockers, 6 P1 required fixes, and 8 P2 improvements. All P0 and P1 fixes applied. Section 15 (Audit Fix Integration Summary) records all changes.
+
+Version 1.3 changes (on-prem refactoring — 2026-04-09): Removed all AWS and Redis dependencies. Replaced with fully local, on-prem equivalents:
+  REMOVED: AWS S3 file storage → REPLACED WITH: local filesystem (configurable base directory)
+  REMOVED: presigned S3 URLs for downloads → REPLACED WITH: backend streaming API with permission checks
+  REMOVED: Redis idempotency cache → REPLACED WITH: database-backed idempotency_records table
+  REMOVED: Redis/Bucket4j rate limiting → REPLACED WITH: database-backed rate_request_log table with configurable thresholds
+  REMOVED: UUID CHAR(36) primary keys → REPLACED WITH: BIGINT AUTO_INCREMENT primary keys and foreign keys everywhere
+  SIMPLIFIED: notification channels reduced to IN_APP only (email/SMS require external services not available on-prem in v1)
+  A new Section 16 (On-Prem Refactoring Summary) records all changes and removed dependencies.
+
+================================================================================
+SECTION 1: MODULE OVERVIEW
+1.1 PURPOSE
+
+The District Collector (DC) Module provides a read-and-review portal for government-appointed District Collectors and their staff to inspect, search, and act on temple data within their assigned district. The module enforces strict geographic (district-level) data boundaries and drives the approval workflow for temple asset declarations and temple profile staging submissions.
+
+1.2 RESPONSIBILITIES
+
+Temple search across the assigned district with multi-attribute filters
+Aggregated temple profile viewing (read-only) combining temple, trust, employees, contractors, asset declarations, and documents
+Approval workflow execution on asset declarations: approve, reject, request clarification, flag for physical verification
+Temple profile staging review: approve or reject profile submissions from Temple Authority
+DC dashboard: KPI metrics, grade distribution, overdue alerts, recent activity feed
+Notification inbox: view, mark as read, mark all as read
+Export: generate PDF or CSV filtered temple reports, sync or async depending on volume
+Current user context endpoint: provide role, district, and identity to the frontend
+Geo hierarchy read endpoints: required by frontend filter dropdowns
+1.3 BOUNDARIES - WHAT THIS MODULE DOES NOT INCLUDE
+
+Authentication, MFA, token issuance, JWT filter, Spring Security configuration (Auth Module prerequisite)
+Temple data creation and editing (Temple Authority Module)
+Employee and contractor management (Temple Authority Module)
+Document upload (Temple Authority only)
+User management administration (Super Admin Module)
+Audit log viewing (Super Admin Module)
+Notification delivery via email and SMS channels (Notification Dispatch Module, separate poller/worker)
+Scheduled jobs: overdue flagging, reminder emails, search summary reconciliation batch
+AES-256-GCM encryption infrastructure (shared infrastructure prerequisite that must exist before DC module starts)
+Geo master data seeding and management (Super Admin scope)
+
+⚠️ FUTURE ROLE NOTE (P2-7 — State Government / Audit Bodies viewer role): The original requirements (Section 2.1 of temple_registry_requirements.txt) list State Government officials and Audit Bodies as stakeholders with read-only access to reports and public disclosures. This role (tentatively AUDITOR or STATE_VIEWER) is NOT implemented in v1 of the DC module. This is an accepted deferral. A dedicated viewer module or a future API v2 extension will introduce this role. Until then, audit bodies receive exported reports via the DISTRICT_COLLECTOR export function outside the portal.
+================================================================================
+SECTION 2: CORE ARCHITECTURAL DECISIONS
+2.1 PRIMARY KEY STRATEGY
+
+DECISION: All database entity tables use BIGINT AUTO_INCREMENT as the primary key. Entity classes map this as Long id in Java. The database generates primary keys via the MySQL AUTO_INCREMENT mechanism. The application NEVER generates PKs; @GeneratedValue(strategy = GenerationType.IDENTITY) is the exclusive PK generation strategy on all entity classes.
+
+Rationale for BIGINT over UUID/CHAR(36):
+  - Joins are faster (integer comparison vs string comparison)
+  - Index size is smaller (8 bytes vs 36 bytes per FK reference)
+  - No external UUID library or @PrePersist hook required
+  - Fully deterministic ordering: id reflects insertion order
+  - Simpler to read in audit logs, support queries, and manual DB inspection
+  - Compatible with government data center databases that may not support UUID functions
+
+BaseEntity carries: id (Long, BIGINT AUTO_INCREMENT), isDeleted (Boolean default false), createdAt (LocalDateTime), updatedAt (LocalDateTime), createdBy (Long, BIGINT FK to users.id), updatedBy (Long, BIGINT FK to users.id). The id field is the sole basis for equals() and hashCode() on all entity subclasses. No @PrePersist hook is needed; id assignment is handled by the database.
+
+All FK columns in every table are BIGINT NOT NULL (or BIGINT NULL for optional FKs) to match. The acknowledgement_sequences table (Section 4.12a) also uses BIGINT AUTO_INCREMENT for its seq_id counter column; this is consistent with the general BIGINT strategy.
+
+⚠️ JAVA ENTITY FIELD TYPE: All entity id fields are declared as Long id (not long — use the boxed type to allow null detection before persistence). All FK fields are declared as Long fkName (nullable FKs) or Long fkName @Column(nullable=false) (mandatory FKs). JPA @JoinColumn maps to the BIGINT FK column.
+
+⚠️ IMPLEMENTATION NOTE (F11 — lock_version naming): The JPA @Version optimistic locking column on asset_declarations MUST be named lock_version in DDL and lockVersion in Java. This avoids collision with version_number (the business submission counter). Entity annotation: @Version @Column(name = "lock_version") private int lockVersion; DDL: lock_version TINYINT UNSIGNED DEFAULT 0. The field name "version" is forbidden on this entity for this reason.
+
+🔗 CROSS-MODULE INTEGRATION CONTRACT (P1-4 — lock_version alignment): Both the DC module and the Temple Authority module MUST use the identical DDL column name lock_version on the asset_declarations table. If the TA module uses a different column name (e.g., "version" or "optimistic_lock"), Hibernate will fail to load the entity from the shared table with a mapping error. The canonical DDL definition lives in Flyway V8 under DC module schema ownership. The TA module MUST NOT redefine this column; it references the same V8 migration. This cross-module contract must be verified in a shared integration test that loads the AssetDeclaration entity from both module application contexts and asserts that the @Version field resolves to lock_version.
+
+2.2 SOFT DELETE STRATEGY
+
+Two patterns coexist in this codebase.
+
+Pattern A (standard entities): Uses an is_deleted BOOLEAN column, default false. Applies to: temples, temple_profile_staging, trust_registrations, trust_board_members, asset_declarations, notification_events, in_app_notifications, and all geo entities. JPA filter annotation @SQLRestriction("is_deleted = false") is placed on the entity class. JPA delete override @SQLDelete issues an UPDATE SET is_deleted=true WHERE id=?. When a parent entity is soft-deleted, all children in the same aggregate are soft-deleted within the same transaction.
+
+Pattern B (people entities): Uses deleted_at (DATETIME nullable) and deleted_by (BIGINT FK nullable). Applies exclusively to employees and contractors. JPA filter annotation @SQLRestriction("deleted_at IS NULL") is placed on the entity class. JPA delete override @SQLDelete issues UPDATE SET deleted_at=NOW(6), deleted_by=? WHERE id=?. These entities retain full history in place when soft-deleted.
+
+⚠️ CONSTRAINT NOTE (F13 — employees CHECK constraint): Flyway V15 must add: ALTER TABLE employees ADD CONSTRAINT chk_emp_dates CHECK (date_of_leaving IS NULL OR date_of_leaving >= date_of_joining). This prevents corrupt data where a leaving date precedes the joining date. Enforcement is at the database level, not only application layer.
+
+2.3 ENCRYPTION HANDLING
+
+The AesEncryptionConverter is a REQUIRED infrastructure prerequisite. No entity annotated with @Convert(converter = AesEncryptionConverter.class) can be loaded by JPA without it. It must be fully implemented before any DC module entity class is compiled and loaded.
+
+AesEncryptionConverter specification:
+
+Algorithm: AES-256-GCM
+Key source: environment variable TRM_AES_KEY (32-byte base64-encoded string)
+IV: randomly generated per encryption, prepended to ciphertext before storage
+Failure behavior: if the key environment variable is absent or invalid length at startup, the application MUST fail to start immediately. Never silently fall back to plaintext storage or decryption.
+Encrypted fields and their display masking rules for API responses:
+
+trust_registrations.pan_number_encrypted: shown as AB*****1Z for DISTRICT_COLLECTOR and DC_STAFF; full PAN shown only for SUPER_ADMIN
+trust_board_members.pan_number_encrypted: shown as XXXXX9999X for ALL roles including SUPER_ADMIN. Never returned unmasked to any caller
+trust_board_members.aadhaar_encrypted: shown as XXXX-XXXX-1234 for all roles
+trust_registrations.bank_account_number_encrypted: shown as **XXXXX1234 for all roles
+employees.aadhaar_encrypted: shown as XXXX-XXXX-1234 for all roles
+Masking is applied exclusively in MapStruct mappers via @AfterMapping methods that call PiiMaskingService. PiiMaskingService performs two operations: (a) applies the mask string to the decrypted value, and (b) inserts a row into audit_pii_access_events. Both steps happen within the same read transaction as the data retrieval. The raw ciphertext string NEVER appears in any response DTO field under any circumstances.
+
+⚠️ CRITICAL IMPLEMENTATION NOTE (S5 — PiiMaskingService REQUIRES_NEW): PiiMaskingService.mask() MUST be annotated @Transactional(propagation = REQUIRES_NEW). The calling read services use @Transactional(readOnly = true), which marks the JDBC connection as read-only. Any INSERT under a read-only connection (the audit_pii_access_events write) throws a runtime exception. REQUIRES_NEW suspends the outer read-only transaction, opens a new writable connection for the audit INSERT, commits it, then resumes the outer context. Omitting REQUIRES_NEW causes production failures on every PII field access.
+
+2.4 RBAC ENFORCEMENT STRATEGY
+
+Layer 1 - Method-level authorization: @PreAuthorize annotations on every public method of every service interface. This requires @EnableMethodSecurity(prePostEnabled = true) to be present on the SecurityConfig class. SecurityConfig is an Auth Module prerequisite. If @EnableMethodSecurity is absent, all @PreAuthorize checks are silently ignored. A mandatory build-time integration test verifies that a DC_STAFF principal attempting to call approve() receives HTTP 403, catching this misconfiguration.
+
+Layer 2 - District scope assertion: Every service method that loads a single entity by ID calls assertDistrictScope(entityId, currentUser) immediately after loading the entity. For SUPER_ADMIN principals, the check returns immediately without restriction. For DISTRICT_COLLECTOR and DC_STAFF principals, if the entity's district does not match the principal's districtId, DistrictScopeViolationException is thrown. The GlobalExceptionHandler maps DistrictScopeViolationException to HTTP 404 Not Found, deliberately and always. The 404 response prevents information leakage about entity existence in other districts. A 403 is never returned for district scope violations on single-entity access.
+
+Layer 3 - Query-level district filter: For all list operations, the district constraint is injected directly into repository queries via a parameterized WHERE clause. SUPER_ADMIN principals receive a null districtId value; when districtId is null, the query omits the district WHERE clause entirely, returning all districts.
+
+🔒 SECURITY HARDENING NOTES (RBAC):
+(R1 — Cross-service RBAC bypass via direct call): ArchUnit test required: no service class may invoke a method on another service class that carries @PreAuthorize. Calling a @PreAuthorize-protected method from within another Spring bean bypasses the AOP proxy if the call is on the injected interface, but only works correctly if the target bean is injected and called via its interface. ExportService calls TempleSearchSummaryRepository directly (not DcTempleSearchService) for this exact reason — see Section 6.10.
+(R2 — Interface injection): All Spring-injected collaborators must be declared as their interface type in constructors, never as *ServiceImpl. This ensures AOP proxies wrap every injected instance and @PreAuthorize, @Transactional, and @Async annotations take effect.
+(R3 — @EnableMethodSecurity integration test requirement): The integration test verifying that DC_STAFF principal cannot call approve() MUST use @SpringBootTest (full application context). @WebMvcTest slices do NOT load @EnableMethodSecurity and give false-passing results — silently ignoring all @PreAuthorize annotations.
+(R4 — Null districtId non-SA is always an error): If assertDistrictScope is called for a CurrentUser whose role is NOT SUPER_ADMIN and whose districtId is null, throw IllegalStateException (not NullPointerException, not DistrictScopeViolationException). Null districtId on a non-SA principal indicates a corrupted JWT or a programming error, never a valid bypass.
+
+2.5 DISTRICT SCOPING LOGIC
+
+The district_id is extracted from JWT claims by JwtAuthenticationFilter and placed in the CurrentUser principal object at request initialization. Any district_id value provided by the client in URL parameters or request body is silently overridden with the value from the JWT claims. There is no configuration that allows this override to be disabled.
+
+District scope traversal path for temples:
+temples.hobli_id -> geo_hoblis.taluk_id -> geo_taluks.district_id
+
+This three-hop join must be executed as a SQL JOIN chain, never as nested IN subqueries. Nested IN subqueries cause full-table scans at 30,000+ temple scale and are explicitly forbidden.
+
+For SUPER_ADMIN: districtId in JWT claims is null. The query omits the district JOIN constraint. All temples across all districts are returned.
+
+🔒 SECURITY HARDENING NOTES (scope traversal):
+(R5 — JWT trust dependency): The DC module fully trusts all claims in the issued JWT (role, districtId, userId). If the Auth Module issues an incorrect JWT, the DC module has no secondary verification layer. This is an accepted system-level trust boundary.
+(R6 — assertDistrictScope argument is always the Temple entity): assertDistrictScope receives the fully-loaded Temple entity, never a raw districtId. It traverses temple.getHobli().getTaluk().getDistrict().getId() internally. Never accept a raw district ID string as the scope check argument — it would allow callers to pass an unverified ID and defeat the check.
+
+⚠️ NULL-GUARD REQUIREMENT (P0-4 — assertDistrictScope three-hop traversal): Before traversing temple.getHobli().getTaluk().getDistrict().getId(), each hop MUST be null-checked. Specifically:
+  if (temple.getHobli() == null) throw new EntityNotFoundException("Temple has no hobli assignment: " + temple.getId());
+  if (temple.getHobli().getTaluk() == null) throw new EntityNotFoundException("Hobli has no taluk assignment: " + temple.getHobli().getId());
+  if (temple.getHobli().getTaluk().getDistrict() == null) throw new EntityNotFoundException("Taluk has no district assignment: " + temple.getHobli().getTaluk().getId());
+  Allowing any hop to return null would produce a NullPointerException that escalates to HTTP 500 instead of a meaningful error. If geo seed data is incomplete (e.g., a hobli row has a null taluk_id FK in the database), the null-guard converts the runtime failure to EntityNotFoundException → HTTP 404, and the error is surfaced as a data integrity alert rather than an uncaughtexception. The null-guard check is placed inside the assertDistrictScope() implementation, not in callers.
+(R7 — Identical 404 response body for scope violations and not-found): The HTTP 404 JSON body is byte-for-byte identical for EntityNotFoundException and DistrictScopeViolationException. Fixed body: {"success":false,"message":"The requested resource was not found.","errorCode":null,"errors":null}. Never include entity name, entity ID, or district information in any 404 body.
+(R8 — Timing oracle mitigation): GlobalExceptionHandler adds a random delay of 0–20 milliseconds before returning any HTTP 404. This prevents distinguishing "entity not found" from "entity out of district" via response time. Implemented via ThreadLocalRandom.current().nextLong(0, 20) with Thread.sleep in the 404 handler before response construction.
+
+2.6 TEMPLE SEARCH SUMMARY SYNC STRATEGY
+
+temple_search_summary is a denormalized persistent table with one row per temple. It stores precomputed counts and status fields for fast search and dashboard aggregation. It is not a database view; it is a regular table updated by application code.
+
+Sync mechanism for DC workflow actions: After every successful workflow action (approve, reject, clarify, flag-physical-verification, approveProfile, rejectProfile), the service calls TempleSearchSummaryService.refresh(templeId) within the SAME @Transactional boundary as the workflow action. The refresh method executes a native UPDATE query that recomputes the summary row for the specific temple. If the refresh fails, the entire transaction rolls back, preventing inconsistency between the summary and the normalized tables.
+
+Initial population: V14 Flyway migration creates the table structure. A one-time backfill script, executed as part of first deployment, populates existing rows. The DC module itself does not contain the backfill logic.
+
+Scheduled updates: Overdue flagging, year-end processing, and periodic reconciliation updates to this table are the responsibility of the Scheduled Jobs Module (out of DC module scope). The DC module's synchronous within-transaction refresh handles all workflow-driven changes.
+
+🔗 CROSS-MODULE INTEGRATION CONTRACT (P1-5 — Temple Authority module MUST trigger refresh on declaration submission): When the Temple Authority module transitions an asset declaration from DRAFT to PENDING_REVIEW (the submission action), the TA module MUST call TempleSearchSummaryService.refresh(templeId) within the same transaction as the status update. If this call is absent, the DC dashboard's pending_declarations count remains at 0 for the newly submitted declaration until the DC performs the first workflow action on it. The DC cannot discover the new submission via search or dashboard KPIs.
+
+Failure scenario: TA module submits declaration without triggering refresh → DC dashboard shows 0 pending → DC is unaware of new submissions → silent SLA breach.
+
+Mitigation if TA module fails to call refresh: The Scheduled Jobs Module's periodic reconciliation batch will eventually correct the summary. Maximum staleness window equals the reconciliation batch interval (configured externally, target ≤60 minutes).
+
+Enforcement: The TA module's declaration submission service must declare TempleSearchSummaryService as a constructor-injected dependency and call refresh(templeId) as the last step in the submission transaction, with propagation=REQUIRED so it joins the TA module's existing transaction.
+
+⚠️ KNOWN LIMITATION AND DATA NOTES:
+(S9 — pending_declarations count scope): The pending_declarations field in temple_search_summary counts declarations with status IN ('PENDING_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED'). All three statuses represent declarations actively requiring DC attention. Counting only PENDING_REVIEW would significantly undercount actionable items.
+(S18 — Summary staleness after temple transfers): If a temple's hobli is reassigned to a different district (out-of-scope inter-district transfer), district_id in temple_search_summary becomes stale until the next workflow action fires refresh(). The temple appears in the old district's summary until then. Document this limitation in ops runbooks; remediation requires a manual refresh after any geo-hierarchy reassignment.
+(F10 — Out-of-scope scheduler integration risk): If the Scheduled Jobs Module sets is_overdue=1 on asset_declarations without invoking TempleSearchSummaryService.refresh(), overdue_declarations in the summary becomes stale. The Scheduled Jobs Module MUST call the refresh service after each overdue-flagging batch. This is a cross-module integration contract that must be enforced at design time.
+
+2.7 ACKNOWLEDGEMENT NUMBER GENERATION
+
+Format: TRM/ACK/{financial_year}/{zero-padded 6-digit declaration id}
+Example: TRM/ACK/2025-26/000142
+
+Generation: Although asset_declarations.id is now a BIGINT AUTO_INCREMENT (globally sequential), it is NOT used directly for the acknowledgement number because it reveals the total number of declarations across all years and districts. A dedicated acknowledgement_sequences table provides per-financial-year sequential numbering (see Section 4.12a). It has two columns: seq_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY and financial_year CHAR(7) NOT NULL. On every APPROVED transition, the service executes INSERT INTO acknowledgement_sequences (financial_year) VALUES (:year) and immediately reads LAST_INSERT_ID(). This value is zero-padded to 6 digits for the acknowledgement number. MySQL AUTO_INCREMENT assignment is atomic; concurrent approvals produce different seq_id values by construction. The UNIQUE constraint on acknowledgement_number in asset_declarations is the database-level safety net.
+
+⚠️ IMPLEMENTATION NOTES:
+(S2 — seq_id zero guard): After INSERT INTO acknowledgement_sequences ... and reading LAST_INSERT_ID(), AcknowledgementNumberGenerator MUST assert that the returned value is > 0. If LAST_INSERT_ID() returns 0 (possible if the INSERT silently failed or the MySQL session was reset), throw AcknowledgementNumberConflictException immediately. Never produce acknowledgement number TRM/ACK/.../000000.
+(R9 — Sequential number disclosure): Sequential acknowledgement numbers reveal the cross-district approval rate to any observer comparing approval documents from different districts. This is an accepted disclosure — numbers appear on official government-issued documents and are not classified. Will not be remediated in v1.
+
+2.8 NOTIFICATION RELIABILITY STRATEGY
+
+Notifications are NOT published via Spring ApplicationEvent pub/sub. They are NOT dispatched via @TransactionalEventListener(AFTER_COMMIT). Those mechanisms risk silent event loss on pod restart between transaction commit and event dispatch.
+
+DECISION: A notification_events row is INSERTED into the database as part of the same @Transactional write transaction that executes the workflow action. This is a regular JPA repository save operation on the NotificationEvent entity. If the transaction commits, the notification row is committed atomically with the status change. If the transaction rolls back, the notification row is rolled back with it. No event is silently lost.
+
+ON-PREM CHANNEL RESTRICTION: In v1 of the on-prem deployment, the only active notification channel is IN_APP. Email and SMS delivery require external SMTP servers or telecom APIs that may not be available in every government data center. The notification_events.channels JSON column always stores ["IN_APP"] for all workflow-triggered notifications. email_status and sms_status tracking columns are retained in the schema for future extension but are not populated in v1.
+
+The Notification Dispatch Service (out of DC module scope) polls notification_events for rows with status=PENDING and creates in_app_notifications rows. The DC module only produces the event row with correct template_key, template_params, channels=["IN_APP"], and priority. It never calls any email or SMS provider.
+
+2.9 EXPORT ASYNC HANDLING
+
+Synchronous path: row count is fewer than 500. Export executes in the HTTP request thread. The file (PDF or CSV) is written to the local filesystem under {TRM_EXPORT_BASE_DIR}/exports/{jobId}.{pdf|csv}. Response returns a jobId and a relative download path; the caller fetches the file via GET /api/v1/export/{jobId}/download which streams the file from disk through the backend with permission checks.
+
+Asynchronous path: row count is 500 or more. Export is delegated to a bounded ThreadPoolTaskExecutor named exportExecutor. HTTP responds immediately with HTTP 202, a jobId, and status=ASYNC. When the async job completes, a notification_events row for template EXPORT_READY is inserted with a link_url pointing to GET /api/v1/export/{jobId}/download. The DC retrieves the link from their in-app notification inbox.
+
+AsyncConfig is a Spring @Configuration class that defines the exportExecutor bean and carries @EnableAsync. exportExecutor parameters:
+
+corePoolSize: 2
+maxPoolSize: 5
+queueCapacity: 10
+threadNamePrefix: export-
+rejectedExecutionHandler: AbortPolicy (returns HTTP 503 when queue is full; callers must retry)
+
+⚠️ CRITICAL IMPLEMENTATION NOTES (export async safety):
+(S10 — @Async self-invocation forbidden): The @Async export method MUST live on a separate Spring bean (AsyncExportBean), not on ExportServiceImpl itself. Calling this.doExportAsync() from ExportServiceImpl bypasses the AOP proxy and @Async has no effect — execution runs synchronously in the HTTP thread regardless of the annotation. Inject AsyncExportBean into ExportServiceImpl; call asyncExportBean.doExport(params).
+(S11 — Export audit INSERT in REQUIRES_NEW): AuditExportEventService.logExport() is annotated @Transactional(propagation = REQUIRES_NEW). The audit row commits in its own short transaction BEFORE the async job is submitted. If the queue is full (ExportQueueFullException), the audit row is already committed. Every export attempt is recorded regardless of queue state.
+(S16 — Export without audit is forbidden): If the audit_export_events INSERT fails (database error), abort the export and return HTTP 500. An export without an audit trail is never permitted.
+(S17 — Export deduplication via 409): If the same actor with identical filter parameters has an active export job submitted within the last 5 minutes, return HTTP 409 Conflict with the existing jobId. Do not create duplicate export jobs.
+(R10 — Export rate limit): Export endpoints are rate-limited to 5 requests per 10 minutes per authenticated user. Enforced via database-backed rate_request_log table (Section 4.12b). Returns HTTP 429 Too Many Requests with Retry-After header on breach.
+
+2.10 API RESPONSE ENVELOPE
+
+All endpoints in the DC module return responses in a consistent JSON envelope. The GlobalExceptionHandler (@RestControllerAdvice) is the sole producer of all error envelopes; controllers never construct error responses directly and never catch exceptions.
+
+Success response (HTTP 200, 201, 202):
+{ "success": true, "message": "string", "data": { ... } }
+
+For paginated list endpoints, "data" is the pagination wrapper object (see Section 7.3 for field names) placed directly inside "data" without additional nesting.
+
+Error response (HTTP 4xx and 5xx, excluding HTTP 400 validation errors):
+{ "success": false, "message": "Human-readable error summary", "errorCode": "TRM-WF-001", "errors": null }
+
+Validation error response (HTTP 400 MethodArgumentNotValidException only):
+{ "success": false, "message": "Validation failed", "errorCode": null, "errors": [ { "field": "remarks", "rejectedValue": "too short", "message": "Remarks must be at least 50 characters" } ] }
+
+Rules:
+- "errorCode" is present and non-null only for named domain exceptions per Section 5.5 (e.g. TRM-WF-001, TRM-DECL-010). It is null for HTTP 400 validation errors and for unhandled HTTP 500 errors.
+- "errors" array is non-null and non-empty ONLY for HTTP 400 validation failure responses (MethodArgumentNotValidException). It is null for all other response types.
+- The "message" field for a generic HTTP 500 error is always the fixed string: "An internal error occurred. Please try again later." The actual cause is logged server-side with the request_id (from X-Request-Id header or MDC) as the correlation key. Stack traces and SQL error detail are never written to the response body.
+- FieldError.rejectedValue is included as a string in the validation error response. If the rejected value belongs to an encrypted field, GlobalExceptionHandler replaces it with the string REDACTED before serialization.
+- No field in any response ever contains raw ciphertext, AES key material, full stack traces, internal class names, or SQL error detail.
+================================================================================
+SECTION 3: DOMAIN MODEL (CONCEPTUAL)
+3.1 GEO HIERARCHY
+
+Five read-only master data entities forming a strict parent-child hierarchy used for scoping all temple data to a district.
+
+GeoState: Top-level administrative division. Fields: id, name, code.
+GeoCity: Second-level division. Fields: id, stateId FK, name, code.
+GeoDistrict: Third-level. The boundary unit for DC jurisdiction. Fields: id, cityId FK, name, code.
+GeoTaluk: Fourth-level subdivision of a district. Fields: id, districtId FK, name, code.
+GeoHobli: Lowest level. The geographic unit assigned to a temple. Fields: id, talukId FK, name, code.
+
+DC users are assigned to exactly one GeoDistrict. Temples are assigned to exactly one GeoHobli. The path from temple to district is: temple.hobliId -> GeoHobli.talukId -> GeoTaluk.districtId.
+
+3.2 TEMPLE CORE
+
+Temple: The master registration record for a temple. Has one GeoHobli. The temple is the root aggregate owner for trust, employees, contractors, and declarations. Key identity fields: registrationNumber (unique), name, grade (A/B/C), status (ACTIVE/INACTIVE/SUSPENDED).
+
+TempleProfileStaging: A versioned draft of temple profile details submitted by Temple Authority for DC review. Multiple staging rows may exist per temple, but at most one may be in PENDING_REVIEW status at any time. Carries its own status driving the profile workflow. Has version field (1-based, incremented on rejection and resubmission).
+
+TempleProfileCurrent: The single currently-approved version of a temple's descriptive profile. At most one row per temple (unique constraint on temple_id). Replaced atomically when a new profile version is approved.
+
+TempleProfileHistory: Immutable archive of previously approved profile versions. Append-only. One new row is written whenever an existing approved profile is superseded by a newly approved version.
+
+3.3 TRUST
+
+TrustRegistration: The legal trust entity governing the temple. At most one row per temple may have status=ACTIVE at any time. Contains PAN and bank account in encrypted columns. Directly saved by Temple Authority; no DC approval workflow in v1.
+
+TrustBoardMember: An individual trustee linked to a trust. Has appointment and cessation dates. Multiple active board members per trust are permitted. Contains Aadhaar and PAN in encrypted columns.
+
+TrustFinancial: Annual income, expenditure, and closing balance for a trust. Unique per (trustId, financialYear) pair.
+
+TrustMeeting: Records of formal trust meetings. Multiple per trust. Has meeting_type ENUM (ANNUAL_GENERAL, EXTRAORDINARY, BOARD).
+
+3.4 PEOPLE
+
+Employee: A person employed by a temple. Has employee_type ENUM (ARCHAKA, ADMINISTRATIVE, ACCOUNTS, MAINTENANCE, SECURITY, OTHER) and employment_status ENUM (ACTIVE, ON_LEAVE, RETIRED, RESIGNED). Soft-deleted via deleted_at pattern (Pattern B). Historical records with RETIRED/RESIGNED status remain visible unless explicitly deleted.
+
+EmployeeSuccession: Records the hereditary chain for ARCHAKA-type employees. Links a predecessor employee to a successor via a self-referential FK. Maximum depth of 10 in the chain.
+
+Contractor: A company or individual contracted by a temple for specific work. Has contract_type ENUM and payment_status ENUM (PENDING, PARTIAL, COMPLETED, DISPUTED). Soft-deleted via deleted_at (Pattern B). Contains PAN in encrypted column.
+
+3.5 ASSET DECLARATIONS
+
+AssetDeclaration: The annual asset and financial declaration submitted by Temple Authority for a specific financial year. One declaration per (templeId, financialYear, versionNumber). The versionNumber increments when a rejected declaration is superseded by a new submission. Has @Version field for JPA optimistic locking. snapshot_json is frozen at transition to PENDING_REVIEW and never modified after.
+
+DeclarationClarification: A single thread entry in a DC-Temple clarification exchange. Has direction ENUM (DC_TO_TEMPLE or TEMPLE_TO_DC) and a free-text section_name field. When direction is DC_TO_TEMPLE and section_name is PHYSICAL_VERIFICATION, the row serves as the physical verification findings record required before completing a physical verification workflow.
+
+Asset sub-tables (8 total): Each is a child of AssetDeclaration linked by declaration_id FK.
+Immovable assets: decl_immov_agri_land (agricultural land parcels), decl_immov_building (temple complex buildings), decl_immov_leased (leased properties), decl_immov_other (other land).
+Movable assets: decl_mov_precious_metal (gold, silver items), decl_mov_artifact (idols, sacred artifacts), decl_mov_vehicle (vehicles), decl_mov_equipment (electronic and office equipment).
+Financial instruments are stored as summary aggregate fields on the AssetDeclaration row itself (annual_income and annual_expenditure as DECIMAL(15,2)). Individual financial instruments (FDs, securities, bank balances) are NOT itemized in v1 sub-tables; only totals are captured. This is an accepted scope limitation — itemized financial asset tracking is deferred to a future version. Business justification: HR&CE Act compliance for v1 requires declaration totals only; itemized schedules are for audit-level review not yet in scope.
+
+3.6 NOTIFICATIONS
+
+NotificationEvent: An outbound delivery job row inserted by the application within the workflow transaction. Carries template_key (string identifying the message template), template_params (JSON snapshot of values at creation time), channels (JSON array; v1 on-prem: always ["IN_APP"]), priority, and retry tracking fields. Consumed by the Notification Dispatch Service (out of scope).
+
+InAppNotification: The DC's in-app inbox record. Created by the Notification Dispatch Service after processing the NotificationEvent. Read by the DC module's NotificationQueryService. Has is_read flag and read_at timestamp.
+
+3.7 SEARCH SUMMARY
+
+TempleSearchSummary: One denormalized row per temple. Stores precomputed counts (pending_declarations, overdue_declarations, pending_profile_review) and denormalized geo identifiers (district_id, taluk_id, hobli_id) for fast WHERE filtering without joins to normalized geo tables. Used exclusively for read operations: search results and dashboard aggregation. Never used as input to workflow logic; normalized tables are always the source of truth for workflow.
+
+3.8 OWNERSHIP BOUNDARIES
+
+Temple Authority owns: temple creation, all staging submissions, employee and contractor management, declaration creation and submission, document upload.
+District Collector owns: workflow action execution (approve/reject/clarify/flag), read-only access to all entities within their district, dashboard, export.
+Super Admin owns: read access across all districts, force-draft override, user management, audit access.
+System (schedulers) owns: overdue flagging updates to asset_declarations, search summary reconciliation.
+DC Module owns in this specification: DC workflow, DC dashboard, DC search, DC export, notification inbox, and the /auth/me and geo read endpoints that the frontend depends on.
+
+================================================================================
+SECTION 4: DATABASE DESIGN (LOGICAL)
+4.1 GEO HIERARCHY TABLES
+
+geo_states: id BIGINT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, code VARCHAR(10) UNIQUE NOT NULL.
+geo_cities: id BIGINT AUTO_INCREMENT PRIMARY KEY, state_id BIGINT NOT NULL (FK geo_states.id), name VARCHAR(100) NOT NULL, code VARCHAR(20) NOT NULL.
+geo_districts: id BIGINT AUTO_INCREMENT PRIMARY KEY, city_id BIGINT NOT NULL (FK geo_cities.id), name VARCHAR(100) NOT NULL, code VARCHAR(20) NOT NULL.
+geo_taluks: id BIGINT AUTO_INCREMENT PRIMARY KEY, district_id BIGINT NOT NULL (FK geo_districts.id), name VARCHAR(100) NOT NULL, code VARCHAR(20) NOT NULL.
+geo_hoblis: id BIGINT AUTO_INCREMENT PRIMARY KEY, taluk_id BIGINT NOT NULL (FK geo_taluks.id), name VARCHAR(100) NOT NULL, code VARCHAR(20) NOT NULL.
+
+No soft-delete on geo tables. FK CONSTRAINT on all child FK columns. Indexes: all FK columns indexed.
+
+4.2 USERS TABLE
+
+id BIGINT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(100) UNIQUE NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL (bcrypt cost factor 12 minimum), role ENUM(SUPER_ADMIN, DISTRICT_COLLECTOR, DC_STAFF, TEMPLE_AUTHORITY) NOT NULL, district_id BIGINT NULL (FK geo_districts.id; required for DC roles, validated at service layer on user creation), temple_id BIGINT NULL (FK temples.id; required for TEMPLE_AUTHORITY; deferred FK — added in V15 per F1 note), is_active TINYINT(1) DEFAULT 1, failed_login_count TINYINT UNSIGNED DEFAULT 0, locked_until DATETIME(6) NULL, mfa_enabled TINYINT(1) DEFAULT 0, mfa_type ENUM(TOTP, SMS_OTP) NULL, mfa_secret_encrypted TEXT NULL, mfa_phone VARCHAR(15) NULL, last_login_at DATETIME(6) NULL, password_changed_at DATETIME(6) NULL, token_revoked_before DATETIME(6) NULL (used for instant token invalidation on district reassignment), is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL.
+
+Index: idx_user_role ON (role, is_active).
+
+⚠️ CONSTRAINT NOTE (F13 — users role/district_id guard): Add CHECK constraint in Flyway V15: ALTER TABLE users ADD CONSTRAINT chk_user_district CHECK (
+  (role IN ('DISTRICT_COLLECTOR','DC_STAFF') AND district_id IS NOT NULL)
+  OR (role = 'TEMPLE_AUTHORITY' AND temple_id IS NOT NULL)
+  OR role = 'SUPER_ADMIN'
+). This enforces at the DB level that DC-role users always have a district_id and TA-role users always have a temple_id. The application service layer validates this on user creation, but the DB constraint is the safety net.
+
+4.3 TEMPLES TABLE
+
+id BIGINT AUTO_INCREMENT PRIMARY KEY, registration_number VARCHAR(50) UNIQUE NOT NULL, name VARCHAR(255) NOT NULL, grade ENUM(A, B, C) NOT NULL, hobli_id BIGINT NOT NULL (FK geo_hoblis.id), address_line1 VARCHAR(255), address_line2 VARCHAR(255) NULL, pincode CHAR(6) NOT NULL, deity_name VARCHAR(255) NOT NULL, alias_name VARCHAR(200) NULL, religious_tradition ENUM(SHAIVITE, VAISHNAVITE, SHAKTA, JAIN, BUDDHIST, OTHER) DEFAULT OTHER, gps_latitude DECIMAL(10,7) NULL, gps_longitude DECIMAL(10,7) NULL, landmark VARCHAR(500) NULL, established_year SMALLINT UNSIGNED NULL, historical_significance TEXT NULL, status ENUM(ACTIVE, INACTIVE, SUSPENDED) DEFAULT ACTIVE, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL.
+
+Indexes: idx_temples_hobli ON (hobli_id), idx_temples_grade ON (grade, status), idx_temples_status ON (status, is_deleted).
+
+4.4 TEMPLE PROFILE TABLES
+
+temple_profile_staging: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), version INT NOT NULL (1-based increment per temple), status ENUM(DRAFT, PENDING_REVIEW, APPROVED, REJECTED, SUPERSEDED), all profile content fields (contact_person_name VARCHAR(255), contact_person_designation VARCHAR(100), photo_file_path VARCHAR(1000) NULL (relative path under {TRM_FILE_BASE_DIR}/temple_documents/; replaces S3 key), bank_account_number_encrypted TEXT, languages_of_worship VARCHAR(500), linked_institutions JSON NULL (stores a JSON array of linked mutt or sub-temple names; supports multiple linked institutions per requirements), annual_festivals TEXT, etc.), submitted_at DATETIME NULL, submitted_by BIGINT NULL (FK users.id), reviewed_at DATETIME NULL, reviewed_by BIGINT NULL (FK users.id), review_comment TEXT NULL, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Unique constraint: (temple_id, version).
+
+temple_profile_current: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id) UNIQUE (only one current record per temple), all approved profile content fields mirroring staging content including photo_file_path, published_at DATETIME NOT NULL, published_by BIGINT NOT NULL (FK users.id), created_at DATETIME(6), updated_at DATETIME(6).
+
+temple_profile_history: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), version INT NOT NULL, all profile content fields including photo_file_path, published_at DATETIME NOT NULL. Append-only, no soft-delete, no update ever. created_at DATETIME(6).
+
+⚠️ INDEX NOTE (F8 — temple_profile_staging missing index): Add idx_profile_staging_temple_status ON temple_profile_staging (temple_id, status). This index is required for the TempleSearchSummaryService.refresh() sub-query that counts pending_profile_review rows. Without it, the refresh sub-query performs a full table scan on temple_profile_staging at 30,000+ temple scale.
+⚠️ FIRST-TIME APPROVAL NOTE (S7): approveProfile() must check whether a temple_profile_current row already exists for this temple before attempting the archive step. First-time profile approval: no history INSERT occurs (there is no existing current to archive). Subsequent approvals: INSERT into history, then UPDATE current. Use a conditional statement, not an unconditional INSERT into history.
+
+4.5 TRUST TABLES
+
+trust_registrations: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), trust_name VARCHAR(255), registration_number VARCHAR(100) UNIQUE NOT NULL, registration_date DATE, registering_authority VARCHAR(255), trust_type ENUM(PUBLIC, PRIVATE), pan_number_encrypted TEXT NULL, bank_account_number_encrypted TEXT NULL, bank_name VARCHAR(255) NULL, bank_branch VARCHAR(255) NULL, annual_income_approx DECIMAL(15,2), address TEXT NULL, status ENUM(ACTIVE, DISSOLVED) DEFAULT ACTIVE, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Index: idx_trust_temple ON (temple_id, status).
+
+trust_board_members: id BIGINT AUTO_INCREMENT PRIMARY KEY, trust_id BIGINT NOT NULL (FK trust_registrations.id), name VARCHAR(255), designation VARCHAR(100), aadhaar_encrypted TEXT NULL, pan_number_encrypted TEXT NULL, phone VARCHAR(15) NULL, email VARCHAR(255) NULL, address TEXT NULL, appointment_date DATE NOT NULL, cessation_date DATE NULL, is_active TINYINT(1) DEFAULT 1, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Index: idx_board_trust_active ON (trust_id, is_active).
+
+trust_financials: id BIGINT AUTO_INCREMENT PRIMARY KEY, trust_id BIGINT NOT NULL (FK trust_registrations.id), financial_year CHAR(7) NOT NULL (format YYYY-YY), gross_income DECIMAL(15,2), expenditure DECIMAL(15,2), closing_balance DECIMAL(15,2), is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Unique: (trust_id, financial_year).
+
+trust_meetings: id BIGINT AUTO_INCREMENT PRIMARY KEY, trust_id BIGINT NOT NULL (FK trust_registrations.id), meeting_type ENUM(ANNUAL_GENERAL, EXTRAORDINARY, BOARD), meeting_date DATE, minutes_file_path VARCHAR(1000) NULL (relative path under {TRM_FILE_BASE_DIR}/trust_documents/; replaces minutes_s3_key), attended_count INT, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL.
+
+4.6 EMPLOYEE TABLES
+
+employees: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), employee_id VARCHAR(50) NULL (business identifier, not the PK), employee_type ENUM(ARCHAKA, ADMINISTRATIVE, ACCOUNTS, MAINTENANCE, SECURITY, OTHER) NOT NULL, employment_status ENUM(ACTIVE, ON_LEAVE, RETIRED, RESIGNED) DEFAULT ACTIVE, name VARCHAR(255) NOT NULL, aadhaar_encrypted TEXT NULL, pan_number VARCHAR(10) NULL, date_of_birth DATE NULL, date_of_joining DATE NOT NULL, date_of_leaving DATE NULL, is_hereditary_succession TINYINT(1) DEFAULT 0, designation VARCHAR(100) NULL, salary_grade VARCHAR(50) NULL, mobile VARCHAR(15) NULL, address TEXT NULL, deleted_at DATETIME(6) NULL, deleted_by BIGINT NULL (FK users.id), created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Unique: (temple_id, employee_id) where employee_id is not null. Indexes: idx_emp_temple_type ON (temple_id, employee_type, deleted_at), idx_emp_temple_status ON (temple_id, employment_status, deleted_at).
+
+employee_succession: id BIGINT AUTO_INCREMENT PRIMARY KEY, employee_id BIGINT NOT NULL (FK employees.id), predecessor_id BIGINT NULL (FK employees.id), succession_date DATE, documentation_ref VARCHAR(500) NULL.
+
+⚠️ CONSTRAINT NOTES (F13, F15):
+(F13 — employees date CHECK): Flyway V15 adds: ALTER TABLE employees ADD CONSTRAINT chk_emp_dates CHECK (date_of_leaving IS NULL OR date_of_leaving >= date_of_joining).
+(F15 — succession cycle detection): EmployeeSuccession chain must be validated at the service layer (Temple Authority Module scope, but documented here for DB design awareness). Maximum allowed chain depth is 10 hops. Before inserting a new employee_succession row, traverse the predecessor chain up to depth 10; if the target employee_id appears anywhere in the chain, throw SuccessionCycleException. A direct database FK cycle (employee linking to itself) must be rejected with a CHECK constraint: ALTER TABLE employee_succession ADD CONSTRAINT chk_no_self_succession CHECK (employee_id != predecessor_id).
+
+4.7 CONTRACTOR TABLE
+
+contractors: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), contractor_name VARCHAR(255) NOT NULL, gst_number VARCHAR(15) NULL, pan_number_encrypted TEXT NULL, contract_type ENUM(CIVIL_WORKS, ELECTRICAL, SECURITY, CATERING, EVENTS, MAINTENANCE, OTHER) NOT NULL, contract_reference_number VARCHAR(100) NOT NULL, work_order_date DATE NOT NULL, contract_start_date DATE NOT NULL, contract_end_date DATE NULL (null means open-ended), contract_value DECIMAL(15,2) NULL, payment_status ENUM(PENDING, PARTIAL, COMPLETED, DISPUTED) DEFAULT PENDING, works_description TEXT NULL, deleted_at DATETIME(6) NULL, deleted_by BIGINT NULL (FK users.id), created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Indexes: idx_contractor_temple ON (temple_id, deleted_at), idx_contractor_payment ON (temple_id, payment_status, deleted_at).
+
+4.8 ASSET DECLARATION TABLES
+
+asset_declarations: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (FK temples.id), financial_year CHAR(7) NOT NULL, version_number INT UNSIGNED NOT NULL DEFAULT 1, status ENUM(DRAFT, PENDING_REVIEW, APPROVED, CLARIFICATION_REQUESTED, PHYSICAL_VERIFICATION_REQUESTED, REJECTED, SUPERSEDED) DEFAULT DRAFT, annual_income DECIMAL(15,2) NULL, annual_expenditure DECIMAL(15,2) NULL, acknowledgement_number VARCHAR(30) NULL, acknowledgement_doc_file_path VARCHAR(1000) NULL (relative path under {TRM_FILE_BASE_DIR}/asset_declarations/{id}/ack.pdf), snapshot_json JSON NULL (frozen at PENDING_REVIEW, never modified after), snapshot_file_path VARCHAR(1000) NULL (relative path under {TRM_FILE_BASE_DIR}/asset_declarations/{id}/snapshot.json; used when snapshot exceeds 10KB to avoid DB row bloat), submitted_at DATETIME(6) NULL, submitted_by BIGINT NULL (FK users.id), reviewed_at DATETIME(6) NULL, reviewed_by BIGINT NULL (FK users.id), review_comment TEXT NULL, acknowledged_at DATETIME(6) NULL, is_overdue TINYINT(1) DEFAULT 0, overdue_flagged_at DATETIME(6) NULL, clarification_round TINYINT UNSIGNED DEFAULT 0, lock_version TINYINT UNSIGNED NOT NULL DEFAULT 0 (the JPA @Version optimistic lock field), is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Unique: (temple_id, financial_year, version_number). Indexes: idx_decl_temple_year ON (temple_id, financial_year), idx_decl_status ON (status, submitted_at), idx_decl_overdue ON (is_overdue, status, temple_id).
+
+declaration_clarifications: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL (FK asset_declarations.id), direction ENUM(DC_TO_TEMPLE, TEMPLE_TO_DC) NOT NULL, section_name VARCHAR(100) NOT NULL, field_names_json JSON NULL, comment_text TEXT NOT NULL, created_by BIGINT NOT NULL (FK users.id), created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6). Indexes: idx_clar_decl ON (declaration_id, created_at), idx_clar_section ON (declaration_id, section_name, direction).
+
+⚠️ IMPLEMENTATION NOTES (F5, F9, F11, S6):
+(F11 — lock_version column name): The @Version column on asset_declarations is named lock_version (see Section 2.1 note). DDL: lock_version TINYINT UNSIGNED NOT NULL DEFAULT 0. This replaces any draft that incorrectly names it "version" — which would conflict with version_number.
+(F9 — idx_decl_overdue column order fix): Replace idx_decl_overdue ON (is_overdue, temple_id) with idx_decl_overdue ON (is_overdue, status, temple_id). The status column is required to filter out terminal states (APPROVED, SUPERSEDED, REJECTED) when computing overdue counts, making the index cover the actual overdue-dashboard query fully.
+(F5 — Additional clarifications index): Add idx_clar_section ON declaration_clarifications (declaration_id, section_name, direction). This index is required for the physical verification guard query: DeclarationClarificationRepository.existsByDeclarationIdAndSectionNameAndDirection() which executes on every PHYSICAL_VERIFICATION_REQUESTED → APPROVED transition.
+(S6 — DC must not see DRAFT declarations): listDeclarations in DcTempleSubEntityService MUST add AND status != 'DRAFT' to the query. Temple Authority's draft declarations are not visible to DC. The filter is not optional; DRAFT declarations are Temple Authority's private work-in-progress.
+
+4.8a DOCUMENT TABLES (Flyway V9 and V10) (each linked via declaration_id BIGINT NOT NULL FK asset_declarations.id):
+decl_immov_agri_land: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, survey_number VARCHAR(100), area_acres DECIMAL(10,4), location VARCHAR(500), encumbrance TEXT, annual_lease_income DECIMAL(15,2).
+decl_immov_building: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, structure_type VARCHAR(100), area_sqft DECIMAL(12,2), condition VARCHAR(100), valuation DECIMAL(15,2).
+decl_immov_leased: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, lessee_name VARCHAR(255), lease_expiry DATE, annual_rent DECIMAL(15,2).
+decl_immov_other: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, description TEXT, area DECIMAL(12,4), valuation DECIMAL(15,2).
+decl_mov_precious_metal: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, item_type VARCHAR(100), weight_grams DECIMAL(10,3), purity VARCHAR(50), estimated_value DECIMAL(15,2).
+decl_mov_artifact: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, name VARCHAR(255), description TEXT, estimated_value DECIMAL(15,2), storage_location VARCHAR(255).
+decl_mov_vehicle: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, vehicle_type VARCHAR(100), registration_number VARCHAR(20), year_of_purchase INT, current_value DECIMAL(15,2).
+decl_mov_equipment: id BIGINT AUTO_INCREMENT PRIMARY KEY, declaration_id BIGINT NOT NULL, description VARCHAR(255), quantity INT, unit_value DECIMAL(15,2), total_value DECIMAL(15,2).
+
+4.8a DOCUMENT TABLES (Flyway V9 and V10)
+
+documents: id BIGINT AUTO_INCREMENT PRIMARY KEY, original_filename VARCHAR(500) NOT NULL, file_path VARCHAR(1000) NOT NULL UNIQUE (relative path under the configured TRM_FILE_BASE_DIR, e.g. temple_documents/2024/06/deed_12345.pdf; replaces S3 key; stored relative to allow base directory relocation without DB updates), mime_type VARCHAR(100) NOT NULL (e.g. application/pdf, image/jpeg), file_size_bytes BIGINT UNSIGNED NOT NULL, document_type ENUM(IDENTITY_PROOF, LAND_DEED, TRUST_DEED, FINANCIAL_STATEMENT, GOVT_ORDER, PHOTO, MINUTES, OTHER) NOT NULL, description VARCHAR(500) NULL, uploaded_by BIGINT NOT NULL (FK users.id), is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Index: idx_doc_uploader ON (uploaded_by, is_deleted).
+
+document_associations: id BIGINT AUTO_INCREMENT PRIMARY KEY, document_id BIGINT NOT NULL (FK documents.id), entity_type ENUM(TEMPLE, DECLARATION, TRUST, CONTRACTOR) NOT NULL, entity_id BIGINT NOT NULL (logical FK referencing the BIGINT PK of the table named by entity_type; not a database-level FK because it spans four different tables), association_role VARCHAR(100) NOT NULL (describes the purpose of the document; validated against constant set in service layer), created_by BIGINT NOT NULL (FK users.id), created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6). Unique constraint: (document_id, entity_type, entity_id). Indexes: idx_docassoc_entity ON (entity_type, entity_id), idx_docassoc_doc ON (document_id). No soft-delete column. Associations are immutable once created.
+
+⚠️ SCHEMA FIX NOTE (P0-2 — CONTRACTOR added to entity_type ENUM): The original entity_type ENUM(TEMPLE, DECLARATION, TRUST) was missing CONTRACTOR. Requirements (Section 3.4.2a) mandate that contractor contract documents (PDF) must be uploadable and associatable. Flyway V15 must ALTER TABLE document_associations MODIFY COLUMN entity_type ENUM('TEMPLE','DECLARATION','TRUST','CONTRACTOR') NOT NULL; MySQL ENUM extensions are backward-compatible (existing rows are unaffected). Add this ALTER as the first statement in V15.
+
+document_access_log (V10): id BIGINT AUTO_INCREMENT PRIMARY KEY, document_id BIGINT NOT NULL (FK documents.id), accessed_by BIGINT NOT NULL (FK users.id), access_type ENUM(VIEW_METADATA, DOWNLOAD) NOT NULL, accessed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), ip_address VARCHAR(45) NULL. INSERT-only; no soft-delete; no updates ever. Indexes: idx_doclog_doc ON (document_id, accessed_at), idx_doclog_user ON (accessed_by, accessed_at).
+
+Document access control rules:
+UPLOAD: TEMPLE_AUTHORITY only. Out of DC module scope per Section 1.3. The DC module contains no upload endpoint and no document mutation endpoints.
+LIST DOCUMENTS / VIEW METADATA: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. District scope enforced via the associated entity's temple: for entity_type=TEMPLE use the temple's own district; for entity_type=DECLARATION use declaration.temple.hobli.taluk.district; for entity_type=TRUST use trust.temple.hobli.taluk.district; for entity_type=CONTRACTOR use contractor.temple.hobli.taluk.district. All four paths use the three-hop join with null-guards (see Section 2.5 P0-4 note). SUPER_ADMIN bypasses the district check. Every listing call inserts one document_access_log row (access_type=VIEW_METADATA) per document ID returned, within the same read transaction.
+DOWNLOAD (local file streaming): DISTRICT_COLLECTOR and SUPER_ADMIN only. DC_STAFF receives HTTP 403. Backend streams the file from local filesystem using documents.file_path resolved against TRM_FILE_BASE_DIR. No presigned URLs. Every successful download generates a document_access_log row (access_type=DOWNLOAD) within the same transaction as the streaming initiation. Response headers: Content-Disposition: attachment; filename="{original_filename}", Content-Type: {mime_type}.
+SOFT DELETE: TEMPLE_AUTHORITY only. No delete endpoint in the DC module.
+
+DC module document endpoints:
+GET /api/v1/temples/{templeId}/documents: returns all documents with entity_type=TEMPLE associated to the given temple. Logs VIEW_METADATA.
+GET /api/v1/declarations/{declarationId}/documents: returns all documents with entity_type=DECLARATION. Logs VIEW_METADATA.
+GET /api/v1/contractors/{contractorId}/documents: returns all documents with entity_type=CONTRACTOR associated to the given contractor. District scope enforced via contractor.templeId (three-hop join with null-guards). Authorization: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. Logs VIEW_METADATA. (P0-2 fix: required by REQ 3.4.2a for contractor PDF association.)
+GET /api/v1/trusts/{trustId}/documents: returns all documents with entity_type=TRUST associated to the given trust. District scope enforced via trust.templeId (three-hop join). Authorization: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. Logs VIEW_METADATA. (P2-5 fix.)
+GET /api/v1/documents/{id}/download: streams the document file directly from local filesystem. Backend resolves documents.file_path against TRM_FILE_BASE_DIR, validates path traversal (file_path must not contain .. or absolute segments), checks district scope, logs DOWNLOAD, then streams bytes to the HTTP response. DISTRICT_COLLECTOR and SUPER_ADMIN only; DC_STAFF receives HTTP 403. No presigned URLs, no expiry TTL — access is controlled per-request by Spring Security and district scope check.
+
+⚠️ VALIDATION AND SECURITY NOTES (F14, R19):
+(F14 — association_role must be a constant set, not free-form VARCHAR): document_associations.association_role is defined as VARCHAR(100) in DDL, but the service layer MUST validate it against a fixed constant set before insert: {OWNERSHIP_PROOF, AUDIT_REPORT, MEETING_MINUTES, PHYSICAL_VERIFICATION_EVIDENCE, GOVT_APPROVAL, DECLARATION_SUPPORT, IDENTITY_PROOF, OTHER}. Free-form strings violate the document categorization contract. Validate in the Temple Authority Module's document upload service (out of DC scope), but DC module DocumentQueryService may need to display and filter by these values.
+(R19 — Orphaned document → 404): In DocumentQueryService.serveFile(), if no document_associations row exists for the given documentId (orphaned document with no entity linkage), throw EntityNotFoundException immediately — HTTP 404. Never stream a file for an orphaned document regardless of whether the documents row itself exists.
+(N1 — Path traversal prevention on file serve): Before opening the file at documents.file_path, the service MUST resolve the full absolute path and verify it starts with TRM_FILE_BASE_DIR. Any path containing ".." or absolute segments is rejected with HTTP 400. This prevents directory traversal attacks on the local filesystem.
+
+4.9 NOTIFICATION TABLES
+
+notification_events: id BIGINT AUTO_INCREMENT PRIMARY KEY, recipient_user_id BIGINT NOT NULL (FK users.id), template_key VARCHAR(100) NOT NULL, template_params JSON NOT NULL, channels JSON NOT NULL DEFAULT '["IN_APP"]' (in v1 on-prem deployment, only IN_APP is active; do not populate email or SMS channels), priority TINYINT NOT NULL DEFAULT 5, status ENUM(PENDING, PROCESSING, SENT, FAILED, SKIPPED) DEFAULT PENDING, in_app_status ENUM(PENDING, SENT, FAILED, SKIPPED) NULL, attempt_count TINYINT DEFAULT 0, max_attempts TINYINT DEFAULT 3, next_retry_at DATETIME(6) NULL, last_error TEXT NULL, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Index: idx_notif_pending ON (status, priority, next_retry_at).
+
+⚠️ NOTE: email_status and sms_status columns from earlier design are REMOVED in v1.3. If email/SMS channels are added in a future version, add the columns via a new Flyway migration. Do not pre-add unused columns.
+
+in_app_notifications: id BIGINT AUTO_INCREMENT PRIMARY KEY, recipient_user_id BIGINT NOT NULL (FK users.id), notification_event_id BIGINT NOT NULL (FK notification_events.id), title VARCHAR(255) NOT NULL, body TEXT NOT NULL, link_url VARCHAR(1000) NULL (for export-ready notifications: relative path to GET /api/v1/export/{jobId}/download), is_read TINYINT(1) DEFAULT 0, read_at DATETIME(6) NULL, is_deleted BOOLEAN DEFAULT false, created_at DATETIME(6), updated_at DATETIME(6), created_by BIGINT NULL, updated_by BIGINT NULL. Index: idx_inapp_user_unread ON (recipient_user_id, is_read, created_at).
+
+4.10 AUDIT TABLES (ALL APPEND-ONLY, NO UPDATE OR DELETE)
+
+audit_data_events: id BIGINT AUTO_INCREMENT PRIMARY KEY, actor_user_id BIGINT NOT NULL (logical FK to users.id — no physical FK; this is a partitioned table, see F2 note), table_name VARCHAR(100) NOT NULL, record_id BIGINT NOT NULL (logical FK to the BIGINT PK of the changed row), operation ENUM(INSERT, UPDATE, DELETE) NOT NULL, before_value JSON NULL (PII fields replaced with string REDACTED_ENCRYPTED), after_value JSON NULL (same PII masking), event_time DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), ip_address VARCHAR(45) NULL, request_id VARCHAR(100) NULL. Partitioned RANGE by YEAR(event_time). Database user granted INSERT only; UPDATE and DELETE revoked. No soft-delete column. Indexes: idx_ade_table_record ON (table_name, record_id, event_time), idx_ade_actor ON (actor_user_id, event_time), idx_ade_time ON (event_time).
+
+audit_auth_events: id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NULL (logical FK to users.id; null if user not found), username VARCHAR(100), event_type ENUM(LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT, MFA_FAILURE, ACCOUNT_LOCKED, PASSWORD_CHANGED, TOKEN_REFRESH), event_time DATETIME(6) NOT NULL, ip_address VARCHAR(45), user_agent TEXT, failure_reason TEXT NULL. INSERT-only, range-partitioned.
+
+audit_export_events: id BIGINT AUTO_INCREMENT PRIMARY KEY, actor_user_id BIGINT NOT NULL (logical FK to users.id), export_type VARCHAR(100) NOT NULL, filters_json JSON NOT NULL, record_count INT NOT NULL, file_format ENUM(PDF, CSV) NOT NULL, output_file_path VARCHAR(1000) NULL (relative path to generated export file), event_time DATETIME(6) NOT NULL, ip_address VARCHAR(45) NULL. INSERT-only.
+
+audit_pii_access_events: id BIGINT AUTO_INCREMENT PRIMARY KEY, actor_user_id BIGINT NOT NULL (logical FK to users.id), accessed_entity VARCHAR(100) NOT NULL, record_id BIGINT NOT NULL (BIGINT PK of the accessed row), field_accessed VARCHAR(100) NOT NULL, access_reason VARCHAR(255) NULL, event_time DATETIME(6) NOT NULL, ip_address VARCHAR(45) NULL, request_id VARCHAR(100) NULL. INSERT-only.
+
+⚠️ CRITICAL SCHEMA NOTES (F2, F6, F7):
+(F2 — BLOCKER: No physical FKs on partitioned tables): MySQL InnoDB raises ERROR 1506 if you attempt to define a FOREIGN KEY on a partitioned table. audit_data_events and audit_auth_events are partitioned tables. FK constraints on actor_user_id and user_id are therefore LOGICAL-ONLY — they are documented in the schema spec but MUST NOT appear as FOREIGN KEY clauses in the DDL. Omit the FK clause; document the logical relationship in comments only.
+(F6 — V11 partitions must include MAXVALUE and future boundaries): V11 DDL for partitioned audit tables must define explicit yearly partitions for p2025 through p2034, followed by a MAXVALUE catch-all partition (pmax). Without a MAXVALUE partition, inserting a row with event_time beyond the last explicit boundary causes a MySQL error. Annual maintenance procedure: add a new year partition before the year begins, shifting the MAXVALUE boundary forward.
+(F7 — audit_pii_access_events needs monthly/quarterly partitioning): audit_pii_access_events is the highest-volume append-only table (fires on every masked PII field access in every read request). It must be partitioned by RANGE(MONTH(event_time)) or RANGE(QUARTER(event_time)) for efficient purging, not just by YEAR. audit_export_events and document_access_log also require RANGE YEAR partitioning in V11.
+
+4.11 SEARCH SUMMARY TABLE
+
+temple_search_summary: id BIGINT AUTO_INCREMENT PRIMARY KEY, temple_id BIGINT NOT NULL (logical FK to temples.id) UNIQUE, district_id BIGINT NOT NULL (denormalized BIGINT, not an FK constraint to enable fast query without join), city_id BIGINT NOT NULL DEFAULT 0 (denormalized from district's city, for city-level filter support; populated by refresh(); P1-2 fix), taluk_id BIGINT NOT NULL (denormalized), hobli_id BIGINT NOT NULL (denormalized), temple_name VARCHAR(255) NOT NULL, temple_grade ENUM(A, B, C) NOT NULL, temple_status ENUM(ACTIVE, INACTIVE, SUSPENDED) NOT NULL, pending_declarations INT DEFAULT 0, overdue_declarations INT DEFAULT 0, pending_profile_review INT DEFAULT 0, has_active_trust TINYINT(1) NOT NULL DEFAULT 0 (P0-3), has_approved_declaration TINYINT(1) NOT NULL DEFAULT 0 (P2-1), last_declaration_at DATETIME NULL, last_profile_update_at DATETIME NULL.
+
+This table is never joined from temple to geo tables at search time. All geo identifiers are stored inline. Indexes: idx_summary_district ON (district_id, temple_status), idx_summary_city ON (city_id, temple_status) (P1-2), idx_summary_taluk ON (taluk_id), idx_summary_grade ON (temple_grade), idx_summary_trust ON (district_id, has_active_trust) (P0-3), idx_summary_approved_decl ON (district_id, has_approved_declaration) (P2-1), idx_summary_pending ON (pending_declarations DESC, district_id), idx_summary_overdue ON (overdue_declarations DESC, district_id).
+
+⚠️ INDEX CORRECTION (F4 — composite index column order): idx_summary_pending and idx_summary_overdue have inverted column order in the draft above. MySQL uses the LEFTMOST column of a composite index for range/equality filtering. district_id is the primary filter (the WHERE clause predicate); DESC columns used for ORDER BY should be rightmost. CORRECTED definitions:
+  idx_summary_pending: ON (district_id, pending_declarations DESC)
+  idx_summary_overdue: ON (district_id, overdue_declarations DESC)
+The versions listed above (pending_declarations DESC, district_id) are incorrect and must NOT be used in Flyway V15.
+
+4.12 FLYWAY MIGRATION VERSION ORDER
+
+V1: geo_states, geo_cities, geo_districts, geo_taluks, geo_hoblis
+V2: users, refresh_tokens, mfa_recovery_codes
+V3: temples
+V4: temple_profile_staging, temple_profile_current, temple_profile_history
+V5: trust_registrations, trust_board_members, trust_financials, trust_meetings
+V6: employees, employee_succession
+V7: contractors
+V8: asset_declarations, declaration_clarifications, all 8 asset sub-tables
+V9: documents table and document_association junction tables
+V10: document_access_log
+V11: audit_data_events, audit_auth_events, audit_export_events, audit_pii_access_events (with RANGE partitions by YEAR on each)
+V12: notification_events, in_app_notifications
+V13: additional tokens and MFA tables if not fully covered in V2
+V14: temple_search_summary
+V14a: acknowledgement_sequences (seq_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, financial_year CHAR(7) NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6); INSERT-only, no soft-delete)
+V15: all remaining indexes and FK constraints deferred from inline table creation; ALTER TABLE document_associations MODIFY COLUMN entity_type ENUM('TEMPLE','DECLARATION','TRUST','CONTRACTOR') NOT NULL (P0-2 fix); all new indexes from Section 4.11.
+V16: idempotency_records table (Section 4.12b) and rate_request_log table (Section 4.12c) — added in v1.3 on-prem refactoring.
+
+⚠️ FLYWAY ROLLBACK STRATEGY (P2-8): Flyway migrations are irreversible by design. MySQL DDL (ALTER TABLE, CREATE TABLE) is auto-committed and cannot be rolled back within a transaction. The only rollback path for a failed Flyway migration is a full database restore from the backup taken immediately before the migration.
+
+Operational procedure:
+  PRE-MIGRATION: Take a full logical dump (mysqldump --single-transaction) of the production database. Store it in a time-stamped location. Verify the dump is readable before applying the migration.
+  ON MIGRATION FAILURE: Stop the application. Restore from the pre-migration backup. Fix the migration script. Re-run after verification in a staging environment.
+  NEVER use flyway:repair to mark a failed migration as "resolved" without understanding the failure root cause — this leaves the database in an inconsistent state.
+  V15 special risk: the ALTER TABLE on document_associations (ENUM extension) acquires a metadata lock. In MySQL 8.0+ this is an online operation (ALGORITHM=INPLACE) with no table rebuild, but verify on the specific MySQL version in use.
+
+4.12b IDEMPOTENCY TABLE (Flyway V16) — replaces Redis-based idempotency cache
+
+idempotency_records: id BIGINT AUTO_INCREMENT PRIMARY KEY, actor_user_id BIGINT NOT NULL (FK users.id), idempotency_key VARCHAR(255) NOT NULL (client-provided header value; max 255 chars; validated as non-blank before lookup), response_body MEDIUMTEXT NOT NULL (serialized JSON of the workflow response; stored on first successful execution), response_status SMALLINT UNSIGNED NOT NULL (HTTP status code of the first response; stored to replay the exact status), created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), expires_at DATETIME(6) NOT NULL (created_at + 5 minutes; set at INSERT time).
+
+Unique constraint: (actor_user_id, idempotency_key). Indexes: idx_idempotency_lookup ON (actor_user_id, idempotency_key), idx_idempotency_expiry ON (expires_at) (used by cleanup job to DELETE expired rows).
+
+Workflow:
+  1. Before executing any workflow action, IdempotencyService.check(userId, idempotencyKey): SELECT * FROM idempotency_records WHERE actor_user_id=? AND idempotency_key=? AND expires_at > NOW(6). If row found: deserialize response_body and return with response_status (skip workflow execution entirely).
+  2. Execute workflow action. On success: IdempotencyService.record(userId, idempotencyKey, responseBody, statusCode): INSERT INTO idempotency_records (actor_user_id, idempotency_key, response_body, response_status, expires_at) VALUES (?, ?, ?, ?, NOW(6) + INTERVAL 5 MINUTE). If duplicate key (concurrent request with same key): ignore the conflict (ON DUPLICATE KEY UPDATE created_at=created_at; a no-op); return the first response.
+  3. Scheduled cleanup job (every 15 minutes): DELETE FROM idempotency_records WHERE expires_at < NOW(6). Runs in a dedicated @Scheduled method in IdempotencyCleanupJob @Component, annotated @Scheduled(fixedDelay = 900000).
+
+⚠️ TRANSACTION BOUNDARIES: IdempotencyService.record() runs in a SEPARATE transaction (propagation=REQUIRES_NEW) that commits the idempotency row AFTER the main workflow transaction commits. If the workflow transaction rolls back (e.g., audit failure), the idempotency row is NOT written. This ensures idempotency records are only created for successful outcomes.
+
+4.12c RATE REQUEST LOG TABLE (Flyway V16) — replaces Redis/Bucket4j rate limiting
+
+rate_request_log: id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL (FK users.id), endpoint_key VARCHAR(100) NOT NULL (e.g. 'export', 'doc_download', 'workflow'), window_start DATETIME(6) NOT NULL (truncated to 1-minute or 10-minute boundary depending on endpoint), request_count INT UNSIGNED NOT NULL DEFAULT 1, last_request_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6).
+
+Unique constraint: (user_id, endpoint_key, window_start). Index: idx_rrl_lookup ON (user_id, endpoint_key, window_start).
+
+Rate limit enforcement at service/filter layer:
+  For each incoming request, RateLimitService.check(userId, endpointKey, windowDuration, maxRequests):
+    UPSERT into rate_request_log: INSERT INTO rate_request_log (user_id, endpoint_key, window_start, request_count, last_request_at) VALUES (?, ?, ?, 1, NOW(6)) ON DUPLICATE KEY UPDATE request_count = request_count + 1, last_request_at = NOW(6).
+    SELECT request_count WHERE user_id=? AND endpoint_key=? AND window_start=? .
+    If request_count > maxRequests: return false (caller returns HTTP 429). Else: return true.
+  window_start is computed as: TIMESTAMP(DATE_FORMAT(NOW(6), window_format)) where window_format truncates to the window boundary (e.g., '%Y-%m-%d %H:%i:00' for 1-minute windows, '%Y-%m-%d %H:00:00' for 10-minute windows adjusted by bucket).
+  Scheduled cleanup job (every 60 minutes): DELETE FROM rate_request_log WHERE window_start < NOW(6) - INTERVAL 1 HOUR.
+
+Configured limits (applied at filter layer using RateLimitService):
+  endpoint_key='export': maxRequests=5, windowDuration=10 minutes
+  endpoint_key='doc_download': maxRequests=60, windowDuration=1 minute
+  endpoint_key='workflow': maxRequests=30, windowDuration=1 minute
+  All limits are configurable via application.yml (trm.rate-limit.*) without code changes.
+
+⚠️ CRITICAL FLYWAY MIGRATION NOTES (F1, F3, F12):
+(F1 — BLOCKER: users.temple_id FK must be deferred to V15): V2 creates the users table. At V2 time, the temples table (V3) does not yet exist. Therefore:
+  - users.district_id FK to geo_districts.id: CAN be defined inline in V2 (geo_districts exists from V1). OK.
+  - users.temple_id FK to temples.id: MUST NOT be defined inline in V2. V2 declares the column as BIGINT NULL with no FOREIGN KEY clause. V15 adds: ALTER TABLE users ADD CONSTRAINT fk_users_temple FOREIGN KEY (temple_id) REFERENCES temples(id). Omitting this deferral causes V2 to fail with "Table 'temples' doesn't exist".
+(F3 — BLOCKER: V13 must be deterministic): V13 is currently described as "additional tokens and MFA tables if not fully covered in V2." This is non-deterministic — Flyway migrations must be fully specified. V13 must contain an explicit, exact list of DDL statements. If all MFA and token tables are created in V2, V13 must contain a harmless deterministic statement (e.g., a comment-only migration or a schema-only DDL with no data changes). Never use conditional "if not exists" logic based on runtime schema state in a Flyway migration.
+(F12 — Within-migration table creation order): Within each migration, tables must be created in parent-before-child order:
+  V5: trust_registrations BEFORE trust_board_members (FK dependency)
+  V6: employees BEFORE employee_succession (FK dependency)
+  V8: asset_declarations BEFORE declaration_clarifications BEFORE all 8 asset sub-tables (FK chain)
+  V9: documents BEFORE document_associations (FK dependency)
+  V12: notification_events BEFORE in_app_notifications (FK dependency)
+  Failure to respect this order causes FK constraint errors on migration execution.
+
+================================================================================
+SECTION 5: WORKFLOW ENGINE
+5.1 ASSET DECLARATION STATUS ENUM VALUES
+
+DRAFT: Initial state created by Temple Authority. Editable. Has not been submitted.
+PENDING_REVIEW: Submitted by Temple Authority. snapshot_json has been frozen. Editable only by DC workflow actions.
+APPROVED: Terminal state. No outbound transitions. DC or SA has approved. acknowledgement_number has been assigned.
+CLARIFICATION_REQUESTED: DC has requested clarification. Temple Authority must respond before declaration can proceed.
+PHYSICAL_VERIFICATION_REQUESTED: DC has flagged the declaration for a physical site visit. DC must record findings before completing.
+REJECTED: Terminal for this version. Temple Authority must create a new version_number increment.
+SUPERSEDED: System-assigned when a newer version of a declaration for the same (temple_id, financial_year) reaches APPROVED.
+
+5.2 ASSET DECLARATION ALLOWED TRANSITIONS
+
+FROM PENDING_REVIEW TO APPROVED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) temple.status = ACTIVE
+Actions: set status=APPROVED, set reviewed_by, reviewed_at, acknowledged_at, generate acknowledgement_number, insert notification_events row with template DECLARATION_APPROVED, call TempleSearchSummaryService.refresh, log audit_data_events
+
+FROM PENDING_REVIEW TO REJECTED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) WorkflowRejectRequest.remarks is not blank and has minimum 50 characters
+Actions: set status=REJECTED, set reviewed_by, reviewed_at, review_comment, insert notification_events row with template DECLARATION_REJECTED, call TempleSearchSummaryService.refresh, log audit_data_events
+
+FROM PENDING_REVIEW TO CLARIFICATION_REQUESTED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) WorkflowClarifyRequest.remarks minimum 20 characters, (3) declaration.clarification_round is less than 3 (values 0, 1, 2 are valid; value 3 causes MaxClarificationRoundsException HTTP 422 TRM-DECL-009)
+Actions: set status=CLARIFICATION_REQUESTED, increment clarification_round, insert DeclarationClarification row (direction=DC_TO_TEMPLE, comment=remarks, section_name=DECLARATION), insert notification_events row with template DECLARATION_CLARIFICATION_REQ, refresh summary, audit
+
+FROM PENDING_REVIEW TO PHYSICAL_VERIFICATION_REQUESTED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) WorkflowPhysicalVerificationRequest.notes is not blank and is at most 2000 characters
+Actions: set status=PHYSICAL_VERIFICATION_REQUESTED, insert DeclarationClarification row (direction=DC_TO_TEMPLE, section_name=PHYSICAL_VERIFICATION, comment=notes), insert notification_events row with template DECLARATION_PHYSICAL_VERIFICATION, refresh summary, audit
+
+FROM PHYSICAL_VERIFICATION_REQUESTED TO APPROVED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) CRITICAL GUARD: at least one DeclarationClarification row exists for this declaration_id with section_name=PHYSICAL_VERIFICATION AND direction=DC_TO_TEMPLE. If this guard fails, throw PhysicalVerificationFindingsRequiredException (HTTP 422, errorCode TRM-DECL-010). This check is performed via DeclarationClarificationRepository.existsByDeclarationIdAndSectionNameAndDirection. (3) temple.status = ACTIVE
+Actions: same as PENDING_REVIEW to APPROVED
+
+FROM PHYSICAL_VERIFICATION_REQUESTED TO REJECTED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN
+Guards: (1) DC assertDistrictScope passes, (2) CRITICAL GUARD: same physical verification findings check (TRM-DECL-010 if absent), (3) remarks minimum 50 characters
+Actions: same as PENDING_REVIEW to REJECTED
+
+FROM CLARIFICATION_REQUESTED TO PENDING_REVIEW:
+Actor: TEMPLE_AUTHORITY (handled by Temple Authority Module, not DC Module)
+Guard: correction_notes field provided
+Actions: insert DeclarationClarification row (direction=TEMPLE_TO_DC), update declaration fields, reset status to PENDING_REVIEW, insert notification_events row with template DECLARATION_CLARIFICATION_REPLY (recipient is DC)
+
+FROM ANY ACTIVE STATE TO SUPERSEDED:
+Actor: SYSTEM (batch job, not DC Module)
+Trigger: A newer version_number declaration for the same (temple_id, financial_year) reaches APPROVED
+
+No transitions from APPROVED (terminal).
+No transitions from REJECTED. Temple Authority creates a new AssetDeclaration row with version_number=max+1; the rejected row is never modified.
+
+⚠️ IMPLEMENTATION NOTE (S1 — Temple load required in Step 1b): For the PENDING_REVIEW → APPROVED and PHYSICAL_VERIFICATION_REQUESTED → APPROVED transitions, the approve() action requires loading the Temple entity (not just the declaration) to evaluate the temple.status = ACTIVE guard. This Temple entity is also the argument to assertDistrictScope(). Sequence: load AssetDeclaration → load Temple by declaration.templeId (EntityNotFoundException if absent) → assertDistrictScope(temple, currentUser) → check temple.status == ACTIVE (throw InvalidTempleStatusException if not). Do not call assertDistrictScope with a raw ID.
+
+5.3 TEMPLE PROFILE WORKFLOW TRANSITIONS
+
+FROM PENDING_REVIEW TO APPROVED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN. Guard: DC assertDistrictScope passes.
+Actions: Copy staging content fields to temple_profile_current. Move previous temple_profile_current content to temple_profile_history. Set staging.status=APPROVED, reviewed_by, reviewed_at. Set temple_profile_current.published_at, published_by. Insert notification_events for PROFILE_APPROVED. Refresh summary. Audit: staging UPDATE, current UPDATE or INSERT, history INSERT.
+
+FROM PENDING_REVIEW TO REJECTED:
+Actor: DISTRICT_COLLECTOR or SUPER_ADMIN. Guard: DC assertDistrictScope passes; remarks required.
+Actions: Set staging.status=REJECTED, review_comment. Insert notification_events for PROFILE_REJECTED. Refresh summary. Audit staging UPDATE.
+
+Temple Profile does not have CLARIFICATION_REQUESTED status. DC rejects with comment; Temple Authority creates a new staging version.
+
+5.4 STATE TRANSITION VALIDATOR DESIGN
+
+StateTransitionValidator is a Spring @Component holding an immutable Map constant initialized at class load time. Map key: a DeclarationStatus (or ProfileStatus) enum value. Map value: an unmodifiable Set of valid destination status values from that key.
+
+Exposes one method: validate(from, to). If to is not in the valid set for from, throws InvalidStateTransitionException. Does not evaluate business guards. Business guards are evaluated by the calling service method after structural validation.
+
+⚠️ IMPLEMENTATION NOTE (S3 — getOrDefault for terminal states): StateTransitionValidator.validate() MUST use map.getOrDefault(from, Collections.emptySet()) rather than map.get(from). Terminal states (APPROVED, REJECTED, SUPERSEDED) have NO outbound transitions and therefore NO entry in the map. Calling map.get(APPROVED) returns null, and calling null.contains(to) throws NullPointerException. getOrDefault(APPROVED, emptySet()).contains(anything) correctly returns false, throwing InvalidStateTransitionException as intended.
+🧭 TESTING NOTE: State machine rejection matrix test — for every terminal state and every non-terminal state, verify the exact allowed and rejected transition set. Include transition from PHYSICAL_VERIFICATION_REQUESTED to CLARIFICATION_REQUESTED (forbidden; must throw TRM-WF-001).
+
+5.5 EXCEPTION TO HTTP STATUS MAPPING
+
+InvalidStateTransitionException: HTTP 422, errorCode TRM-WF-001
+DistrictScopeViolationException: HTTP 404 Not Found (never 403)
+MaxClarificationRoundsException: HTTP 422, errorCode TRM-DECL-009
+PhysicalVerificationFindingsRequiredException: HTTP 422, errorCode TRM-DECL-010
+OptimisticLockException: HTTP 409 Conflict
+EntityNotFoundException: HTTP 404 Not Found
+MethodArgumentNotValidException: HTTP 400 Bad Request with field-level error detail
+AcknowledgementNumberConflictException: HTTP 409 Conflict (safety net; should not occur in practice)
+ExportQueueFullException: HTTP 503 Service Unavailable with Retry-After: 60 header
+
+⚠️ IMPLEMENTATION NOTE (S20 — Spring Data wraps JPA exception): Spring Data JPA wraps the raw javax.persistence.OptimisticLockException in org.springframework.dao.ObjectOptimisticLockingFailureException before it reaches the @RestControllerAdvice handler. The GlobalExceptionHandler MUST catch ObjectOptimisticLockingFailureException (Spring's wrapper), not OptimisticLockException (raw JPA). Catching the wrong type results in the exception escalating to HTTP 500 instead of 409.
+
+================================================================================
+SECTION 6: SERVICE LAYER DESIGN
+6.1 SERVICE DESIGN PRINCIPLES
+
+Every service has an interface and a separate *ServiceImpl class. All business logic lives exclusively in *ServiceImpl. Controllers contain zero business logic and zero try-catch blocks. @Transactional on every write method. @Transactional(readOnly = true) on every read method. @PreAuthorize on every public method of the service interface.
+
+Cross-service calls within the DC module are made via the service interface, never directly to *ServiceImpl. When a helper method must participate in the same transaction (TempleSearchSummaryService.refresh, AuditService.logDataEvent, NotificationEventRepository.save), default propagation (REQUIRED) is used, meaning the helper joins the caller's transaction.
+
+Logging: action name and entity ID only. Never log remarks text, PAN, Aadhaar, encrypted fields, or full payloads.
+
+6.2 DcTempleSearchService
+
+Method: searchTemples(TempleSearchRequest request, CurrentUser currentUser)
+Returns: Page<TempleSearchItemResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence:
+
+Extract districtId from currentUser. If role is SUPER_ADMIN, pass null.
+Clamp page size: Math.min(request.getSize(), 100). Default 25 if zero or negative.
+Build PageRequest. Default sort: pending_declarations DESC, overdue_declarations DESC, last_declaration_at DESC NULLS LAST.
+Call TempleSearchSummaryRepository with all filter params and resolved districtId. Null districtId means no district filter (SUPER_ADMIN path).
+Map via TempleSearchSummaryMapper to Page<TempleSearchItemResponse>.
+6.3 DcTempleProfileService
+
+Method: getTempleFullProfile(Long templeId, CurrentUser currentUser)
+Returns: TempleFullProfileResponse
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence (exactly 5 queries):
+Query 1: Load Temple with @EntityGraph including hobli, hobli.taluk, hobli.taluk.district. EntityNotFoundException if not found.
+Assert district scope: call assertDistrictScope(temple, currentUser) which internally traverses temple.getHobli().getTaluk().getDistrict().getId() with null-guards at each hop (see Section 2.5 P0-4 note). DistrictScopeViolationException -> 404 if mismatch.
+Query 2: Load active TrustRegistration with all board members via JOIN FETCH (1 query). Zero or one trust returned. Board members are split into two lists during mapping: activeBoardMembers (where is_active=1 AND cessation_date IS NULL) and pastBoardMembers (where is_active=0 OR cessation_date IS NOT NULL). Both lists are included in TempleFullProfileResponse. (P1-1 fix: requirements Section 3.3.2a requires current vs past board members to be shown separately.)
+Query 3: Top 20 employees WHERE temple_id=? AND deleted_at IS NULL ORDER BY date_of_joining DESC. Direct repository call.
+Query 4: Top 10 contractors WHERE temple_id=? AND deleted_at IS NULL ORDER BY contract_start_date DESC.
+Query 5: Top 5 declarations WHERE temple_id=? AND is_deleted=false ORDER BY financial_year DESC, version_number DESC.
+Apply PII masking in @AfterMapping hooks via PiiMaskingService for every encrypted field in the response.
+Assemble TempleFullProfileResponse via MapStruct. TempleFullProfileResponse.trustInfo contains activeBoardMembers: List<TrustBoardMemberResponse> and pastBoardMembers: List<TrustBoardMemberResponse> as separate fields. The previously single boardMembers list field is removed.; linkedInstitutions: List<String> (from JSON-deserialized linked_institutions column).
+
+⚠️ IMPLEMENTATION NOTES (S4):
+(S4 — Hibernate JOIN FETCH dedup for trust board members): When loading trust with all board members via JOIN FETCH, Hibernate returns N result rows for a trust with N board members — one per joined row. Without deduplication, the trust list contains N duplicates of the same trust object. Fix: use SELECT DISTINCT t FROM TrustRegistration t JOIN FETCH t.boardMembers WHERE t.templeId = :templeId with @QueryHint(name = "hibernate.query.passDistinctThrough", value = "false"). The hint prevents Hibernate from appending DISTINCT to the SQL (which is a no-op in SQL for this join) while deduplicating in-memory.
+🧭 TESTING NOTE: Verify via Hibernate Statistics that getTempleFullProfile() executes exactly 5 queries (enabledHibernateStats = true in test config). Any lazy-loaded proxy triggered in a mapping loop will add a 6th+ query. Assert queryExecutionCount == 5 after the service call.
+
+Provides paginated read-only access to employees, contractors, and declarations for a specific temple. Distinct from DcTempleProfileService (Section 6.3) which returns unpaginated top-N preview slices. Used when the DC navigates to a full standalone list beyond the top-N shown on the profile tab.
+
+Method: listEmployees(String templeId, EmployeeFilterRequest filter, Pageable pageable, CurrentUser currentUser)
+Returns: Page<EmployeeSummaryResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load temple by templeId; EntityNotFoundException if absent. assertDistrictScope(temple, currentUser) -> 404 if out of district. Clamp page size: Math.min(pageable.getPageSize(), 100); default 10 if zero or negative. Execute paginated query: employees WHERE temple_id=? AND deleted_at IS NULL, with optional filters on employee_type and employment_status. Default sort: date_of_joining DESC. Apply Aadhaar masking (XXXX-XXXX-1234) via @AfterMapping hook in EmployeeMapper. PAN field is never present in EmployeeSummaryResponse.
+EmployeeSummaryResponse fields: id, name, employeeType, employmentStatus, designation, salaryGrade, dateOfJoining, dateOfLeaving (null if still active), aadhaarMasked.
+
+Method: listContractors(String templeId, ContractorFilterRequest filter, Pageable pageable, CurrentUser currentUser)
+Returns: Page<ContractorSummaryResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load temple by templeId. assertDistrictScope. Clamp page size (default 10, max 100). Execute paginated query: contractors WHERE temple_id=? AND deleted_at IS NULL, with optional filters on contract_type and payment_status. Default sort: contract_start_date DESC. Contractor PAN is never included in ContractorSummaryResponse.
+ContractorSummaryResponse fields: id, contractorName, gstNumber, contractType, contractReferenceNumber, workOrderDate, contractStartDate, contractEndDate, contractValue, paymentStatus, worksDescription.
+
+Method: listDeclarations(String templeId, DeclarationFilterRequest filter, Pageable pageable, CurrentUser currentUser)
+Returns: Page<DeclarationSummaryResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load temple by templeId. assertDistrictScope. Clamp page size (default 10, max 100). Execute paginated query: asset_declarations WHERE temple_id=? AND is_deleted=false, with optional filters on financial_year and status. Default sort: financial_year DESC, version_number DESC. DeclarationSummaryResponse does not include snapshot_json, snapshot_file_path, asset sub-table data, or acknowledgement_doc_file_path. For full detail use Section 6.4a.
+DeclarationSummaryResponse fields: id, financialYear, versionNumber, status, annualIncome, annualExpenditure, acknowledgementNumber (null unless APPROVED), submittedAt, reviewedAt, isOverdue, clarificationRound.
+
+Filter request classes:
+EmployeeFilterRequest: employeeType (String nullable, validated against ENUM values), employmentStatus (String nullable).
+ContractorFilterRequest: contractType (String nullable), paymentStatus (String nullable).
+DeclarationFilterRequest: financialYear (String nullable, @Pattern(regexp = "^\\d{4}-\\d{2}$") enforced on DTO), status (String nullable).
+
+⚠️ SECURITY AND VALIDATION NOTES (S6, R13, R14):
+(S6 — DRAFT filter is mandatory): All three list methods that return paginated data visible to DC must exclude status='DRAFT'. For listDeclarations: WHERE temple_id=? AND is_deleted=false AND status != 'DRAFT'. DRAFT is Temple Authority's private work-in-progress; DC must never see it regardless of which status filter the client passes.
+(R13 — Strip control characters from keyword and deityName): Before applying LIKE with keyword or deityName, strip all non-printable characters (code points < 0x20) and non-ASCII control characters from the input string. Use keyword.replaceAll("[\\p{Cntrl}]", "") before binding to the query. Failure to strip these allows injection of database-specific escape sequences or garbled output in exports.
+(R14 — Pageable max constraint): Reject requests where page * size > 1,000,000 with HTTP 400. Also enforce page <= 10000 as a hard upper bound. These guards prevent memory exhaustion from deep pagination. Add the validation to the @Valid DTO or an application-level request validator before the query is executed.
+
+6.4 DeclarationWorkflowService
+
+Methods: approve, reject, requestClarification, flagPhysicalVerification.
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, SUPER_ADMIN) on all four.
+Transaction: @Transactional on all four.
+
+Shared execution chain (all within one transaction):
+Step 1: Load AssetDeclaration by id. EntityNotFoundException if absent.
+Step 2: assertDistrictScope(declaration.templeId, currentUser). -> 404 if out of district.
+Step 3: StateTransitionValidator.validate(current status, target status). -> 422 if invalid.
+Step 4: Evaluate method-specific business guards (see Section 5.2). Throw if guard fails.
+Step 5: Capture pre-update snapshot of declaration fields for audit.
+Step 6: Update declaration fields: status, reviewed_by, reviewed_at, review_comment.
+Step 7 approve only: Set acknowledged_at. Call AcknowledgementNumberGenerator.generate(declaration.id, declaration.financialYear). Set declaration.acknowledgementNumber.
+Step 8 clarify only: Increment clarification_round. Persist DeclarationClarification entity (direction=DC_TO_TEMPLE, section_name=DECLARATION, comment=remarks).
+Step 9 flag-physical only: Persist DeclarationClarification entity (direction=DC_TO_TEMPLE, section_name=PHYSICAL_VERIFICATION, comment=notes).
+Step 10: AuditService.logDataEvent(table=asset_declarations, recordId, operation=UPDATE, before, after).
+Step 11: Construct NotificationEvent entity with template_key, template_params, channels, priority per Section 9.2. Persist via NotificationEventRepository.save().
+Step 12: TempleSearchSummaryService.refresh(declaration.templeId).
+Step 13: Return WorkflowActionResponse.
+
+⚠️ IMPLEMENTATION NOTES (S1, R17, S19):
+(S1 — Step execution clarification): Step 2 loads the Temple entity by declaration.templeId (EntityNotFoundException if absent). That loaded Temple entity — not a raw ID — is passed to assertDistrictScope(temple, currentUser). The temple.status == ACTIVE check in Step 4 uses this same already-loaded entity. No additional query is needed.
+(R17 — Idempotency-Key header on workflow mutations): All four workflow POST endpoints must support the Idempotency-Key request header. Storage backend: database table idempotency_records (Section 4.12b) — NOT Redis, NOT in-memory cache. On first call: execute workflow, serialize the complete response body to JSON, call IdempotencyService.record(userId, idempotencyKey, responseBody, statusCode) in a REQUIRES_NEW transaction that commits immediately after the main workflow transaction commits. On a duplicate call with the same key within 5 minutes: IdempotencyService.check(userId, idempotencyKey) finds the row (expires_at > NOW(6)), deserializes response_body, and returns it with the stored response_status, skipping workflow re-execution entirely. In-memory caching (ConcurrentHashMap) is FORBIDDEN: JVM restarts lose all in-memory state, allowing duplicate approvals when a client retries after a restart during the original request. The idempotency_records table survives restarts. IdempotencyService is a Spring @Service injected into each workflow service. No Redis or external cache is required. Prevents duplicate approvals from client retries on network failure.
+(S19 — SQL injection prevention in search): The keyword and deityName parameters used in search queries MUST use parameterized binding via CriteriaBuilder.like(cb.lower(root.get("name")), :keyword) with the keyword bound as a literal string. Never concatenate user input into a SQL string fragment. The wildcard characters % and _ from user input must be escaped before binding: keyword.replace("%", "\\%").replace("_", "\\_").
+
+6.4a DeclarationQueryService
+
+Method: getDeclaration(String id, CurrentUser currentUser)
+Returns: AssetDeclarationDetailResponse
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence:
+Load AssetDeclaration by id via @EntityGraph that eagerly fetches the temple entity and the User entities for submitted_by and reviewed_by. EntityNotFoundException if absent.
+assertDistrictScope(declaration.temple, currentUser). -> 404 if out of district.
+Execute 8 separate repository queries (one per asset sub-table category) via direct repository calls: SELECT * FROM decl_immov_agri_land WHERE declaration_id=:id ORDER BY id ASC, and same for the remaining 7 sub-tables.
+Load all DeclarationClarification rows: SELECT * FROM declaration_clarifications WHERE declaration_id=:id ORDER BY created_at ASC.
+Map to AssetDeclarationDetailResponse via MapStruct.
+
+AssetDeclarationDetailResponse fields: id (String), templeId (String), templeName (String, denormalized from the already-loaded temple entity — no additional query required), registrationNumber (String), financialYear (String), versionNumber (Integer), status (String: enum name), annualIncome (BigDecimal: null if absent), annualExpenditure (BigDecimal: null if absent), acknowledgementNumber (String: null unless APPROVED), submittedAt (ISO-8601: null if DRAFT), submittedByUsername (String: null if DRAFT), reviewedAt (ISO-8601: null if not yet reviewed), reviewedByUsername (String: null if not yet reviewed), reviewComment (String: null if not rejected or clarified), isOverdue (Boolean), clarificationRound (Integer), clarifications (List<ClarificationItemResponse>: ordered chronologically, empty list if none), immovableAssets (ImmovableAssetsGroup: contains agriLandParcels, buildings, leasedProperties, other sub-lists), movableAssets (MovableAssetsGroup: contains preciousMetals, artifacts, vehicles, equipment sub-lists).
+
+ClarificationItemResponse fields: id (String), direction (String: DC_TO_TEMPLE or TEMPLE_TO_DC), sectionName (String), fieldNamesJson (Object: parsed JSON or null), commentText (String), createdByUsername (String), createdAt (ISO-8601 datetime).
+
+snapshot_json and snapshot_s3_key are NOT included in the response. They are internal archival fields consumed by the export system. The detail response reflects live, normalized sub-table data.
+
+6.5 TempleProfileWorkflowService
+
+approveProfile(Long stagingId, WorkflowApproveRequest, CurrentUser):
+Authorization: DISTRICT_COLLECTOR or SUPER_ADMIN. Transaction: @Transactional.
+Load staging, assertDistrictScope, validate transition PENDING_REVIEW->APPROVED.
+Move existing temple_profile_current to temple_profile_history (INSERT).
+Write new temple_profile_current (UPDATE or INSERT). Set published_at, published_by.
+Set staging.status=APPROVED, reviewed_by, reviewed_at. Audit 3 rows.
+Insert NotificationEvent for PROFILE_APPROVED.
+TempleSearchSummaryService.refresh.
+
+rejectProfile(Long stagingId, WorkflowRejectRequest, CurrentUser):
+Authorization: DISTRICT_COLLECTOR or SUPER_ADMIN. Transaction: @Transactional.
+Load staging, assertDistrictScope, validate transition PENDING_REVIEW->REJECTED.
+Set staging.status=REJECTED, review_comment. Audit 1 row.
+Insert NotificationEvent for PROFILE_REJECTED.
+TempleSearchSummaryService.refresh.
+
+⚠️ IMPLEMENTATION NOTE (S7 — First-time approval is conditional): In approveProfile(), add a conditional existence check before the archive step:
+if (templeProfileCurrentRepository.existsByTempleId(templeId)) {
+  // archive existing current to history (INSERT temple_profile_history)
+  // then UPDATE temple_profile_current
+} else {
+  // first approval: INSERT temple_profile_current directly
+}
+Do not unconditionally INSERT into temple_profile_history — there is nothing to archive on first approval.
+
+6.6 DcDashboardService
+
+Method: getDashboard(CurrentUser currentUser)
+Returns: DcDashboardResponse
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence:
+
+Resolve districtId. SUPER_ADMIN: null (no filter).
+Execute native aggregate SELECT against temple_search_summary (see Section 7.4).
+Fetch top 10 InAppNotification for currentUser.userId ordered by is_read ASC, created_at DESC.
+Map to DcDashboardResponse.
+6.7 NotificationQueryService
+
+getNotifications(CurrentUser user, Pageable pageable): readOnly = true. Returns Page<NotificationResponse> scoped to user.userId.
+markRead(Long notificationId, CurrentUser user): @Transactional. Load, verify ownership (403 if recipient_user_id != user.userId), set is_read=true, read_at=now.
+markAllRead(CurrentUser user): @Transactional. Execute: UPDATE in_app_notifications SET is_read=1, read_at=NOW(6) WHERE recipient_user_id=? AND is_read=0 LIMIT 200.
+
+⚠️ IMPLEMENTATION NOTE (S8 — markRead is idempotent): markRead() MUST use a conditional UPDATE to be idempotent: UPDATE in_app_notifications SET is_read=1, read_at=NOW(6) WHERE id=? AND is_read=0. If is_read is already 1, the WHERE clause matches nothing, zero rows are updated, and read_at is NOT overwritten. A second call to markRead on the same notification is a safe no-op. Never issue an unconditional UPDATE that overwrites read_at on an already-read notification.
+
+6.8 TempleSearchSummaryService
+
+Method: refresh(Long templeId)
+Propagation: REQUIRED (joins caller's transaction; no @Transactional of its own).
+Sequence: Execute UPSERT against temple_search_summary. Recompute: pending_declarations (count of PENDING_REVIEW declarations for this temple), overdue_declarations (count of is_overdue=1 non-terminal declarations), pending_profile_review (count of PENDING_REVIEW staging rows), has_active_trust (1 if COUNT(trust_registrations WHERE temple_id=:templeId AND status='ACTIVE' AND is_deleted=false) > 0 else 0; P0-3 fix), has_approved_declaration (1 if COUNT(asset_declarations WHERE temple_id=:templeId AND status='APPROVED' AND is_deleted=false) > 0 else 0; P2-1 fix), city_id (resolved from district via geo_districts.city_id for the temple's district; P1-2 fix), last_declaration_at, last_profile_update_at. INSERT if row is absent; UPDATE if present.
+
+⚠️ IMPLEMENTATION NOTE (S9 — pending_declarations includes all actionable statuses): The pending_declarations sub-query MUST count all three actionable statuses: WHERE temple_id=:templeId AND status IN ('PENDING_REVIEW','CLARIFICATION_REQUESTED','PHYSICAL_VERIFICATION_REQUESTED') AND is_deleted=false. Counting only PENDING_REVIEW significantly undercounts the DC workload. CLARIFICATION_REQUESTED means Temple Authority has been asked and the DC awaits their reply. PHYSICAL_VERIFICATION_REQUESTED means DC must schedule and record on-site findings. Both require DC attention.
+
+6.9 AuditService
+
+Method: logDataEvent(String tableName, Long recordId, String operation, Object beforeValue, Object afterValue)
+Propagation: REQUIRED (joins caller's transaction).
+Sequence: Serialize before/after to JSON via AuditJsonSanitizer (replaces all _encrypted field values and known PII fields with the string REDACTED_ENCRYPTED). Extract ip_address and request_id from RequestContextHolder. Persist to audit_data_events via repository.
+
+⚠️ DESIGN NOTE (S15 — Audit failure must roll back the workflow): AuditService uses propagation=REQUIRED intentionally. If the audit INSERT fails (disk full, DB error), the entire workflow transaction rolls back — both the status change AND the notification row. This is intentional, not a bug. An approved declaration without an audit trail is worse than a failed approval. Document this as an explicit design decision: audit integrity is non-negotiable and takes precedence over workflow completion.
+
+6.10 ExportService
+
+Method: exportTemples(TempleSearchRequest request, String format, CurrentUser currentUser)
+Authorization: DISTRICT_COLLECTOR, DC_STAFF, or SUPER_ADMIN. (P0-1 fix: requirements Table 2.2 specifies DC Staff export permission = YES. Previously incorrect as DISTRICT_COLLECTOR and SUPER_ADMIN only.)
+Note: DC_STAFF export is scoped to their assigned district (same district enforcement as DISTRICT_COLLECTOR). SUPER_ADMIN receives null districtId and sees all districts.
+Sequence:
+
+Resolve districtId (null for SUPER_ADMIN).
+Insert audit_export_events row. Commit this in a separate short transaction before proceeding.
+Execute COUNT query against temple_search_summary (direct repository call, not via DcTempleSearchService).
+If count < 500 (SYNC): stream rows via JDBC ResultSet iteration (never load into List), generate file, write to {TRM_EXPORT_BASE_DIR}/exports/{jobId}.{pdf|csv}. Return ExportResponse with downloadPath (relative path, e.g. "exports/{jobId}.pdf") and status=SYNC. The caller may trigger download via GET /api/v1/export/{jobId}/download immediately.
+If count >= 500 (ASYNC): build ExportJobParameters value object, submit to exportExecutor via @Async, return ExportResponse with jobId and status=ASYNC. If queue is full: ExportQueueFullException -> HTTP 503.
+On async job completion: insert NotificationEvent for EXPORT_READY (success) with link_url=/api/v1/export/{jobId}/download, or EXPORT_READY_FAILED (failure). No S3 upload. No email delivery. DC retrieves via in-app notification.
+Note: ExportService calls TempleSearchSummaryRepository directly. It never calls DcTempleSearchService, because calling a @PreAuthorize-protected service method from within another service method bypasses the Spring AOP proxy and silently skips RBAC.
+
+⚠️ CRITICAL IMPLEMENTATION NOTES (S10, S11, S16, S17, R10, R15):
+(S10 — @Async via AsyncExportBean): The @Async method doExport() MUST be on a separate Spring bean AsyncExportBean, injected into ExportServiceImpl. Self-invocation (this.doExport()) bypasses Spring's AOP proxy and makes @Async a no-op. ExportServiceImpl constructor receives AsyncExportBean as a dependency: private final AsyncExportBean asyncExportBean;
+(S11 — AuditExportEventService REQUIRES_NEW): AuditExportEventService.logExport() annotated @Transactional(propagation = REQUIRES_NEW). Commits the audit row in a separate transaction before the async job is handed to the executor. If the queue is full (ExportQueueFullException → HTTP 503), the audit row is already durably committed.
+(S16 — No export without audit): If logExport() throws (DB error), do NOT proceed with export. Catch the exception, log CRITICAL, and return HTTP 500. An export without an audit record is never permitted.
+(S17 — Deduplication 409): Check for an active export job (same actorId + filters hash + status=ASYNC + submitted_at > now - 5min) before creating a new one. If found, return HTTP 409 with the existing jobId.
+(R10 — Rate limit): 5 requests per 10 minutes per user on export endpoints.
+(R15 — Format enum validation at DTO layer): The export format field must be typed as ExportFormat enum (PDF, CSV), not raw String, on the request DTO. @Valid with @NotNull enforces this. Raw String allows any arbitrary value to reach the format-switch logic.
+
+6.11 Cross-Service Interaction Map
+
+DeclarationWorkflowService -> AuditService (within transaction)
+DeclarationWorkflowService -> NotificationEventRepository (within transaction)
+DeclarationWorkflowService -> TempleSearchSummaryService (within transaction)
+TempleProfileWorkflowService -> AuditService (within transaction)
+TempleProfileWorkflowService -> NotificationEventRepository (within transaction)
+TempleProfileWorkflowService -> TempleSearchSummaryService (within transaction)
+DcTempleProfileService -> PiiMaskingService (within read transaction, via MapStruct @AfterMapping)
+DcDashboardService -> InAppNotificationRepository (within read transaction)
+ExportService -> TempleSearchSummaryRepository (direct repository call)
+ExportService -> AuditExportEventRepository (short transaction before async submission)
+DcTempleSubEntityService -> TempleRepository (scope check load)
+DcTempleSubEntityService -> EmployeeRepository / ContractorRepository / AssetDeclarationRepository (paginated queries)
+DeclarationQueryService -> AssetDeclarationRepository, all 8 sub-table repositories, DeclarationClarificationRepository (within read transaction)
+DocumentQueryService -> DocumentAssociationRepository, DocumentRepository (within read transaction)
+DocumentQueryService -> DocumentAccessLogRepository (INSERT within same read transaction; @Transactional used on download to promote to write)
+DocumentQueryService -> ContractorRepository (scope check load for listContractorDocuments; P0-2)
+DocumentQueryService -> TrustRegistrationRepository (scope check load for listTrustDocuments; P2-5)
+
+6.12 DocumentQueryService
+
+Method: listTempleDocuments(String templeId, CurrentUser currentUser)
+Returns: List<DocumentMetadataResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load temple by templeId; EntityNotFoundException if absent. assertDistrictScope(temple, currentUser) -> 404. Query document_associations WHERE entity_type=TEMPLE AND entity_id=:templeId, JOIN documents WHERE is_deleted=false. Insert document_access_log rows (access_type=VIEW_METADATA) for each document_id returned. Map to DocumentMetadataResponse list.
+
+Method: listDeclarationDocuments(String declarationId, CurrentUser currentUser)
+Returns: List<DocumentMetadataResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load declaration; EntityNotFoundException if absent. Load declaration's temple via declaration.templeId. assertDistrictScope(temple, currentUser) -> 404. Query document_associations WHERE entity_type=DECLARATION AND entity_id=:declarationId, JOIN documents WHERE is_deleted=false. Insert VIEW_METADATA log rows. Map to DocumentMetadataResponse list.
+
+Method: listContractorDocuments(String contractorId, CurrentUser currentUser)
+Returns: List<DocumentMetadataResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load contractor by contractorId via ContractorRepository; EntityNotFoundException if absent (and if deleted_at IS NOT NULL, also treat as EntityNotFoundException). Load temple by contractor.templeId; EntityNotFoundException if absent. assertDistrictScope(temple, currentUser) -> 404 if out of district. Query document_associations WHERE entity_type=CONTRACTOR AND entity_id=:contractorId, JOIN documents WHERE is_deleted=false. Insert document_access_log rows (access_type=VIEW_METADATA) for each document_id returned. Map to DocumentMetadataResponse list. (P0-2 fix: REQ 3.4.2a requires contractor PDF documents to be associatable and readable.)
+
+Method: listTrustDocuments(String trustId, CurrentUser currentUser)
+Returns: List<DocumentMetadataResponse>
+Transaction: readOnly = true
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN)
+Sequence: Load trust_registration by trustId; EntityNotFoundException if absent. Load temple by trust.templeId; EntityNotFoundException if absent. assertDistrictScope(temple, currentUser) -> 404 if out of district. Query document_associations WHERE entity_type=TRUST AND entity_id=:trustId, JOIN documents WHERE is_deleted=false. Insert document_access_log rows (access_type=VIEW_METADATA) for each document_id returned. Map to DocumentMetadataResponse list. (P2-5 fix: REQ 3.3.2b requires trust meeting minutes PDFs to be viewable by DC.)
+
+Method: serveFile(String documentId, CurrentUser currentUser)
+Returns: ResponseEntity<Resource>
+Transaction: @Transactional (write, to persist the access log row)
+Authorization: hasAnyRole(DISTRICT_COLLECTOR, SUPER_ADMIN) — DC_STAFF is explicitly excluded; HTTP 403 returned by @PreAuthorize before method body executes
+Sequence: Load document by documentId; EntityNotFoundException if absent. Resolve the associated temple by querying document_associations for any association linked to this documentId, then loading the entity identified by entity_type/entity_id to extract its district. assertDistrictScope -> 404 if out of district. Resolve absolute path: Path base = Paths.get(trmFileBaseDir).toAbsolutePath().normalize(); Path resolved = base.resolve(document.getFilePath()).normalize(). PATH TRAVERSAL PREVENTION: if (!resolved.startsWith(base)) throw EntityNotFoundException — HTTP 404 (never expose the validation failure as 400 or 500; return 404 to avoid path structure disclosure). Build FileSystemResource(resolved.toFile()); if file does not exist on disk, throw EntityNotFoundException (handles deleted/lost files without leaking path info). Insert document_access_log row (access_type=DOWNLOAD, accessed_by, ip_address) via DocumentAccessLogRepository.save(). Return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"" + document.getOriginalFilename() + "\"").contentType(MediaType.parseMediaType(document.getMimeType())).body(fileSystemResource).
+
+DocumentMetadataResponse fields: id (String), originalFilename (String), mimeType (String), fileSizeBytes (Long), documentType (String), description (String: null if absent), associationRole (String), uploadedAt (ISO-8601 datetime from documents.created_at), uploadedByUsername (String).
+DocumentDownloadResponse: REMOVED (no longer applicable — file is streamed directly in the ResponseEntity binary body). The endpoint returns raw binary with Content-Disposition and Content-Type headers. No URL field in the response.
+
+⚠️ SECURITY AND IMPLEMENTATION NOTES (S13, R11, R20):
+(S13 — Orphaned document → 404): In serveFile(), after loading the document row, query document_associations for ANY association linked to that documentId. If zero association rows are found (orphaned document), throw EntityNotFoundException — HTTP 404. Never stream a file for an orphaned document. This prevents access to documents that were uploaded but never associated with any entity.
+(R11 — Download rate limit): The GET /api/v1/documents/{id}/download endpoint is rate-limited to 60 requests per minute per authenticated user. Enforced at the filter layer via RateLimitService (Section 4.12c). Returns HTTP 429 on breach. This also prevents document_access_log INSERT flooding (R20).
+(R20 — Access log INSERT flood prevention): Every call to serveFile() inserts one document_access_log row. Without rate limiting, a single user can generate unbounded INSERT traffic on this table. The 60 req/min limit on the download endpoint (R11) is the primary mitigation.
+
+================================================================================
+SECTION 7: SEARCH AND DASHBOARD DESIGN
+7.1 SEARCH FILTER PARAMETERS
+
+All filters are optional except the district boundary (enforced from JWT regardless of client input).
+
+cityId: String. Filters temples within a specific city. Resolved against the denormalized city_id column in temple_search_summary. Used for cross-city filtering by SUPER_ADMIN, or refinement within a city for DC users. (P1-2 fix: requirements Section 3.1.1b mandates City/Town as a filter level.)
+talukId: Long. Filters to a specific taluk within the DC's district.
+hobliId: Long. Filters to a specific hobli.
+grade: String. Comma-separated A, B, C. Absent means all grades.
+keyword: String. Case-insensitive LIKE match on temple_name. Max 100 chars. Any user-supplied wildcard characters are escaped before use.
+deityName: String. Case-insensitive LIKE on deity_name. Max 100 chars.
+tradition: String. Exact ENUM match on religious_tradition.
+trustStatus: String. Values: REGISTERED (maps to has_active_trust=1), UNREGISTERED (maps to has_active_trust=0). Absent means no trust filter. (P0-3 fix: requirements Section 3.1.3b mandates Trust Registration Status toggle as REGISTERED/UNREGISTERED.)
+declarationStatus: String. PENDING maps to pending_declarations > 0. OVERDUE maps to overdue_declarations > 0. DECLARED maps to has_approved_declaration=1 (temple has at least one approved declaration; P2-1 fix — requirements Section 3.1.3c uses the term "Declared" for this state). REVIEWED maps to pending_declarations = 0 AND overdue_declarations = 0 AND has_approved_declaration=0 (completely reviewed with no outstanding). The previous REVIEWED mapping is deprecated in favor of this more accurate 4-value enum.
+status: String. Default ACTIVE. Pass SUSPENDED or ALL to include other statuses.
+establishedYearFrom: Integer. Inclusive lower bound.
+establishedYearTo: Integer. Inclusive upper bound.
+page: Integer. 0-based. Default 0.
+size: Integer. Default 25. Maximum enforced at 100.
+sort: String. Default: pending_declarations DESC, overdue_declarations DESC, last_declaration_at DESC NULLS LAST.
+
+7.2 SEARCH QUERY STRATEGY
+
+Executes entirely against temple_search_summary. No join to normalized temples table at search time. All geo identifiers use denormalized columns in the summary table.
+
+District enforcement: WHERE s.district_id = :districtId. Omitted when districtId is null (SUPER_ADMIN).
+City filter: AND s.city_id = :cityId. Applied when cityId is non-null. Uses denormalized city_id column in summary table. (P1-2 fix.)
+Trust status filter: AND s.has_active_trust = 1 (for REGISTERED) or AND s.has_active_trust = 0 (for UNREGISTERED). Omitted when trustStatus is null. (P0-3 fix.)
+Approved declaration filter: AND s.has_approved_declaration = 1. Applied when declarationStatus=DECLARED. (P2-1 fix.)
+Active temple default filter: AND s.temple_status = 'ACTIVE'. Modified when caller passes status=ALL.
+Keyword: LIKE CONCAT('%', :keyword, '%') against temple_name.
+All filters applied with null-safe dynamic query construction (Criteria API or @Query with optional clauses).
+
+The search NEVER joins back to temples, geo_hoblis, geo_taluks, or geo_districts.
+
+7.3 SEARCH RESPONSE STRUCTURE
+
+PaginatedTempleSearchResponse: data (list), totalElements (Long), totalPages (Integer), currentPage (Integer), pageSize (Integer), appliedFilters (echo of the resolved filter values for frontend URL reconstruction).
+
+Each TempleSearchItemResponse: id, registrationNumber, name, grade, hobliName, talukName, districtName, pendingDeclarations, overdueDeclarations, pendingProfileReview, lastUpdate (most recent of last_declaration_at and last_profile_update_at as ISO-8601 datetime).
+
+7.4 DASHBOARD AGGREGATION QUERY SHAPE
+
+SELECT COUNT(*) AS totalTemples,
+SUM(pending_declarations) AS totalPendingDeclarations,
+SUM(overdue_declarations) AS totalOverdueDeclarations,
+SUM(pending_profile_review) AS totalPendingProfiles,
+SUM(CASE WHEN temple_grade = 'A' THEN 1 ELSE 0 END) AS gradeACount,
+SUM(CASE WHEN temple_grade = 'B' THEN 1 ELSE 0 END) AS gradeBCount,
+SUM(CASE WHEN temple_grade = 'C' THEN 1 ELSE 0 END) AS gradeCCount
+FROM temple_search_summary
+WHERE district_id = :districtId AND temple_status = 'ACTIVE'
+(district_id condition omitted for SUPER_ADMIN)
+
+7.5 DASHBOARD RESPONSE STRUCTURE
+
+DcDashboardResponse: districtName, totalTemples, totalPendingDeclarations, totalOverdueDeclarations, totalPendingProfiles, gradeACount, gradeBCount, gradeCCount, templesWithActiveTrust (count of temples with has_active_trust=1; P0-3 addition for trust coverage KPI), templesWithApprovedDeclaration (count of temples with has_approved_declaration=1; P2-1 addition), nearestDeadlineDate (ISO-8601 date of the nearest upcoming asset declaration deadline for the district, derived from a separate query on asset_declarations or a configured deadline calendar; null if no deadlines are configured; P2-2 addition), submissionsThisMonth (count of declarations submitted this calendar month; derived from COUNT WHERE submitted_at >= first-of-current-month AND district scope applies; P2-2 addition), recentActivity (list of up to 10 NotificationResponse, unread first then by created_at DESC).
+
+7.6 DATA FRESHNESS
+
+Dashboard and search are always current as of the last committed workflow action because TempleSearchSummaryService.refresh runs within every workflow transaction. No stale-data window is caused by the DC module itself.
+
+================================================================================
+SECTION 8: SECURITY MODEL
+8.1 ROLE CAPABILITIES IN THE DC MODULE
+
+DISTRICT_COLLECTOR:
+
+Full read access to temples, trust, employees, contractors, declarations, documents within assigned district
+Execute all four declaration workflow actions (approve, reject, clarify, flag-physical)
+Execute profile approve and reject
+View dashboard, notifications, export full reports for their district
+Cannot create, update, or delete any temple entity data
+DC_STAFF:
+
+Full read access within same district as DISTRICT_COLLECTOR
+Cannot execute any workflow action (all four declaration actions return 403)
+Cannot approve or reject profiles (403)
+Can export full reports (PDF or CSV) for their assigned district. Export is scoped to their district_id from JWT (same enforcement as DISTRICT_COLLECTOR). (P0-1 fix: requirements Table 2.2 specifies DC Staff export permission = YES. Previous documentation incorrectly stated 403.)
+Can view notifications and dashboard
+SUPER_ADMIN:
+
+Full read access across ALL districts; no district boundary applies
+Can execute all workflow actions on any declaration or profile regardless of district
+district_id in JWT claims is null; all district-filtered queries omit the filter
+Audit access and user management are in the SA Module, not DC Module
+8.2 @PreAuthorize ASSIGNMENTS
+
+DcTempleSearchService.searchTemples: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN
+DcTempleProfileService.getTempleFullProfile: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN
+DeclarationWorkflowService all four workflow methods: DISTRICT_COLLECTOR and SUPER_ADMIN only
+TempleProfileWorkflowService.approveProfile, rejectProfile: DISTRICT_COLLECTOR and SUPER_ADMIN only
+DcDashboardService.getDashboard: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN
+NotificationQueryService all methods: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN
+ExportService.exportTemples, exportDeclarations: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN (P0-1 fix: DC_STAFF now permitted; export is district-scoped)
+
+8.3 DC API ENDPOINT SECURITY TABLE
+
+GET /api/v1/dc/dashboard: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. District from JWT.
+GET /api/v1/temples: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. District from JWT; client-provided district_id silently ignored.
+GET /api/v1/temples/{id}/profile: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404 if out of district.
+GET /api/v1/temples/{templeId}/employees: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404. Paginated (default page=0, size=10, max size=100). Optional query params: employeeType, employmentStatus. Aadhaar masked in response. PAN not returned.
+GET /api/v1/temples/{templeId}/contractors: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404. Paginated (default size=10, max=100). Optional query params: contractType, paymentStatus. PAN not returned.
+GET /api/v1/temples/{templeId}/declarations: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404. Paginated (default size=10, max=100). Optional query params: financialYear, status. Returns summary only (no sub-table data, no snapshot fields).
+GET /api/v1/temples/{templeId}/documents: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404. Returns document metadata list. Logs VIEW_METADATA per document returned.
+GET /api/v1/declarations/{declarationId}/documents: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope via declaration.templeId -> 404. Returns document metadata list. Logs VIEW_METADATA.
+GET /api/v1/contractors/{contractorId}/documents: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope via contractor.templeId -> 404. Returns document metadata list (entity_type=CONTRACTOR). Logs VIEW_METADATA. (P0-2 fix.)
+GET /api/v1/trusts/{trustId}/documents: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope via trust.templeId -> 404. Returns document metadata list (entity_type=TRUST). Logs VIEW_METADATA. (P2-5 fix.)
+GET /api/v1/declarations/{id}: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. assertDistrictScope -> 404. Returns full declaration detail including all 8 asset sub-tables, clarification thread, and identity of submitter/reviewer. snapshot_json and snapshot_s3_key are not included in the response.
+POST /api/v1/declarations/{id}/approve: DISTRICT_COLLECTOR and SUPER_ADMIN. DC_STAFF -> 403.
+POST /api/v1/declarations/{id}/reject: same.
+POST /api/v1/declarations/{id}/clarification: same.
+POST /api/v1/declarations/{id}/flag-physical-verification: same.
+GET /api/v1/documents/{id}/download: DISTRICT_COLLECTOR and SUPER_ADMIN only. DC_STAFF -> 403. Returns pre-signed S3 URL (60-min TTL). Logs DOWNLOAD.
+GET /api/v1/notifications: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. Scoped to currentUser.userId.
+POST /api/v1/notifications/{id}/read: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. Ownership check -> 403 if not recipient.
+POST /api/v1/notifications/read-all: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. Scoped to currentUser.userId.
+POST /api/v1/export/temples: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. DC_STAFF export is district-scoped (district_id from JWT). (P0-1 fix: requirements Table 2.2 DC Staff export = YES.)
+POST /api/v1/export/declarations: DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN. DC_STAFF export is district-scoped.
+GET /api/v1/auth/me: any authenticated user. Returns userId, username, role, districtId (null for SA/TA), districtName (null for SA/TA), templeId (null for DC roles).
+GET /api/v1/geo/districts/{id}/taluks: any authenticated user.
+GET /api/v1/geo/taluks/{id}/hoblis: any authenticated user.
+GET /api/v1/geo/states/{stateId}/cities: any authenticated user. Returns all cities for the given state. Required for the city-level filter dropdown. Response: List<GeoCityResponse> (id, name, code). (P1-2 fix: requirements Section 3.1.1b mandates city/town as a filter parameter; this endpoint provides the dropdown data.)
+
+🔒 SECURITY HARDENING — VALIDATION, RATE LIMITING, AND HEADERS:
+
+Rate Limits (enforced at filter/interceptor layer via RateLimitService backed by rate_request_log table (Section 4.12c); returns HTTP 429 with Retry-After header; limits configurable via trm.rate-limit.* in application.yml):
+  Export endpoints (POST /api/v1/export/*): 5 requests per 10-minute window per user (R10)
+  Document download (GET /api/v1/documents/{id}/download): 60 requests per 1-minute window per user (R11)
+  Workflow mutation endpoints (POST /api/v1/declarations/{id}/approve|reject|clarification|flag-physical-verification): 30 requests per 1-minute window per user (R12)
+
+⚠️ NOTE (P2-6 revised — No Bucket4j/Redis required in v1.3): Rate limiting is NOT optional. On-prem deployment uses the database-backed RateLimitService and rate_request_log table instead of Bucket4j. No external library is required beyond Spring and MySQL. RateLimitService is a Spring @Component using direct JDBC for the INSERT ... ON DUPLICATE KEY UPDATE pattern. See Section 4.12c for table DDL and enforcement logic. Rate limits R10–R12 are enforced on every matching request.
+
+Input validation requirements (apply to all endpoints):
+  (R13) keyword and deityName: strip all control characters (\p{Cntrl}) before use. Escape LIKE wildcards (%, _) before binding to query.
+  (R14) page parameter: reject if page > 10000 OR if page * size > 1,000,000. Return HTTP 400.
+  (R15) Export format: typed as ExportFormat enum on DTO. @NotNull enforced.
+  (R16) Field length maximums: reject remarks/notes fields exceeding their limit: reject remarks >= 2001 chars for workflow rejection @Size(max=2000), clarify remarks @Size(min=20, max=2000), physical verification notes @Size(max=2000). All validated via @Valid on request DTOs.
+
+Idempotency (R17): All four workflow POST endpoints support Idempotency-Key header. Cache response for 5 minutes per {userId}:{idempotencyKey}. Return cached response (HTTP 200) on duplicate.
+
+Security response headers (R18): Add to all responses: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: no-referrer. Add Cache-Control: no-store to all responses containing PII data (temple profile, employees, contractors, declaration detail).
+
+8.4 DISTRICT REASSIGNMENT EDGE CASE
+
+Auth Module performs this atomic operation on DC reassignment:
+UPDATE users SET district_id = newDistrictId, token_revoked_before = NOW(6) WHERE id = userId
+UPDATE refresh_tokens SET revoked_at = NOW(6) WHERE user_id = userId AND revoked_at IS NULL
+INSERT audit_data_events
+
+JwtAuthenticationFilter checks: if token.iat is before user.token_revoked_before, reject with HTTP 401. DC sees session expiry and is redirected to login. Maximum stale window: remaining TTL of the access token at time of reassignment. With 15-minute TTL, worst case is 15 minutes. Accepted trade-off.
+
+In-flight request behavior: if a workflow action is in-flight when reassignment occurs, the transaction completes. District scope check already passed at request start with valid credentials. The reassignment takes effect for all subsequent requests. This is correct.
+
+================================================================================
+SECTION 9: NOTIFICATION AND AUDIT DESIGN
+9.1 NOTIFICATION EVENT FLOW
+
+Step 1: DC triggers a workflow action.
+Step 2: Workflow service executes the operation within a @Transactional method.
+Step 3: Within the same transaction, a NotificationEvent entity is constructed and persisted via NotificationEventRepository.save(). This is a standard JPA INSERT within the active transaction.
+Step 4: Transaction commits. Both the status change and the notification_events row commit atomically.
+Step 5: Notification Dispatch Service (out of DC module scope) polls notification_events WHERE status=PENDING ORDER BY priority ASC, and dispatches to in-app adapters only (IN_APP channel in v1 on-prem; email/SMS adapters are not wired in v1).
+Step 6: On successful in-app dispatch, an InAppNotification row is created by the Dispatch Service. The DC reads these rows via NotificationQueryService.
+
+Guarantee: notification_events row is committed within the workflow transaction. No event is ever silently lost due to pod restart or JVM crash.
+
+9.2 NOTIFICATION TEMPLATE REGISTRY
+
+DECLARATION_APPROVED: Recipient = temple's TEMPLE_AUTHORITY user. Channels: IN_APP. Priority: 3. Params: temple_name, financial_year, acknowledgement_number, declaration_id.
+DECLARATION_REJECTED: Recipient = temple's TEMPLE_AUTHORITY. Channels: IN_APP. Priority: 4. Params: temple_name, financial_year, rejection_reason, declaration_id.
+DECLARATION_CLARIFICATION_REQ: Recipient = temple's TEMPLE_AUTHORITY. Channels: IN_APP. Priority: 4. Params: temple_name, financial_year, clarification_remarks, declaration_id.
+DECLARATION_PHYSICAL_VERIFICATION: Recipient = temple's TEMPLE_AUTHORITY. Channels: IN_APP. Priority: 4. Params: temple_name, financial_year, verification_notes, declaration_id.
+DECLARATION_CLARIFICATION_REPLY: Recipient = DISTRICT_COLLECTOR for temple's district. Channel: IN_APP. Priority: 5. Params: temple_name, financial_year, declaration_id.
+PROFILE_APPROVED: Recipient = temple's TEMPLE_AUTHORITY. Channels: IN_APP. Priority: 6. Params: temple_name, profile_version.
+PROFILE_REJECTED: Recipient = temple's TEMPLE_AUTHORITY. Channels: IN_APP. Priority: 5. Params: temple_name, rejection_reason.
+
+Recipient resolution and fallback: All recipient lookups are encapsulated in NotificationRecipientResolver, a Spring @Component called from within workflow services. All queries are performed within the same workflow transaction.
+
+For TEMPLE_AUTHORITY recipient (templates: DECLARATION_APPROVED, DECLARATION_REJECTED, DECLARATION_CLARIFICATION_REQ, DECLARATION_PHYSICAL_VERIFICATION, PROFILE_APPROVED, PROFILE_REJECTED):
+Query: SELECT id FROM users WHERE temple_id = :templeId AND role = TEMPLE_AUTHORITY AND is_active = 1 ORDER BY created_at ASC LIMIT 1.
+If exactly one active user found: use that id as recipient_user_id on the NotificationEvent row.
+If zero active users found: do NOT insert a notification_events row. The workflow action completes and commits successfully. Log exactly one WARN-level message: "No active TEMPLE_AUTHORITY user found for templeId={}; notification skipped." The log message must not contain the temple name, user data, or any PII field values.
+If multiple active users exist (edge case in v1): use the one with the earliest created_at, as enforced by ORDER BY created_at ASC LIMIT 1. Exactly one notification row is produced.
+
+For DISTRICT_COLLECTOR recipient (template: DECLARATION_CLARIFICATION_REPLY):
+Query: SELECT id FROM users WHERE district_id = :districtId AND role = DISTRICT_COLLECTOR AND is_active = 1 ORDER BY created_at ASC LIMIT 1.
+If found: use as recipient_user_id.
+If not found: skip notification row, log WARN: "No active DISTRICT_COLLECTOR user found for districtId={}; notification skipped."
+
+Fallback safety rule: Any unexpected database exception thrown inside NotificationRecipientResolver MUST be caught within that method and treated as the "skip + log WARN" path. The exception must NOT be re-thrown or propagated to the calling workflow service. Re-throwing would roll back the entire workflow transaction, including the status change on the declaration. Workflow state transitions are non-negotiable; notification delivery is best-effort.
+
+⚠️ OBSERVABILITY NOTE (S14 — Metrics counter for skipped notifications): When NotificationRecipientResolver skips a notification (zero recipients found), in addition to logging WARN it MUST increment a metrics counter: Counter.builder("notifications.skipped.total").tag("template", templateKey).register(meterRegistry).increment(). A WARN log alone is insufficient for production — it will not trigger alerts or appear in dashboards. The counter enables alerting rules: if notifications.skipped.total > threshold in 5 minutes, page on-call.
+
+9.3 AUDIT LOGGING RULES
+
+Audit rows committed within the same transaction as the workflow action.
+
+PII masking: before_value and after_value JSON have encrypted columns replaced with REDACTED_ENCRYPTED by AuditJsonSanitizer before insertion. Known PII field key patterns: keys ending in _encrypted, and keys named aadhaar, pan_number, bank_account_number.
+
+Events audited:
+Declaration APPROVED: 1 row. table=asset_declarations, operation=UPDATE.
+Declaration REJECTED: 1 row. table=asset_declarations, operation=UPDATE.
+Declaration CLARIFICATION_REQUESTED: 2 rows. asset_declarations UPDATE + declaration_clarifications INSERT.
+Declaration PHYSICAL_VERIFICATION_REQUESTED: 2 rows. asset_declarations UPDATE + declaration_clarifications INSERT.
+Profile APPROVED: 3 rows. temple_profile_staging UPDATE + temple_profile_current UPDATE (or INSERT) + temple_profile_history INSERT.
+Profile REJECTED: 1 row. temple_profile_staging UPDATE.
+
+IP address: extracted from HttpServletRequest X-Forwarded-For header (first IP in chain, validated max 45 chars) via a request-scoped bean populated by an OncePerRequestFilter.
+Request ID: X-Request-Id header value; UUID generated and placed in MDC if absent.
+
+================================================================================
+SECTION 10: EXPORT SYSTEM DESIGN
+10.1 DATA SOURCE
+
+Temple export: temple_search_summary for index-level fields; supplemented by direct fields from temples and trust_registrations for full-detail exports.
+Declaration export: asset_declarations joined to temple_name from summary table.
+
+10.2 CONSISTENCY MODEL
+
+Sync export (under 500 rows): point-in-time as of query execution, window of milliseconds.
+Async export (500+ rows): point-in-time as of async thread execution, potential window of minutes.
+All exports include "Data exported as of: {ISO-8601 timestamp of query execution}" in the report header.
+
+10.3 ASYNC JOB LIFECYCLE
+
+DC posts export request.
+Audit_export_events row inserted (committed in short transaction before async submission).
+Row count determined. If >= 500: ExportJobParameters submitted to exportExecutor.
+HTTP 202 returned with jobId and status=ASYNC.
+Async thread: streams rows via JDBC ResultSet iteration (never loads into List). Writes directly to {TRM_EXPORT_BASE_DIR}/exports/{jobId}.{pdf|csv}. No S3 upload; no external storage required.
+On success: inserts notification_events (EXPORT_READY) with link_url=/api/v1/export/{jobId}/download. On failure: inserts notification_events (EXPORT_FAILED). The export file is not deleted on success (retained until manual purge or a scheduled cleanup job). Temp files used during generation are deleted in both cases.
+DC retrieves the download via the in-app notifications panel. No email delivery of download links in v1.
+If exportExecutor queue is full: HTTP 503 with Retry-After: 60.
+
+10.4 FILE FORMAT SPECIFICATIONS
+
+CSV: UTF-8 with BOM. Header row first. ISO-8601 dates. Plain decimal monetaries. Masked PII per Section 2.3. No raw encrypted values.
+PDF: Government seal (placeholder), DC name, designation, district name, generation timestamp, total record count on cover. Tables in body. Page numbers in footer. Masked PII.
+
+================================================================================
+SECTION 11: FRONTEND ARCHITECTURE (HIGH LEVEL)
+11.1 TECHNOLOGY AND INFRASTRUCTURE
+
+UI Library: Shadcn UI exclusively. No Ant Design, no MUI, no Chakra. Tailwind CSS for layout and utilities.
+State: RTK Query for all server state. Redux Toolkit slices for UI-only state (dialog open/close). React useState for component-local selection state.
+Forms: Zod schemas in dcTypes.ts. z.infer<> produces TypeScript types. Shadcn Form components.
+Routing: React Router v6. useSearchParams for filter state persistence in URL.
+API: RTK Query fetchBaseQuery. credentials: include. baseUrl from import.meta.env.VITE_API_BASE_URL.
+Current user: fetched once on app init from GET /api/v1/auth/me via authApi.ts. Stored in Redux currentUserSlice.
+
+11.2 FEATURE FOLDER STRUCTURE
+
+src/features/dc/ root files:
+dcTypes.ts, dcApi.ts, geoApi.ts, dcSlice.ts, dcHooks.ts
+
+src/features/dc/pages/:
+DcDashboardPage.tsx, TempleSearchPage.tsx, TempleProfilePage.tsx
+
+src/features/dc/components/:
+DashboardKpiCard.tsx, DashboardActivityFeed.tsx,
+TempleSearchFilters.tsx, TempleSearchTable.tsx,
+TempleProfileTabs.tsx, TempleProfileTab.tsx,
+TrustBoardTab.tsx, EmployeesTab.tsx, ContractorsTab.tsx,
+DeclarationsTab.tsx, DocumentsTab.tsx,
+TempleMapView.tsx (P2-3 fix: renders Leaflet.js map with a marker at temple GPS coordinates when gps_latitude and gps_longitude are non-null; uses react-leaflet library; shows a fallback “No GPS coordinates recorded” message when coordinates are absent; required by REQ 3.2.1a for embedded map view),
+WorkflowActionBar.tsx,
+WorkflowApproveDialog.tsx, WorkflowRejectDialog.tsx,
+WorkflowClarifyDialog.tsx, WorkflowPhysicalVerificationDialog.tsx,
+NotificationsPanel.tsx
+
+11.3 PAGE RESPONSIBILITIES
+
+DcDashboardPage:
+Calls useDcDashboard(). Renders 4 KPI cards, 3 grade cards, DashboardActivityFeed, quick-nav buttons.
+RTK Query staleTime: 300000ms (5 minutes). No polling.
+Loading: Shadcn Skeleton matching card grid. Error: Alert with retry. Empty: "Your district has no temples registered yet."
+
+TempleSearchPage:
+Calls useTempleSearch() and useGeoFilters(). All filter state in URL via useSearchParams.
+Renders TempleSearchFilters and TempleSearchTable.
+Result count header: "Temples found: {totalElements}" above table.
+0 results: "No temples match your current filters." in table area. Not a 404 page.
+
+TempleProfilePage:
+Gets templeId from useParams. Holds selectedDeclaration via React useState (NOT Redux).
+Calls useTempleProfile(templeId). Renders Breadcrumb, WorkflowActionBar (role-gated), TempleProfileTabs.
+Passes onDeclarationSelect callback into tabs. WorkflowActionBar receives selectedDeclaration as prop.
+
+11.4 COMPONENT RESPONSIBILITIES
+
+All components: presentational only, props-driven. No RTK Query hooks inside components.
+
+WorkflowActionBar:
+Props: selectedDeclaration (DeclarationSummary or null), currentUserRole (string), onApprove, onReject, onClarify, onFlagPhysical callbacks.
+Returns null if currentUserRole is DC_STAFF.
+If selectedDeclaration is null: "Select a declaration to review."
+Button visibility: PENDING_REVIEW shows all 4 buttons. PHYSICAL_VERIFICATION_REQUESTED shows Approve and Reject only. Other statuses: "No actions available (status: {status})."
+
+DeclarationsTab:
+Props: declarations list, selectedDeclaration, onDeclarationSelect callback.
+Clicking a row calls onDeclarationSelect with that declaration. Selected row has visual highlight.
+
+TempleProfileTabs:
+Manages active tab via useState internally. Passes onDeclarationSelect up via a prop callback from TempleProfilePage.
+
+WorkflowApproveDialog, WorkflowRejectDialog, WorkflowClarifyDialog, WorkflowPhysicalVerificationDialog:
+Each is a Shadcn Dialog. Contains a Zod-validated form with the field-specific constraints. Cancel dispatches dcSlice action to close. Submit calls the on[Action] callback. Shows loading spinner while mutation is in flight.
+
+11.5 STATE MANAGEMENT BOUNDARIES
+
+dcSlice.ts (Redux, UI only): openDialog: enum null | APPROVE | REJECT | CLARIFY | PHYSICAL.
+TempleProfilePage (React useState): selectedDeclaration: DeclarationSummary | null.
+TempleSearchPage (React useSearchParams): all filter values as URL search params. Never in Redux.
+RTK Query: all server data. Never mirrored into Redux slices.
+
+11.6 RTK QUERY API SLICE (dcApi.ts)
+
+getDcDashboard: GET /api/v1/dc/dashboard. providesTags: DcDashboard-DC.
+searchTemples: GET /api/v1/temples with query string. Query parameters include: talukId, hobliId, cityId (P1-2), grade, keyword, deityName, tradition, trustStatus (P0-3: REGISTERED/UNREGISTERED), declarationStatus (PENDING/OVERDUE/DECLARED/REVIEWED; P2-1), status, establishedYearFrom, establishedYearTo, page, size, sort. providesTags: TempleSearch-LIST.
+getTempleProfile: GET /api/v1/temples/{id}/profile. providesTags: TempleProfile-{id}.
+getDeclaration: GET /api/v1/declarations/{id}. providesTags: Declaration-{id}.
+listEmployees: GET /api/v1/temples/{templeId}/employees with page, size, employeeType, employmentStatus params. providesTags: EmployeeList-{templeId}.
+listContractors: GET /api/v1/temples/{templeId}/contractors with page, size, contractType, paymentStatus params. providesTags: ContractorList-{templeId}.
+listDeclarations: GET /api/v1/temples/{templeId}/declarations with page, size, financialYear, status params. providesTags: DeclarationList-{templeId}.
+getTempleDocuments: GET /api/v1/temples/{templeId}/documents. providesTags: DocumentList-TEMPLE-{templeId}.
+getDeclarationDocuments: GET /api/v1/declarations/{declarationId}/documents. providesTags: DocumentList-DECLARATION-{declarationId}.
+downloadDocument: GET /api/v1/documents/{id}/download. No cache tags (raw binary stream; must never be cached by RTK Query). RTK Query responseHandler: async (response) => response.blob(). On success: create object URL via URL.createObjectURL(blob), create a temporary <a> element with the object URL and download attribute set to the filename (parsed from Content-Disposition header's filename= token), click it programmatically, then call URL.revokeObjectURL after 100ms. Never opens in a new tab (no presigned URL is returned by the backend).
+approveDeclaration: POST /api/v1/declarations/{id}/approve. invalidatesTags: TempleSearch-LIST, DcDashboard-DC, Declaration-{id}, DeclarationList-{templeId}, TempleProfile-{templeId}.
+rejectDeclaration: same invalidation.
+clarifyDeclaration: same invalidation.
+flagPhysicalVerification: same invalidation.
+getNotifications: GET /api/v1/notifications. providesTags: Notification-LIST. pollingInterval: 60000.
+markNotificationRead: POST /api/v1/notifications/{id}/read. invalidatesTags: Notification-LIST, DcDashboard-DC.
+markAllNotificationsRead: POST /api/v1/notifications/read-all. invalidatesTags: Notification-LIST, DcDashboard-DC.
+exportTemples: POST /api/v1/export/temples. No tags. On SYNC success: ExportResponse contains downloadPath; trigger download via GET /api/v1/export/{jobId}/download using the same blob-download pattern as downloadDocument. On ASYNC: show Shadcn toast "Export is being prepared. Check your notifications when ready." (no email — DC retrieves via in-app notification panel).
+
+geoApi.ts:
+getCitiesByState: GET /api/v1/geo/states/{stateId}/cities. providesTags: GeoCity-{stateId}. Returns List<GeoCityResponse>. Used for city-level filter dropdown. Called once on search page mount with the Karnataka state ID. (P1-2 fix.)
+getTaluksByDistrict: GET /api/v1/geo/districts/{id}/taluks. providesTags: GeoTaluk-{districtId}.
+getHoblisByTaluk: GET /api/v1/geo/taluks/{id}/hoblis. providesTags: GeoHobli-{talukId}.
+
+11.7 CUSTOM HOOKS (dcHooks.ts)
+
+useDcDashboard(): calls getDcDashboard. Returns { data, isLoading, isError, refetch }.
+
+useTempleSearch(): reads all filter params from useSearchParams. Parses via Zod TempleSearchFiltersSchema (coerces invalid values to defaults). Calls searchTemples. Returns { data, isLoading, isError, updateFilter, clearAllFilters }. updateFilter calls setSearchParams.
+
+useGeoFilters(districtId): calls getCitiesByState with the Karnataka state ID (hardcoded constant KARNATAKA_STATE_ID in geoApi.ts; P1-2 fix — state is pre-selected to Karnataka per REQ 3.1.1a). Calls getTaluksByDistrict with districtId from currentUserSlice. Calls getHoblisByTaluk with currently-selected talukId from useSearchParams (skip if no talukId). Returns { cities, taluks, hoblis, loadingCities, loadingTaluks, loadingHoblis }.
+
+useTempleProfile(templeId): calls getTempleProfile. Returns { data, isLoading, isError }.
+
+useWorkflowActions(declarationId): instantiates all 4 mutation hooks. On success: dispatch dcSlice to close dialog, show success Shadcn toast. On error: show error Shadcn toast with API error message. Returns { approve, reject, clarify, flagPhysical, isAnyMutationLoading }.
+
+useNotifications(): calls getNotifications with pollingInterval=60000. Returns { notifications, unreadCount, markRead, markAllRead, isLoading }.
+
+useCurrentUser(): reads from currentUserSlice (populated by authApi.ts at app init; never calls an API endpoint itself). Returns { userId, username, role, districtId, districtName }.
+
+useDeclarationDetail(declarationId): calls getDeclaration. Returns { data: AssetDeclarationDetailResponse, isLoading, isError }. Used by DeclarationsTab to load full detail when a declaration is selected.
+
+useTempleEmployees(templeId, filters, page): calls listEmployees with page/size and optional employeeType/employmentStatus params. Returns { data, isLoading, isError }.
+
+useTempleContractors(templeId, filters, page): calls listContractors with page/size and optional contractType/paymentStatus params. Returns { data, isLoading, isError }.
+
+useTempleDeclarations(templeId, filters, page): calls listDeclarations with page/size and optional financialYear/status params. Returns { data, isLoading, isError }. Used by a standalone paginated declarations tab when more than the top-N preview entries are needed.
+
+useTempleDocuments(templeId): calls getTempleDocuments. Returns { documents, isLoading, isError }.
+
+useDeclarationDocuments(declarationId): calls getDeclarationDocuments. Returns { documents, isLoading, isError }.
+
+useDocumentDownload(): instantiates the downloadDocument mutation. On success: trigger browser file download from the Blob response (create object URL via URL.createObjectURL, programmatically click a temporary <a> element with the download attribute, then call URL.revokeObjectURL). On error: show Shadcn error toast. Returns { download: (documentId: string) => void, isDownloading: boolean }.
+
+11.8 FRONTEND RBAC
+
+Source of truth: role from useCurrentUser() (derived from /auth/me, stored in Redux).
+WorkflowActionBar: rendered in TempleProfilePage only if role is DISTRICT_COLLECTOR or SUPER_ADMIN.
+Export buttons: rendered for DISTRICT_COLLECTOR, DC_STAFF, and SUPER_ADMIN. (P0-1 fix: DC_STAFF is permitted to export per requirements Table 2.2.)
+Backend enforces the same restrictions independently. Frontend RBAC is UX and defense-in-depth only.
+
+================================================================================
+SECTION 12: KNOWN RISKS AND MITIGATIONS
+12.1 CONCURRENCY RISKS
+
+RISK: Simultaneous workflow actions on the same declaration.
+MITIGATION: @Version on AssetDeclaration. Concurrent modification -> OptimisticLockException at flush time -> HTTP 409. Frontend shows: "Declaration was updated concurrently. Please refresh and try again." Frontend invalidates the declaration's RTK Query tag on 409.
+
+🔁 CONCURRENCY IMPLEMENTATION NOTES:
+(S20 — Catch ObjectOptimisticLockingFailureException, not OptimisticLockException): Spring Data wraps JPA's OptimisticLockException in ObjectOptimisticLockingFailureException before it reaches @RestControllerAdvice. The handler must catch the Spring wrapper class.
+(Testing concurrency): Do NOT use Thread.sleep() to simulate concurrent access. Use CountDownLatch or Phaser: two threads both load the declaration, both hold the @Version value, first thread flushes and commits, second thread flushes and receives ObjectOptimisticLockingFailureException. Assert the second call returns HTTP 409.
+
+RISK: Acknowledgement number collision.
+MITIGATION: Number derived from declaration.id (already unique by PK). Same declaration cannot be concurrently approved twice because @Version prevents it. Different declarations have different IDs and thus different numbers. UNIQUE constraint on acknowledgement_number is the DB-level safety net.
+
+RISK: clarification_round counter race condition.
+MITIGATION: @Version on AssetDeclaration protects all fields including clarification_round as a unit. Two concurrent read-modify-writes result in one OptimisticLockException -> HTTP 409, not silent double-increment.
+
+RISK: markAllRead UPDATE locks too many rows.
+MITIGATION: LIMIT 200 per UPDATE call. Client calls repeatedly if needed.
+
+12.2 PERFORMANCE RISKS
+
+RISK: getTempleFullProfile N+1 queries.
+MITIGATION: Exactly 5 targeted queries. Explicitly documented in Section 6.3. If a sixth query is introduced by mistake (lazy loading triggered in a loop), a test using Hibernate Statistics with a query assertion will catch it during development.
+
+RISK: Temple search slow at 30,000+ temples.
+MITIGATION: Executes against temple_search_summary only (indexed, denormalized). Max 100 rows per page. Composite indexes cover primary access patterns.
+
+RISK: Dashboard aggregate query slow.
+MITIGATION: Single aggregate SELECT on temple_search_summary with indexed district_id filter. Expected under 50ms at 30,000 rows.
+
+RISK: Large async export OOMs the JVM.
+MITIGATION: JDBC ResultSet streaming; never accumulates rows in a List. exportExecutor bounded at maxPoolSize=5, queueCapacity=10.
+
+RISK: TempleSearchSummary refresh adds latency to workflow actions.
+MITIGATION: Single native UPDATE by PK. Expected under 5ms. Acceptable trade-off for guaranteed synchronous consistency.
+
+12.3 SECURITY RISKS
+
+RISK: AES encryption key exposed or absent.
+MITIGATION: Key from environment variable TRM_AES_KEY only. Application fails to start if absent or wrong length. Never logged. Production: sourced from secrets manager.
+
+RISK: PAN and Aadhaar values leak into API responses via MapStruct auto-mapping.
+MITIGATION: MapStruct mappers explicitly ignore raw encrypted fields in destination DTO. @AfterMapping hooks call PiiMaskingService to produce masked strings. Integration test validates that GET /api/v1/temples/{id}/profile response for DC role never contains a value matching full unmasked PAN pattern.
+
+RISK: DC accesses out-of-district entities by guessing IDs.
+MITIGATION: assertDistrictScope on all single-entity access. Returns HTTP 404 (not 403), removing existence signal for out-of-district entities.
+
+RISK: @EnableMethodSecurity absent on SecurityConfig.
+MITIGATION: Integration test: DC_STAFF principal calling approve() must return HTTP 403. This test fails if @EnableMethodSecurity is absent, blocking deployment.
+
+RISK: CSRF on workflow mutation endpoints.
+MITIGATION: Mutations use Authorization: Bearer header (access token in JS memory). Browser CSRF attacks cannot set this header. Refresh token uses HttpOnly cookie with SameSite=Strict. No CSRF token needed for DC module endpoints.
+
+🔒 ADDITIONAL SECURITY RISKS AND MITIGATIONS:
+(R1 — Cross-service @PreAuthorize bypass): RISK: A service calls another @PreAuthorize-protected service method directly on an injected implementation class, bypassing the AOP proxy. MITIGATION: ArchUnit test enforcing no *ServiceImpl class is referenced in any service constructor (only interfaces). Plus: ExportService calls repository directly, never DcTempleSearchService.
+(R2 — Implementation injection escape): RISK: Developer injects *ServiceImpl instead of the interface, making AOP inapplicable. MITIGATION: ArchUnit test verifying all @Service class constructors declare only interface types as parameters.
+(R5 — JWT claims trust): RISK: Compromised Auth Module issues incorrect JWT claims (wrong role, wrong districtId). MITIGATION: Documented accepted trust boundary. The DC module has no secondary JWT verification layer. Mitigation is Auth Module security, not DC Module.
+(R7 + R8 — Timing oracle and identical 404 body): RISK: An attacker determines whether an entity exists in another district by comparing HTTP 404 response body or timing. MITIGATION: Fixed identical 404 body for both EntityNotFoundException and DistrictScopeViolationException. Random 0–20ms delay before returning any 404. See Section 2.5 notes.
+(R9 — Sequential ack numbers): RISK: Sequential acknowledgement numbers reveal cross-district approval rate. MITIGATION: Accepted disclosure. Numbers appear on official government documents. Will not be remediated.
+(R14 — Deep pagination exhaustion): RISK: page=999999 causes server to attempted to serve an empty page deep in a huge result set, consuming query resources. MITIGATION: Hard reject page > 10000 or page*size > 1,000,000 with HTTP 400 before query execution.
+(R18 — Security headers): All API responses must include: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: no-referrer. PII-bearing responses must include Cache-Control: no-store.
+
+12.4 DATA CONSISTENCY RISKS
+
+RISK: temple_search_summary row missing for a temple.
+MITIGATION: TempleSearchSummaryService.refresh uses UPSERT semantics. Missing row is inserted on first workflow action. One-time backfill handles all pre-existing rows.
+
+RISK: Notification template_params reference stale entity data.
+MITIGATION: Params are snapshot values copied at notification creation time. Dispatch service uses stored params, not live entity queries.
+
+RISK: Async export captures stale data.
+MITIGATION: Documented limitation. "Data as of: {timestamp}" included in export header.
+
+================================================================================
+SECTION 13: FINAL VALIDATION
+13.1 BLOCKER RESOLUTION CONFIRMATION
+
+BLOCKER-1 PK type: RESOLVED. Section 2.1. BIGINT AUTO_INCREMENT, generated by MySQL. Long in Java. All entity PKs and FKs are BIGINT. The sole exception is acknowledgement_sequences.seq_id (V14a), which is also BIGINT AUTO_INCREMENT and is consistent with this rule.
+BLOCKER-2 TempleSearchSummary no sync path: RESOLVED. Sections 2.6, 6.8. Synchronous refresh within every workflow transaction.
+BLOCKER-3 AesEncryptionConverter not in scope: RESOLVED. Section 2.3. Declared as REQUIRED prerequisite with fail-fast on absent key.
+BLOCKER-4 Physical verification guard not modeled: RESOLVED. Section 5.2. DeclarationClarificationRepository.existsByDeclarationIdAndSectionNameAndDirection check documented. PhysicalVerificationFindingsRequiredException (TRM-DECL-010) defined.
+BLOCKER-5 No geo API in frontend: RESOLVED. Sections 11.2, 11.6, 11.7. geoApi.ts, getTaluksByDistrict, getHoblisByTaluk, useGeoFilters all documented.
+BLOCKER-6 No /auth/me endpoint: RESOLVED. Section 8.3 includes GET /api/v1/auth/me. Sections 11.1, 11.7 document currentUserSlice and useCurrentUser.
+BLOCKER-7 AcknowledgementNumberGenerator race condition: RESOLVED. Section 2.7. Derived from declaration.id; no max()+1.
+BLOCKER-8 @Async with no thread pool: RESOLVED. Section 2.9. exportExecutor with explicit parameters. @EnableAsync on AsyncConfig. HTTP 503 on queue full.
+BLOCKER-9 DistrictScopeViolationException returns 403 not 404: RESOLVED. Sections 2.4, 5.5, 8.3. HTTP 404 always and consistently. 403 never returned for scope violations.
+BLOCKER-10 SUPER_ADMIN gets 0 results: RESOLVED. Sections 6.2, 7.2, 8.1, 8.3. Null districtId omits district WHERE clause for SA.
+FIX-11 Notification loss on pod restart: RESOLVED. Sections 2.8, 9.1. notification_events INSERT within main transaction. No ApplicationEvent. No AFTER_COMMIT listener.
+FIX-12 MapStruct leaks AES ciphertext: RESOLVED. Sections 2.3, 6.3, 12.3. @AfterMapping masks via PiiMaskingService. Integration test validates.
+FIX-13 selectedDeclaration bridge via Redux: RESOLVED. Sections 11.3, 11.4. React useState in TempleProfilePage. Props passed to WorkflowActionBar and up from DeclarationsTab.
+FIX-14 TempleController cross-module ownership: RESOLVED. Section 8.3. DC read controller named DcTempleReadController.
+
+13.2 INTERNAL CONSISTENCY AUDIT
+
+Entity IDs: BIGINT AUTO_INCREMENT throughout all sections. No CHAR(36)/UUID entity PKs. acknowledgement_sequences.seq_id is also BIGINT AUTO_INCREMENT and is consistent with this rule.
+DistrictScopeViolationException: HTTP 404 in all occurrences (Sections 2.4, 5.5, 6.3, 6.4, 8.3). HTTP 403 does not appear for scope violations anywhere.
+SUPER_ADMIN district bypass: null districtId documented in Sections 2.4, 2.5, 6.2, 7.2, 8.1, 8.3. Consistent across all.
+Notification INSERT: within main transaction in Sections 2.8, 6.4, 6.5, 9.1, and all workflow service descriptions. No post-commit event anywhere.
+APPROVED terminal state: Sections 5.1, 5.2, 5.5 all consistent. No outbound transitions. No modifications permitted.
+REJECTED immutability: Sections 5.2 and 5.5 consistent. Temple Authority creates new declaration row; rejected row unchanged.
+PII masking: defined in 2.3, applied in 6.3, validated in 12.3. Masking rules are consistent across all three sections.
+Frontend RBAC signal: /auth/me in 8.3, currentUserSlice in 11.1, useCurrentUser in 11.7, conditional rendering in 11.8. Consistent pipeline.
+TempleSearchSummary sync: synchronous within-transaction in 2.6, 6.4, 6.5, 6.8, 7.6. No async sync mechanism anywhere.
+Physical verification guard: both PHYSICAL_VERIFICATION_REQUESTED->APPROVED and ->REJECTED require the findings check per Section 5.2. Both transitions documented.
+Document system: table definitions in Section 4.8a (documents, document_associations, document_access_log). documents.file_path is relative to TRM_FILE_BASE_DIR. Access control rules in Section 4.8a. Service in Section 6.12 (serveFile() streams FileSystemResource with path traversal prevention). Endpoints in Section 8.3 (three DC read endpoints + binary streaming download). Upload is out of scope per Section 1.3; no upload endpoint exists in DC module. Consistent across all four locations.
+Pagination APIs: DcTempleSubEntityService in Section 6.3a defines employees, contractors, and declarations pagination methods. Endpoints in Section 8.3. RTK Query endpoints in Section 11.6. Hooks in Section 11.7. The top-N preview slices in DcTempleProfileService (Section 6.3) are preserved unchanged; pagination extends them for full-list access.
+API response envelope: defined in Section 2.10. GlobalExceptionHandler is sole producer. errorCode field maps to Section 5.5 domain exception codes. "errors" array present only for HTTP 400 validation failures. HTTP 500 message is always the fixed generic string.
+Notification recipient fallback: defined in Section 9.2. NotificationRecipientResolver encapsulates all lookups. Zero-recipient case: skip notification row and log WARN; workflow transaction always commits. Consistent with Section 2.8 reliability model (state change is non-negotiable; notification is best-effort).
+Declaration detail endpoint: GET /api/v1/declarations/{id} in Section 8.3. Service in Section 6.4a. RTK Query in Section 11.6. Hook in Section 11.7. sub-table data and clarification thread included. snapshot_json excluded from response consistently across Section 6.4a and Section 8.3.
+
+13.3 IMPLEMENTATION READINESS STATEMENT
+
+This specification is complete and implementation-ready at Version 1.1. The hardening review (F1–F15, S1–S20, R1–R20) has been fully incorporated inline throughout Sections 2–12 and summarized in Section 14. Any developer or automated code generation system can derive all of the following without additional design decisions:
+
+All 15 Flyway migration SQL files (Section 4 defines every table, column, type, constraint, and index)
+All JPA entity class fields, relationships, and annotation requirements (Sections 3 and 4)
+All Spring Data JPA repository interface method signatures (Sections 6 and 7)
+All service interface method signatures, @PreAuthorize values, and transaction semantics (Section 6)
+All service implementation execution chains step by step (Sections 5 and 6)
+All controller endpoint HTTP method, path, request body, and response types (Section 8.3)
+All DTO field structures for every request and response (derived from service signatures and Section 7.3, 7.5)
+All MapStruct mapper requirements including masking rules (Sections 2.3, 6.3)
+All StateTransitionValidator transition map entries (Section 5.2)
+All exception types, error codes, and HTTP status mappings (Section 5.5)
+All frontend feature folder structure and file responsibilities (Section 11.2)
+All RTK Query endpoint definitions, cache tags, and invalidation rules (Section 11.6)
+All custom hook return types and behavior (Section 11.7)
+All Zod schema field requirements (derived from request DTO constraints in Section 5.2 and 8.3)
+All notification template keys, recipients, channels, and params (Section 9.2)
+All audit event types and masking rules (Section 9.3)
+All export behavior including sync/async threshold, streaming, and file formats (Section 10)
+All concurrency handling patterns including @Version, ObjectOptimisticLockingFailureException (Spring wrapper), and LIMIT guards (Section 12.1 and 5.5)
+All security controls including PII masking, district scope, RBAC, timing oracle mitigation, rate limiting, idempotency keys, and security response headers (Sections 2.4, 2.5, 8.3, 12.3, 14.4)
+The AsyncConfig ThreadPoolTaskExecutor definition and AsyncExportBean pattern (Sections 2.9 and 6.10)
+The AuditService and AuditJsonSanitizer behavior including intentional rollback design (Sections 6.9 and 14.3)
+All Flyway migration blockers: deferred FK for users.temple_id, no physical FKs on partitioned tables, deterministic V13, within-migration table creation order (Section 4.12 and 14.1)
+
+No section contains a TBD marker.
+No section presents alternative options requiring a design decision.
+No section references an unresolved gap or blocker.
+
+================================================================================
+SECTION 14: HARDENING SUMMARY (Post-Review Additions, Version 1.1)
+================================================================================
+This section documents all findings from the four post-specification review sessions (DB/schema review, service-layer review, RBAC/security review, testing review) and records which have been incorporated, which are accepted known limitations, and which remain as outstanding risks.
+
+14.1 SCHEMA BLOCKERS (ALL RESOLVED INLINE)
+
+F1 BLOCKER RESOLVED: users.temple_id FK deferred to V15. V2 declares the column with no FOREIGN KEY clause. FK added via ALTER TABLE in V15 only. See Section 4.12 F1 note.
+F2 BLOCKER RESOLVED: No physical FK constraints on partitioned tables (audit_data_events, audit_auth_events). MySQL InnoDB ERROR 1506 prohibition. FKs are logical-only on all partitioned tables. See Section 4.10 F2 note.
+F3 BLOCKER RESOLVED: V13 must be deterministic. "If not fully covered in V2" wording is forbidden in Flyway migrations. V13 must contain an explicit DDL list or a harmless deterministic statement. See Section 4.12 F3 note.
+
+14.2 SCHEMA FIXES INCORPORATED
+
+F4: idx_summary_pending and idx_summary_overdue column order corrected to (district_id, column DESC). See Section 4.11.
+F5: idx_clar_section ON (declaration_id, section_name, direction) added. See Section 4.8 note.
+F6: V11 must include MAXVALUE partition and p2025–p2034 explicit boundaries. See Section 4.10.
+F7: audit_pii_access_events needs MONTH/QUARTER partitioning; audit_export_events and document_access_log need YEAR partitioning. See Section 4.10.
+F8: idx_profile_staging_temple_status ON (temple_id, status) added for summary refresh sub-query. See Section 4.4.
+F9: idx_decl_overdue replaced with (is_overdue, status, temple_id). See Section 4.8.
+F10: Summary staleness from out-of-scope scheduler documented as known limitation. See Section 2.6.
+F11: @Version column on asset_declarations named lock_version. See Sections 2.1 and 4.8.
+F12: Within-migration table creation order documented (V5, V6, V8, V9, V12). See Section 4.12.
+F13: CHECK constraints added: employees date validation, users role/district_id guard. See Sections 2.2, 4.2, 4.6.
+F14: document_associations.association_role validated as constant set, not free-form VARCHAR. See Section 4.8a.
+F15: Succession cycle detection at service layer; check_no_self_succession CHECK constraint. See Section 4.6.
+
+14.3 SERVICE LAYER GAPS INCORPORATED
+
+S1: approve() loads Temple entity for assertDistrictScope and status=ACTIVE guard. See Section 5.2 and 6.4.
+S2: AcknowledgementNumberGenerator validates seq_id > 0 after LAST_INSERT_ID(). See Section 2.7.
+S3: StateTransitionValidator uses getOrDefault(from, emptySet()) to handle terminal states without NPE. See Section 5.4.
+S4: Hibernate JOIN FETCH on trust board members uses DISTINCT + passDistinctThrough hint. See Section 6.3.
+S5 CRITICAL: PiiMaskingService.mask() uses @Transactional(propagation=REQUIRES_NEW). See Section 2.3.
+S6: listDeclarations filters AND status != 'DRAFT'. See Sections 4.8 and 6.3a.
+S7: approveProfile() conditionally inserts history (skips if no current exists for first approval). See Section 6.5.
+S8: markRead() uses WHERE id=? AND is_read=0 (idempotent, never overwrites read_at). See Section 6.7.
+S9: pending_declarations counts PENDING_REVIEW + CLARIFICATION_REQUESTED + PHYSICAL_VERIFICATION_REQUESTED. See Sections 2.6 and 6.8.
+S10: @Async on AsyncExportBean (separate bean), not ExportServiceImpl self-invocation. See Sections 2.9 and 6.10.
+S11: AuditExportEventService.logExport() uses REQUIRES_NEW for pre-submission commit. See Sections 2.9 and 6.10.
+S12: assertDistrictScope checks role==SUPER_ADMIN first; non-SA null districtId throws IllegalStateException. See Section 2.4 R4.
+S13: generateDownloadUrl() with no association rows throws EntityNotFoundException (404). See Sections 4.8a and 6.12.
+S14: NotificationRecipientResolver increments metrics counter notifications.skipped.total on every skip. See Section 9.2.
+S15: AuditService propagation=REQUIRED is intentional — audit failure must roll back workflow. See Section 6.9.
+S16: Export without audit trail is forbidden; logExport() failure aborts export. See Sections 2.9 and 6.10.
+S17: Export deduplication: HTTP 409 if active job exists for same actor+filters within 5 minutes. See Sections 2.9 and 6.10.
+S18: temple_search_summary district_id staleness after temple transfer — accepted known limitation. See Section 2.6.
+S19: keyword/deityName use parameterized binding with wildcard escaping; never string concatenation. See Section 6.4.
+S20: GlobalExceptionHandler catches ObjectOptimisticLockingFailureException (Spring wrapper), not OptimisticLockException (JPA). See Sections 5.5 and 12.1.
+
+14.4 RBAC AND SECURITY GAPS INCORPORATED
+
+R1: ArchUnit test — no service may call @PreAuthorize-protected methods on another service. See Sections 2.4 and 12.3.
+R2: All injected collaborators declared as interface types; ArchUnit enforces no *ServiceImpl in constructors. See Section 2.4.
+R3: @EnableMethodSecurity guard test uses @SpringBootTest, not @WebMvcTest. See Section 2.4.
+R4: Non-SA null districtId in assertDistrictScope throws IllegalStateException. See Sections 2.4 and 12.3.
+R5: DC module fully trusts JWT claims; accepted Auth Module trust boundary. See Section 2.5.
+R6: assertDistrictScope takes Temple entity, never raw ID. See Sections 2.5 and 12.3.
+R7: Identical HTTP 404 body for EntityNotFoundException and DistrictScopeViolationException. See Section 2.5.
+R8: Random 0–20ms delay before any 404 response (timing oracle mitigation). See Section 2.5.
+R9: Sequential ack numbers reveal approval rate — accepted disclosure, not remediated. See Section 2.7.
+R10: Export rate limit: 5 requests / 10 minutes per user. See Sections 2.9, 6.10, 8.3.
+R11: Document download rate limit: 60 requests / minute per user. See Sections 6.12, 8.3.
+R12: Workflow mutation rate limit: 30 requests / minute per user. See Section 8.3.
+R13: Control character stripping on keyword and deityName before query binding. See Sections 6.3a and 8.3.
+R14: Hard reject page > 10000 or page*size > 1,000,000 with HTTP 400. See Sections 6.3a, 8.3, 12.3.
+R15: Export format as ExportFormat enum on DTO. See Sections 6.10 and 8.3.
+R16: Remarks/notes field length maximums enforced via @Size on all request DTOs. See Section 8.3.
+R17: Idempotency-Key header on all four workflow mutation POSTs. 5-minute DB-backed idempotency via idempotency_records table (Section 4.12b). No Redis required. See Section 6.4.
+R18: Security response headers on all responses; Cache-Control: no-store on PII responses. See Sections 8.3 and 12.3.
+R19: serveFile() with orphaned document (no association) returns 404. See Sections 4.8a and 6.12.
+R20: Document access log INSERT flood prevented by download rate limit (R11). See Section 6.12.
+
+14.5 REMAINING ASSUMPTIONS AND OPEN CONSTRAINTS
+
+ASSUMPTION-1: Auth Module delivers @EnableMethodSecurity on SecurityConfig before DC module goes live. If absent, all @PreAuthorize checks are silently bypassed. The integration test (R3) catches this.
+ASSUMPTION-2: AES-256-GCM infrastructure (AesEncryptionConverter + TRM_AES_KEY) is deployed before any DC module entity class is loaded. Application fails to start if key is absent (Section 2.3).
+ASSUMPTION-3: Scheduled Jobs Module calls TempleSearchSummaryService.refresh() after every overdue-flagging batch (F10, S18). This is a cross-module integration contract. Failure makes overdue_declarations stale until the next DC workflow action on the affected temple.
+ASSUMPTION-4: Notification Dispatch Service polls notification_events correctly. If the poller is down, notifications are delayed but not lost (they remain as PENDING rows). Section 2.8 and 9.1 document this guarantee.
+ASSUMPTION-5 (revised in v1.3): Rate limiting uses the database-backed RateLimitService (Section 4.12c). No external library (Bucket4j) or cache (Redis) is required. The only prerequisite is a functioning MySQL instance, which is already required by all other modules. Rate limits R10–R12 are enforced via the rate_request_log table UPSERT on every request. No additional infrastructure dependency is introduced.
+LIMITATION-1: temple_search_summary.district_id becomes stale after inter-district temple transfers (S18). No automated fix; requires manual refresh or a workflow action to trigger synchronization.
+LIMITATION-2: Sequential acknowledgement numbers disclose cross-district approval volume (R9). Not remediated in v1.
+LIMITATION-3: DC module does not validate JWT claims independently. Trust is delegated entirely to the Auth Module (R5).
+LIMITATION-4: Async export data freshness: 500+ row exports may include data up to several minutes old depending on executor queue depth (Section 10.2). "Data as of" timestamp mitigates user confusion.
+
+================================================================================
+SECTION 15: AUDIT FIX INTEGRATION SUMMARY (Version 1.2 — Requirements Gap Audit)
+================================================================================
+This section records all changes made in the requirements gap audit (2026-04-09) that compared dc_e2e.txt v1.1 against temple_registry_requirements.txt. Changes are grouped by priority tier.
+
+15.1 ✅ P0 FIXES APPLIED (ALL 4 BLOCKERS RESOLVED)
+
+P0-1 (DC_STAFF Export Permission — GAP-4):
+  PROBLEM: Section 8.1 said "DC_STAFF: Cannot export full reports (403)". Requirements Table 2.2 says DC Staff export = YES. Direct contradiction; would fail UAT.
+  FIX APPLIED:
+    §8.1 DC_STAFF role description — changed "Cannot export full reports (403)" to "Can export full reports for their assigned district"
+    §8.2 @PreAuthorize — ExportService.exportTemples/exportDeclarations updated to DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN
+    §8.3 endpoint table — POST /api/v1/export/temples and /export/declarations updated to permit DC_STAFF
+    §6.10 ExportService authorization — updated to include DC_STAFF
+    §11.8 Frontend RBAC — export buttons now rendered for DC_STAFF too
+  CROSS-CHECK: DC_STAFF cannot execute workflow actions (approve/reject/clarify/flag) — unchanged, still correct.
+
+P0-2 (Contractor Documents — GAP-3):
+  PROBLEM: CONTRACTOR was absent from document_associations.entity_type ENUM(TEMPLE,DECLARATION,TRUST). REQ 3.4.2a requires contractor PDF association.
+  FIX APPLIED:
+    §4.8a document_associations — entity_type ENUM extended to ENUM(TEMPLE,DECLARATION,TRUST,CONTRACTOR)
+    §4.8a document access control — added CONTRACTOR path for district scope resolution
+    §4.8a DC module document endpoints — added GET /api/v1/contractors/{contractorId}/documents
+    §4.12 V15 — added ALTER TABLE document_associations MODIFY COLUMN entity_type to include CONTRACTOR
+    §6.11 cross-service map — added DocumentQueryService -> ContractorRepository
+    §6.12 DocumentQueryService — added listContractorDocuments() method with full sequence
+    §8.3 endpoint table — added GET /api/v1/contractors/{contractorId}/documents
+
+P0-3 (Trust Registration Status Filter — GAP-2):
+  PROBLEM: No trustStatus filter in search, no has_active_trust column in temple_search_summary. REQ 3.1.3b mandates Trust Registration Status toggle (REGISTERED/UNREGISTERED).
+  FIX APPLIED:
+    §4.11 temple_search_summary — added has_active_trust TINYINT(1) NOT NULL DEFAULT 0 column
+    §4.11 indexes — added idx_summary_trust ON (district_id, has_active_trust)
+    §4.12 V15 — added ALTER TABLE to add has_active_trust column
+    §6.8 refresh() — added has_active_trust recomputation (COUNT trust_registrations WHERE status=ACTIVE)
+    §7.1 search params — added trustStatus filter (REGISTERED/UNREGISTERED)
+    §7.2 query strategy — added trust status filter clause documentation
+    §11.6 searchTemples params — added trustStatus to the RTK Query endpoint
+
+P0-4 (Null Safety in assertDistrictScope — CRIT-1):
+  PROBLEM: assertDistrictScope traversed temple.getHobli().getTaluk().getDistrict().getId() with no null-guards. If geo seed data has a null FK, this throws NullPointerException (HTTP 500) not EntityNotFoundException.
+  FIX APPLIED:
+    §2.5 (R6 note) — added explicit null-guard requirement with three-hop null checks and specific throw EntityNotFoundException at each null hop
+    §6.3 DcTempleProfileService — updated assertDistrictScope call description to reference null-guard requirement
+
+15.2 ✅ P1 FIXES APPLIED (ALL 6 PRE-GO-LIVE FIXES RESOLVED)
+
+P1-1 (Board Member Active/Past Split — GAP-8):
+  PROBLEM: TrustBoardMember data model stores is_active and cessation_date, but TempleFullProfileResponse returned a single unsplit boardMembers list. REQ 3.3.2a mandates current vs past board members shown separately.
+  FIX APPLIED:
+    §6.3 DcTempleProfileService — Query 2 description updated: board members now split into activeBoardMembers and pastBoardMembers during MapStruct @AfterMapping
+    §6.3 TempleFullProfileResponse — now contains activeBoardMembers: List<TrustBoardMemberResponse> and pastBoardMembers: List<TrustBoardMemberResponse> as separate fields
+
+P1-2 (City-Level Filter + Geo API — GAP-1):
+  PROBLEM: No cityId filter in search params. No GET /geo/states/{id}/cities endpoint. Requirements Section 3.1.1b mandates City/Town as a filter level. State pre-selected to Karnataka (REQ 3.1.1a).
+  FIX APPLIED:
+    §4.11 temple_search_summary — added city_id CHAR(36) NOT NULL DEFAULT '' column (denormalized)
+    §4.11 indexes — added idx_summary_city ON (city_id, temple_status)
+    §4.12 V15 — added ALTER TABLE to add city_id column
+    §6.8 refresh() — added city_id recomputation (from geo_districts.city_id for temple's district)
+    §7.1 search params — added cityId filter with documentation
+    §7.2 query strategy — added city filter clause
+    §8.3 endpoint table — added GET /api/v1/geo/states/{stateId}/cities
+    §11.2 geoApi.ts — added getCitiesByState
+    §11.7 useGeoFilters hook — now also calls getCitiesByState with KARNATAKA_STATE_ID constant
+
+P1-3 (DB-backed Idempotency — v1.3 on-prem refactoring replaces Redis-based v1.2 fix):
+  PROBLEM: Idempotency-Key cache was originally Redis-backed (v1.2 fix). In v1.3 on-prem refactoring, Redis is removed entirely as a runtime dependency. In-memory caching (ConcurrentHashMap) is still FORBIDDEN as it loses state on JVM restart.
+  FIX APPLIED:
+    §6.4 (R17 note) — rewritten to use idempotency_records database table (Section 4.12b) instead of Redis. Key uniqueness enforced by UNIQUE(actor_user_id, idempotency_key). TTL managed by expires_at column + scheduled cleanup job (IdempotencyCleanupJob, every 15 min). No Redis dependency. REQUIRES_NEW propagation on IdempotencyService.record() ensures idempotency row commits only after successful workflow transaction.
+
+P1-4 (lock_version Cross-Module Alignment — CRIT cross-module):
+  PROBLEM: No contract documented that both DC and TA modules must use the same lock_version column name on asset_declarations.
+  FIX APPLIED:
+    §2.1 (F11 note) — added 🔗 CROSS-MODULE INTEGRATION CONTRACT explaining that both modules must reference Flyway V8's canonical DDL, with enforcement via shared integration test
+
+P1-5 (TA Module Summary Refresh Contract — MEDIUM cross-module):
+  PROBLEM: TA module submitting a declaration (DRAFT→PENDING_REVIEW) did not have a documented obligation to call TempleSearchSummaryService.refresh(). DC dashboard would show 0 pending for newly submitted declarations.
+  FIX APPLIED:
+    §2.6 — added 🔗 CROSS-MODULE INTEGRATION CONTRACT mandating TA module calls refresh(templeId) on declaration submission, with failure scenario and mitigation documented
+
+P1-6 (Financial Assets Modeling Clarification — GAP-6):
+  PROBLEM: Requirements Section 3.5.2 lists Financial Assets as a movable asset category. Spec stored only aggregate DECIMAL annuals with no sub-table. No explicit acknowledgment of this scope decision.
+  FIX APPLIED:
+    §3.5 — updated AssetDeclaration description to explicitly document that financial instruments are aggregate-only in v1 (no decl_fin_instrument sub-table), with business justification (HR&CE Act v1 compliance requires totals only)
+
+15.3 ⚠️ P2 FIXES APPLIED / SKIPPED
+
+P2-1 — DECLARED filter: APPLIED. Added has_approved_declaration column to temple_search_summary (§4.11), recomputation in refresh() (§6.8), DECLARED mapping in §7.1, and templesWithApprovedDeclaration KPI to dashboard (§7.5).
+
+P2-2 — Dashboard enhancements (deadlines + submission history): APPLIED (low-risk field additions). Added nearestDeadlineDate and submissionsThisMonth to DcDashboardResponse (§7.5). nearestDeadlineDate requires a separate query; implementation detail is left to the developer.
+
+P2-3 — Leaflet map component: APPLIED. Added TempleMapView.tsx to §11.2 component list with react-leaflet library specification. Renders GPS coordinates as a map marker. Falls back gracefully when coordinates are absent.
+
+P2-4 — linkedInstitutions list: APPLIED. Changed linked_institution_name VARCHAR to linked_institutions JSON NULL in §4.4 (temple_profile_staging). Stores JSON array of institution names. Updated §6.3 TempleFullProfileResponse to include linkedInstitutions: List<String>.
+
+P2-5 — Trust documents endpoint: APPLIED. Added listTrustDocuments() to §6.12 DocumentQueryService, added GET /api/v1/trusts/{trustId}/documents to §4.8a DC endpoint list and §8.3 endpoint table.
+
+P2-6 — Bucket4j explicit dependency: APPLIED. Updated §8.3 rate limit section to specify Bucket4j (io.github.bucket4j:bucket4j-core + bucket4j-redis) as an explicit pom.xml dependency. Requirement is non-optional; document noted that without it R10–R12 are unenforced.
+
+P2-7 — Auditor role: APPLIED as explicit deferral note. Added §1.3 note acknowledging that State Government/Audit Bodies viewer role (tentatively AUDITOR/STATE_VIEWER) is not in v1 and is deferred to a future module or API v2.
+
+P2-8 — Flyway rollback strategy: APPLIED. Added operational rollback procedure to §4.12 Flyway migration section: pre-migration backup requirement, restore procedure on failure, and specific V15 risk note for ENUM extension.
+
+15.4 🔗 INTEGRATION DEPENDENCIES UPDATED
+
+| Dependency | Location | Status |
+|---|---|---|
+| TA module MUST call refresh() on DRAFT→PENDING_REVIEW | §2.6 cross-module contract | Documented |
+| Both modules MUST use lock_version DDL column name | §2.1 cross-module contract | Documented |
+| Scheduled Jobs Module MUST call refresh() after overdue batch | §2.6 (existing F10 note) | Pre-existing, confirmed |
+| CONTRACTOR added to entity_type ENUM — affects TA upload service | §4.8a, §4.12 V15 | Schema fix documented |
+| city_id populated in temple_search_summary by refresh() | §6.8 | Documented |
+| DB-backed idempotency_records (§4.12b) replaces Redis idempotency · DB-backed rate_request_log (§4.12c) replaces Bucket4j/Redis rate limiting | §6.4, §8.3 | Documented (v1.3) |
+
+15.5 🚨 REMAINING RISKS (POST-FIX)
+
+RISK-1 (LOW): nearestDeadlineDate in DcDashboardResponse (P2-2) requires a configured deadline calendar or derivation logic from financial year boundaries. The exact query is not specified; implementation team must define the deadline computation rule before implementing.
+
+RISK-2 (LOW): Leaflet.js (react-leaflet) is an OSS map library that requires network access to load tiles. In restricted government networks without internet access, tile loading will fail silently. Specify a self-hosted tile server or offline tile provider as a deployment configuration before production.
+
+RISK-3 (MEDIUM): The TA module's obligation to call refresh() on declaration submission (P1-5) is documented but not compiled into a shared interface or enforced by an automated test. A manual code review gate or an integration test in the TA module must verify this before go-live.
+
+RISK-4 (LOW): city_id DEFAULT '' in temple_search_summary (P1-2) means temples seeded before the backfill will have empty city_id until the first refresh() or backfill script runs. The one-time backfill script must be updated to also populate city_id from geo_districts.city_id.
+
+================================================================================
+SECTION 16: ON-PREM REFACTORING SUMMARY (Version 1.3)
+================================================================================
+This section records all changes applied in the v1.3 on-prem refactoring pass. The goal was to eliminate every AWS and Redis runtime dependency and replace them with local equivalents that run on a single server with only MySQL 8.0+ and a local filesystem.
+
+16.1 REMOVED DEPENDENCIES
+
+| Removed Component | Was Used For | Replaced By |
+|---|---|---|
+| AWS S3 | Temple document storage (photo_file_path, minutes_file_path) | Local filesystem under TRM_FILE_BASE_DIR |
+| AWS S3 | Asset declaration snapshots and acknowledgement PDFs | Local filesystem under TRM_FILE_BASE_DIR |
+| AWS S3 | Export file storage (CSV/PDF) | Local filesystem under TRM_EXPORT_BASE_DIR |
+| AWS S3 pre-signed URLs | Serving documents to browser | Backend streaming endpoint (GET /api/v1/documents/{id}/download) using FileSystemResource |
+| Redis (Spring Data Redis) | Idempotency response cache | idempotency_records MySQL table (Section 4.12b) |
+| Bucket4j + Redis | Distributed rate limiting (R10–R12) | rate_request_log MySQL table + RateLimitService (Section 4.12c) |
+| Email delivery | Export EXPORT_READY notifications | IN_APP notification with link_url to download endpoint |
+| SMS delivery | DECLARATION_APPROVED/REJECTED/CLARIFICATION_REQ | IN_APP only (v1 on-prem; out-of-scope adapters) |
+
+16.2 SCHEMA CHANGES INTRODUCED IN V1.3
+
+All entity PKs and FK columns changed from CHAR(36)/UUID to BIGINT AUTO_INCREMENT:
+  - Affects: all tables in Sections 4.1–4.12
+  - Java entity change: String id → Long id; @GeneratedValue(strategy=IDENTITY); BaseEntity.id is Long
+  - All FK columns (e.g., temple_id, district_id, created_by, updated_by) are BIGINT
+
+Column renames (s3_key → file_path):
+  - temple_profile_staging.photo_s3_key → photo_file_path VARCHAR(1000)
+  - trust_registrations.minutes_s3_key → minutes_file_path VARCHAR(1000)
+  - asset_declarations.acknowledgement_doc_s3_key → acknowledgement_doc_file_path VARCHAR(1000)
+  - asset_declarations.snapshot_s3_key → snapshot_file_path VARCHAR(1000)
+  - documents.s3_key → file_path VARCHAR(1000) NOT NULL UNIQUE
+
+Notification table simplification:
+  - notification_events: removed email_status, sms_status columns
+  - channels JSON DEFAULT '["IN_APP"]' (only IN_APP populated in v1)
+
+New tables (Flyway V16):
+  - idempotency_records (BIGINT PK, UNIQUE on actor_user_id + idempotency_key, expires_at TTL)
+  - rate_request_log (BIGINT PK, UNIQUE on user_id + endpoint_key + window_start, UPSERT-based counter)
+
+Audit tables:
+  - audit_export_events: added output_file_path VARCHAR(1000) NULL (local filesystem path of generated export)
+  - audit_data_events / audit_auth_events: record_id BIGINT (was CHAR(36))
+
+16.3 NEW CONFIGURATION PROPERTIES
+
+All new properties are in application.yml under the trm.* namespace:
+
+  trm.file.base-dir: /data/uploads
+    Absolute path to the root of all user-uploaded files. Subdirectory layout:
+      {base-dir}/temple_documents/   — temple photos, trust minutes, contractor documents
+      {base-dir}/asset_declarations/ — acknowledgement PDFs and declaration snapshots
+    Injected into all services that resolve or validate file paths.
+    Application MUST fail to start if this directory does not exist or is not writable.
+
+  trm.export.base-dir: /data/uploads/exports
+    Absolute path to the root of all generated export files (CSV, PDF).
+    Export files are named {jobId}.{pdf|csv}.
+    Application MUST fail to start if this directory does not exist or is not writable.
+
+  trm.rate-limit.export.max-requests: 5
+  trm.rate-limit.export.window-minutes: 10
+  trm.rate-limit.doc-download.max-requests: 60
+  trm.rate-limit.doc-download.window-minutes: 1
+  trm.rate-limit.workflow.max-requests: 30
+  trm.rate-limit.workflow.window-minutes: 1
+
+16.4 NEW AND MODIFIED SERVICES
+
+| Service / Component | Change |
+|---|---|
+| IdempotencyService (@Service) | NEW — check() and record() methods; REQUIRES_NEW propagation on record(); Injected into all 4 workflow services |
+| IdempotencyCleanupJob (@Component) | NEW — @Scheduled(fixedDelay=900000); deletes idempotency_records WHERE expires_at < NOW(6) |
+| RateLimitService (@Service) | NEW — check(userId, endpointKey, windowDuration, maxRequests); UPSERT into rate_request_log; returns boolean (false = 429) |
+| RateLimitCleanupJob (@Component) | NEW — @Scheduled(fixedDelay=3600000); deletes rate_request_log WHERE window_start < NOW() - INTERVAL 1 HOUR |
+| DocumentQueryService | CHANGED — generateDownloadUrl() renamed to serveFile(); returns ResponseEntity<Resource> (FileSystemResource); includes path traversal prevention |
+| ExportService / AsyncExportBean | CHANGED — writes to local filesystem instead of S3; ExportResponse contains downloadPath instead of downloadUrl |
+
+16.5 NEW ENDPOINTS
+
+| Endpoint | Role(s) | Description |
+|---|---|---|
+| GET /api/v1/documents/{id}/download | DISTRICT_COLLECTOR, SUPER_ADMIN | Streams document file from local filesystem; binary response with Content-Disposition and Content-Type headers; path traversal prevented in service layer |
+| GET /api/v1/export/{jobId}/download | DISTRICT_COLLECTOR, DC_STAFF, SUPER_ADMIN | Streams export file from TRM_EXPORT_BASE_DIR/exports/{jobId}.{format}; scoped to actor's own export jobs; same FileSystemResource streaming pattern |
+
+16.6 SECURITY NOTES FOR LOCAL FILE SERVING
+
+Path traversal prevention is mandatory on every file serving endpoint:
+  Path base = Paths.get(configuredBaseDir).toAbsolutePath().normalize();
+  Path resolved = base.resolve(storedRelativePath).normalize();
+  if (!resolved.startsWith(base)) throw EntityNotFoundException; // HTTP 404, not 400/500
+
+Never expose path validation errors as 400 (discloses structure) or 500 (discloses internal error). Always return 404.
+File paths stored in the database are RELATIVE to the configured base directory. Absolute paths must NOT be stored in the database.
+Original filename from documents.original_filename is sanitized before use in Content-Disposition header: any double-quote characters stripped; value enclosed in double quotes.
+
+16.7 FRONTEND CHANGES
+
+| File | Change |
+|---|---|
+| dcApi.ts — downloadDocument | responseHandler returns blob; on success: URL.createObjectURL + programmatic <a> click + URL.revokeObjectURL. No new tab. No presigned URL. |
+| dcApi.ts — exportTemples | On SYNC: response.downloadPath used as jobId for GET /api/v1/export/{jobId}/download via blob download pattern. On ASYNC toast: removed "you will be emailed" |
+| dcHooks.ts — useDocumentDownload | On success handler: blob download instead of window.open(presignedUrl) |
+
+================================================================================
+END OF SPECIFICATION (Version 1.3 — On-Prem Refactoring)
+DC_E2E_MODULE.TXT - UPDATED 2026-04-09 (v1.3)
+All F-series (schema), S-series (service), R-series (RBAC/security), and testing review findings incorporated in v1.1.
+All P0/P1/P2 requirements gap audit findings incorporated in v1.2. See Section 15 for complete change log.
+On-prem refactoring (AWS/Redis removal, BIGINT PKs, local filesystem, DB idempotency/rate-limiting) incorporated in v1.3. See Section 16 for complete change log.
+================================================================================

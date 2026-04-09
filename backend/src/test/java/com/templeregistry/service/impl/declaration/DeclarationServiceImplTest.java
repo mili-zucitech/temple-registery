@@ -69,13 +69,13 @@ class DeclarationServiceImplTest {
 
         declarationService.submit(1L);
 
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.SUBMITTED);
+        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.PENDING_REVIEW);
         assertThat(draftDeclaration.getSubmittedAt()).isNotNull();
     }
 
     @Test
     void should_approveDeclaration_and_setAcknowledgementNumber() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -99,7 +99,7 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_requestClarification_when_status_is_SUBMITTED() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -114,7 +114,7 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_rejectDeclaration_with_reason_logged_as_clarification() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
+        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
