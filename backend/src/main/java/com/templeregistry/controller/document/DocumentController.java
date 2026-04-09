@@ -1,4 +1,4 @@
-package com.templeregistry.controller.document;
+﻿package com.templeregistry.controller.document;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/documents")
+@RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
 @Tag(name = "Documents", description = "Upload and retrieve supporting documents stored in S3")
 public class DocumentController {

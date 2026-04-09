@@ -53,12 +53,12 @@ export function TempleListPage() {
         </div>
         <div className="w-40">
           <label className="text-sm font-medium mb-1 block">Grade</label>
-          <Select value={grade} onValueChange={setGrade}>
+          <Select value={grade || 'all'} onValueChange={(v) => setGrade(v === 'all' ? '' : v)}>
             <SelectTrigger>
               <SelectValue placeholder="All grades" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All grades</SelectItem>
+              <SelectItem value="all">All grades</SelectItem>
               {TEMPLE_GRADES.map((g) => (
                 <SelectItem key={g} value={g}>Grade {g}</SelectItem>
               ))}

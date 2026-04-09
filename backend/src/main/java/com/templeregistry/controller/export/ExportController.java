@@ -1,4 +1,4 @@
-package com.templeregistry.controller.export;
+﻿package com.templeregistry.controller.export;
 
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;
@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/export")
+@RequestMapping("/api/v1/export")
 @RequiredArgsConstructor
 @Tag(name = "Export", description = "Jurisdiction-scoped data exports (CSV/PDF)")
 public class ExportController {

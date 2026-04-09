@@ -1,4 +1,4 @@
-package com.templeregistry.controller.temple;
+﻿package com.templeregistry.controller.temple;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
@@ -15,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/temples")
+@RequestMapping("/api/v1/temples")
 @RequiredArgsConstructor
 @Tag(name = "Temples", description = "Temple search, profile staging workflow, and SA-only direct CRUD")
 public class TempleController {
@@ -52,7 +52,7 @@ public class TempleController {
         return ResponseEntity.ok(ApiResponse.success("Temple updated.", templeService.update(id, request)));
     }
 
-    /* ── Temple Profile Staging Workflow (TA → DC approval) ───────── */
+    /* â”€â”€ Temple Profile Staging Workflow (TA â†’ DC approval) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @PostMapping("/{templeId}/profile/staging")
     @Operation(summary = "Create or update a DRAFT profile staging record (TA/SA)")
