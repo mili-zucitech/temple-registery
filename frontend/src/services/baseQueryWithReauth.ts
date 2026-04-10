@@ -30,6 +30,12 @@ export const baseQueryWithReauth: BaseQueryFn<
   let result = await rawBaseQuery(args, api, extraOptions)
 
   if (result.error?.status === 401) {
+    // Don't attempt refresh if this IS the refresh call or the initial /auth/me probe
+    const url = typeof args === 'string' ? args : args.url
+    if (url.includes('/auth/refresh') || url.includes('/auth/me')) {
+      return result
+    }
+
     // Attempt silent token refresh — refresh token is sent automatically via httpOnly cookie
     const refreshResult = await rawBaseQuery(
       { url: '/auth/refresh', method: 'POST' },
