@@ -13,7 +13,10 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 export function PrivateRoute() {
   const dispatch = useAppDispatch()
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated)
-  const { data, isLoading } = useGetCurrentUserQuery()
+  // refetchOnMountOrArgChange ensures we always validate the cookie with the server
+  const { data, isLoading } = useGetCurrentUserQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  })
 
   useEffect(() => {
     if (data?.data) {
