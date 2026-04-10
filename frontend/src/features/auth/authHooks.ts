@@ -34,6 +34,7 @@ export function useCurrentUser() {
 
 export function useLogin() {
   const [login, { isLoading }] = useLoginMutation()
+  const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
   const handleLogin = async (values: LoginRequest) => {
@@ -47,8 +48,19 @@ export function useLogin() {
           state: { tempToken: challenge.tempToken, mfaType: challenge.challengeType },
         })
       } else {
-        // Direct auth (MFA=NONE) — tokens are set as httpOnly cookies by the server
+        // Direct auth — tokens are set as httpOnly cookies by the server.
+        // Immediately hydrate Redux so PrivateRoute / RoleRoute don't redirect to login
+        // before the /auth/me refetch completes.
         const meta = payload as AuthTokenResponse
+        dispatch(setCurrentUser({
+          userId: meta.userId,
+          username: values.username,
+          fullName: values.username,    // placeholder — /auth/me will overwrite
+          role: meta.role as import('@/constants/roles').UserRole,
+          aadhaarVerified: false,
+        }))
+        // Invalidate stale getCurrentUser cache so PrivateRoute re-fetches cleanly
+        dispatch(authApi.util.invalidateTags(['CurrentUser']))
         toast.success('Login successful')
         navigate(getDashboardPath(meta.role))
       }
@@ -62,13 +74,23 @@ export function useLogin() {
 
 export function useMfaVerify() {
   const [verify, { isLoading }] = useMfaVerifyMutation()
+  const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
   const handleVerify = async (values: MfaVerifyRequest) => {
     const result = await verify(values)
     if ('data' in result && result.data.success) {
-      // Tokens are set as httpOnly cookies by the server — body has metadata only
-      const meta = result.data.data as { role?: string }
+      const meta = result.data.data as { role?: string; userId?: number }
+      if (meta.role && meta.userId) {
+        dispatch(setCurrentUser({
+          userId: meta.userId,
+          username: '',
+          fullName: '',
+          role: meta.role as import('@/constants/roles').UserRole,
+          aadhaarVerified: false,
+        }))
+        dispatch(authApi.util.invalidateTags(['CurrentUser']))
+      }
       toast.success('Verification successful')
       navigate(getDashboardPath(meta.role))
     } else {
