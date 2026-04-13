@@ -6,7 +6,7 @@ import com.templeregistry.dto.request.trust.UpdateBoardMemberRequest;
 import com.templeregistry.entity.trust.BoardMeeting;
 import com.templeregistry.entity.trust.BoardMember;
 import com.templeregistry.entity.trust.TrustFinancial;
-import com.templeregistry.entity.trust.TrustRegistration;
+import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
@@ -41,12 +41,12 @@ class TrustServiceImplTest {
 
     @InjectMocks TrustServiceImpl trustService;
 
-    private TrustRegistration trust;
+    private Trust trust;
     private BoardMember activeMember;
 
     @BeforeEach
     void setUp() {
-        trust = TrustRegistration.builder().templeId(1L).trustName("Sri Rama Trust").build();
+        trust = Trust.builder().templeId(1L).trustName("Sri Rama Trust").build();
         activeMember = BoardMember.builder().trustId(1L).fullName("Govinda Rao").isCurrent(true).build();
 
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(any());

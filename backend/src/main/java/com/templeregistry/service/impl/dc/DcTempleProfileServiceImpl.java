@@ -8,18 +8,17 @@ import com.templeregistry.dto.response.temple.TempleResponse;
 import com.templeregistry.dto.response.trust.BoardMemberResponse;
 import com.templeregistry.entity.contractor.Contractor;
 import com.templeregistry.entity.dc.TempleProfileCurrent;
-import com.templeregistry.entity.dc.TempleProfileStaging;
-import com.templeregistry.entity.dc.ProfileStagingStatus;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.ClarificationDirection;
 import com.templeregistry.entity.declaration.DeclarationClarification;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.geo.City;
 import com.templeregistry.entity.temple.Temple;
-import com.templeregistry.entity.temple.TempleSearchSummary;
+import com.templeregistry.entity.temple.TempleProfileStaging;
+import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.trust.BoardMember;
+import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.trust.TrustFinancial;
-import com.templeregistry.entity.trust.TrustRegistration;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.dc.*;
@@ -27,6 +26,7 @@ import com.templeregistry.repository.declaration.DeclarationClarificationReposit
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.repository.geo.CityRepository;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
@@ -120,8 +120,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .orElse(null);
 
                 // Trust (use the first active trust registration)
-                List<TrustRegistration> trusts = trustRepository.findAllByTempleId(templeId);
-                TrustRegistration primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
+                List<Trust> trusts = trustRepository.findAllByTempleId(templeId);
+                Trust primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
 
                 TempleFullProfileResponse.DcTrustSummary trustSummary = null;
                 List<BoardMemberResponse> boardMembers = List.of();
@@ -290,8 +290,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 jurisdictionGuard.assertDistrictScope(temple, claims);
 
                 return profileStagingRepository
-                                .findTopByTempleIdAndStatusOrderByVersionDesc(templeId,
-                                                ProfileStagingStatus.PENDING_REVIEW)
+                                .findFirstByTempleIdAndStatus(templeId,
+                                                TempleProfileStagingStatus.PENDING_REVIEW)
                                 .map(this::toProfileStagingResponse)
                                 .orElse(null);
         }
@@ -329,22 +329,17 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .build();
         }
 
-        private TempleFullProfileResponse.DcTrustSummary toTrustSummary(TrustRegistration t,
-                        ScopeHelper.Claims claims) {
-                String maskedPan = maskPan(t.getPanNumberEncrypted(), claims.role());
-                String maskedBank = maskBankAccount(t.getBankAccountNumberEncrypted());
-
+        private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims) {
                 return TempleFullProfileResponse.DcTrustSummary.builder()
                                 .id(t.getId())
                                 .trustName(t.getTrustName())
                                 .trustType(t.getTrustType() != null ? t.getTrustType().name() : null)
-                                .registrationNumber(t.getRegistrationNumber())
+                                .registrationNumber(t.getTrustRegistrationNumber())
                                 .registeringAuthority(t.getRegisteringAuthority())
                                 .dateOfRegistration(t.getDateOfRegistration())
-                                .panNumberMasked(maskedPan)
-                                .bankAccountMasked(maskedBank)
-                                .bankName(t.getBankName())
-                                .bankBranch(t.getBankBranch())
+                                .panNumberMasked(maskPan(t.getTrustPANNumber(), claims.role()))
+                                .bankAccountMasked(maskBankAccount(t.getBankAccountNumber()))
+                                .bankName(t.getBankNameAndBranch()) // Mapping to bankName for now
                                 .annualIncome(t.getAnnualIncome())
                                 .build();
         }
@@ -383,7 +378,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .id(m.getId())
                                 .trustId(m.getTrustId())
                                 .fullName(m.getFullName())
-                                .aadhaarMasked(maskedAadhaar)
+                                .maskedAadhaar(maskedAadhaar)
                                 .designation(m.getDesignation())
                                 .appointmentDate(m.getAppointmentDate())
                                 .tenureEndDate(m.getTenureEndDate())
@@ -488,21 +483,24 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 return ProfileStagingResponse.builder()
                                 .id(s.getId())
                                 .templeId(s.getTempleId())
-                                .version(s.getVersion())
+                                .version(s.getVersionNumber())
                                 .status(s.getStatus().name())
                                 .contactPersonName(s.getContactPersonName())
                                 .contactPersonDesignation(s.getContactPersonDesignation())
+                                .phone(s.getPhone())
+                                .email(s.getEmail())
                                 .photoFilePath(s.getPhotoFilePath())
+                                .bankName(s.getBankName())
+                                .bankAccountNumberMasked(maskBankAccount(s.getBankAccountNumberEncrypted()))
+                                .bankIfsc(s.getBankIfsc())
                                 .languagesOfWorship(s.getLanguagesOfWorship())
                                 .linkedInstitutions(s.getLinkedInstitutions())
+                                .description(s.getDescription())
                                 .annualFestivals(s.getAnnualFestivals())
                                 .landmark(s.getLandmark())
                                 .historicalSignificance(s.getHistoricalSignificance())
                                 .submittedAt(s.getSubmittedAt())
                                 .submittedBy(s.getSubmittedBy())
-                                .reviewedAt(s.getReviewedAt())
-                                .reviewedBy(s.getReviewedBy())
-                                .reviewComment(s.getReviewComment())
                                 .build();
         }
 }

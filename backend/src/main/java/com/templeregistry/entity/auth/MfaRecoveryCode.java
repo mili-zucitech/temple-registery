@@ -3,6 +3,7 @@ package com.templeregistry.entity.auth;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @SQLDelete(sql = "UPDATE mfa_recovery_codes SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MfaRecoveryCode extends BaseEntity {

@@ -30,9 +30,10 @@ export const baseQueryWithReauth: BaseQueryFn<
   let result = await rawBaseQuery(args, api, extraOptions)
 
   if (result.error?.status === 401) {
-    // Don't attempt refresh if this IS the refresh call or the initial /auth/me probe
+    // Don't attempt refresh if this IS the refresh call, the initial /auth/me probe,
+    // or the MFA verify step (user has no full JWT yet — only a tempToken)
     const url = typeof args === 'string' ? args : args.url
-    if (url.includes('/auth/refresh') || url.includes('/auth/me')) {
+    if (url.includes('/auth/refresh') || url.includes('/auth/me') || url.includes('/auth/mfa-verify')) {
       return result
     }
 

@@ -46,4 +46,7 @@ public final class RoleConstants {
         public static final String CAN_SUBMIT = "hasAnyRole('SUPER_ADMIN', 'TEMPLE_AUTHORITY')";
         public static final String CAN_READ_ALL = "hasAnyRole('SUPER_ADMIN', 'DISTRICT_COLLECTOR', 'DC_STAFF', 'AUDITOR')";
         public static final String ADMIN_ONLY = "hasRole('SUPER_ADMIN')";
+    
+    public static final String TEMPLE_AUTHORITY_ONLY =
+            "hasRole('TEMPLE_AUTHORITY')";
 }

@@ -4,6 +4,7 @@ import com.templeregistry.entity.base.BaseEntity;
 import com.templeregistry.entity.geo.Hobli;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -16,7 +17,7 @@ import org.hibernate.annotations.SQLRestriction;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE temples SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class Temple extends BaseEntity {
 
     @Version
@@ -105,16 +106,19 @@ public class Temple extends BaseEntity {
     @Column(name = "languages_of_worship", length = 255)
     private String languagesOfWorship;
 
+    @Builder.Default
     @Column(name = "trust_registered", nullable = false)
     private boolean trustRegistered = false;
 
     @Column(name = "asset_declaration_status", length = 30)
     private String assetDeclarationStatus;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private TempleStatus status = TempleStatus.ACTIVE;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 20)
     private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;

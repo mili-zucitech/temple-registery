@@ -3,6 +3,7 @@ package com.templeregistry.entity.geo;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -12,7 +13,7 @@ import org.hibernate.annotations.SQLRestriction;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE taluks SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class Taluk extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

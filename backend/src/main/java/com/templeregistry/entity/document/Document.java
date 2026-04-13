@@ -3,6 +3,7 @@ package com.templeregistry.entity.document;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -13,7 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE documents SET is_deleted = true, updated_at = NOW() WHERE id = ?")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
 public class Document extends BaseEntity {
 
     /** Logical owner type: TEMPLE, TRUST, EMPLOYEE, CONTRACTOR, DECLARATION */

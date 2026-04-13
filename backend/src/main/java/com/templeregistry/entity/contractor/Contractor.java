@@ -3,6 +3,7 @@ package com.templeregistry.entity.contractor;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE contractors SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class Contractor extends BaseEntity {
 
     @Column(name = "temple_id", nullable = false) private Long templeId;
@@ -31,8 +32,10 @@ public class Contractor extends BaseEntity {
     @Column(name = "document_id") private Long documentId;
 
     // DC Governance Fields
+    @Builder.Default
     @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
     @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
     @Column(name = "is_gst_valid") private Boolean isGstValid;
+    @Builder.Default
     @Column(name = "is_payment_pending", nullable = false) private boolean isPaymentPending = false;
 }

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { KeyRound, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +7,7 @@ import { useWizard } from '../RegisterContext'
 import { useAadhaarOtpRequest, useAadhaarOtpVerify } from '../registerHooks'
 
 const OTP_LENGTH = 6
-const TIMER_SECONDS = 300
+const TIMER_SECONDS = 300 // 5 minutes
 const RESEND_COOLDOWN = 60
 
 function formatTime(seconds: number): string {
@@ -30,18 +29,21 @@ export function Step2OtpVerify() {
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>(Array(OTP_LENGTH).fill(null))
 
+  // Countdown timer
   useEffect(() => {
     if (timeLeft <= 0) return
     const id = setInterval(() => setTimeLeft((t) => t - 1), 1000)
     return () => clearInterval(id)
   }, [timeLeft])
 
+  // Resend cooldown
   useEffect(() => {
     if (resendCooldown <= 0) return
     const id = setInterval(() => setResendCooldown((c) => c - 1), 1000)
     return () => clearInterval(id)
   }, [resendCooldown])
 
+  // Auto-focus first input on mount
   useEffect(() => {
     inputRefs.current[0]?.focus()
   }, [])
@@ -60,7 +62,7 @@ export function Step2OtpVerify() {
   }, [])
 
   const handleKeyDown = useCallback(
-    (index: number, e: KeyboardEvent<HTMLInputElement>) => {
+    (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Backspace') {
         if (digits[index]) {
           setDigits((prev) => {
@@ -81,7 +83,7 @@ export function Step2OtpVerify() {
     [digits],
   )
 
-  const handlePaste = useCallback((e: ClipboardEvent<HTMLDivElement>) => {
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault()
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH)
     const next = Array(OTP_LENGTH).fill('')
@@ -99,6 +101,7 @@ export function Step2OtpVerify() {
   const handleVerify = async () => {
     if (!isComplete || !state.step1 || !state.initToken) return
     setError(null)
+    // Pass initToken (from register/init response) so backend can validate the session
     const token = await verifyOtp(state.step1.aadhaarNumber, otp, state.initToken)
     if (token) {
       saveTempToken(token)
@@ -112,8 +115,8 @@ export function Step2OtpVerify() {
 
   const handleResend = async () => {
     if (!state.step1 || resendCooldown > 0 || resendCount >= 3) return
-    const token = await sendOtp(state.step1.aadhaarNumber, state.step1.mobile)
-    if (token) {
+    const success = await sendOtp(state.step1.aadhaarNumber)
+    if (success) {
       setResendCount((c) => c + 1)
       setResendCooldown(RESEND_COOLDOWN)
       setTimeLeft(TIMER_SECONDS)
@@ -140,67 +143,71 @@ export function Step2OtpVerify() {
         )}
       </div>
 
-      <div
-        className="flex items-center gap-2 justify-center"
-        role="group"
-        aria-label="One-time password input"
-        onPaste={handlePaste}
-      >
-        {digits.map((digit, i) => (
-          <Input
-            key={i}
-            ref={(el) => { inputRefs.current[i] = el }}
-            type="text"
-            inputMode="numeric"
-            maxLength={1}
-            value={digit}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            aria-label={`OTP digit ${i + 1}`}
-            className={cn(
-              'h-12 w-12 text-center text-xl font-bold tracking-widest p-0',
-              error && 'border-destructive focus-visible:ring-destructive',
-            )}
-          />
-        ))}
-      </div>
-
-      {error && (
-        <p className="text-sm text-destructive text-center" role="alert">
-          {error}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-1 text-muted-foreground">
-          {isExpired ? (
-            <span className="text-destructive font-medium">OTP expired</span>
-          ) : (
-            <>
-              <KeyRound className="h-3.5 w-3.5" />
-              <span>Expires in <span className="font-medium text-foreground">{formatTime(timeLeft)}</span></span>
-            </>
-          )}
+      {/* OTP Segmented Input */}
+      <div className="space-y-3">
+        <div
+          className="flex items-center gap-2 justify-center"
+          role="group"
+          aria-label="One-time password input"
+          onPaste={handlePaste}
+        >
+          {digits.map((digit, i) => (
+            <Input
+              key={i}
+              ref={(el) => { inputRefs.current[i] = el }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              aria-label={`OTP digit ${i + 1}`}
+              className={cn(
+                'h-12 w-12 text-center text-xl font-bold tracking-widest p-0',
+                error && 'border-destructive focus-visible:ring-destructive',
+              )}
+            />
+          ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleResend}
-          disabled={!canResend || isSending}
-          className={cn(
-            'flex items-center gap-1 text-sm font-medium transition-colors',
-            canResend && !isSending
-              ? 'text-primary hover:text-primary/80 cursor-pointer'
-              : 'text-muted-foreground cursor-not-allowed',
-          )}
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', isSending && 'animate-spin')} />
-          {resendCooldown > 0
-            ? `Resend in ${resendCooldown}s`
-            : resendCount >= 3
-              ? 'Limit reached'
-              : 'Resend OTP'}
-        </button>
+        {error && (
+          <p className="text-sm text-destructive text-center" role="alert">
+            {error}
+          </p>
+        )}
+
+        {/* Timer */}
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-1 text-muted-foreground">
+            {isExpired ? (
+              <span className="text-destructive font-medium">OTP expired</span>
+            ) : (
+              <>
+                <KeyRound className="h-3.5 w-3.5" />
+                <span>Expires in <span className="font-medium text-foreground">{formatTime(timeLeft)}</span></span>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={!canResend || isSending}
+            className={cn(
+              'flex items-center gap-1 text-sm font-medium transition-colors',
+              canResend && !isSending
+                ? 'text-primary hover:text-primary/80 cursor-pointer'
+                : 'text-muted-foreground cursor-not-allowed',
+            )}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isSending && 'animate-spin')} />
+            {resendCooldown > 0
+              ? `Resend in ${resendCooldown}s`
+              : resendCount >= 3
+                ? 'Limit reached'
+                : 'Resend OTP'}
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-3">

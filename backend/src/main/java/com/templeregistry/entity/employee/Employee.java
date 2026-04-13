@@ -3,6 +3,7 @@ package com.templeregistry.entity.employee;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE employees SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class Employee extends BaseEntity {
 
     @Column(name = "temple_id", nullable = false) private Long templeId;
@@ -32,12 +33,14 @@ public class Employee extends BaseEntity {
     @Column(name = "address", columnDefinition = "TEXT") private String address;
     @Column(name = "is_hereditary") private Boolean isHereditary;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20) private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
     @Column(name = "date_of_leaving") private LocalDate dateOfLeaving;
 
     // DC Governance Fields
+    @Builder.Default
     @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
     @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
 }

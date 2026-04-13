@@ -222,12 +222,19 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     }
 
     private void applyFields(TempleProfileStaging staging, CreateTempleProfileStagingRequest rq) {
+        if (rq.getPhone() != null)                    staging.setPhone(rq.getPhone());
+        if (rq.getEmail() != null)                    staging.setEmail(rq.getEmail());
+        if (rq.getWebsite() != null)                  staging.setWebsite(rq.getWebsite());
         if (rq.getContactPersonName() != null)        staging.setContactPersonName(rq.getContactPersonName());
         if (rq.getContactPersonDesignation() != null) staging.setContactPersonDesignation(rq.getContactPersonDesignation());
         if (rq.getPhotoFilePath() != null)            staging.setPhotoFilePath(rq.getPhotoFilePath());
+        // Plain text; AesEncryptionConverter transparently encrypts on JPA save (AES-256-GCM)
         if (rq.getBankAccountNumber() != null)        staging.setBankAccountNumberEncrypted(rq.getBankAccountNumber());
+        if (rq.getBankName() != null)                 staging.setBankName(rq.getBankName());
+        if (rq.getBankIfsc() != null)                 staging.setBankIfsc(rq.getBankIfsc());
         if (rq.getLanguagesOfWorship() != null)       staging.setLanguagesOfWorship(rq.getLanguagesOfWorship());
         if (rq.getLinkedInstitutions() != null)       staging.setLinkedInstitutions(rq.getLinkedInstitutions());
+        if (rq.getDescription() != null)              staging.setDescription(rq.getDescription());
         if (rq.getAnnualFestivals() != null)          staging.setAnnualFestivals(rq.getAnnualFestivals());
         if (rq.getLandmark() != null)                 staging.setLandmark(rq.getLandmark());
         if (rq.getHistoricalSignificance() != null)   staging.setHistoricalSignificance(rq.getHistoricalSignificance());
@@ -263,12 +270,18 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .templeId(s.getTempleId())
                 .versionNumber(s.getVersionNumber())
                 .statusLabel(statusLabel)
+                .phone(s.getPhone())
+                .email(s.getEmail())
+                .website(s.getWebsite())
                 .contactPersonName(s.getContactPersonName())
                 .contactPersonDesignation(s.getContactPersonDesignation())
                 .photoFilePath(s.getPhotoFilePath())
                 .bankAccountMasked(masked)
+                .bankName(s.getBankName())
+                .bankIfsc(s.getBankIfsc())
                 .languagesOfWorship(s.getLanguagesOfWorship())
                 .linkedInstitutions(s.getLinkedInstitutions())
+                .description(s.getDescription())
                 .annualFestivals(s.getAnnualFestivals())
                 .landmark(s.getLandmark())
                 .historicalSignificance(s.getHistoricalSignificance())

@@ -3,6 +3,7 @@ package com.templeregistry.entity.declaration;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -19,7 +20,7 @@ import java.time.LocalDateTime;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE asset_declarations SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class AssetDeclaration extends BaseEntity {
 
     /** JPA optimistic lock — column renamed lock_version per dc_e2e F11 (avoids clash with version_number). */
@@ -34,9 +35,11 @@ public class AssetDeclaration extends BaseEntity {
     @Column(name = "financial_year", length = 7)     private String financialYear;
 
     /** Submission counter — increments when Temple Authority creates a new version after rejection. */
+    @Builder.Default
     @Column(name = "version_number", nullable = false)
     private int versionNumber = 1;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40) private DeclarationStatus status = DeclarationStatus.DRAFT;
 
@@ -65,9 +68,11 @@ public class AssetDeclaration extends BaseEntity {
     @Column(name = "acknowledged_at") private LocalDateTime acknowledgedAt;
 
     // Workflow counters and flags
+    @Builder.Default
     @Column(name = "clarification_round", nullable = false)
     private int clarificationRound = 0;
 
+    @Builder.Default
     @Column(name = "is_overdue", nullable = false)
     private boolean isOverdue = false;
 

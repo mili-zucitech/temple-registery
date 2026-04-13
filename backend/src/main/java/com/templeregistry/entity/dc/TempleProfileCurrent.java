@@ -1,5 +1,6 @@
 package com.templeregistry.entity.dc;
 
+import com.templeregistry.util.AesEncryptionConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -32,6 +33,15 @@ public class TempleProfileCurrent {
     private Long templeId;
 
     // Mirrored approved content fields
+    @Column(name = "phone", length = 15)
+    private String phone;
+
+    @Column(name = "email", length = 255)
+    private String email;
+
+    @Column(name = "website", length = 500)
+    private String website;
+
     @Column(name = "contact_person_name", length = 255)
     private String contactPersonName;
 
@@ -41,14 +51,24 @@ public class TempleProfileCurrent {
     @Column(name = "photo_file_path", length = 1000)
     private String photoFilePath;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Convert(converter = AesEncryptionConverter.class)
     @Column(name = "bank_account_number_encrypted", columnDefinition = "TEXT")
     private String bankAccountNumberEncrypted;
+
+    @Column(name = "bank_ifsc", length = 11)
+    private String bankIfsc;
 
     @Column(name = "languages_of_worship", length = 500)
     private String languagesOfWorship;
 
     @Column(name = "linked_institutions", columnDefinition = "JSON")
     private String linkedInstitutions;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "annual_festivals", columnDefinition = "TEXT")
     private String annualFestivals;
