@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.temple;
+package com.templeregistry.controller.temple;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
@@ -107,5 +107,14 @@ public class TempleController {
         return ResponseEntity.ok(ApiResponse.success("Profile history retrieved.",
                 stagingService.getHistory(templeId, page, size)));
     }
+        /**
+         * Returns the current approved temple profile (main table, not staging).
+         */
+        @GetMapping("/{templeId}/profile/current")
+        @Operation(summary = "Get the current approved temple profile (registration contact details)")
+        public ResponseEntity<ApiResponse<TempleResponse>> getCurrentProfile(@PathVariable Long templeId) {
+                TempleResponse response = templeService.getCurrentProfile(templeId);
+                return ResponseEntity.ok(ApiResponse.success("Current temple profile retrieved.", response));
+        }
 }
 

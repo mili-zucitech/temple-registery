@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.geo;
+package com.templeregistry.controller.geo;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.dto.request.geo.*;

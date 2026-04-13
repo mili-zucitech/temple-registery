@@ -146,4 +146,12 @@ public class TempleServiceImpl implements TempleService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public TempleResponse getCurrentProfile(Long templeId) {
+        Temple temple = templeRepository.findById(templeId)
+            .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
+        return templeMapper.toTempleResponse(temple);
+    }
 }

@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.trust;
+package com.templeregistry.controller.trust;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;

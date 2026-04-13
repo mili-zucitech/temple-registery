@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.export;
+package com.templeregistry.controller.export;
 
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;

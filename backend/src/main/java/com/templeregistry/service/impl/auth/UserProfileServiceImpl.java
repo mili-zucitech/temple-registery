@@ -52,6 +52,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
+                .mobile(user.getMobile())
                 .role(user.getRole())
                 .isActive(user.isActive())
                 .districtId(user.getDistrictId())

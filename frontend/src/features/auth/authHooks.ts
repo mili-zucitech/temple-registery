@@ -17,6 +17,8 @@ import {
 } from './authApi'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
+import type { UseFormSetError } from 'react-hook-form'
+import type { UseFormSetError } from 'react-hook-form'
 import type { LoginRequest, MfaVerifyRequest, MfaChallengeResponse, AuthTokenResponse } from './authTypes'
 
 export function useCurrentUser() {
@@ -77,7 +79,10 @@ export function useMfaVerify() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
-  const handleVerify = async (values: MfaVerifyRequest) => {
+  const handleVerify = async (
+    values: MfaVerifyRequest,
+    setError?: UseFormSetError<MfaVerifyRequest>,
+  ) => {
     const result = await verify(values)
     if ('data' in result && result.data.success) {
       const meta = result.data.data as { role?: string; userId?: number }
@@ -94,7 +99,12 @@ export function useMfaVerify() {
       toast.success('Verification successful')
       navigate(getDashboardPath(meta.role))
     } else {
-      toast.error('Invalid or expired OTP. Please try again.')
+      const message = 'Invalid or expired OTP. Please try again.'
+      if (setError) {
+        setError('mfaCode', { message })
+      } else {
+        toast.error(message)
+      }
     }
   }
 
