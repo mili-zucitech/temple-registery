@@ -25,7 +25,8 @@ public class ScopeHelper {
     /**
      * Typed claims extracted from a validated JWT.
      */
-    public record Claims(Long userId, String role, Long districtId, Long templeId, String username) {}
+    public record Claims(Long userId, String role, Long districtId, Long templeId, String username) {
+    }
 
     private final RSAPublicKey publicKey;
 

@@ -21,6 +21,9 @@ public class TempleProfileStagingResponse {
     /** The display-friendly label: DRAFT, SUBMITTED, APPROVED, REJECTED, SUPERSEDED. */
     private String statusLabel;
 
+    private String phone;
+    private String email;
+    private String website;
     private String contactPersonName;
     private String contactPersonDesignation;
     private String photoFilePath;
@@ -28,8 +31,11 @@ public class TempleProfileStagingResponse {
     /** Bank account: last 4 digits only (VAL-008). Never echoes full number. */
     private String bankAccountMasked;
 
+    private String bankName;
+    private String bankIfsc;
     private String languagesOfWorship;
     private String linkedInstitutions;
+    private String description;
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;

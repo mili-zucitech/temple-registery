@@ -39,8 +39,7 @@ public interface TrustMapper {
     // Board Member mappings
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "trustId", ignore = true)
-
-    @Mapping(target = "aadhaarEncrypted", source = "aadhaar")
+    @Mapping(target = "aadhaarEncrypted", source = "aadhaarNumber")
     @Mapping(target = "fullName", source = "fullName")
     BoardMember fromCreateMemberRequest(CreateBoardMemberRequest request);
 
@@ -53,6 +52,5 @@ public interface TrustMapper {
 
     @Mapping(target = "maskedAadhaar", expression = "java(member.getMaskedAadhaar())")
     @Mapping(target = "fullName", source = "fullName")
-    @Mapping(target = "isCurrent", source = "current")
     BoardMemberResponse toMemberResponse(BoardMember member);
 }

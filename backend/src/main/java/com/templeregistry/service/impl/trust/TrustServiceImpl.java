@@ -59,18 +59,19 @@ public class TrustServiceImpl implements TrustService {
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
         ownershipGuard.assertOwnsTemple(templeId);
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
-        TrustRegistration trust = TrustRegistration.builder()
+        Trust trust = Trust.builder()
                 .templeId(templeId)
                 .trustName(rq.getTrustName())
                 .trustType(rq.getTrustType())
-                .registrationNumber(rq.getRegistrationNumber())
+                .trustRegistrationNumber(rq.getRegistrationNumber())
                 .registeringAuthority(rq.getRegisteringAuthority())
                 .dateOfRegistration(rq.getDateOfRegistration())
-                .bankName(rq.getBankName())
-                .bankBranch(rq.getBankBranch())
+                .bankAccountNumber(rq.getBankAccountNumber())
+                .bankNameAndBranch(rq.getBankName() + " " + rq.getBankBranch())
                 .annualIncome(rq.getAnnualIncome())
+                .status(TrustStatus.ACTIVE)
                 .build();
-        TrustRegistration saved = trustRepository.save(trust);
+        Trust saved = trustRepository.save(trust);
         log.info("Trust created: id=[{}] for temple=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
@@ -79,7 +80,7 @@ public class TrustServiceImpl implements TrustService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public TrustResponse getById(Long id) {
-        TrustRegistration trust = trustRepository.findById(id)
+        Trust trust = trustRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", id));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -92,7 +93,7 @@ public class TrustServiceImpl implements TrustService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public TrustResponse update(Long id, CreateTrustRequest rq) {
-        TrustRegistration trust = trustRepository.findById(id)
+        Trust trust = trustRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", id));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -100,6 +101,11 @@ public class TrustServiceImpl implements TrustService {
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         trust.setTrustName(rq.getTrustName());
         trust.setTrustType(rq.getTrustType());
+        trust.setTrustRegistrationNumber(rq.getRegistrationNumber());
+        trust.setRegisteringAuthority(rq.getRegisteringAuthority());
+        trust.setDateOfRegistration(rq.getDateOfRegistration());
+        trust.setBankAccountNumber(rq.getBankAccountNumber());
+        trust.setBankNameAndBranch(rq.getBankName() + " " + rq.getBankBranch());
         trust.setAnnualIncome(rq.getAnnualIncome());
         return toResponse(trustRepository.save(trust));
     }
@@ -108,7 +114,7 @@ public class TrustServiceImpl implements TrustService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public List<BoardMemberResponse> listBoardMembers(Long trustId) {
-        TrustRegistration trust = trustRepository.findById(trustId)
+        Trust trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -120,7 +126,7 @@ public class TrustServiceImpl implements TrustService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public BoardMemberResponse addBoardMember(Long trustId, CreateBoardMemberRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
+        Trust trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -144,7 +150,7 @@ public class TrustServiceImpl implements TrustService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public BoardMemberResponse updateBoardMember(Long trustId, Long memberId, UpdateBoardMemberRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
+        Trust trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -175,7 +181,7 @@ public class TrustServiceImpl implements TrustService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public void submitFinancial(Long trustId, SubmitTrustFinancialRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
+        Trust trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -208,7 +214,7 @@ public class TrustServiceImpl implements TrustService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public List<TrustFinancialResponse> listFinancials(Long trustId) {
-        TrustRegistration trust = trustRepository.findById(trustId).orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
+        Trust trust = trustRepository.findById(trustId).orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
@@ -220,7 +226,7 @@ public class TrustServiceImpl implements TrustService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public BoardMeetingResponse createBoardMeeting(Long trustId, CreateBoardMeetingRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
+        Trust trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
@@ -263,14 +269,21 @@ public class TrustServiceImpl implements TrustService {
 
     /* ── Mapping helpers ─────────────────────────────────────────── */
 
-    private TrustResponse toResponse(TrustRegistration t) {
+    private TrustResponse toResponse(Trust t) {
         return TrustResponse.builder()
                 .id(t.getId()).templeId(t.getTempleId()).trustName(t.getTrustName())
-                .trustType(t.getTrustType()).registrationNumber(t.getRegistrationNumber())
+                .trustType(t.getTrustType()).registrationNumber(t.getTrustRegistrationNumber())
                 .registeringAuthority(t.getRegisteringAuthority())
                 .dateOfRegistration(t.getDateOfRegistration())
-                .bankName(t.getBankName()).bankBranch(t.getBankBranch())
-                .annualIncome(t.getAnnualIncome()).build();
+                .trustPANNumber(t.getTrustPANNumber())
+                .bankAccountNumber(t.getBankAccountNumber())
+                .bankNameAndBranch(t.getBankNameAndBranch())
+                .annualIncome(t.getAnnualIncome())
+                .status(t.getStatus())
+                .isActive(t.getStatus() == TrustStatus.ACTIVE)
+                .dissolvedAt(t.getDissolutionDate())
+                .dissolutionReason(t.getDissolutionReason())
+                .build();
     }
 
     private BoardMemberResponse toBoardResponse(BoardMember bm) {
@@ -279,7 +292,7 @@ public class TrustServiceImpl implements TrustService {
                 bm.getAadhaarEncrypted().substring(Math.max(0, bm.getAadhaarEncrypted().length() - 4)) : null;
         return BoardMemberResponse.builder()
                 .id(bm.getId()).trustId(bm.getTrustId()).fullName(bm.getFullName())
-                .aadhaarMasked(masked).designation(bm.getDesignation())
+                .maskedAadhaar(masked).designation(bm.getDesignation())
                 .appointmentDate(bm.getAppointmentDate()).tenureEndDate(bm.getTenureEndDate())
                 .contactNumber(bm.getContactNumber()).isCurrent(bm.isCurrent()).build();
     }

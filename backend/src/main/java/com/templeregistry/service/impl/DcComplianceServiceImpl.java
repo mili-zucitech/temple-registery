@@ -6,7 +6,7 @@ import com.templeregistry.entity.contractor.Contractor;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.VerificationStatus;
-import com.templeregistry.entity.trust.TrustRegistration;
+import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
@@ -63,8 +63,8 @@ public class DcComplianceServiceImpl implements DcComplianceService {
         @Override
         @Transactional
         public void verifyTrust(Long id, DcVerifyRequest req, ScopeHelper.Claims claims) {
-                TrustRegistration trust = trustRepository.findById(id)
-                                .orElseThrow(() -> new EntityNotFoundException("TrustRegistration", id));
+                Trust trust = trustRepository.findById(id)
+                                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
                 Temple temple = templeRepository.findById(trust.getTempleId())
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
                 jurisdictionGuard.assertDistrictScope(temple, claims);
@@ -79,8 +79,8 @@ public class DcComplianceServiceImpl implements DcComplianceService {
         @Override
         @Transactional
         public void flagTrust(Long id, DcFlagRequest req, ScopeHelper.Claims claims) {
-                TrustRegistration trust = trustRepository.findById(id)
-                                .orElseThrow(() -> new EntityNotFoundException("TrustRegistration", id));
+                Trust trust = trustRepository.findById(id)
+                                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
                 Temple temple = templeRepository.findById(trust.getTempleId())
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
                 jurisdictionGuard.assertDistrictScope(temple, claims);

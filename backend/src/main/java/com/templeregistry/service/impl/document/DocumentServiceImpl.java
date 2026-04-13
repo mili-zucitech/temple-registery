@@ -101,6 +101,36 @@ public class DocumentServiceImpl implements DocumentService {
         documentRepository.deleteById(id); // @SQLDelete intercepts → UPDATE is_deleted = true
     }
 
+    @Override
+    @Transactional
+    public DocumentResponse registerExternalUpload(String ownerType, Long ownerId, String label,
+                                                    String s3Key, String mimeType,
+                                                    long fileSizeBytes, String originalFilename) {
+        validateExternalUpload(mimeType, fileSizeBytes);
+        Document doc = Document.builder()
+                .ownerType(ownerType).ownerId(ownerId).referenceId(null)
+                .originalFilename(originalFilename)
+                .s3Key(s3Key).mimeType(mimeType)
+                .fileSizeBytes(fileSizeBytes).documentLabel(label).build();
+        Document saved = documentRepository.save(doc);
+        log.info("External document registered: id=[{}] owner=[{}/{}]", saved.getId(), ownerType, ownerId);
+        return toResponse(saved);
+    }
+
+    private void validateExternalUpload(String mimeType, long fileSizeBytes) {
+        if (!ALLOWED_MIME.contains(mimeType)) {
+            throw new FileValidationException("Unsupported file type. Allowed: PDF, JPEG, PNG.");
+        }
+        // Document uploads for TA are max 10 MB (VAL-005); photo uploads are max 5 MB (VAL-006)
+        long maxDocumentBytes = 10 * 1024 * 1024L;
+        if (fileSizeBytes > maxDocumentBytes) {
+            throw new FileValidationException("File exceeds maximum allowed size of 10 MB.");
+        }
+        if (fileSizeBytes <= 0) {
+            throw new FileValidationException("File size must be positive.");
+        }
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new FileValidationException("File must not be empty.");

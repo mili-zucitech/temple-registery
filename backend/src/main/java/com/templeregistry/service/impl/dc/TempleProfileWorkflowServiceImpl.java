@@ -3,15 +3,15 @@ package com.templeregistry.service.impl.dc;
 import com.templeregistry.dto.request.dc.ApproveProfileRequest;
 import com.templeregistry.dto.request.dc.RejectProfileRequest;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
-import com.templeregistry.entity.dc.ProfileStagingStatus;
 import com.templeregistry.entity.dc.TempleProfileCurrent;
 import com.templeregistry.entity.dc.TempleProfileHistory;
-import com.templeregistry.entity.dc.TempleProfileStaging;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.temple.TempleProfileStaging;
+import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.dc.TempleProfileHistoryRepository;
-import com.templeregistry.repository.dc.TempleProfileStagingRepository;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
@@ -80,7 +80,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         currentRepository.findByTempleId(staging.getTempleId()).ifPresent(existing -> {
             TempleProfileHistory history = TempleProfileHistory.builder()
                     .templeId(existing.getTempleId())
-                    .version(staging.getVersion() - 1)
+                    .version(staging.getVersionNumber() - 1)
                     .contactPersonName(existing.getContactPersonName())
                     .contactPersonDesignation(existing.getContactPersonDesignation())
                     .photoFilePath(existing.getPhotoFilePath())
@@ -109,35 +109,33 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                 .landmark(staging.getLandmark())
                 .historicalSignificance(staging.getHistoricalSignificance())
                 .publishedAt(LocalDateTime.now())
-                .publishedBy(claims.userId())
                 .build();
         currentRepository.save(newCurrent);
 
         // Update staging status
-        staging.setStatus(ProfileStagingStatus.APPROVED);
+        staging.setStatus(TempleProfileStagingStatus.APPROVED);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
-        if (request.getRemarks() != null) {
-            staging.setReviewComment(request.getRemarks());
-        }
         stagingRepository.save(staging);
 
-        notificationPublisher.publish(
-                staging.getSubmittedBy(), "PROFILE_APPROVED", staging.getTempleId(), "TEMPLE_PROFILE");
+        // Mark previous APPROVED records for same temple as SUPERSEDED
+        stagingRepository.findFirstByTempleIdAndStatus(staging.getTempleId(), TempleProfileStagingStatus.APPROVED)
+                .ifPresent(prev -> {
+                    if (!prev.getId().equals(staging.getId())) {
+                        prev.setStatus(TempleProfileStagingStatus.SUPERSEDED);
+                        stagingRepository.save(prev);
+                    }
+                });
 
-        auditService.logDataEvent(claims.userId(), claims.role(), "PROFILE_APPROVED",
-                "TempleProfileStaging", stagingId, "templeId=" + staging.getTempleId());
-
+        notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_APPROVED", staging.getTempleId(), "TEMPLE_PROFILE");
+        auditService.logDataEvent(claims.userId(), claims.role(), "APPROVE", "TEMPLE_PROFILE", staging.getTempleId(),
+                "Approved version " + staging.getVersionNumber());
         summaryService.refresh(staging.getTempleId());
 
-        log.info("Profile staging [{}] APPROVED by userId={} for templeId={}",
-                stagingId, claims.userId(), staging.getTempleId());
-
         return WorkflowActionResponse.builder()
-                .declarationId(stagingId)
-                .newStatus(ProfileStagingStatus.APPROVED.name())
-                .acknowledgementNumber(null)
-                .message("Temple profile approved and published.")
+                .declarationId(staging.getId())
+                .newStatus(TempleProfileStagingStatus.APPROVED.name())
+                .message("Temple profile version " + staging.getVersionNumber() + " approved and published.")
                 .build();
     }
 
@@ -145,49 +143,40 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public WorkflowActionResponse rejectProfile(Long stagingId, RejectProfileRequest request,
-                                                 ScopeHelper.Claims claims) {
+                                                   ScopeHelper.Claims claims) {
         TempleProfileStaging staging = loadStaging(stagingId);
         assertPendingReview(staging);
 
         Temple temple = loadTempleWithGeo(staging.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        staging.setStatus(ProfileStagingStatus.REJECTED);
+        staging.setStatus(TempleProfileStagingStatus.REJECTED);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
         staging.setReviewComment(request.getRemarks());
         stagingRepository.save(staging);
 
-        notificationPublisher.publish(
-                staging.getSubmittedBy(), "PROFILE_REJECTED", staging.getTempleId(), "TEMPLE_PROFILE");
-
-        auditService.logDataEvent(claims.userId(), claims.role(), "PROFILE_REJECTED",
-                "TempleProfileStaging", stagingId, "templeId=" + staging.getTempleId());
-
-        summaryService.refresh(staging.getTempleId());
-
-        log.info("Profile staging [{}] REJECTED by userId={}", stagingId, claims.userId());
+        notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_REJECTED", staging.getTempleId(), "TEMPLE_PROFILE");
+        auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
+                "Rejected version " + staging.getVersionNumber() + ": " + request.getRemarks());
 
         return WorkflowActionResponse.builder()
-                .declarationId(stagingId)
-                .newStatus(ProfileStagingStatus.REJECTED.name())
-                .acknowledgementNumber(null)
-                .message("Temple profile rejected.")
+                .declarationId(staging.getId())
+                .newStatus(TempleProfileStagingStatus.REJECTED.name())
+                .message("Temple profile version " + staging.getVersionNumber() + " rejected.")
                 .build();
     }
 
     // ─── Private helpers ───────────────────────────────────────────────────────
 
-    private TempleProfileStaging loadStaging(Long stagingId) {
-        return stagingRepository.findById(stagingId)
-                .orElseThrow(() -> new EntityNotFoundException("TempleProfileStaging", stagingId));
+    private TempleProfileStaging loadStaging(Long id) {
+        return stagingRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("TempleProfileStaging", id));
     }
 
     private void assertPendingReview(TempleProfileStaging staging) {
-        if (staging.getStatus() != ProfileStagingStatus.PENDING_REVIEW) {
-            throw new IllegalStateException(
-                    "Profile staging [" + staging.getId() + "] is not in PENDING_REVIEW status. "
-                            + "Current status: " + staging.getStatus());
+        if (staging.getStatus() != TempleProfileStagingStatus.PENDING_REVIEW) {
+            throw new IllegalStateException("Staging record is not in PENDING_REVIEW status.");
         }
     }
 

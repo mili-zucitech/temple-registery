@@ -3,10 +3,11 @@ package com.templeregistry.entity.temple;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "temple_photos")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class TemplePhoto extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -25,6 +26,7 @@ public class TemplePhoto extends BaseEntity {
     @Column(name = "height")
     private Integer height;
 
+    @Builder.Default
     @Column(name = "is_primary", nullable = false)
     private boolean isPrimary = false;
 

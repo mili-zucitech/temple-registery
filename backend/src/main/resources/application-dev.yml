@@ -31,6 +31,9 @@ trm:
     base-dir: ./exports
 
 app:
+  jwt:
+    private-key-path: classpath:keys/jwt-private.pem
+    public-key-path: classpath:keys/jwt-public.pem
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:

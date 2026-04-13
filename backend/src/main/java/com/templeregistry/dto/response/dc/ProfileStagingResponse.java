@@ -21,9 +21,15 @@ public class ProfileStagingResponse {
     // Content fields
     private String contactPersonName;
     private String contactPersonDesignation;
+    private String phone;
+    private String email;
     private String photoFilePath;
+    private String bankName;
+    private String bankAccountNumberMasked;
+    private String bankIfsc;
     private String languagesOfWorship;
     private String linkedInstitutions;
+    private String description;
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;

@@ -14,6 +14,10 @@ import type {
   CreateAccountRequest,
 } from './registerTypes'
 
+// ── useAadhaarOtpRequest ──────────────────────────────────────────────────────
+// Step 1 → 2: sends Aadhaar OTP via POST /auth/register/init
+// Returns the init session token (tempToken) on success, null on failure.
+
 interface UseAadhaarOtpRequestResult {
   sendOtp: (aadhaarNumber: string, mobile: string) => Promise<string | null>
   isLoading: boolean
@@ -24,16 +28,16 @@ export function useAadhaarOtpRequest(): UseAadhaarOtpRequestResult {
 
   const sendOtp = useCallback(
     async (aadhaarNumber: string, mobile: string): Promise<string | null> => {
+      // Backend field is `aadhaar` (not `aadhaarNumber`); mobile is also required
       const result = await registerInit({ aadhaar: aadhaarNumber, mobile })
       if ('data' in result && result.data.success) {
-        const responseData = result.data.data
-        const devOtp = responseData?.devOtp
+        const devOtp = result.data.data?.devOtp
         if (devOtp) {
           toast.info(`[Dev] OTP: ${devOtp}`, { duration: 10000 })
         } else {
           toast.success('OTP sent to the mobile number linked to your Aadhaar.')
         }
-        return responseData?.tempToken ?? null
+        return result.data.data.tempToken
       }
       const errorMsg =
         ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
@@ -47,6 +51,10 @@ export function useAadhaarOtpRequest(): UseAadhaarOtpRequestResult {
   return { sendOtp, isLoading }
 }
 
+// ── useAadhaarOtpVerify ───────────────────────────────────────────────────────
+// Step 2: verifies OTP; requires the initToken from step 1 response.
+// Returns the AADHAAR_VERIFIED tempToken on success, null on failure.
+
 interface UseAadhaarOtpVerifyResult {
   verifyOtp: (aadhaarNumber: string, otp: string, initToken: string) => Promise<string | null>
   isLoading: boolean
@@ -57,10 +65,12 @@ export function useAadhaarOtpVerify(): UseAadhaarOtpVerifyResult {
 
   const verifyOtp = useCallback(
     async (aadhaarNumber: string, otp: string, initToken: string): Promise<string | null> => {
+      // Backend field is `aadhaar`; also requires the initToken as `tempToken`
       const result = await verifyAadhaar({ aadhaar: aadhaarNumber, otp, tempToken: initToken })
       if ('data' in result && result.data.success) {
         toast.success('Aadhaar verified successfully.')
-        return result.data.data?.verificationToken ?? null
+        // Backend returns `verificationToken` (not `tempToken`) from /register/verify-aadhaar
+        return result.data.data.verificationToken
       }
       const errorMsg =
         ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
@@ -73,6 +83,9 @@ export function useAadhaarOtpVerify(): UseAadhaarOtpVerifyResult {
 
   return { verifyOtp, isLoading }
 }
+
+// ── useSubmitRegistration ─────────────────────────────────────────────────────
+// Step 5: POSTs the full registration payload, returns userId
 
 interface UseSubmitRegistrationResult {
   submitRegistration: (
@@ -117,7 +130,7 @@ export function useSubmitRegistration(): UseSubmitRegistrationResult {
 
       const result = await registerCreate(payload)
       if ('data' in result && result.data.success) {
-        return result.data.data?.userId ?? null
+        return result.data.data.userId
       }
 
       const errorMsg =
@@ -131,6 +144,9 @@ export function useSubmitRegistration(): UseSubmitRegistrationResult {
 
   return { submitRegistration, isLoading }
 }
+
+// ── useMfaSetupFlow ───────────────────────────────────────────────────────────
+// Steps 6–7: sends SMS OTP and verifies it; returns recovery codes
 
 interface UseMfaSetupFlowResult {
   sendSetupOtp: (userId: number, phone: string) => Promise<boolean>
@@ -171,7 +187,7 @@ export function useMfaSetupFlow(): UseMfaSetupFlowResult {
     async (userId: number, otp: string): Promise<string[] | null> => {
       const result = await mfaSetupVerify({ userId, otp })
       if ('data' in result && result.data.success) {
-        return result.data.data?.recoveryCodes ?? null
+        return result.data.data.recoveryCodes
       }
       const errorMsg =
         ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||

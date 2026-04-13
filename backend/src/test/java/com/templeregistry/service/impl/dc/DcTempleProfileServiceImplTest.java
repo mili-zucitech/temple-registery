@@ -16,6 +16,7 @@ import com.templeregistry.repository.declaration.DeclarationClarificationReposit
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.repository.geo.CityRepository;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;

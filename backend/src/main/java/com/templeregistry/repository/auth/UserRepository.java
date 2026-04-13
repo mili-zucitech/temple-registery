@@ -15,9 +15,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    List<User> findAllByRole(UserRole role);
+
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);
 
-    List<User> findAllByRole(UserRole role);
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+            "UPDATE User u SET u.createdBy = :userId, u.updatedBy = :userId WHERE u.id = :userId")
+    void updateSelfAuditFields(@org.springframework.data.repository.query.Param("userId") Long userId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+            "UPDATE User u SET u.templeId = :templeId, u.updatedBy = :userId WHERE u.id = :userId")
+    void linkTemple(@org.springframework.data.repository.query.Param("userId") Long userId,
+                    @org.springframework.data.repository.query.Param("templeId") Long templeId);
 }

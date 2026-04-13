@@ -4,6 +4,7 @@ import com.templeregistry.entity.base.BaseEntity;
 import com.templeregistry.util.AesEncryptionConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE board_members SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class BoardMember extends BaseEntity {
 
     @Column(name = "trust_id", nullable = false) private Long trustId;
@@ -35,9 +36,19 @@ public class BoardMember extends BaseEntity {
 
     @Column(name = "address", columnDefinition = "TEXT") private String address;
 
+    @Builder.Default
     @Column(name = "is_current", nullable = false) private boolean isCurrent = true;
 
     // DC Governance Fields
+    @Builder.Default
     @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
     @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
+
+    public String getMaskedAadhaar() {
+        if (aadhaarEncrypted == null || aadhaarEncrypted.length() < 4) return "****";
+        // This is a simplified version, in reality we'd decrypt and mask.
+        // For now, let's assume we return a placeholder.
+        return "********" + (aadhaarEncrypted.length() > 4 ? 
+            aadhaarEncrypted.substring(aadhaarEncrypted.length() - 4) : "****");
+    }
 }

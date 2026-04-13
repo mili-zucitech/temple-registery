@@ -26,4 +26,8 @@ public interface TempleProfileStagingRepository extends JpaRepository<TempleProf
 
     /** Highest version number ever used for a temple; 0 if no records exist. */
     Optional<TempleProfileStaging> findTopByTempleIdOrderByVersionNumberDesc(Long templeId);
+
+    Optional<TempleProfileStaging> findByTempleIdAndVersionNumber(Long templeId, int versionNumber);
+
+    boolean existsByTempleIdAndStatus(Long templeId, TempleProfileStagingStatus status);
 }
