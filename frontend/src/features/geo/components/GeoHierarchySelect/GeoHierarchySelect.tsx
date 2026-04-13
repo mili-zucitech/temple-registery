@@ -11,7 +11,8 @@ interface GeoHierarchySelectProps {
 }
 
 export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySelectProps) {
-  const { states, cities, districts, taluks, hoblis, loading } = useGeoHierarchy(value)
+  // Hook returns { states: { data, isLoading }, cities: { data, isLoading }, ... }
+  const { states, cities, districts, taluks, hoblis } = useGeoHierarchy(value)
 
   const handleChange = (level: keyof GeoSelection, id: string) => {
     const numericId = Number(id)
@@ -52,7 +53,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">State</label>
         <Select
-          disabled={disabled || loading.states}
+          disabled={disabled || states.isLoading}
           value={value.stateId?.toString() ?? ''}
           onValueChange={(v) => handleChange('stateId', v)}
         >
@@ -60,7 +61,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
             <SelectValue placeholder="State" />
           </SelectTrigger>
           <SelectContent>
-            {states.map((s) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+            {states.data.map((s) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -68,7 +69,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">City</label>
         <Select
-          disabled={disabled || !value.stateId || loading.cities}
+          disabled={disabled || !value.stateId || cities.isLoading}
           value={value.cityId?.toString() ?? ''}
           onValueChange={(v) => handleChange('cityId', v)}
         >
@@ -76,7 +77,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
             <SelectValue placeholder="City" />
           </SelectTrigger>
           <SelectContent>
-            {cities.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+            {cities.data.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -84,7 +85,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">District</label>
         <Select
-          disabled={disabled || !value.cityId || loading.districts}
+          disabled={disabled || !value.cityId || districts.isLoading}
           value={value.districtId?.toString() ?? ''}
           onValueChange={(v) => handleChange('districtId', v)}
         >
@@ -92,7 +93,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
             <SelectValue placeholder="District" />
           </SelectTrigger>
           <SelectContent>
-            {districts.map((d) => <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>)}
+            {districts.data.map((d) => <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -100,7 +101,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">Taluk</label>
         <Select
-          disabled={disabled || !value.districtId || loading.taluks}
+          disabled={disabled || !value.districtId || taluks.isLoading}
           value={value.talukId?.toString() ?? ''}
           onValueChange={(v) => handleChange('talukId', v)}
         >
@@ -108,7 +109,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
             <SelectValue placeholder="Taluk" />
           </SelectTrigger>
           <SelectContent>
-            {taluks.map((t) => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
+            {taluks.data.map((t) => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -116,7 +117,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">Hobli</label>
         <Select
-          disabled={disabled || !value.talukId || loading.hoblis}
+          disabled={disabled || !value.talukId || hoblis.isLoading}
           value={value.hobliId?.toString() ?? ''}
           onValueChange={(v) => handleChange('hobliId', v)}
         >
@@ -124,7 +125,7 @@ export function GeoHierarchySelect({ value, onChange, disabled }: GeoHierarchySe
             <SelectValue placeholder="Hobli" />
           </SelectTrigger>
           <SelectContent>
-            {hoblis.map((h) => <SelectItem key={h.id} value={h.id.toString()}>{h.name}</SelectItem>)}
+            {hoblis.data.map((h) => <SelectItem key={h.id} value={h.id.toString()}>{h.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

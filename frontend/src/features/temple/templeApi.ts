@@ -3,13 +3,13 @@ import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   TempleResponse, TempleSearchResultResponse, CreateTempleRequest, TempleSearchFilterRequest,
-  TempleProfileStagingResponse, CreateTempleProfileStagingRequest,
+  TempleProfileStagingResponse, CreateTempleProfileStagingRequest, TaCurrentProfileResponse,
 } from './templeTypes'
 
 export const templeApi = createApi({
   reducerPath: 'templeApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Temple', 'TempleSearch', 'TempleStaging'],
+  tagTypes: ['Temple', 'TempleSearch', 'TempleStaging', 'TempleCurrentProfile'],
   endpoints: (builder) => ({
     searchTemples: builder.query<
       ApiResponse<PaginatedResponse<TempleSearchResultResponse>>,
@@ -70,6 +70,11 @@ export const templeApi = createApi({
       }),
       providesTags: (_r, _e, { templeId }) => [{ type: 'TempleStaging', id: `history-${templeId}` }],
     }),
+
+    getTempleCurrentProfile: builder.query<ApiResponse<TaCurrentProfileResponse | null>, number>({
+      query: (templeId) => `/temples/${templeId}/profile/current`,
+      providesTags: (_r, _e, templeId) => [{ type: 'TempleCurrentProfile', id: templeId }],
+    }),
   }),
 })
 
@@ -82,4 +87,5 @@ export const {
   useCreateOrUpdateDraftMutation,
   useSubmitForReviewMutation,
   useGetStagingHistoryQuery,
+  useGetTempleCurrentProfileQuery,
 } = templeApi

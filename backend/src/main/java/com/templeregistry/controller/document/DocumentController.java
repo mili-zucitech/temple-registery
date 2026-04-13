@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.document;
+package com.templeregistry.controller.document;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;

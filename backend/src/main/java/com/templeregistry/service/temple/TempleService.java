@@ -13,4 +13,8 @@ public interface TempleService {
     TempleResponse getById(Long id);
 
     TempleResponse update(Long id, UpdateTempleRequest request);
+    /**
+     * Returns the current approved temple profile (main table, not staging).
+     */
+    TempleResponse getCurrentProfile(Long templeId);
 }

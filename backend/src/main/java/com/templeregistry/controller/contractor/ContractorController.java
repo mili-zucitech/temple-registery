@@ -1,11 +1,10 @@
-﻿package com.templeregistry.controller.contractor;
+package com.templeregistry.controller.contractor;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.contractor.CreateContractorRequest;
 import com.templeregistry.dto.response.contractor.ContractorResponse;
 import com.templeregistry.service.contractor.ContractorService;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
