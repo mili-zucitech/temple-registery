@@ -14,7 +14,9 @@ export type ReligiousTradition = (typeof RELIGIOUS_TRADITIONS)[number]
 
 export const createTempleSchema = z.object({
   name: z.string().min(1, 'Temple name is required').max(255),
+  registrationNumber: z.string().min(1, 'Registration number is required').max(50),
   grade: z.enum(TEMPLE_GRADES),
+  primaryDeity: z.string().min(1, 'Primary deity is required').max(150),
   tradition: z.enum(RELIGIOUS_TRADITIONS),
   districtId: z.number({ required_error: 'District is required' }),
   talukId: z.number().optional(),
@@ -22,12 +24,14 @@ export const createTempleSchema = z.object({
   addressLine1: z.string().max(255).optional(),
   addressLine2: z.string().max(255).optional(),
   city: z.string().max(128).optional(),
-  pinCode: z.string().length(6).regex(/^\d{6}$/).optional(),
+  pinCode: z.string().length(6, 'PIN code must be 6 digits').regex(/^\d{6}$/, 'PIN code must be 6 digits').optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
-  contactName: z.string().max(128).optional(),
-  contactEmail: z.string().email().optional().or(z.literal('')),
-  contactPhone: z.string().max(15).optional(),
+  contactName: z.string().min(1, 'Contact person name is required').max(200),
+  contactDesignation: z.string().min(1, 'Contact person designation is required').max(150),
+  contactMobile: z.string().regex(/^[6-9]\d{9}$/, 'Phone must be exactly 10 digits with no country code prefix'),
+  contactEmail: z.string().email('Invalid email address').max(255),
+  languagesOfWorship: z.string().max(255).optional(),
   trustRegistered: z.boolean().default(false),
 })
 
@@ -46,6 +50,8 @@ export type CreateTempleRequest = z.infer<typeof createTempleSchema>
 export type TempleSearchFilterRequest = z.infer<typeof templeSearchFilterSchema>
 
 // ── Response types ────────────────────────────────────────────────────────────
+
+import type { DocumentResponse } from '../document/documentApi'
 
 export interface TempleResponse {
   // ── Identity (Master — set by Super Admin, always read-only for TA) ──
@@ -79,10 +85,23 @@ export interface TempleResponse {
   contactMobile?: string        // maps to backend `contactMobile`
   contactEmail?: string
   photoUrl?: string
-  languagesOfWorship?: string
+  languagesOfWorship?: string[]
 
   trustRegistered: boolean
   assetDeclarationStatus?: string
+
+  /** All media (photos, PDFs, etc.) linked to this temple. */
+  media?: DocumentResponse[]
+}
+
+export interface TemplePhotoDto {
+  id: number
+  url: string
+  isPrimary: boolean
+  fileName?: string
+  uploadDate?: string
+  width?: number
+  height?: number
 }
 
 export interface TempleSearchResultResponse {
@@ -135,8 +154,8 @@ export interface TempleProfileStagingResponse {
   bankAccountMasked?: string
   bankName?: string
   bankIfsc?: string
-  languagesOfWorship?: string
-  linkedInstitutions?: string
+  languagesOfWorship?: string | string[]
+  linkedInstitutions?: string | string[]
   description?: string
   annualFestivals?: string
   landmark?: string
@@ -152,7 +171,32 @@ export interface TempleProfileStagingResponse {
 
 export type TaProfileStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
 
-/** VAL-016: 10 digits; VAL-017: email. Bank fields omitted — they belong to the Trust module. */
+/** 
+ * Backend API request for profile staging.
+ * Mapped to com.templeregistry.dto.request.ta.TaProfileStagingRequest.
+ */
+export interface TaProfileStagingRequest {
+  phone?: string
+  email?: string
+  website?: string
+  contactPersonName?: string
+  contactPersonDesignation?: string
+  photoFilePath?: string
+  bankAccountNumber?: string
+  bankName?: string
+  bankIfsc?: string
+  languagesOfWorship?: string[]
+  linkedInstitutions?: string[]
+  description?: string
+  annualFestivals?: string
+  landmark?: string
+  historicalSignificance?: string
+}
+
+/** 
+ * Frontend Zod schema for the edit form.
+ * Uses strings for comma-separated inputs; joined/split in the hook before API call.
+ */
 export const taProfileStagingSchema = z.object({
   phone: z
     .string()
@@ -163,19 +207,32 @@ export const taProfileStagingSchema = z.object({
   website: z.string().url('Must be a valid URL (e.g. https://…)').optional().or(z.literal('')),
   contactPersonName: z.string().max(255).optional(),
   contactPersonDesignation: z.string().max(100).optional(),
+  photoFilePath: z.string().max(1000).optional(),
   languagesOfWorship: z.string().max(500).optional(),
   linkedInstitutions: z.string().optional(),
   description: z.string().optional(),
   annualFestivals: z.string().optional(),
+  landmark: z.string().optional(),
+  historicalSignificance: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankName: z.string().max(100).optional(),
+  bankIfsc: z
+    .string()
+    .regex(/^(?=.{11}$)[A-Z]{4}0[A-Z0-9]{6}$/, 'Must be a valid 11-char IFSC code (e.g. SBIN0001234)')
+    .optional()
+    .or(z.literal('')),
 })
 
 /** Stricter schema used at submit time — contactPersonName + contactPersonDesignation become required. */
 export const submitTempleProfileSchema = taProfileStagingSchema.extend({
   contactPersonName: z.string().min(1, 'Contact person name is required').max(255),
   contactPersonDesignation: z.string().min(1, 'Contact person designation is required').max(100),
+  phone: z.string().regex(/^[0-9]{10}$/, 'Phone must be exactly 10 digits'),
+  email: z.string().email('Invalid email address'),
 })
 
-export type TaProfileStagingRequest = z.infer<typeof taProfileStagingSchema>
+/** Type for the form state. */
+export type TaProfileStagingFormValues = z.infer<typeof taProfileStagingSchema>
 export type TaProfileStagingSubmitRequest = z.infer<typeof submitTempleProfileSchema>
 
 export interface TaCurrentProfileResponse {
@@ -190,8 +247,8 @@ export interface TaCurrentProfileResponse {
   bankAccountMasked?: string
   bankName?: string
   bankIfsc?: string
-  languagesOfWorship?: string
-  linkedInstitutions?: string
+  languagesOfWorship?: string | string[]
+  linkedInstitutions?: string | string[]
   description?: string
   annualFestivals?: string
   landmark?: string
@@ -223,7 +280,8 @@ export interface TaProfileHistoryItemResponse {
   photoFilePath?: string
   bankName?: string
   bankIfsc?: string
-  languagesOfWorship?: string
+  languagesOfWorship?: string | string[]
+  linkedInstitutions?: string | string[]
   description?: string
   annualFestivals?: string
   publishedAt?: string

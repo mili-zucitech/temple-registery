@@ -1,26 +1,28 @@
 package com.templeregistry.service.impl.trust;
 
-import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.trust.*;
-import com.templeregistry.dto.response.trust.*;
-import com.templeregistry.entity.trust.*;
+import com.templeregistry.dto.response.trust.BoardMemberResponse;
+import com.templeregistry.dto.response.trust.TrustResponse;
+import com.templeregistry.entity.trust.BoardMember;
+import com.templeregistry.entity.trust.Trust;
+import com.templeregistry.entity.trust.TrustStatus;
+import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
-import com.templeregistry.repository.trust.*;
-import com.templeregistry.security.JurisdictionGuard;
+import com.templeregistry.exception.IllegalStatusTransitionException;
+import com.templeregistry.mapper.trust.TrustMapper;
+import com.templeregistry.repository.trust.BoardMemberRepository;
+import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.trust.TrustService;
-import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,229 +31,199 @@ public class TrustServiceImpl implements TrustService {
 
     private final TrustRepository trustRepository;
     private final BoardMemberRepository boardMemberRepository;
-    private final BoardMeetingRepository boardMeetingRepository;
-    private final TrustFinancialRepository financialRepository;
+    private final TrustMapper trustMapper;
     private final OwnershipGuard ownershipGuard;
-    private final PaginationUtil paginationUtil;
 
     @Override
-    @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
-    public List<TrustResponse> listByTemple(Long templeId) {
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public TrustResponse createTrust(Long templeId, CreateTrustRequest request) {
         ownershipGuard.assertOwnsTemple(templeId);
-        return trustRepository.findAllByTempleId(templeId).stream().map(this::toResponse).toList();
-    }
 
-    @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    @Transactional
-    public TrustResponse create(Long templeId, CreateTrustRequest rq) {
-        ownershipGuard.assertOwnsTemple(templeId);
-        TrustRegistration trust = TrustRegistration.builder()
-                .templeId(templeId)
-                .trustName(rq.getTrustName())
-                .trustType(rq.getTrustType())
-                .registrationNumber(rq.getRegistrationNumber())
-                .registeringAuthority(rq.getRegisteringAuthority())
-                .dateOfRegistration(rq.getDateOfRegistration())
-                .bankName(rq.getBankName())
-                .bankBranch(rq.getBankBranch())
-                .annualIncome(rq.getAnnualIncome())
-                .build();
-        TrustRegistration saved = trustRepository.save(trust);
-        log.info("Trust created: id=[{}] for temple=[{}]", saved.getId(), templeId);
-        return toResponse(saved);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
-    public TrustResponse getById(Long id) {
-        TrustRegistration trust = trustRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
-        ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        return toResponse(trust);
-    }
-
-    @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    @Transactional
-    public TrustResponse update(Long id, CreateTrustRequest rq) {
-        TrustRegistration trust = trustRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
-        ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        trust.setTrustName(rq.getTrustName());
-        trust.setTrustType(rq.getTrustType());
-        trust.setAnnualIncome(rq.getAnnualIncome());
-        return toResponse(trustRepository.save(trust));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
-    public List<BoardMemberResponse> listBoardMembers(Long trustId) {
-        return boardMemberRepository.findAllByTrustId(trustId).stream().map(this::toBoardResponse).toList();
-    }
-
-    @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    @Transactional
-    public BoardMemberResponse addBoardMember(Long trustId, CreateBoardMemberRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
-        ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        BoardMember member = BoardMember.builder()
-                .trustId(trustId)
-                .fullName(rq.getFullName())
-                .aadhaarEncrypted(rq.getAadhaarNumber()) // @Convert handles encryption
-                .designation(rq.getDesignation())
-                .appointmentDate(rq.getAppointmentDate())
-                .tenureEndDate(rq.getTenureEndDate())
-                .contactNumber(rq.getContactNumber())
-                .address(rq.getAddress())
-                .isCurrent(true)
-                .build();
-        return toBoardResponse(boardMemberRepository.save(member));
-    }
-
-    @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    @Transactional
-    public BoardMemberResponse updateBoardMember(Long trustId, Long memberId, UpdateBoardMemberRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
-        ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        BoardMember member = boardMemberRepository.findById(memberId)
-                .orElseThrow(() -> new EntityNotFoundException("BoardMember", memberId));
-
-        // VAL-014: cessation date required when marking member as resigned
-        if (Boolean.FALSE.equals(rq.getIsCurrent()) && rq.getTenureEndDate() == null) {
-            throw new IllegalArgumentException(
-                    "tenureEndDate (cessation date) is required when marking a board member as resigned (VAL-014).");
+        if (trustRepository.existsByTempleIdAndStatus(templeId, TrustStatus.ACTIVE)) {
+            throw new DuplicateResourceException("Temple already has an ACTIVE trust. Dissolve the current one first.");
         }
 
-        if (rq.getFullName() != null)        member.setFullName(rq.getFullName());
-        if (rq.getDesignation() != null)     member.setDesignation(rq.getDesignation());
-        if (rq.getAppointmentDate() != null) member.setAppointmentDate(rq.getAppointmentDate());
-        if (rq.getContactNumber() != null)   member.setContactNumber(rq.getContactNumber());
-        if (rq.getAddress() != null)         member.setAddress(rq.getAddress());
-        if (rq.getIsCurrent() != null)       member.setCurrent(rq.getIsCurrent());
-        if (rq.getTenureEndDate() != null)   member.setTenureEndDate(rq.getTenureEndDate());
-
-        log.info("BoardMember updated: id=[{}] isCurrent=[{}]", memberId, member.isCurrent());
-        return toBoardResponse(boardMemberRepository.save(member));
-    }
-
-    @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    @Transactional
-    public void submitFinancial(Long trustId, SubmitTrustFinancialRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
-        ownershipGuard.assertOwnsTemple(trust.getTempleId());
-
-        // VAL-013: one submission per trust per FY; immutable after submit
-        boolean alreadySubmitted = financialRepository
-                .findAllByTrustIdOrderByFinancialYearDesc(trustId).stream()
-                .anyMatch(f -> f.getFinancialYear().equals(rq.getFinancialYear()));
-        if (alreadySubmitted) {
-            throw new IllegalStateException(
-                    "Annual financials for financial year [" + rq.getFinancialYear()
-                            + "] have already been submitted for this trust (VAL-013).");
+        if (trustRepository.existsByTrustRegistrationNumberAndStatus(request.getTrustRegistrationNumber(), TrustStatus.ACTIVE)) {
+            throw new DuplicateResourceException("Active trust with registration number [" + request.getTrustRegistrationNumber() + "] already exists.");
         }
 
-        TrustFinancial fin = TrustFinancial.builder()
-                .trustId(trustId)
-                .financialYear(rq.getFinancialYear())
-                .annualIncome(rq.getAnnualIncome())
-                .annualExpenditure(rq.getAnnualExpenditure())
-                .submittedAt(LocalDateTime.now())
-                .documentId(rq.getDocumentId())
-                .build();
-        financialRepository.save(fin);
-        log.info("Financial submitted for trust [{}], FY [{}]", trustId, rq.getFinancialYear());
+        Trust trust = trustMapper.fromCreateRequest(request);
+        trust.setTempleId(templeId);
+        trust.setStatus(TrustStatus.ACTIVE);
+
+        Trust saved = trustRepository.save(trust);
+        log.info("Created trust: id=[{}], templeId=[{}]", saved.getId(), templeId);
+        return trustMapper.toTrustResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
-    public List<TrustFinancialResponse> listFinancials(Long trustId) {
-        trustRepository.findById(trustId).orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
-        return financialRepository.findAllByTrustIdOrderByFinancialYearDesc(trustId)
-                .stream().map(this::toFinancialResponse).toList();
+    public List<TrustResponse> getTrustsByTemple(Long templeId) {
+        ownershipGuard.assertOwnsTemple(templeId);
+        return trustRepository.findAllByTempleId(templeId).stream()
+                .map(trustMapper::toTrustResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
-    public BoardMeetingResponse createBoardMeeting(Long trustId, CreateBoardMeetingRequest rq) {
-        TrustRegistration trust = trustRepository.findById(trustId)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public TrustResponse updateTrust(Long id, UpdateTrustRequest request) {
+        Trust trust = findTrustOrThrow(id);
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        BoardMeeting meeting = BoardMeeting.builder()
-                .trustId(trustId)
-                .meetingDate(rq.getMeetingDate())
-                .agenda(rq.getAgenda())
-                .minutesDocumentId(rq.getMinutesDocumentId())
-                .build();
-        BoardMeeting saved = boardMeetingRepository.save(meeting);
-        log.info("BoardMeeting created: id=[{}] trustId=[{}]", saved.getId(), trustId);
-        return toMeetingResponse(saved);
+
+        if (trust.getStatus() == TrustStatus.DISSOLVED) {
+            throw new IllegalStatusTransitionException("TRM-TRUST-001: Cannot edit a DISSOLVED trust.");
+        }
+
+        trustMapper.updateFromRequest(request, trust);
+        Trust updated = trustRepository.save(trust);
+        log.info("Updated trust: id=[{}]", updated.getId());
+        return trustMapper.toTrustResponse(updated);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
-    public PaginatedResponse<BoardMeetingResponse> listBoardMeetings(Long trustId, int page, int size) {
-        trustRepository.findById(trustId).orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
-        Page<BoardMeeting> result = boardMeetingRepository.findAllByTrustIdOrderByMeetingDateDesc(
-                trustId, PageRequest.of(page, paginationUtil.clampSize(size)));
-        return PaginatedResponse.of(result.map(this::toMeetingResponse));
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public TrustResponse dissolveTrust(Long id, DissolveTrustRequest request) {
+        Trust trust = findTrustOrThrow(id);
+        ownershipGuard.assertOwnsTemple(trust.getTempleId());
+
+        if (trust.getStatus() == TrustStatus.DISSOLVED) {
+            throw new IllegalStatusTransitionException("Trust is already dissolved.");
+        }
+
+        trust.setStatus(TrustStatus.DISSOLVED);
+        trust.setDissolutionDate(request.getDissolutionDate());
+        trust.setDissolutionReason(request.getDissolutionReason());
+
+        Trust saved = trustRepository.save(trust);
+        log.info("Dissolved trust: id=[{}]", saved.getId());
+        return trustMapper.toTrustResponse(saved);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
-    public BoardMeetingResponse getBoardMeeting(Long meetingId) {
-        BoardMeeting meeting = boardMeetingRepository.findById(meetingId)
-                .orElseThrow(() -> new EntityNotFoundException("BoardMeeting", meetingId));
-        return toMeetingResponse(meeting);
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public TrustResponse submitForReview(Long id) {
+        Trust trust = findTrustOrThrow(id);
+        ownershipGuard.assertOwnsTemple(trust.getTempleId());
+
+        if (trust.getStatus() == TrustStatus.DISSOLVED) {
+            throw new IllegalStatusTransitionException("TRM-TRUST-001: Cannot submit a DISSOLVED trust for review.");
+        }
+
+        // Reset verification flags for DC review
+        trust.setVerifiedByDc(false);
+        trust.setDcFlagReason(null);
+        
+        // Also reset for all current board members
+        List<BoardMember> members = boardMemberRepository.findAllByTrustIdAndIsCurrent(id, true);
+        for (BoardMember member : members) {
+            member.setVerifiedByDc(false);
+            member.setDcFlagReason(null);
+        }
+        boardMemberRepository.saveAll(members);
+
+        Trust saved = trustRepository.save(trust);
+        log.info("Submitted trust for DC review: id=[{}]", saved.getId());
+        return trustMapper.toTrustResponse(saved);
     }
 
-    /* ── Mapping helpers ─────────────────────────────────────────── */
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public BoardMemberResponse addBoardMember(Long trustId, CreateBoardMemberRequest request) {
+        Trust trust = findTrustOrThrow(trustId);
+        ownershipGuard.assertOwnsTemple(trust.getTempleId());
 
-    private TrustResponse toResponse(TrustRegistration t) {
-        return TrustResponse.builder()
-                .id(t.getId()).templeId(t.getTempleId()).trustName(t.getTrustName())
-                .trustType(t.getTrustType()).registrationNumber(t.getRegistrationNumber())
-                .registeringAuthority(t.getRegisteringAuthority())
-                .dateOfRegistration(t.getDateOfRegistration())
-                .bankName(t.getBankName()).bankBranch(t.getBankBranch())
-                .annualIncome(t.getAnnualIncome()).build();
+        if (trust.getStatus() == TrustStatus.DISSOLVED) {
+            throw new IllegalStatusTransitionException("TRM-TRUST-001: Cannot add members to a DISSOLVED trust.");
+        }
+
+        BoardMember member = trustMapper.fromCreateMemberRequest(request);
+        member.setTrustId(trustId);
+        member.setCurrent(true); // Always mark as current on creation
+
+        BoardMember saved = boardMemberRepository.save(member);
+        log.info("Added board member: id=[{}], trustId=[{}]", saved.getId(), trustId);
+        return trustMapper.toMemberResponse(saved);
     }
 
-    private BoardMemberResponse toBoardResponse(BoardMember bm) {
-        // VAL-007: Aadhaar always masked as XXXX-XXXX-{last4}
-        String masked = bm.getAadhaarEncrypted() != null ? "XXXX-XXXX-" +
-                bm.getAadhaarEncrypted().substring(Math.max(0, bm.getAadhaarEncrypted().length() - 4)) : null;
-        return BoardMemberResponse.builder()
-                .id(bm.getId()).trustId(bm.getTrustId()).fullName(bm.getFullName())
-                .aadhaarMasked(masked).designation(bm.getDesignation())
-                .appointmentDate(bm.getAppointmentDate()).tenureEndDate(bm.getTenureEndDate())
-                .contactNumber(bm.getContactNumber()).isCurrent(bm.isCurrent()).build();
+        @Override
+        @Transactional(readOnly = true)
+        @PreAuthorize("isAuthenticated()")
+        public com.templeregistry.common.PaginatedResponse<BoardMemberResponse> getBoardMembersByTrust(Long trustId, int page, int size) {
+            Trust trust = findTrustOrThrow(trustId);
+            ownershipGuard.assertOwnsTemple(trust.getTempleId());
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by("appointmentDate").descending());
+            org.springframework.data.domain.Page<BoardMember> paged = boardMemberRepository.findAllByTrustId(trustId, pageable);
+            // Auto-transition members whose tenureEndDate has passed
+        java.time.LocalDate today = java.time.LocalDate.now();
+        paged.forEach(member -> {
+            if (member.isCurrent() && member.getTenureEndDate() != null && member.getTenureEndDate().isBefore(today)) {
+                try {
+                    member.setCurrent(false);
+                    boardMemberRepository.save(member);
+                    log.info("Auto-transitioned board member to historical: id=[{}], trustId=[{}], tenureEndDate=[{}]", 
+                            member.getId(), member.getTrustId(), member.getTenureEndDate());
+                } catch (Exception e) {
+                    log.error("Failed to auto-transition board member to historical: id=[{}], trustId=[{}]", 
+                            member.getId(), member.getTrustId(), e);
+                }
+            }
+        });
+            org.springframework.data.domain.Page<BoardMemberResponse> mapped = paged.map(trustMapper::toMemberResponse);
+            return com.templeregistry.common.PaginatedResponse.of(mapped);
+        }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public BoardMemberResponse updateBoardMember(Long id, UpdateBoardMemberRequest request) {
+        BoardMember member = findMemberOrThrow(id);
+        Trust trust = findTrustOrThrow(member.getTrustId());
+        ownershipGuard.assertOwnsTemple(trust.getTempleId());
+
+        if (!member.isCurrent()) {
+            throw new IllegalStatusTransitionException("TRM-BM-001: Cannot edit a historical member.");
+        }
+
+        trustMapper.updateMemberFromRequest(request, member);
+        BoardMember updated = boardMemberRepository.save(member);
+        log.info("Updated board member: id=[{}]", updated.getId());
+        return trustMapper.toMemberResponse(updated);
     }
 
-    private TrustFinancialResponse toFinancialResponse(TrustFinancial f) {
-        return TrustFinancialResponse.builder()
-                .id(f.getId()).trustId(f.getTrustId()).financialYear(f.getFinancialYear())
-                .annualIncome(f.getAnnualIncome()).annualExpenditure(f.getAnnualExpenditure())
-                .submittedAt(f.getSubmittedAt()).documentId(f.getDocumentId()).build();
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public BoardMemberResponse resignBoardMember(Long id, ResignBoardMemberRequest request) {
+        BoardMember member = findMemberOrThrow(id);
+        Trust trust = findTrustOrThrow(member.getTrustId());
+        ownershipGuard.assertOwnsTemple(trust.getTempleId());
+
+        if (!member.isCurrent()) {
+            throw new IllegalStatusTransitionException("TRM-BM-001: Member is already historical.");
+        }
+
+        member.setCurrent(false);
+        member.setTenureEndDate(request.getCessationDate());
+
+        BoardMember saved = boardMemberRepository.save(member);
+        log.info("Member resigned: id=[{}]", saved.getId());
+        return trustMapper.toMemberResponse(saved);
     }
 
-    private BoardMeetingResponse toMeetingResponse(BoardMeeting m) {
-        return BoardMeetingResponse.builder()
-                .id(m.getId()).trustId(m.getTrustId()).meetingDate(m.getMeetingDate())
-                .agenda(m.getAgenda()).minutesDocumentId(m.getMinutesDocumentId())
-                .createdAt(m.getCreatedAt()).build();
+    private Trust findTrustOrThrow(Long id) {
+        return trustRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Trust not registered.", "TRUST_NOT_FOUND"));
+    }
+
+    private BoardMember findMemberOrThrow(Long id) {
+        return boardMemberRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("BoardMember", id));
     }
 }

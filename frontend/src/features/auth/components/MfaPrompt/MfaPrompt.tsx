@@ -46,6 +46,7 @@ export function MfaPrompt() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   {...field}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />

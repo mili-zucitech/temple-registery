@@ -2,32 +2,35 @@ import { z } from 'zod'
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
-export const TRUST_TYPES = ['SINGLE_TRUSTEE', 'MULTI_TRUSTEE', 'ENDOWMENT', 'DEVASWOM', 'OTHER'] as const
+export const TRUST_TYPES = ['PUBLIC', 'PRIVATE'] as const
 export type TrustType = (typeof TRUST_TYPES)[number]
 
 // ── Request schemas ───────────────────────────────────────────────────────────
 
 export const createTrustSchema = z.object({
-  trustName: z.string().min(1, 'Trust name is required').max(255),
+  trustName: z.string().min(1, 'Trust name is required'),
+  trustRegistrationNumber: z.string().min(1, 'Registration number is required').regex(/^[a-zA-Z0-9]+$/, 'Must be alphanumeric'),
+  dateOfRegistration: z.string().min(1, 'Date of registration is required'),
+  registeringAuthority: z.string().min(1, 'Registering authority is required'),
   trustType: z.enum(TRUST_TYPES),
-  registrationNumber: z.string().min(1, 'Registration number is required').max(100),
-  registeringAuthority: z.string().max(255).optional(),
-  dateOfRegistration: z.string({ required_error: 'Date of registration is required' }),
-  panNumber: z.string().max(20).optional(),
-  bankAccountNumber: z.string().optional(),
-  bankName: z.string().max(255).optional(),
-  bankBranch: z.string().max(255).optional(),
-  annualIncome: z.number().nonnegative().optional(),
+  trustPANNumber: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN format'),
+  bankAccountNumber: z.string().regex(/^[0-9]{9,18}$/, 'Must be 9-18 digits'),
+  bankNameAndBranch: z.string().min(1, 'Bank name and branch is required'),
+  annualIncome: z.union([
+    z.number().nonnegative('Must be zero or positive'),
+    z.literal(''),
+    z.undefined()
+  ]),
 })
 
 export const createBoardMemberSchema = z.object({
   fullName: z.string().min(1, 'Name is required').max(200),
-  aadhaarNumber: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits').optional(),
-  designation: z.string().max(150).optional(),
-  appointmentDate: z.string().optional(),
+  aadhaar: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits'),
+  designation: z.string().max(150),
+  appointmentDate: z.string(),
   tenureEndDate: z.string().optional(),
-  contactNumber: z.string().max(15).optional(),
-  address: z.string().optional(),
+  contactNumber: z.string().max(15),
+  address: z.string(),
 })
 
 export const updateBoardMemberSchema = z.object({
@@ -54,6 +57,7 @@ export const createBoardMeetingSchema = z.object({
 })
 
 export type CreateTrustRequest = z.infer<typeof createTrustSchema>
+export type UpdateTrustRequest = CreateTrustRequest
 export type CreateBoardMemberRequest = z.infer<typeof createBoardMemberSchema>
 export type UpdateBoardMemberRequest = z.infer<typeof updateBoardMemberSchema>
 export type SubmitTrustFinancialRequest = z.infer<typeof submitTrustFinancialSchema>
@@ -65,25 +69,35 @@ export interface TrustResponse {
   id: number
   templeId: number
   trustName: string
-  trustType: TrustType
-  registrationNumber?: string
-  registeringAuthority?: string
-  dateOfRegistration?: string
-  bankName?: string
-  bankBranch?: string
+  status: string
+  isActive: boolean
+  trustRegistrationNumber: string
+  dateOfRegistration: string
+  registeringAuthority: string
+  trustType: string
+  trustPANNumber: string
+  bankAccountNumber: string
+  bankNameAndBranch: string
   annualIncome?: number
+  dissolvedAt?: string
+  dissolutionReason?: string
+  isVerifiedByDc: boolean
+  dcFlagReason?: string
 }
 
 export interface BoardMemberResponse {
   id: number
   trustId: number
   fullName: string
-  aadhaarMasked?: string
-  designation?: string
-  appointmentDate?: string
+  maskedAadhaar?: string
+  designation: string
+  appointmentDate: string
   tenureEndDate?: string
-  contactNumber?: string
+  contactNumber: string
+  address: string
   isCurrent: boolean
+  isVerifiedByDc: boolean
+  dcFlagReason?: string
 }
 
 export interface TrustFinancialResponse {

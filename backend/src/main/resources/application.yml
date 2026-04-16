@@ -1,44 +1,70 @@
 spring:
+  application:
+    name: temple-registry-backend
+  profiles:
+    active: dev
+
   datasource:
-    url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: 3Nkwm2fKtuGqoiu.root
-    password: 6sXYNlDhrX80xnDz
+    url: ${DB_URL:jdbc:mysql://localhost:3306/temple_registry?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      connection-timeout: 20000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+        default_batch_fetch_size: 20
 
   flyway:
-    enabled: false   # 🔴 TEMPORARY (enable later after DB works)
-    validate-on-migrate: false
-    repair-on-migrate: true
-
-  security:
-    debug: false
-
-springdoc:
-  swagger-ui:
     enabled: true
-    path: /swagger-ui.html
-  api-docs:
-    path: /v3/api-docs
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
 
 app:
+  jwt:
+    private-key-path: classpath:keys/private.pem
+    public-key-path: classpath:keys/public.pem
+    access-token-expiry-ms: 900000       # 15 minutes
+    refresh-token-expiry-days: 7
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
-  encryption:
-    key: "TempleRegistryDevelopmentKey2024"
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   storage:
-    base-dir: ./uploads
-
-logging:
-  level:
-    com.templeregistry: DEBUG
-    org.springframework.security: INFO
-    org.hibernate.SQL: DEBUG
+    base-dir: ${FILE_BASE_DIR:./uploads}
+  mfa:
+    sms-otp-expiry-minutes: 10
+  pagination:
+    default-page-size: 10
+    max-page-size: 100
+  export:
+    max-records: 5000

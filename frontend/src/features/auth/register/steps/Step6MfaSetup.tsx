@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Smartphone, RefreshCw, KeyRound } from 'lucide-react'
+import type { ClipboardEvent, KeyboardEvent } from 'react'
+import { Smartphone, RefreshCw } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -8,12 +9,6 @@ import { useMfaSetupFlow } from '../registerHooks'
 
 const OTP_LENGTH = 6
 const RESEND_COOLDOWN = 60
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
 
 export function Step6MfaSetup() {
   const { state, saveRecoveryCodes, nextStep, prevStep } = useWizard()
@@ -30,7 +25,6 @@ export function Step6MfaSetup() {
   const phone = state.step1?.mobile ?? ''
   const userId = state.userId
 
-  // Resend cooldown timer
   useEffect(() => {
     if (resendCooldown <= 0) return
     const id = setInterval(() => setResendCooldown((c) => c - 1), 1000)
@@ -63,10 +57,14 @@ export function Step6MfaSetup() {
     }
   }
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       if (digits[index]) {
-        setDigits((prev) => { const next = [...prev]; next[index] = ''; return next })
+        setDigits((prev) => {
+          const next = [...prev]
+          next[index] = ''
+          return next
+        })
       } else if (index > 0) {
         inputRefs.current[index - 1]?.focus()
       }
@@ -78,7 +76,7 @@ export function Step6MfaSetup() {
     }
   }
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault()
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH)
     const next = Array(OTP_LENGTH).fill('')
@@ -117,7 +115,6 @@ export function Step6MfaSetup() {
         </p>
       </div>
 
-      {/* Phone display */}
       <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-4 py-3">
         <Smartphone className="h-5 w-5 text-muted-foreground shrink-0" />
         <div>
@@ -146,7 +143,6 @@ export function Step6MfaSetup() {
             Enter the 6-digit OTP sent to <span className="font-medium text-foreground">{maskedPhone}</span>
           </p>
 
-          {/* Segmented OTP */}
           <div
             className="flex items-center gap-2 justify-center"
             role="group"
@@ -176,7 +172,6 @@ export function Step6MfaSetup() {
             <p className="text-sm text-destructive text-center" role="alert">{error}</p>
           )}
 
-          {/* Resend */}
           <div className="flex items-center justify-end text-sm">
             <button
               type="button"

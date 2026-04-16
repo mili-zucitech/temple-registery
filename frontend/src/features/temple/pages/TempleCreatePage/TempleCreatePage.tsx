@@ -43,7 +43,7 @@ const STEPS = [
     title: 'Contact Details',
     description: 'Person, phone & email',
     icon: Phone,
-    fields: ['contactName', 'contactPhone', 'contactEmail'] as (keyof CreateTempleRequest)[],
+    fields: ['contactName', 'contactMobile', 'contactEmail'] as (keyof CreateTempleRequest)[],
   },
   {
     id: 3,
@@ -64,7 +64,28 @@ export function TempleCreatePage() {
 
   const form = useForm<CreateTempleRequest>({
     resolver: zodResolver(createTempleSchema),
-    defaultValues: { name: '', trustRegistered: false },
+    defaultValues: {
+      name: '',
+      registrationNumber: '',
+      grade: undefined,
+      primaryDeity: '',
+      tradition: undefined,
+      districtId: undefined,
+      talukId: undefined,
+      hobliId: undefined,
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      pinCode: '',
+      latitude: undefined,
+      longitude: undefined,
+      contactName: '',
+      contactDesignation: '',
+      contactMobile: '',
+      contactEmail: '',
+      languagesOfWorship: '',
+      trustRegistered: false,
+    },
     mode: 'onTouched',
   })
 
@@ -367,8 +388,8 @@ export function TempleCreatePage() {
                       )}
                     />
                     <FormField
-                      control={form.control}
-                      name="contactPhone"
+                      control={form.control as any}
+                      name="contactMobile"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Phone</FormLabel>
@@ -430,7 +451,7 @@ export function TempleCreatePage() {
                     <SummaryRow label="City" value={values.city} />
                     <SummaryRow label="PIN Code" value={values.pinCode} />
                     <SummaryRow label="Contact" value={values.contactName} />
-                    <SummaryRow label="Phone" value={values.contactPhone} />
+                    <SummaryRow label="Phone" value={values.contactMobile} />
                     <SummaryRow label="Email" value={values.contactEmail} />
                   </div>
                 </div>

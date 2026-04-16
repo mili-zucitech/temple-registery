@@ -16,6 +16,7 @@ import {
   taProfileStagingSchema,
   submitTempleProfileSchema,
   type TaProfileStagingRequest,
+  type TaProfileStagingFormValues,
   type TaProfileStatus,
 } from './templeTypes'
 
@@ -37,7 +38,7 @@ function deriveProfileStatus(
   return 'NOT_STARTED'
 }
 
-const EMPTY_FORM: TaProfileStagingRequest = {
+const EMPTY_FORM: TaProfileStagingFormValues = {
   phone: '',
   email: '',
   website: '',
@@ -95,9 +96,10 @@ export function useTempleProfile() {
 
   const isEditable = profileStatus === 'DRAFT' || profileStatus === 'REJECTED'
 
-  const form = useForm<TaProfileStagingRequest>({
+  const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
     defaultValues: EMPTY_FORM,
+    mode: 'onChange',
   })
 
   // Prefill logic: staging (preferred) → current → registration contact → empty
@@ -105,29 +107,59 @@ export function useTempleProfile() {
     if (isLoading) return
     let source = stagingProfile ?? currentProfile
     if (source) {
+      let parsedLinked = source.linkedInstitutions || ''
+      if (Array.isArray(parsedLinked)) {
+        parsedLinked = parsedLinked.join(', ')
+      } else if (typeof parsedLinked === 'string' && parsedLinked.startsWith('[')) {
+        try {
+          parsedLinked = JSON.parse(parsedLinked).join(', ')
+        } catch { /* ignore */ }
+      }
+
+      let parsedLanguages = source.languagesOfWorship || ''
+      if (Array.isArray(parsedLanguages)) {
+        parsedLanguages = parsedLanguages.join(', ')
+      }
+
       form.reset({
         phone: source.phone ?? '',
         email: source.email ?? '',
         website: source.website ?? '',
         contactPersonName: source.contactPersonName ?? '',
         contactPersonDesignation: source.contactPersonDesignation ?? '',
-        languagesOfWorship: source.languagesOfWorship ?? '',
-        linkedInstitutions: source.linkedInstitutions ?? '',
+        languagesOfWorship: parsedLanguages,
+        linkedInstitutions: parsedLinked,
         description: source.description ?? '',
         annualFestivals: source.annualFestivals ?? '',
+        landmark: (source as any).landmark ?? '',
+        historicalSignificance: (source as any).historicalSignificance ?? '',
+        bankName: (source as any).bankName ?? '',
+        bankIfsc: (source as any).bankIfsc ?? '',
+        photoFilePath: (source as any).photoFilePath ?? (source as any).photoUrl ?? '',
+        bankAccountNumber: '',
       })
     } else if (temple) {
-      // Use registration contact details if no profile exists
+      let parsedLanguages = temple.languagesOfWorship || ''
+      if (Array.isArray(parsedLanguages)) {
+        parsedLanguages = parsedLanguages.join(', ')
+      }
+
       form.reset({
         phone: temple.contactMobile ?? '',
         email: temple.contactEmail ?? '',
         website: '',
         contactPersonName: temple.contactName ?? '',
         contactPersonDesignation: temple.contactDesignation ?? '',
-        languagesOfWorship: temple.languagesOfWorship ?? '',
+        languagesOfWorship: parsedLanguages,
         linkedInstitutions: '',
         description: '',
         annualFestivals: '',
+        landmark: temple.landmark ?? '',
+        historicalSignificance: '',
+        bankName: '',
+        bankIfsc: '',
+        photoFilePath: temple.photoUrl ?? '',
+        bankAccountNumber: '',
       })
     }
     // Only run when loading transitions to complete
@@ -136,14 +168,26 @@ export function useTempleProfile() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const handleSave = async (data: TaProfileStagingRequest) => {
+  const handleSave = async (data: TaProfileStagingFormValues) => {
     if (!templeId) return
     try {
-      await createOrUpdateDraft({ templeId, body: data }).unwrap()
-      form.reset(data) // reset isDirty after successful save
+      // Map form values to API request (string -> array for tags)
+      const body: TaProfileStagingRequest = {
+        ...data,
+        languagesOfWorship: data.languagesOfWorship
+          ? data.languagesOfWorship.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined,
+        linkedInstitutions: data.linkedInstitutions
+          ? data.linkedInstitutions.split(',').map((s) => s.trim()).filter(Boolean)
+          : [],
+      }
+
+      await createOrUpdateDraft({ templeId, body }).unwrap()
+      form.reset(data)
       toast.success('Draft saved successfully.')
-    } catch {
-      toast.error('Failed to save draft. Please try again.')
+    } catch (err: any) {
+      const message = err?.data?.message || err?.message || 'Failed to save draft. Please try again.'
+      toast.error(message)
     }
   }
 
@@ -165,8 +209,9 @@ export function useTempleProfile() {
     try {
       await submitForReview(templeId).unwrap()
       toast.success('Profile submitted for DC review.')
-    } catch {
-      toast.error('Failed to submit profile. Please try again.')
+    } catch (err: any) {
+      const message = err?.data?.message || err?.message || 'Failed to submit profile. Please try again.'
+      toast.error(message)
     }
   }
 
@@ -185,8 +230,8 @@ export function useTempleProfile() {
         website: currentProfile?.website ?? '',
         contactPersonName: currentProfile?.contactPersonName ?? '',
         contactPersonDesignation: currentProfile?.contactPersonDesignation ?? '',
-        languagesOfWorship: currentProfile?.languagesOfWorship ?? '',
-        linkedInstitutions: currentProfile?.linkedInstitutions ?? '',
+        languagesOfWorship: currentProfile?.languagesOfWorship ? currentProfile.languagesOfWorship.join(', ') : '',
+        linkedInstitutions: currentProfile?.linkedInstitutions ? currentProfile.linkedInstitutions.join(', ') : '',
         description: currentProfile?.description ?? '',
         annualFestivals: currentProfile?.annualFestivals ?? '',
       }

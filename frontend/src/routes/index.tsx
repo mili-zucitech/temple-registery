@@ -23,7 +23,6 @@ const TaDashboardPage = lazy(() => import('@/features/dashboard/pages/TaDashboar
 const AdminDashboardPage = lazy(() => import('@/features/dashboard/pages/AdminDashboardPage/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })))
 const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage/UserManagementPage').then(m => ({ default: m.UserManagementPage })))
 const AuditLogPage = lazy(() => import('@/features/admin/pages/AuditLogPage/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
-const TATempleProfilePage = lazy(() => import('@/features/temple/pages/TATempleProfilePage/TATempleProfilePage').then(m => ({ default: m.TATempleProfilePage })))
 const TaTrustPage = lazy(() => import('@/features/trust/pages/TaTrustPage/TaTrustPage').then(m => ({ default: m.TaTrustPage })))
 const TaEmployeesPage = lazy(() => import('@/features/employee/pages/TaEmployeesPage/TaEmployeesPage').then(m => ({ default: m.TaEmployeesPage })))
 const TaContractorsPage = lazy(() => import('@/features/contractor/pages/TaContractorsPage/TaContractorsPage').then(m => ({ default: m.TaContractorsPage })))
@@ -31,6 +30,8 @@ const TaDocumentsPage = lazy(() => import('@/features/document/pages/TaDocuments
 const TaDeclarationDetailPage = lazy(() => import('@/features/declaration/pages/TaDeclarationDetailPage/TaDeclarationDetailPage').then(m => ({ default: m.TaDeclarationDetailPage })))
 const TaProfileStatusPage = lazy(() => import('@/features/dashboard/pages/TaProfileStatusPage/TaProfileStatusPage').then(m => ({ default: m.TaProfileStatusPage })))
 const TaActivityPage = lazy(() => import('@/features/dashboard/pages/TaActivityPage/TaActivityPage').then(m => ({ default: m.TaActivityPage })))
+const TaTemplePage = lazy(() => import('@/features/temple-profile/pages/TaTemplePage/TaTemplePage').then(m => ({ default: m.TaTemplePage })))
+const TaTempleEditPage = lazy(() => import('@/features/temple-profile/pages/TaTempleEditPage/TaTempleEditPage').then(m => ({ default: m.TaTempleEditPage })))
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -69,7 +70,8 @@ const router = createBrowserRouter([
             element: <RoleRoute allowedRoles={[USER_ROLES.TEMPLE_AUTHORITY]} />,
             children: [
               { path: ROUTE_PATHS.TA_DASHBOARD, element: <Suspense fallback={<PageLoader />}><TaDashboardPage /></Suspense> },
-              { path: ROUTE_PATHS.TA_TEMPLE, element: <Suspense fallback={<PageLoader />}><TATempleProfilePage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE, element: <Suspense fallback={<PageLoader />}><TaTemplePage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE_EDIT, element: <Suspense fallback={<PageLoader />}><TaTempleEditPage /></Suspense> },
               { path: ROUTE_PATHS.TA_TRUST, element: <Suspense fallback={<PageLoader />}><TaTrustPage /></Suspense> },
               { path: ROUTE_PATHS.TA_EMPLOYEES, element: <Suspense fallback={<PageLoader />}><TaEmployeesPage /></Suspense> },
               { path: ROUTE_PATHS.TA_CONTRACTORS, element: <Suspense fallback={<PageLoader />}><TaContractorsPage /></Suspense> },
