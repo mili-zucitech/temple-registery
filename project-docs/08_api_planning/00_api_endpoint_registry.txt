@@ -1,0 +1,511 @@
+FOLDER: /project-docs/08_api_planning
+FILE: 00_api_endpoint_registry.txt
+TITLE: API Endpoint Registry - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from domain model, workflows, and architecture analysis.
+
+RELATED REQUIREMENTS:
+  All functional sections of Temple_Registry_Requirements_v1.1.pdf
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Registry of all planned REST API endpoints. Serves as the contract between
+   backend and frontend teams. Formal OpenAPI/Swagger spec to be generated
+   from Spring Boot annotations; this document is the planning baseline.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 CONVENTIONS
+
+   - Base URL: /api/v1
+   - All endpoints return: ResponseEntity<ApiResponse<T>>
+   - ApiResponse<T>:  { success: bool, data: T, error: string|null,
+                        timestamp: ISO8601, requestId: UUID }
+   - Auth: Bearer token in Authorization header (all endpoints except /auth/**)
+   - Pagination: { page, size, sort } query params; response includes { totalElements }
+   - Error codes: HTTP 400 (validation), 401 (unauth), 403 (forbidden),
+                  404 (not found), 409 (conflict), 500 (server error)
+
+   3.2 AUTH ENDPOINTS
+
+   Method | Path                             | Role          | Description
+   -------|----------------------------------|---------------|---------------------------
+   POST   | /api/auth/login                  | Public        | Login (returns temp token)
+   POST   | /api/auth/mfa-verify             | Public        | Verify MFA code; issue JWT
+   POST   | /api/auth/refresh                | Public        | Refresh access token
+   POST   | /api/auth/logout                 | Authenticated | Revoke refresh token
+   POST   | /api/auth/aadhaar-otp-req        | Public        | Request Aadhaar OTP (reg)
+   POST   | /api/auth/aadhaar-otp-verify     | Public        | Verify Aadhaar OTP (reg)
+   POST   | /api/auth/register               | Public        | Complete user registration
+   POST   | /api/auth/password-reset-req     | Public        | Request password reset email
+   POST   | /api/auth/password-reset         | Public        | Complete password reset
+   POST   | /api/auth/mfa-setup              | Authenticated | Initiate TOTP MFA setup (new users)
+   POST   | /api/auth/mfa-setup/confirm      | Authenticated | Confirm TOTP setup with first valid code
+   GET    | /api/auth/recovery-codes         | Authenticated | Count of remaining recovery codes
+   POST   | /api/auth/recovery-codes/regenerate | Authenticated | Regenerate recovery codes (requires MFA)
+
+   POST /api/auth/login REQUEST / RESPONSE:
+   Request:  { "username": "string", "password": "string" }
+   Response (MFA required):
+     HTTP 200 { "mfaRequired": true, "tempToken": "opaque-uuid",
+                "challengeType": "TOTP|SMS_OTP", "expiresIn": 300 }
+   Response (account locked):
+     HTTP 423 { "error": { "code": "TRM-AUTH-004", "message": "...",
+                           "retryAfter": "ISO8601-datetime" } }
+
+   POST /api/auth/mfa-verify REQUEST / RESPONSE:
+   Request:  { "tempToken": "string", "mfaCode": "6-digit string",
+               "isRecoveryCode": false }
+   Response HTTP 200:
+     { "accessToken": "RS256 JWT", "expiresIn": 900,
+       "user": { "id": long, "username": "string", "role": "DISTRICT_COLLECTOR",
+                 "districtId": long|null, "templeId": long|null,
+                 "mfaReenrollmentRequired": bool } }
+   Set-Cookie: refreshToken=<opaque-uuid>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh
+
+   POST /api/auth/mfa-setup RESPONSE:
+   HTTP 200 { "totpSecret": "BASE32-encoded-secret",
+              "qrCodeUri": "otpauth://totp/TRM:{username}?secret=...&issuer=TRM",
+              "setupToken": "opaque-uuid" }
+   NOTE: setupToken is a short-lived (10-min) token used only for the confirm step.
+   The user scans the QR code with their authenticator app before calling confirm.
+
+   POST /api/auth/mfa-setup/confirm REQUEST / RESPONSE:
+   Request:  { "setupToken": "string", "mfaCode": "6-digit string" }
+   Response HTTP 200:
+     { "recoveryCodes": ["string x 8"], "message": "MFA configured successfully.
+       Store these recovery codes in a safe place. They will not be shown again." }
+   Service logic:
+     1. Verify setupToken is valid and not expired
+     2. Verify mfaCode against the TOTP secret stored in the setup session
+     3. UPDATE users SET mfa_enabled = 1, mfa_type = 'TOTP' WHERE id = :userId
+     4. INSERT 8 rows into mfa_recovery_codes (bcrypt-hashed)
+     5. Invalidate setupToken
+     6. Return raw recovery codes ONCE (never stored in plaintext; never returned again)
+
+   3.3 GEO HIERARCHY ENDPOINTS
+
+   Method | Path                          | Role  | Description
+   -------|-------------------------------|-------|---------------------------
+   GET    | /api/geo/states               | Auth  | List all states
+   GET    | /api/geo/states/{id}/cities   | Auth  | Cities in state
+   GET    | /api/geo/cities/{id}/districts| Auth  | Districts in city
+   GET    | /api/geo/districts/{id}/taluks| Auth  | Taluks in district
+   GET    | /api/geo/taluks/{id}/hoblis   | Auth  | Hoblis in taluk
+   POST   | /api/geo/states               | SA    | Create state
+   POST   | /api/geo/cities               | SA    | Create city
+   POST   | /api/geo/districts            | SA    | Create district
+   POST   | /api/geo/taluks               | SA    | Create taluk
+   POST   | /api/geo/hoblis               | SA    | Create hobli
+
+   3.4 TEMPLE ENDPOINTS
+
+   Method | Path                        | Role          | Description
+   -------|-----------------------------|---------------|---------------------------
+   GET    | /api/temples                | DC, SA        | Search temples (with filters)
+   POST   | /api/temples                | TA, SA        | Create temple
+   GET    | /api/temples/{id}           | DC, TA, SA    | Get temple detail
+   PUT    | /api/temples/{id}           | TA (own), SA  | Update temple basic info
+   GET    | /api/temples/{id}/profile   | DC, TA, SA    | Get current profile
+   POST   | /api/temples/{id}/profile/staging | TA, SA  | Create/update staging profile
+   POST   | /api/temples/{id}/profile/submit  | TA      | Submit staging for review
+   POST   | /api/temples/{id}/profile/approve | DC, SA  | Approve staging profile
+   POST   | /api/temples/{id}/profile/reject  | DC, SA  | Reject staging profile
+   GET    | /api/temples/{id}/profile/history | DC, TA, SA | Profile version history
+
+   GET /api/temples QUERY PARAMETERS:
+   Param              | Type    | Required | Notes
+   -------------------|---------|----------|----------------------------------------------
+   page               | int     | No       | Default 0
+   size               | int     | No       | Default 25; max 100
+   sort               | string  | No       | e.g. 'temple_name,asc'
+   district_id        | long    | DC role: YES | Auto-populated from JWT claim for DC; ignored if provided by DC (JWT wins)
+   taluk_id           | long    | No       | Optional sub-district filter (PARTIAL GEO SELECTION SUPPORTED)
+   hobli_id           | long    | No       | Optional hobli filter (PARTIAL GEO SELECTION SUPPORTED)
+   grade              | string  | No       | Values: A, B, C (comma-separated for multi-select e.g. 'A,B'); omit for All Grades
+   keyword            | string  | No       | Partial match on temple_name
+   deityName          | string  | No       | Case-insensitive LIKE match on deity_name
+   tradition          | string  | No       | Exact match: SHAIVITE, VAISHNAVITE, SHAKTA, JAIN, BUDDHIST, OTHER
+   trustRegistered    | boolean | No       | true=only trusted temples, false=untrusted
+   declarationStatus  | string  | No       | PENDING, APPROVED, OVERDUE (maps to summary counters)
+   establishedYearFrom| int     | No       | Inclusive lower bound (e.g. 1200)
+   establishedYearTo  | int     | No       | Inclusive upper bound (e.g. 1900)
+
+   PARTIAL GEO SELECTION: All geo parameters (taluk_id, hobli_id) are individually
+   optional. A DC can search at district level only (taluk_id absent = search entire
+   district). SQL pattern for partial geo scope:
+     WHERE t.hobli_id IN (
+       SELECT h.id FROM geo_hoblis h
+       JOIN geo_taluks tal ON tal.id = h.taluk_id
+       WHERE (:talukId IS NULL OR tal.id = :talukId)
+       AND (:hobliId IS NULL OR h.id = :hobliId)
+       AND tal.district_id = :districtId
+     )
+   This correctly returns all temples in the district when taluk_id is omitted.
+
+   GRADE MULTI-SELECT: comma-separated for multiple grades:
+     ?grade=A,B  --> filter for Grade A and Grade B only
+     (omit grade param entirely = "All Grades" equivalent)
+
+   GET /api/temples RESPONSE — TempleSearchItemDTO (per list item):
+   {
+     "id":                   long,
+     "registrationNumber":   "TRM/KAR/BLR-N/A/0001",
+     "name":                 "Sri Lakshminarayana Swamy Temple",
+     "aliasName":            "string | null",
+     "grade":                "A | B | C",
+     "deityName":            "string",
+     "religiousTradition":   "SHAIVITE | VAISHNAVITE | SHAKTA | JAIN | BUDDHIST | OTHER",
+     "hobliName":            "string",
+     "talukName":            "string",
+     "districtName":         "string",
+     "templeStatus":         "ACTIVE | INACTIVE | UNDER_REVIEW",
+     "declarationStatus":    "DRAFT | PENDING_REVIEW | APPROVED | REJECTED | OVERDUE | NONE",
+     "pendingDeclarations":  int,
+     "overdueDeclarations":  int,
+     "lastDeclarationAt":    "ISO8601 | null",
+     "lastProfileUpdateAt":  "ISO8601 | null",
+     "gpsLatitude":          "decimal | null",
+     "gpsLongitude":         "decimal | null"
+   }
+   Wrapper (Page<TempleSearchItemDTO>):
+   {
+     "content":       [ TempleSearchItemDTO, ... ],
+     "page":          0,
+     "size":          25,
+     "totalElements": 1240,
+     "totalPages":    50
+   }
+   Service: TempleSearchService.searchTemples(SearchCriteria, Pageable, principal)
+   Query source: temple_search_summary + JOIN geo_hoblis/taluks/districts for name fields.
+   Jurisdiction: For DC role, district_id is ALWAYS forced from JWT claim; any
+   district_id in the query param is silently ignored.
+
+   GET /api/temples/{id} RESPONSE — TempleDetailResponse:
+   {
+     "temple": {
+       "id":                     long,
+       "registrationNumber":     "string",
+       "name":                   "string",
+       "aliasName":              "string | null",
+       "grade":                  "A | B | C",
+       "deityName":              "string",
+       "religiousTradition":     "SHAIVITE | VAISHNAVITE | ...",
+       "establishedYear":        "int | null",
+       "addressStreet":          "string",
+       "addressCity":            "string",
+       "gpsLatitude":            "decimal | null",
+       "gpsLongitude":           "decimal | null",
+       "hobliName":              "string",
+       "talukName":              "string",
+       "districtName":           "string",
+       "contactPersonName":      "string | null",
+       "contactPersonDesignation": "string | null",
+       "contactPhone":           "string | null",
+       "contactEmail":           "string | null",
+       "linkedMutt":             "string | null",
+       "languagesOfWorship":     "string | null",
+       "templeStatus":           "ACTIVE | INACTIVE | UNDER_REVIEW",
+       "createdAt":              "ISO8601",
+       "updatedAt":              "ISO8601"
+     },
+     "profile": {                          // temple_profile_current; null if no approved profile yet
+       "versionNumber":          int,
+       "annualIncomeLakh":       "decimal",
+       "annualExpenditureLakh":  "decimal",
+       "totalVisitorsPerYear":   int,
+       "majorFestivals":         "string | null",
+       "pendingApproval":        bool,     // true if staging profile awaits DC review
+       "lastApprovedAt":         "ISO8601 | null"
+     },
+     "trust": {                            // null if no active trust registration
+       "id":                     long,
+       "trustName":              "string",
+       "registrationNumber":     "string",
+       "trustType":              "HEREDITARY | ELECTED | GOVERNMENT_CONTROLLED | DEVASWOM | WAQF | OTHER",
+       "activeBoardMemberCount": int
+     },
+     "latestDeclaration": {                // null if no declaration ever submitted
+       "id":                     long,
+       "financialYear":          "2025-26",
+       "version":                int,
+       "status":                 "DRAFT | PENDING_REVIEW | APPROVED | REJECTED | CLARIFICATION_REQUESTED | PHYSICAL_VERIFICATION_REQUESTED",
+       "isOverdue":              bool,
+       "submittedAt":            "ISO8601 | null",
+       "approvedOrRejectedAt":   "ISO8601 | null"
+     },
+     "employeeSummary": {
+       "activeCount":            int,
+       "onLeaveCount":           int
+     },
+     "contractorSummary": {
+       "activeContractCount":    int,
+       "activeContractValueLakh": "decimal"
+     }
+   }
+   Service:    TempleAggregationService.getTempleDetail(templeId, principal)
+   Query note: Implement as a single JOIN query across temples + temple_profile_current
+               + trusts + declaration summary (MAX id WHERE temple_id = :tid) and two
+               COUNT sub-queries for employees/contractors. Avoid N+1 queries.
+   Access:     DC sees only temples in their district; TA sees only their own temple;
+               SUPER_ADMIN sees all. 403 if jurisdiction check fails.
+
+   3.5 TRUST ENDPOINTS
+
+   Method | Path                               | Role         | Description
+   -------|------------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/trusts           | DC, TA, SA   | List trust registrations
+   POST   | /api/temples/{id}/trusts           | TA, SA       | Create trust registration
+   GET    | /api/trusts/{id}                   | DC, TA, SA   | Trust detail
+   PUT    | /api/trusts/{id}                   | TA (own), SA | Update trust
+   GET    | /api/trusts/{id}/board-members     | DC, TA, SA   | List board members
+   POST   | /api/trusts/{id}/board-members     | TA (own), SA | Add board member
+   PUT    | /api/trusts/{id}/board-members/{bid} | TA (own), SA | Update board member
+   POST   | /api/trusts/{id}/financials        | TA (own), SA | Submit annual financials
+   GET    | /api/trusts/{id}/financials        | DC, TA, SA   | List annual financials
+   GET    | /api/trusts/{id}/meetings          | DC, TA, SA   | List meeting records
+   POST   | /api/trusts/{id}/meetings          | TA (own), SA | Record meeting (with optional minutes PDF)
+   GET    | /api/trusts/{id}/meetings/{mid}    | DC, TA, SA   | Meeting detail
+   POST   | /api/trusts/{id}/documents         | TA (own), SA | Upload trust document (PDF, max 10MB)
+   GET    | /api/trusts/{id}/documents         | DC, TA, SA   | List trust documents
+
+   POST /api/trusts/{id}/meetings REQUEST BODY:
+     { meetingDate: "YYYY-MM-DD" (required),
+       meetingType: "ANNUAL_GENERAL|EXTRAORDINARY|BOARD" (required),
+       agenda: "string max 2000 chars" (required),
+       resolutionSummary: "string" (optional),
+       minutesDocumentId: UUID (optional -- pre-uploaded document_id from /api/documents/upload) }
+   Response: 201 Created with meeting detail.
+   Guard: TA must own the temple linked to this trust.
+   ACCESS CONTROL: DC and SA have read access to meeting records. Meeting minutes
+   documents follow standard document authorization (RULE-07 from data_access_scoping_rules.txt).
+
+   3.6 EMPLOYEE ENDPOINTS
+
+   Method | Path                          | Role         | Description
+   -------|-------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/employees   | DC, TA, SA   | List active employees
+   POST   | /api/temples/{id}/employees   | TA (own), SA | Add employee
+   GET    | /api/employees/{id}           | DC, TA, SA   | Employee detail
+   PUT    | /api/employees/{id}           | TA (own), SA | Update employee
+   DELETE | /api/employees/{id}           | TA (own), SA | Soft delete employee
+
+   3.7 CONTRACTOR ENDPOINTS
+
+   Method | Path                            | Role         | Description
+   -------|---------------------------------|--------------|------------------------
+   GET    | /api/temples/{id}/contractors   | DC, TA, SA   | List active contractors
+   POST   | /api/temples/{id}/contractors   | TA (own), SA | Add contractor
+   GET    | /api/contractors/{id}           | DC, TA, SA   | Contractor detail
+   PUT    | /api/contractors/{id}           | TA (own), SA | Update contractor
+   DELETE | /api/contractors/{id}           | TA (own), SA | Soft delete contractor
+
+   3.8 DECLARATION ENDPOINTS
+
+   Method | Path                                             | Role    | Description
+   -------|--------------------------------------------------|---------|--------------------
+   GET    | /api/temples/{id}/declarations                   | DC,TA,SA| List declarations
+   POST   | /api/temples/{id}/declarations                   | TA, SA  | Create DRAFT
+   GET    | /api/declarations/{id}                           | DC,TA,SA| Declaration detail
+   PUT    | /api/declarations/{id}                           | TA (own)| Update DRAFT fields
+   POST   | /api/declarations/{id}/submit                    | TA (own)| DRAFT->PENDING_REVIEW
+   POST   | /api/declarations/{id}/approve                   | DC, SA  | PENDING_REVIEW->APPROVED
+   POST   | /api/declarations/{id}/reject                    | DC, SA  | PENDING_REVIEW or PHYSICAL_VERIFICATION_REQUESTED->REJECTED
+   POST   | /api/declarations/{id}/clarification             | DC, SA  | PENDING_REVIEW->CLARIFICATION_REQUESTED
+   POST   | /api/declarations/{id}/flag-physical-verification| DC, SA  | PENDING_REVIEW->PHYSICAL_VERIFICATION_REQUESTED
+   POST   | /api/declarations/{id}/resubmit                  | TA (own)| CLARIFICATION_REQUESTED->PENDING_REVIEW
+   GET    | /api/declarations/{id}/diff                      | DC,TA,SA| Version diff
+   GET    | /api/declarations/{id}/acknowledgement           | TA (own)| Download ack PDF (pre-signed URL)
+
+   POST /api/declarations/{id}/flag-physical-verification REQUEST BODY:
+     { "notes": "string (mandatory, max 2000 chars) -- reason for physical verification" }
+   Response: 204 No Content on success.
+   Guard: declaration.status must be PENDING_REVIEW; DC must be in same district.
+
+   POST /api/declarations/{id}/resubmit REQUEST BODY:
+     { "correction_notes": "string (mandatory, max 2000 chars) -- explains what was corrected",
+       "[updated declaration fields as per PUT schema]" }
+   Behaviour: Applies corrections to declaration fields, transitions CLARIFICATION_REQUESTED
+     -> PENDING_REVIEW, logs correction_notes to declaration_clarifications
+     (direction='TEMPLE_TO_DC').
+
+   GET /api/declarations/{id}/acknowledgement:
+   Returns: { "download_url": "pre-signed S3 URL (expires in 15 minutes)",
+              "acknowledgement_number": "TRM/ACK/2025-26/000142",
+              "generated_at": "ISO8601" }
+   Guard: declaration.status must be APPROVED; TA must own the temple, DC must be in district.
+
+   3.9 DOCUMENT ENDPOINTS
+
+   Method | Path                      | Role          | Description
+   -------|---------------------------|---------------|------------------------
+   POST   | /api/documents/upload     | TA, SA        | Upload PDF document
+   GET    | /api/documents/{id}/url   | DC, TA, SA    | Get pre-signed download URL
+   GET    | /api/documents/{id}       | DC, TA, SA    | Document metadata
+
+   GET /api/documents/{id}/url ACCESS CONTROL (enforced before S3 pre-sign):
+   Before generating the pre-signed URL the service MUST:
+     1. Load the document record; check documents.is_deleted = 0
+     2. If caller role = TEMPLE_AUTHORITY:
+          assert documents.temple_id = caller.temple_id (403 if mismatch)
+     3. If caller role = DISTRICT_COLLECTOR or DC_STAFF:
+          JOIN to get temple.district_id; assert district_id = caller.district_id (403 if mismatch)
+     4. INSERT INTO document_access_log (document_id, accessed_by, access_type='DOWNLOAD',
+          accessed_at=NOW(), role=caller.role)
+     5. Return pre-signed URL with 15-minute expiry
+   Failure to pass any check returns 403 Forbidden (no stack trace in body).
+
+   3.10 NOTIFICATION ENDPOINTS
+
+   Method | Path                              | Role   | Description
+   -------|-----------------------------------|--------|------------------------
+   GET    | /api/notifications                | Auth   | List in-app notifications
+   POST   | /api/notifications/{id}/read      | Auth   | Mark notification as read
+   POST   | /api/notifications/read-all       | Auth   | Mark all as read
+
+   3.12 ADMIN ENDPOINTS (SUPER_ADMIN only)
+
+   Method | Path                                          | Role | Description
+   -------|-----------------------------------------------|------|------------------------------------------
+   PATCH  | /api/admin/users/{id}/district                | SA   | Transfer DC to new district (atomically updates district_id + token_revoked_before + revokes all refresh tokens)
+   PATCH  | /api/admin/declarations/{id}/force-draft      | SA   | Return PENDING_REVIEW -> DRAFT (TA withdrawal use-case; SA only; logged in audit trail)
+   POST   | /api/admin/notifications/{id}/retry           | SA   | Retry a FAILED notification event
+   GET    | /api/admin/notifications/failed               | SA   | List FAILED notification events (paginated)
+   GET    | /api/admin/declarations/physical-verification-pending | SA | List declarations in PHYSICAL_VERIFICATION_REQUESTED > 30 days
+
+   PATCH /api/admin/users/{id}/district REQUEST BODY:
+     { newDistrictId: long (required), reason: "string max 500 chars" (required for audit) }
+   Service atomically performs:
+     1. UPDATE users SET district_id = :newDistrictId, token_revoked_before = NOW(6)
+     2. UPDATE refresh_tokens SET revoked_at = NOW(6) WHERE user_id = :id
+     3. INSERT audit_data_events (operation=UPDATE, action=DISTRICT_REASSIGNMENT, before/after values)
+   Response: 200 OK
+
+   PATCH /api/admin/declarations/{id}/force-draft REQUEST BODY:
+     { reason: "string max 500 chars" (required) }
+   Guard: declaration.status must be PENDING_REVIEW (not APPROVED or REJECTED).
+   Transitions: PENDING_REVIEW -> DRAFT, stores reason in review_comment field.
+   Use case: Temple Authority submitted for wrong financial year; SUPER_ADMIN use only.
+
+   3.11 EXPORT ENDPOINTS
+
+   Method | Path                  | Role         | Description
+   -------|-----------------------|--------------|------------------------
+   POST   | /api/export/temples   | DC, SA       | Export temple list (PDF/CSV)
+   POST   | /api/export/declarations | DC, SA    | Export declarations (PDF/CSV)
+
+   POST /api/export/temples REQUEST BODY (ExportTempleRequest):
+   {
+     "format":  "PDF | CSV",          (required)
+     "filters": {
+       "districtId":       long,      (DC: ignored; SA: optional)
+       "talukId":          long,      (optional)
+       "hobliId":          long,      (optional)
+       "grade":            "A,B,C",   (optional; comma-separated)
+       "tradition":        "string",  (optional)
+       "trustRegistered":  bool,      (optional)
+       "declarationStatus":"string",  (optional)
+       "keyword":          "string",  (optional)
+       "establishedYearFrom": int,    (optional)
+       "establishedYearTo":   int     (optional)
+     },
+     "title":   "string"              (optional; used in PDF header, max 100 chars)
+   }
+
+   POST /api/export/declarations REQUEST BODY (ExportDeclarationRequest):
+   {
+     "format":  "PDF | CSV",          (required)
+     "filters": {
+       "districtId":     long,        (DC: always overridden by JWT claim)
+       "financialYear":  "2025-26",   (optional)
+       "status":         "APPROVED",  (optional; single status value)
+       "overdue":        bool,        (optional)
+       "templeId":       long,        (optional; SA only)
+       "dateFrom":       "YYYY-MM-DD",(optional; submittedAt range start)
+       "dateTo":         "YYYY-MM-DD" (optional; submittedAt range end)
+     }
+   }
+
+   EXPORT RESPONSE — SYNC (record count ≤ 500 rows):
+     HTTP 200
+     Content-Type:        application/csv  OR  application/pdf
+     Content-Disposition: attachment; filename="temples_export_YYYYMMDD_HHMMSS.csv"
+     Body:                Direct file byte stream
+
+   EXPORT RESPONSE — ASYNC (record count > 500 rows):
+     HTTP 202 Accepted
+     Body: {
+       "jobId":   "UUID",
+       "message": "Export request queued. A download link will be sent to your registered email address.",
+       "estimatedRows": int
+     }
+     Behaviour: ExportJobService enqueues job; @Scheduled worker generates file, uploads
+     to storage gateway, and fires EMAIL notification with a 24-hour pre-signed download link.
+     NOTE: The async threshold is 500 rows. Below 500, always respond synchronously
+     (no job queue needed). This decision avoids infrastructure complexity for small exports.
+
+   TEMPLE EXPORT FIELD LIST (CSV column order / PDF table columns):
+     #  | Registration No | Temple Name | Grade | District | Taluk | Hobli |
+     Deity Name | Religious Tradition | Established Year | Trust Registered (Y/N) |
+     Declaration Status | Last Declaration Year | Total Employees | Total Contractors
+
+   DECLARATION EXPORT FIELD LIST (CSV column order / PDF table columns):
+     # | Registration No | Temple Name | Financial Year | Version | Status |
+     Submitted Date | Approved/Rejected Date | Annual Income (Lakh) |
+     Annual Expenditure (Lakh) | DC Name | District
+
+   EXPORT JURISDICTION SCOPING (MANDATORY):
+   For DC and DC_STAFF roles, all export queries MUST apply the same
+   district_id scoping as the search endpoint (district_id = JWT claim value).
+   SUPER_ADMIN exports are unscoped (all districts).
+   A DC must never receive data from outside their assigned district in an export.
+
+   EXPORT AUDIT LOGGING (MANDATORY):
+   On every successful export generation, INSERT into audit_export_events:
+     user_id, role, district_id (null for SA), export_type ('TEMPLES' or 'DECLARATIONS'),
+     record_count (number of rows exported), filters_applied_json (the request body),
+     generated_at = NOW(6)
+
+   3.12 SUPER ADMIN ENDPOINTS
+
+   Method | Path                          | Role | Description
+   -------|-------------------------------|------|------------------------
+   GET    | /api/admin/users              | SA   | List all users
+   POST   | /api/admin/users              | SA   | Create user
+   PUT    | /api/admin/users/{id}         | SA   | Update user
+   PUT    | /api/admin/users/{id}/activate| SA   | Activate/deactivate user
+   POST   | /api/admin/search-summary/rebuild | SA | Trigger full rebuild
+   GET    | /api/admin/audit-events       | SA   | Search audit data events
+   GET    | /api/admin/auth-events        | SA   | Search auth events
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - All endpoints return ApiResponse<T> wrapper (never raw entity)
+   - Pagination via Spring Pageable (page/size/sort query params)
+   - Document upload is a separate single endpoint; linked to module entity
+     by separate junction table entries
+   - DELETE is soft-delete for employees and contractors; no hard DELETE API
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should /api/v1 versioning be in path or Accept header?
+     Decision: path versioning (/api/v1) for simplicity.
+   - Are WebSocket notifications needed for real-time DC alerts, or is
+     polling (React Query refetch) sufficient for v1?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - OpenAPI/Swagger UI available at /swagger-ui.html in non-production envs
+   - All list endpoints support pagination (none return unbounded lists)
+   - No GraphQL; REST only for v1

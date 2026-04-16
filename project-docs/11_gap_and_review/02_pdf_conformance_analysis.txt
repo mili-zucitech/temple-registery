@@ -1,0 +1,1002 @@
+PDF CONFORMANCE ANALYSIS REPORT
+Temple Registry & Management Portal -- /project-docs/ vs Requirements PDF v1.1
+Generated: 2026-04-07
+PDF: Temple_Registry_Requirements_v1.1.pdf (7 pages, sections 1-4)
+Docs reviewed: 41 .txt files across 12 folders in /project-docs/
+
+NOTE: The PDF ends at Section 4.4 (page 7). It contains no Sections 5, 6, or 7.
+There are no NFR, security, performance, or technical stack sections in the PDF.
+All security and implementation-method content in the docs is assessed under
+OVERREACH (Section 4 of this report).
+
+================================================================================
+SECTION-BY-SECTION CONFORMANCE ANALYSIS
+================================================================================
+
+----------------------------------------
+PDF SECTION:
+1.1 Background
+
+REQUIREMENT SUMMARY:
+Karnataka has 30,000+ registered temples (Grade A, B, C) governed under the
+HR&CE Act. Temple data is currently fragmented in paper records and siloed
+systems, making it impractical for DCs to access reliable data.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/00_context
+- File:   00_system_overview.txt
+- Section: 3.1 BACKGROUND
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+00_system_overview.txt section 3.1 states "Karnataka is home to 30,000+ registered
+temples classified as Grade A, B, C" and references the HR&CE Act and fragmented
+paper records context.
+
+NOTES:
+Wording is accurate and consistent with PDF. Grade definitions are also
+reproduced in the glossary (section 3.7).
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+1.2 Purpose of the System
+
+REQUIREMENT SUMMARY:
+Two primary user groups: (1) DC searches, locates, and inspects all temple data
+in jurisdiction; (2) Temple Authority logs in to share, update, and manage
+temple profile, assets, trust, and staff.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/00_context
+- File:   00_system_overview.txt
+- Section: 3.2 PURPOSE OF THE SYSTEM
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+00_system_overview.txt section 3.2 lists both user groups with matching
+descriptions. Also reproduced in 02_user_flows/00_dc_end_to_end_flow.txt and
+02_user_flows/01_temple_authority_end_to_end_flow.txt.
+
+NOTES:
+None.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+1.3 Scope
+
+REQUIREMENT SUMMARY:
+In-scope: geo-hierarchical temple search, grade classification, temple profile
+management, trust and board member details, employee and contractor records,
+asset declarations, role-based web portal, document upload and management,
+audit trails and reporting.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/00_context
+- File:   00_system_overview.txt
+- Section: 3.3 SCOPE
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+00_system_overview.txt section 3.3 reproduces all nine scope items including
+"Audit trails and reporting" and "Document upload and management".
+
+NOTES:
+None.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+2.1 Primary Stakeholders
+
+REQUIREMENT SUMMARY:
+Five stakeholders: DC (Primary Viewer/Administrator), DC Office Staff (Support),
+Temple Authority/Trustee (Data Provider), HR&CE Dept (Super Admin), State
+Government/Audit Bodies (Viewer).
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/01_users_and_roles
+- File:   00_user_roles_and_permissions.txt
+- Section: 3.1 USER ROLES
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+00_user_roles_and_permissions.txt defines all five roles with matching
+responsibilities. Stakeholder table also appears in 00_system_overview.txt
+section 3.8.
+
+NOTES:
+None.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+2.2 User Role Permissions Matrix
+
+REQUIREMENT SUMMARY:
+Matrix specifies per-role access for: Search Temples, View Temple Profile, View
+Trust Details, View Asset Declarations, View Staff and Contractors, Submit/Update
+Data, Approve Submissions, Export Reports, Manage Users, System Configuration.
+DC and DC Staff: Full search/view; DC approves; DC Staff cannot approve.
+Temple Authority: Own temple only, can submit/update, cannot approve or export.
+Super Admin: Full access to all features.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/01_users_and_roles
+- File:   00_user_roles_and_permissions.txt
+- Section: 3.2 PERMISSIONS MATRIX
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+The permissions matrix in 00_user_roles_and_permissions.txt covers all four
+roles and their access levels. DC Staff export permission is noted as "limited"
+in both PDF and docs, which matches. However, the PDF explicitly marks
+Manage Users and System Configuration as denied (No) for DC_STAFF. This
+negative permission is not explicitly enumerated in the docs for that role.
+
+NOTES:
+Docs extend the matrix with jurisdiction-scoping rules and edge cases not
+present in the PDF matrix. The two missing negative permission entries for
+DC_STAFF are implicit but not stated in the documentation.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+2.3 Glossary
+
+REQUIREMENT SUMMARY:
+Defines: DC, Grade A Temple, Grade B Temple, Grade C Temple, Hobli, Taluk,
+HR&CE, Trust, Archaka, RBAC, MFA, UAT.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/00_context
+- File:   00_system_overview.txt
+- Section: 3.7 DOMAIN GLOSSARY
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+All 10 PDF glossary terms are reproduced with matching definitions in
+00_system_overview.txt section 3.7.
+
+NOTES:
+None.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.1.1 Geo-Hierarchy Search
+
+REQUIREMENT SUMMARY:
+DC portal shall provide cascading dropdown search following Karnataka hierarchy:
+State (pre-selected) > City/Town > District > Taluk > Hobli.
+Requirements:
+(a) Each dropdown cascades on parent selection.
+(b) Partial selections shall be allowed (e.g., search at District without Taluk).
+(c) All dropdowns populated from master geo-data table maintained by Super Admin.
+(d) Search results update dynamically without requiring a full page reload.
+(e) Result count displayed prominently before DC views the list.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   01_geo_hierarchy_schema.txt
+- Folder: /project-docs/00_context
+- File:   01_design_constraints.txt
+- Section: 3.4 UI-01
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Covered:
+  - 5-level geo hierarchy schema: fully documented (01_geo_hierarchy_schema.txt)
+  - Cascading reset behavior: UI-01 in design constraints
+  - Master geo-data maintained by SUPER_ADMIN: mentioned in 00_system_overview.txt
+
+Not covered:
+  - Requirement (b) partial selections allowed: not documented in any file
+  - Requirement (d) dynamic update without full page reload: not documented
+  - Requirement (e) result count displayed prominently in DC context: not documented
+    (result_count is present in TA context but not DC search context)
+
+NOTES:
+Geo schema design is thorough and exceeds PDF requirements structurally.
+Three behavioral/UI requirements from PDF section 3.1.1 have no coverage.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.1.2 Grade-Based Filter
+
+REQUIREMENT SUMMARY:
+System shall allow filtering temples by Grade: Type A, Type B, Type C, or
+All Grades. Grade definitions per HR&CE Act. Each search result card shall
+display grade as a visual badge.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   02_temple_core_schema.txt  (grade ENUM column)
+- Folder: /project-docs/07_dashboards_and_reports
+- File:   01_temple_authority_dashboard.txt  (grade badge)
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+- grade ENUM('A','B','C') is defined in temples table DDL -- covered.
+- Grade badge is referenced in 01_temple_authority_dashboard.txt for TA context.
+- Not covered: Visual grade badge on the DC search result card is not explicitly
+  documented in the DC context (00_dc_dashboard.txt, 00_dc_end_to_end_flow.txt).
+- Not covered: "All Grades" as an explicit filter option is not documented.
+
+NOTES:
+Grade filter is implicit in 10_search_summary_and_indexes.txt but not stated as
+a discrete user-facing filter with an "All Grades" option.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.1.3 Additional Search Filters
+
+REQUIREMENT SUMMARY:
+Six additional search filters:
+(1) Temple Name -- partial text match / full-text search
+(2) Deity Name -- dropdown/text
+(3) Grade -- multi-select A/B/C
+(4) Trust Registration Status -- toggle Registered/Unregistered
+(5) Asset Declaration Status -- dropdown Declared/Pending/Overdue
+(6) Year of Establishment -- range picker From year to year
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   10_search_summary_and_indexes.txt
+- Folder: /project-docs/02_user_flows
+- File:   00_dc_end_to_end_flow.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Covered:
+  - Filter (1) Temple Name full-text search: documented in
+    10_search_summary_and_indexes.txt
+  - Filter (5) Asset Declaration Status filter (Declared/Pending/Overdue):
+    covered in 00_dc_end_to_end_flow.txt
+
+Not covered:
+  - Filter (2) Deity Name filter: not documented anywhere
+  - Filter (4) Trust Registration Status toggle (Registered/Unregistered):
+    not documented anywhere
+  - Filter (6) Year of Establishment range picker: not documented anywhere
+  - Filter (3) Grade multi-select: captured in schema but not documented as
+    a discrete filter parameter in search API or UI specs
+
+NOTES:
+3 of 6 additional filters have no documentation coverage. These are all
+user-facing UI filters that must be defined before the DC portal can be built.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.2.1 Temple Master Information
+
+REQUIREMENT SUMMARY:
+Temple profile page (DC view) shall contain:
+(1)  Temple Name (primary and alias names)
+(2)  Registration Number and Grade (A/B/C)
+(3)  Primary Deity and Religious Tradition (Shaivite, Vaishnavite, Shakta, etc.)
+(4)  Year of Establishment / Historical Period
+(5)  Official Address: Door No., Street, Village/Town, Hobli, Taluk, District, PIN
+(6)  GPS Coordinates (Latitude, Longitude) with embedded map view
+(7)  Contact Person Name, Designation, Mobile, Email
+(8)  Temple Photograph (uploaded by temple authority)
+(9)  Language(s) of Worship
+(10) Linked Mutts or Sub-Temples (if any)
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   02_temple_core_schema.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Present in temples table DDL:
+  - temples.name (Temple Name): covered
+  - temples.registration_number: covered
+  - temples.grade ENUM('A','B','C'): covered
+  - temples.deity_name: covered
+  - temples.established_year: covered
+  - temples.historical_significance: covered
+  - temples.hobli_id (FK to geo hierarchy for Hobli/Taluk/District): covered
+  - temples.address_line1, address_line2, pincode: covered
+
+Not in any DDL or file:
+  - Item (1) Alias names: absent from temples table and staging tables
+  - Item (3) Religious Tradition (Shaivite/Vaishnavite/Shakta): absent
+  - Item (6) GPS Latitude, Longitude columns: absent from DDL
+  - Item (6) Embedded map view: no documentation in any file
+  - Item (7) Contact Person -- name, designation as distinct fields: staging
+    table has phone/email only; no contact_person_name or contact_designation
+  - Item (8) Temple Photograph (URL or S3 key column): absent from DDL
+  - Item (9) Language(s) of Worship: absent from DDL
+  - Item (10) Linked Mutts or Sub-Temples: mentioned in edge cases file
+    (01_permission_matrix_edge_cases.txt) but no schema column or join table
+    is defined
+
+NOTES:
+8 of the 10 field categories from PDF section 3.2.1 have partial or absent DDL
+coverage. The schema covers structural and geo fields but omits all cultural
+and operational profile fields.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.3.1 Trust Information
+
+REQUIREMENT SUMMARY:
+Trust data fields (mandatory unless noted):
+- Trust Name (mandatory)
+- Trust Registration Number (mandatory)
+- Date of Registration (mandatory)
+- Registering Authority (mandatory)
+- Trust Type: Dropdown Public/Private (mandatory)
+- Trust PAN Number (mandatory)
+- Bank Account Number (mandatory)
+- Bank Name and Branch (mandatory)
+- Annual Income approx. (not mandatory)
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   03_trust_schema.txt
+- Section: 3.1 trust_registrations
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Present in trust_registrations DDL:
+  - trust_name: covered
+  - registration_number: covered
+  - registration_date: covered
+  - pan_number_encrypted: covered
+
+Not in trust_registrations DDL:
+  - registering_authority column: absent
+  - trust_type ENUM('PUBLIC','PRIVATE'): absent
+  - bank_account_number column: absent
+  - bank_name column: absent
+  - bank_branch column: absent
+
+Annual income: trust_financials table has gross_income (per financial year)
+which partially addresses this. However PDF specifies an "approx." field on
+the trust record itself, not a separate annual table submission.
+
+NOTES:
+Five fields are absent from the DDL. Four of these (registering_authority,
+trust_type, bank_account_number, bank_name) are marked mandatory in the PDF.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.3.2 Board Members
+
+REQUIREMENT SUMMARY:
+Capture all trustees and board members. Per member: Full Name; Aadhaar Number
+(masked); Designation on Board; Appointment Date; Tenure End Date; Contact
+Number; Address. Display current vs. past members separately. Support meeting
+minutes upload (PDF, max 10 MB).
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   03_trust_schema.txt
+- Section: 3.2 trust_board_members
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Present in trust_board_members DDL:
+  - name: covered
+  - aadhaar_encrypted (displayed masked per pii_handling docs): covered
+  - designation: covered
+  - appointment_date: covered
+  - cessation_date: partially covers tenure_end_date (same semantic, different label)
+  - phone: covered (contact number)
+  - is_active + cessation_date: partially covers current vs. past display
+
+Not in DDL:
+  - address column for board member: absent from trust_board_members table
+  - meeting_minutes: no column, no junction table, no document reference
+
+NOTES:
+Board member address is a PDF-required field absent from the DDL. Meeting
+minutes upload has no schema coverage in any file.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.4.1 Temple Staff / Employees
+
+REQUIREMENT SUMMARY:
+Employee fields: Employee Type (Priest/Archaka, Administrative Staff, Maintenance,
+Security); Employee Name; Employee ID; Date of Joining; Designation; Salary Grade;
+Contact Details (Mobile, Address); Status (Active / On Leave / Retired).
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   04_employee_schema.txt
+- Section: 3.1 employees
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Present in employees DDL:
+  - employee_type ENUM('ARCHAKA','ADMINISTRATIVE','MAINTENANCE','OTHER'): covers
+    3 of the 4 PDF-specified types
+  - name: covered
+  - date_of_joining: covered
+  - designation: covered
+  - salary_grade: covered
+
+Not in DDL:
+  - Employee Type 'SECURITY': absent; bucketed into 'OTHER' -- PDF explicitly
+    names Security as a type
+  - employee_id (internal HR identifier, distinct from PK): absent
+  - Contact Details mobile column: absent from employees table
+  - Contact Details address column: absent from employees table
+  - Status (Active / On Leave / Retired): absent; DDL handles departure via
+    date_of_leaving and soft-delete via deleted_at, but 'On Leave' state
+    cannot be represented
+
+NOTES:
+The 'On Leave' status is a functionally distinct state that cannot be derived
+from the current schema pattern. Employees on leave must appear active but
+distinguishable from fully-active staff. This requires a status column.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.4.2 Contractors & Service Providers
+
+REQUIREMENT SUMMARY:
+Contractor fields: Contractor Name (Individual or Company); GST Registration
+Number; Type of Service (Civil Works, Electrical, Security, Catering, Events,
+Other); Contract Reference Number and Work Order Date; Contract Period (Start
+to End Date); Contract Value (INR); Payment Status (Pending/Completed/Disputed);
+Uploaded contract document (PDF).
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   04_employee_schema.txt  (contractors table section)
+- File:   05_contractor_schema.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Present in contractors DDL:
+  - contractor_name: covered
+  - gst_number: covered
+  - contract_type / service type enum: covered
+  - contract_start_date, contract_end_date: covered
+  - contract_value: covered
+  - Uploaded contract PDF via contractor_documents junction table: covered
+
+Not in DDL:
+  - contract_reference_number: absent
+  - work_order_number: absent
+  - work_order_date: absent
+  - payment_status ENUM('PENDING','COMPLETED','DISPUTED'): absent
+
+NOTES:
+Contract Reference Number, Work Order Date, and Payment Status are all PDF
+fields absent from the schema. Payment Status affects DC's ability to assess
+contractor financial compliance.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.5.1 Immovable Assets
+
+REQUIREMENT SUMMARY:
+Immovable asset types with structured required fields:
+Agricultural Land: Survey Number, Village, Area (acres), Owner of Record, Patta Status
+Temple Complex/Buildings: Location, Total Area (sqft), Year Built, Structure Type, Valuation
+Leased Properties: Property Address, Lessee Name, Lease Period, Monthly Rent, Agreement copy
+Other Land Holdings: Location, Area, Usage type, Revenue Department reference
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   06_asset_declaration_schema.txt
+- Section: 3.1 asset_declarations
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+asset_declarations DDL contains: immovable_assets TEXT DEFAULT NULL.
+The domain model (03_domain_model/00_domain_entities.txt) enumerates immovable
+asset categories. All structured field definitions from the PDF -- Survey Number,
+Patta Status, Area, Owner of Record, Location, Lessee Name, Lease Period, Monthly
+Rent, Year Built, Structure Type, Valuation, Revenue Department reference -- are
+absent from the schema. The PDF specifies 4 asset sub-types each with distinct
+required fields. The docs store all of this content in one unstructured TEXT column.
+
+NOTES:
+The docs acknowledge the requirement category but do not define the required
+structured fields. Field-level validation and auditability for immovable assets
+cannot be achieved with a TEXT column design.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.5.2 Movable Assets
+
+REQUIREMENT SUMMARY:
+Movable asset categories with required fields:
+Gold and Silver Items: description, Weight (grams), Purity, Approx. Value
+Idols and Sacred Artifacts: Material, Age/Period, Known Provenance, Museum-grade classification
+Vehicles: Registration Number, Make/Model, Year, Purpose
+Electronic and Office Equipment: item list with serial numbers and value
+Financial Assets: Fixed Deposits (Bank, Amount, Maturity), Investments
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/04_schema_design
+- File:   06_asset_declaration_schema.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+asset_declarations DDL contains: movable_assets TEXT DEFAULT NULL.
+03_domain_model/00_domain_entities.txt acknowledges movable asset categories.
+No structured columns for any movable asset sub-type are defined anywhere.
+Weight, Purity, Provenance, Museum-grade, Vehicle Registration Number, FD
+Maturity, FD Bank, Serial Numbers -- all absent from schema.
+
+NOTES:
+Same structural gap as section 3.5.1. Both immovable and movable asset data
+are collapsed into unstructured TEXT columns in the schema.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+3.5.3 Declaration Workflow
+
+REQUIREMENT SUMMARY:
+(1) Temple authority submits asset declaration via portal.
+(2) DC office reviews and can: accept, query, OR flag for physical verification.
+(3) Upon acceptance, system issues digital acknowledgement to temple.
+(4) Overdue declarations (not submitted within financial year) flagged with alerts.
+(5) All declaration history is version-controlled and auditable.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/05_workflows_and_states
+- File:   00_state_machines.txt
+- File:   01_clarification_loop.txt
+- Folder: /project-docs/04_schema_design
+- File:   06_asset_declaration_schema.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Covered:
+  - Temple submits to PENDING_REVIEW: documented in state machine
+  - DC can approve (accept): APPROVED state documented
+  - DC can query: CLARIFICATION_REQUESTED state documented
+  - Digital acknowledgement: acknowledged_at column in DDL; acknowledgement
+    generation documented in 06_asset_declaration_schema.txt
+  - Overdue flagging: is_overdue column and scheduled job in
+    05_workflows_and_states/02_overdue_and_scheduled_jobs.txt
+  - Version-controlled history: version_number and SUPERSEDED status in schema
+
+Not covered:
+  - "Flag for physical verification" as a distinct DC action: no corresponding
+    state or action exists in the state machine or any workflow document.
+    The state machine defines three DC actions: APPROVED, CLARIFICATION_REQUESTED,
+    REJECTED. PDF section 3.5.3 step (2) names this as a third option alongside
+    accept and query.
+
+NOTES:
+The state machine substitutes REJECTED where the PDF specifies physical
+verification flagging. These are not equivalent actions and serve different
+administrative purposes.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+4.1 Registration & Authentication
+
+REQUIREMENT SUMMARY:
+Temple authority registration requires valid Government-issued Temple Registration
+Number. Identity verification via Aadhaar-based OTP (eKYC or manual). MFA
+enforced for all logins. Password: min 10 chars, upper + lower + digit + special.
+Account lockout after 5 consecutive failures (30-min lockout). Session timeout
+after 30 minutes of inactivity.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/06_security_and_auth
+- File:   00_auth_architecture.txt
+- Folder: /project-docs/00_context
+- File:   01_design_constraints.txt
+- Sections: SC-01, SC-02, SC-03, SC-04
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+- Temple Registration Number required for registration: 00_auth_architecture.txt,
+  04_schema_design/11_user_auth_schema.txt
+- Aadhaar eKYC: documented in 00_auth_architecture.txt section 3.3
+- MFA enforced: SC-01 in 01_design_constraints.txt; 00_auth_architecture.txt
+- Password policy (min 10 chars, upper+lower+digit+special): SC-04
+- 5-attempt lockout, 30-min duration: SC-02; failed_login_count and locked_until
+  columns in 11_user_auth_schema.txt
+- Session timeout 30 minutes: SC-03
+
+NOTES:
+All sub-requirements are explicitly documented.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+4.2 Temple Authority -- Data Submission Capabilities
+
+REQUIREMENT SUMMARY:
+Modules available to Temple Authority:
+Temple Profile: Create/Update
+Trust Details: Create/Update
+Staff Records: Create/Update/Delete
+Contractor Records: Create/Update/Delete
+Asset Declaration: Submit/Revise
+Documents: Upload (PDF only, max 10 MB/file)
+Queries/Notices: View and Respond (respond to queries from DC office)
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/01_users_and_roles
+- File:   00_user_roles_and_permissions.txt
+- Folder: /project-docs/05_workflows_and_states
+- File:   00_state_machines.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Covered:
+  - Temple Profile, Trust, Staff, Contractor CRUD: documented in state machines
+    and permissions matrix
+  - Asset Declaration submit/revise: documented
+  - Document upload (PDF, max 10 MB): SC-07 in design constraints;
+    08_document_storage_schema.txt
+
+Not covered:
+  - "Queries/Notices: View and Respond" -- the notification inbox is documented
+    (09_notification_schema.txt, in_app_notifications table). However, the
+    ability for Temple Authority to explicitly respond to a DC query as a
+    structured action (distinct from re-submission) is not documented as a
+    separate capability in any flow, schema, or state machine.
+
+NOTES:
+The clarification loop (01_clarification_loop.txt) documents what happens when
+DC requests clarification, but the temple authority's "respond to query" action
+as a named submission type is not defined.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+4.3 Submission and Approval Workflow
+
+REQUIREMENT SUMMARY:
+Step 11: TA completes data entry.
+Step 12: System validates mandatory fields; inline errors displayed.
+Step 13: User submits -- status changes to Pending Review.
+Step 14: DC office notified via email/SMS of new submission.
+Step 15: DC reviews -- can: Approve, Request Clarification, or Reject.
+Step 16: Temple Authority receives notification of the decision.
+Step 17: On approval -- data published to DC view. On rejection -- TA can
+         correct and resubmit.
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/05_workflows_and_states
+- File:   00_state_machines.txt
+- File:   01_clarification_loop.txt
+- Folder: /project-docs/04_schema_design
+- File:   09_notification_schema.txt
+
+CONFORMANCE STATUS:
+Fully Covered
+
+EVIDENCE:
+- Steps 11-13 (data entry to PENDING_REVIEW): documented in state machine
+  DRAFT -> PENDING_REVIEW transition with guard conditions
+- Step 14 (DC notified email/SMS): documented in 09_notification_schema.txt
+  trigger event table; SES/SNS delivery documented
+- Step 15 (DC: Approve/Clarify/Reject): all three transitions in state machine
+- Step 16 (TA notified of decision): notification triggers for APPROVED,
+  REJECTED, CLARIFICATION_REQUESTED in 09_notification_schema.txt
+- Step 17 (approved -> DC view published; rejected -> TA resubmits): documented
+  in 00_state_machines.txt
+
+NOTES:
+Inline field validation (step 12) is not explicitly designed in docs but its
+intent is noted via jakarta.validation references. This does not constitute
+a gap in workflow coverage.
+----------------------------------------
+
+----------------------------------------
+PDF SECTION:
+4.4 Dashboard for Temple Authority
+
+REQUIREMENT SUMMARY:
+Dashboard shall display:
+- Status of each data module: Not Started / In Progress / Submitted /
+  Approved / Rejected
+- Upcoming deadlines (annual asset declaration due dates)
+- Notification inbox: Messages and notices from DC office
+- Download section: Acknowledgement letters, approved declarations
+- Submission history log
+
+DOCUMENTATION MATCHES:
+- Folder: /project-docs/07_dashboards_and_reports
+- File:   01_temple_authority_dashboard.txt
+
+CONFORMANCE STATUS:
+Partially Covered
+
+EVIDENCE:
+Covered:
+  - Module status display: documented in 01_temple_authority_dashboard.txt
+    section 3.1 (Profile Status Card, Asset Declarations list)
+  - Upcoming deadlines and overdue alerts: covered via is_overdue flag and
+    alert banner in dashboard design
+  - Notification inbox: documented (in_app_notifications table,
+    09_notification_schema.txt)
+  - Submission history log: documented as "Activity Log" in dashboard
+
+Not covered:
+  - Status labels "Not Started" and "In Progress": the docs state machine uses
+    DRAFT and PENDING_REVIEW respectively. PDF section 4.4 specifies the display
+    labels Not Started, In Progress, Submitted, Approved, Rejected. No mapping
+    between PDF display labels and internal state names is documented.
+  - Download section for acknowledgement letters and approved declarations:
+    acknowledged_at is in the schema but no download section with a file listing
+    or downloadable item format is documented in the dashboard design.
+
+NOTES:
+The label mismatch between PDF display terms and internal state machine names
+is an unresolved implementation decision that affects the dashboard UX
+specification.
+
+================================================================================
+FINAL SUMMARY
+================================================================================
+
+1. COVERAGE SUMMARY
+
+   Total requirement sections reviewed: 21
+   Fully Covered:       7  (33%)
+   Partially Covered:  14  (67%)
+   Not Covered:         0   (0%)
+   Contradicted:        0   (0%)
+
+   NOTE: No requirement section is entirely absent from the documentation.
+   All 14 partially-covered sections have at least some structural foundation.
+   Gaps are consistently at the field, attribute, or behavioral level within
+   each section.
+
+--------------------------------------------------------------------------------
+
+2. GAP LIST
+
+   All items below are requirements from the PDF that are partially or not
+   covered in /project-docs/. PDF section references are provided.
+
+   PDF 3.1.1 -- Geo-Hierarchy Search
+     - Partial geo selection (search at district without selecting taluk):
+       not documented
+     - Dynamic update without full page reload: not documented
+     - Result count displayed prominently in DC search context: not documented
+
+   PDF 3.1.2 -- Grade-Based Filter
+     - Visual grade badge on DC search result card: not documented for DC
+       context specifically
+     - "All Grades" filter option: not documented
+
+   PDF 3.1.3 -- Additional Search Filters
+     - Deity Name filter: not documented
+     - Trust Registration Status toggle (Registered/Unregistered): not documented
+     - Year of Establishment range picker: not documented
+
+   PDF 3.2.1 -- Temple Master Information
+     - Alias names: absent from temple schema DDL
+     - Religious Tradition (Shaivite, Vaishnavite, Shakta, etc.): absent from DDL
+     - GPS Latitude and Longitude columns: absent from DDL
+     - Embedded map view: not documented anywhere
+     - Contact Person Name and Designation as distinct fields: absent from DDL
+     - Temple Photograph (URL or S3 key): absent from DDL
+     - Language(s) of Worship: absent from DDL
+     - Linked Mutts or Sub-Temples: mentioned in edge cases, no schema definition
+
+   PDF 3.3.1 -- Trust Information
+     - Registering Authority field: absent from trust DDL
+     - Trust Type (Public/Private): absent from trust DDL
+     - Bank Account Number: absent from trust DDL
+     - Bank Name and Branch: absent from trust DDL
+
+   PDF 3.3.2 -- Board Members
+     - Board member address field: absent from trust_board_members DDL
+     - Meeting minutes upload: no schema coverage in any file
+
+   PDF 3.4.1 -- Temple Staff / Employees
+     - 'SECURITY' employee type: absent from ENUM (mapped to 'OTHER')
+     - employee_id (internal HR identifier): absent from DDL
+     - Contact Details mobile and address: absent from employees table
+     - Status 'On Leave' and 'Retired': not representable in current schema
+
+   PDF 3.4.2 -- Contractors
+     - Contract Reference Number: absent from DDL
+     - Work Order Date: absent from DDL
+     - Payment Status (Pending/Completed/Disputed): absent from DDL
+
+   PDF 3.5.1 -- Immovable Assets
+     - Survey Number, Patta Status, Area (acres), Owner of Record: not in DDL
+     - Location, Total Area (sqft), Year Built, Structure Type, Valuation: not in DDL
+     - Lessee Name, Lease Period, Monthly Rent: not in DDL
+     - Revenue Department reference: not in DDL
+     All stored in unstructured TEXT column.
+
+   PDF 3.5.2 -- Movable Assets
+     - Weight (grams), Purity, Approx. Value (gold/silver): not in DDL
+     - Material, Age/Period, Known Provenance, Museum-grade: not in DDL
+     - Vehicle Registration Number, Make/Model, Year, Purpose: not in DDL
+     - Serial Numbers for equipment: not in DDL
+     - FD Bank, FD Amount, FD Maturity date: not in DDL
+     All stored in unstructured TEXT column.
+
+   PDF 3.5.3 -- Declaration Workflow
+     - "Flag for physical verification" as a distinct DC action: absent from
+       state machine and all workflow documents
+
+   PDF 4.2 -- Data Submission Capabilities
+     - Temple Authority "respond to query" as an explicit named action:
+       not documented as a distinct capability
+
+   PDF 2.2 -- Permissions Matrix
+     - Manage Users and System Configuration denied for DC_STAFF: not explicitly
+       stated in permissions documentation
+
+   PDF 4.4 -- Dashboard for Temple Authority
+     - Status label mapping (Not Started / In Progress / Submitted vs internal
+       state names): not documented
+     - Download section for acknowledgement letters and approved declarations:
+       not documented in dashboard design
+
+--------------------------------------------------------------------------------
+
+3. CONTRADICTION LIST
+
+   Three direct conflicts exist between /project-docs/ and PDF requirements:
+
+   CONTRADICTION A -- Employee Status Representation
+     PDF Section:  3.4.1
+     PDF Requires: Status field with values Active / On Leave / Retired
+     Docs Model:   deleted_at (soft delete) + date_of_leaving (retirement proxy)
+                   in 04_employee_schema.txt
+     Conflict:     The soft-delete and date_of_leaving pattern cannot represent
+                   the "On Leave" status. An employee on leave must remain active
+                   in the system but be distinguishable from fully-active staff.
+                   The current schema provides no mechanism for this state.
+
+   CONTRADICTION B -- DC Declaration Review Actions
+     PDF Section:  3.5.3 step (2)
+     PDF Requires: DC can accept, query, OR flag for physical verification (3 named actions)
+     Docs Model:   DC actions are APPROVED, CLARIFICATION_REQUESTED, REJECTED
+                   in 05_workflows_and_states/00_state_machines.txt
+     Conflict:     Docs substitute REJECTED for "flag for physical verification"
+                   as the third DC action. The PDF does not mention REJECTED as
+                   a DC action during the declaration review stage; it specifies
+                   physical verification flagging.
+
+   CONTRADICTION C -- Dashboard Status Labels
+     PDF Section:  4.4
+     PDF Requires: Display labels: Not Started / In Progress / Submitted /
+                   Approved / Rejected
+     Docs Model:   Internal states: DRAFT / PENDING_REVIEW / APPROVED /
+                   REJECTED / SUPERSEDED in 05_workflows_and_states/00_state_machines.txt
+     Conflict:     "In Progress" (PDF) and "Submitted" (PDF) have no direct state
+                   equivalents in the documented state machine. DRAFT is used where
+                   PDF expects Not Started, and PENDING_REVIEW is used where PDF
+                   expects Submitted. The display-layer label mapping is absent.
+
+--------------------------------------------------------------------------------
+
+4. OVERREACH LIST
+
+   The PDF contains no sections on security architecture, technical stack, NFR,
+   deployment, or schema design pattern. All items below are Undocumented
+   Extensions -- content in /project-docs/ not required or specified by the PDF.
+
+   UNDOCUMENTED EXTENSION -- JWT access and refresh token architecture
+   UNDOCUMENTED EXTENSION -- bcrypt cost factor >= 12
+   UNDOCUMENTED EXTENSION -- AWS KMS for AES-256 encryption key management
+   UNDOCUMENTED EXTENSION -- TOTP as one of two MFA method options
+   UNDOCUMENTED EXTENSION -- Pre-signed S3 URLs with 15-minute TTL
+   UNDOCUMENTED EXTENSION -- 3-table audit trail schema (audit_data_events,
+                              audit_auth_events, audit_export_events)
+   UNDOCUMENTED EXTENSION -- Notification exponential backoff retry strategy
+   UNDOCUMENTED EXTENSION -- Keyset pagination for temple search
+   UNDOCUMENTED EXTENSION -- temple_search_summary pre-computed materialized table
+   UNDOCUMENTED EXTENSION -- employee_succession chain table for Archaka priests
+   UNDOCUMENTED EXTENSION -- Flyway DB migration management
+   UNDOCUMENTED EXTENSION -- Spring Security @PreAuthorize method-level enforcement
+   UNDOCUMENTED EXTENSION -- TanStack React Query for server state management
+   UNDOCUMENTED EXTENSION -- ApiResponse<T> wrapper pattern for REST endpoints
+   UNDOCUMENTED EXTENSION -- SUPERSEDED status for declaration version management
+   UNDOCUMENTED EXTENSION -- snapshot_json frozen copy of temple data at submission
+   UNDOCUMENTED EXTENSION -- Scheduled job mechanism for overdue declaration flagging
+   UNDOCUMENTED EXTENSION -- 3-table versioning pattern (Current/Staging/History)
+   UNDOCUMENTED EXTENSION -- DC dashboard with pre-computed summary SQL queries
+   UNDOCUMENTED EXTENSION -- 15-item RBAC data access test suite (TC-01 to TC-15)
+   UNDOCUMENTED EXTENSION -- 20-item friction points analysis with mitigations
+
+   NOTE: These extensions are implementation decisions derived from the PDF
+   requirements. They exceed the PDF's stated requirements but do not contradict
+   any PDF clause. Their presence in /project-docs/ is appropriate as engineering
+   design decisions.
+
+--------------------------------------------------------------------------------
+
+5. IMPLEMENTATION READINESS ASSESSMENT
+
+   Assessment: NOT READY -- functional gaps
+
+   Rationale:
+   The documentation covers the system's architectural skeleton and security
+   posture completely. However, three categories of functional gaps require
+   resolution before implementation can proceed with confidence:
+
+   (a) SCHEMA COMPLETENESS -- ASSET DECLARATIONS (PDF 3.5.1, 3.5.2)
+       The primary transparency and accountability feature of the system --
+       asset declarations -- stores all structured field data in two unstructured
+       TEXT columns (immovable_assets, movable_assets). The PDF defines 4
+       immovable asset sub-types each with distinct required fields, and 5
+       movable asset categories each with distinct required fields. None of
+       these structured fields are present in the schema DDL. Implementation
+       against this schema would produce a system that cannot enforce field-level
+       validation or support structured audit queries on declared assets.
+
+   (b) TEMPLE PROFILE FIELDS (PDF 3.2.1)
+       8 of 10 field categories from PDF section 3.2.1 are absent from the
+       temple core schema DDL. GPS coordinates, alias names, religious tradition,
+       contact person, photograph, languages of worship, and linked mutts are
+       all required display fields on the DC's primary temple profile view.
+       They are also required input fields for Temple Authority. Implementation
+       without these fields would produce an incomplete profile module.
+
+   (c) WORKFLOW GAP -- PHYSICAL VERIFICATION (PDF 3.5.3)
+       The state machine documented in 05_workflows_and_states/00_state_machines.txt
+       defines three DC actions for declaration review: APPROVED, CLARIFICATION_
+       REQUESTED, REJECTED. The PDF names "flag for physical verification" as the
+       third action, not REJECTED. This is not a labelling issue; physical
+       verification flagging and rejection serve different administrative
+       functions. The state machine is incomplete and would produce a DC portal
+       that does not conform to the PDF workflow specification.
+
+   These three gaps would cause implementers to build incorrect schemas and
+   incomplete state machines if development began today using only /project-docs/
+   as the specification source.

@@ -1,0 +1,101 @@
+FOLDER: /project-docs/11_gap_and_review
+FILE: 00_permission_edge_cases.txt
+TITLE: Permission Matrix Edge Cases - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from permission matrix edge case analysis (prior session).
+  7 edge cases identified.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document 7 identified permission edge cases that the standard RBAC matrix
+   does not resolve by default. Each case includes a decision and implementation
+   note.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   EDGE CASE 1: DC requests clarification but is also the approver
+   Situation: The same DC who sends a clarification is the one who will
+   eventually approve or reject. There is no second-level review.
+   Decision: Acceptable for v1. Add a comment in DC UI: "This action is
+   being recorded in the audit trail." No dual-approval requirement in PDF.
+   Implementation: No change to data model; audit trail captures all events.
+
+   EDGE CASE 2: Temple Authority submits for wrong financial year
+   Situation: A Temple Authority accidentally submits a declaration for the
+   current year when they meant to submit for the previous year.
+   Decision: Once submitted (PENDING_REVIEW), the declaration cannot be
+   withdrawn by the Temple Authority. They must contact Super Admin.
+   Implementation: SUPER_ADMIN API: PATCH /api/declarations/{id}/status to
+   force status back to DRAFT. Logged in audit trail.
+
+   EDGE CASE 3: DC Staff exports data and shares externally
+   Situation: DC_STAFF can read all temple data in their district and
+   can generate exports. Nothing prevents them from sharing the CSV externally.
+   Decision: Accepted operational risk. Mitigate by: (1) audit_export_events
+   logging every export, (2) SUPER_ADMIN receives weekly export activity report.
+   Implementation: Export audit in audit_export_events is non-negotiable.
+
+   EDGE CASE 4: Super Admin directly edits approved declaration data
+   Situation: SUPER_ADMIN has override access to all records. Can they
+   modify an approved (append-only) declaration?
+   Decision: No. append-only constraint applies to SUPER_ADMIN as well.
+   SUPER_ADMIN can change declaration STATUS (e.g., reopen from APPROVED
+   to DRAFT) but cannot modify the declaration content of an archived version.
+   Implementation: Application service layer enforces this; @PreAuthorize
+   alone is insufficient. Explicit business rule check in service.
+
+   EDGE CASE 5: Three different DCs are assigned to the same district
+   Situation: If two DC users share the same district_id binding, both
+   can approve the same declaration. this creates dual-approval ambiguity.
+   Decision: Prevent at user creation time via SUPER_ADMIN validation:
+   enforce UNIQUE(district_id) for DISTRICT_COLLECTOR role (one DC per district).
+   Exception: DC_STAFF can share district with the DC.
+   DB enforcement: not via DB UNIQUE (complex role condition); enforce in
+   SUPER_ADMIN user creation service.
+
+   EDGE CASE 6: Temple changes district after DC has pending review
+   Situation: SUPER_ADMIN moves a temple from District A to District B while
+   DC1 (District A) has a PENDING_REVIEW declaration for that temple.
+   Decision: Temple re-assignment invalidates DC1's review authority.
+   DC1's pending action on that declaration is removed; DC2 (District B)
+   inherits the review. SUPER_ADMIN is notified of the pending transfer.
+   Implementation: When SUPER_ADMIN changes hobli_id (affecting district),
+   check for pending declarations. If found, alert SA and flag for manual
+   re-assignment.
+
+   EDGE CASE 7: Temple Authority resigns; new TA needs access
+   Situation: The primary TEMPLE_AUTHORITY user resigns. A new user needs
+   to take over the temple without losing in-progress declarations.
+   Decision: SUPER_ADMIN deactivates old user, creates new TEMPLE_AUTHORITY
+   user linked to the same temple_id. All temple records remain intact.
+   In-progress DRAFT declarations are abandoned (can be copied manually).
+   Implementation: No code change needed; existing user management + temple_id
+   binding handles this.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Edge Case 4: SA cannot modify approved declaration content (only status)
+   - Edge Case 5: Enforce one DC per district at service layer (not DB)
+   - Edge Case 7: Standard deactivate + create flow; no special migration needed
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Edge Case 2: Should Temple Authority be able to withdraw a pending
+     declaration, or must this always go through SUPER_ADMIN?
+   - Edge Case 6: Should the hobli change on a temple require DC approval?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Each district has exactly one active DISTRICT_COLLECTOR user at a time
+   - TEMPLE_AUTHORITY is bound to one temple (no temple portfolio management)

@@ -1,0 +1,124 @@
+FOLDER: /project-docs/06_security_and_auth
+FILE: 02_security_controls.txt
+TITLE: Security Controls - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from OWASP Top 10 analysis and design constraints SC-01 to SC-09.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the full set of security controls implemented across layers:
+   input validation, output encoding, injection prevention, transport security,
+   and infrastructure hardening.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 INPUT VALIDATION
+
+   All API request bodies validated via jakarta.validation annotations on DTOs:
+   - @NotBlank, @NotNull: required fields
+   - @Size(min=X, max=Y): string length bounds
+   - @Pattern(regexp=...): regex for structured fields (PAN, GST, IFSC, phone)
+   - @Email: email format
+   - @ValidPassword: custom validator (password policy)
+   - @Min, @Max, @DecimalMin, @DecimalMax: numeric bounds
+   - @Valid on nested DTOs
+
+   Controller method signature example:
+   @PostMapping("/declarations")
+   public ResponseEntity<ApiResponse<DeclarationDTO>>
+   submit(@Valid @RequestBody DeclarationSubmitRequest request,
+          @AuthenticationPrincipal CurrentUser user) { ... }
+
+   Validation failure: returns HTTP 400 with field-level error messages.
+   Never expose raw validation exception details; use GlobalExceptionHandler.
+
+   3.2 SQL INJECTION PREVENTION
+
+   - All DB access via Spring Data JPA repositories
+   - Named parameters only: @Query("... WHERE t.id = :id")
+   - No string concatenation in any query
+   - Native queries (rare) must use parameterized form:
+     @Query(value = "SELECT * FROM temples WHERE id = :id", nativeQuery = true)
+
+   3.3 XSS PREVENTION
+
+   - API responses are JSON; no HTML rendering
+   - Frontend: React escapes values by default; no dangerouslySetInnerHTML
+   - For free-text fields stored in DB (description, comment):
+     Sanitize before storage with a whitelist library (e.g., OWASP Java HTML Sanitizer)
+   - Content-Security-Policy header set in Spring Security:
+     default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'
+
+   3.4 TRANSPORT SECURITY
+
+   - HTTPS enforced end-to-end (ALB -> ECS, ECS -> RDS via SSL)
+   - HSTS header: Strict-Transport-Security: max-age=31536000; includeSubDomains
+   - TLS 1.2 minimum; TLS 1.3 preferred
+   - Certificate: ACM-managed; auto-renewed
+   - HTTP -> HTTPS redirect at ALB level
+
+   3.5 RATE LIMITING
+
+   - Login endpoint: max 10 requests per minute per IP
+   - OTP request endpoint: max 3 requests per 5 minutes per user
+   - API general: max 200 requests per minute per authenticated user
+   - Implemented via Spring + Bucket4j or AWS WAF rate-based rules
+
+   3.6 SECURITY HEADERS (Spring Security + CSP)
+
+   X-Content-Type-Options: nosniff
+   X-Frame-Options: DENY
+   X-XSS-Protection: 1; mode=block
+   Referrer-Policy: strict-origin-when-cross-origin
+   Cache-Control: no-store (for API responses)
+   Content-Security-Policy: (see 3.3)
+
+   3.7 ERROR HANDLING
+
+   GlobalExceptionHandler (@RestControllerAdvice):
+   - AccessDeniedException --> HTTP 403 { error: "Access denied" }
+   - EntityNotFoundException --> HTTP 404 { error: "Not found" }
+   - MethodArgumentNotValidException --> HTTP 400 { errors: [{field, message}] }
+   - All other exceptions --> HTTP 500 { error: "An error occurred" }
+   RULE: Stack traces NEVER in body. Log internally with request ID.
+
+   3.8 OWASP TOP 10 COVERAGE
+
+   A01 Broken Access Control      : RBAC @PreAuthorize + jurisdiction scope
+   A02 Cryptographic Failures     : AES-256 KMS, bcrypt, HTTPS everywhere
+   A03 Injection                  : JPA parameterized queries, input validation
+   A04 Insecure Design            : Append-only audit, MFA mandatory, soft delete
+   A05 Security Misconfiguration  : Spring Security defaults, CSP headers
+   A06 Vulnerable Components      : Dependency scanning (OWASP Dependency-Check)
+   A07 Auth Failures              : Account lockout, token rotation, MFA
+   A08 Int. & Auth Failure        : RS256 JWT, input validation, CSRF (N/A - SPA)
+   A09 Logging & Monitoring       : 3 audit tables, auth event log, structured logs
+   A10 SSRF                       : No user-supplied URLs to backend HTTP calls
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - HTTPS-only; no HTTP in production
+   - GlobalExceptionHandler is the only exception-to-response mapping path
+   - No HTML rendering from API; XSS risk minimal but CSP still required
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Is AWS WAF required as an additional layer, or is Spring's rate limiting
+     sufficient for v1?
+   - Should OWASP Dependency-Check run in CI pipeline or as a scheduled scan?
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - CSRF protection: not required (SPA with Bearer token auth, no cookie auth)
+   - All internal AWS communication (ECS to RDS) is within VPC with security groups

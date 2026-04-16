@@ -1,0 +1,6 @@
+export * from './OverviewTab'
+export * from './DeclarationsTab'
+export * from './TrustTab'
+export * from './StaffTab'
+export * from './ContractorsTab'
+export * from './DocumentsTab'

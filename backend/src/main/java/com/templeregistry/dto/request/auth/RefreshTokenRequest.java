@@ -1,0 +1,17 @@
+package com.templeregistry.dto.request.auth;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@NoArgsConstructor
+public class RefreshTokenRequest {
+
+    @NotBlank(message = "Refresh token is required.")
+    private String refreshToken;
+
+    public RefreshTokenRequest(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
+}

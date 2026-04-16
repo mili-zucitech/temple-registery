@@ -1,0 +1,211 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 03_trust_schema.txt
+TITLE: Trust Module Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from trust module schema design (prior analysis).
+  Temple_Registry_Requirements_v1.1.pdf (Trust sections).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the 3 trust-related tables: trust_registrations, trust_board_members,
+   trust_financials. These store legal identity, governance, and annual
+   financial figures for the trust managing a temple.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 trust_registrations
+
+   CREATE TABLE trust_registrations (
+     id                          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     temple_id                   BIGINT UNSIGNED  NOT NULL,
+     trust_name                  VARCHAR(255)     NOT NULL,        -- MANDATORY
+     registration_number         VARCHAR(100)     NOT NULL,        -- MANDATORY
+     registration_date           DATE             NOT NULL,        -- MANDATORY
+     registering_authority       VARCHAR(255)     NOT NULL,        -- MANDATORY: e.g. 'Sub-Registrar Bangalore Urban'
+     trust_type                  ENUM('PUBLIC','PRIVATE')          -- MANDATORY
+                                 NOT NULL,
+     pan_number_encrypted        TEXT             DEFAULT NULL,    -- MANDATORY: AES-256 via KMS
+     bank_account_number_encrypted TEXT           DEFAULT NULL,    -- MANDATORY: AES-256 via KMS; displayed masked
+     bank_name                   VARCHAR(255)     DEFAULT NULL,    -- MANDATORY
+     bank_branch                 VARCHAR(255)     DEFAULT NULL,    -- MANDATORY
+     annual_income_approx        DECIMAL(15,2)    DEFAULT NULL,    -- OPTIONAL: informal estimate on registration record
+     address                     TEXT             DEFAULT NULL,
+     status                      ENUM('ACTIVE','DISSOLVED') NOT NULL DEFAULT 'ACTIVE',
+     created_at                  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at                  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                              ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by                  BIGINT UNSIGNED  NOT NULL,
+     updated_by                  BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_trust_reg_number (registration_number),
+     CONSTRAINT fk_trust_temple FOREIGN KEY (temple_id) REFERENCES temples(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   PII MASKING RULES:
+     bank_account_number_encrypted: stored AES-256; API response must mask to last 4 digits only
+       e.g. display value: '**XXXXX1234'
+     pan_number_encrypted (trust_registrations): stored AES-256; API response must show full pan for SA; masked for DC view
+       (PAN masking: show first 2 and last 1 char, mask rest: 'AB*****1Z')
+     pan_number_encrypted (trust_board_members): stored AES-256 via KMS; masked 'XXXXX9999X' in ALL API responses.
+       Full PAN value is NEVER returned in any API response regardless of role.
+       Used for internal records only. DC_STAFF receives masked version only.
+
+   INDEX:
+   CREATE INDEX idx_trust_temple ON trust_registrations(temple_id, status);
+
+   3.2 trust_board_members
+
+   CREATE TABLE trust_board_members (
+     id                  BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     trust_id            BIGINT UNSIGNED  NOT NULL,
+     name                VARCHAR(255)     NOT NULL,  -- MANDATORY
+     designation         VARCHAR(100)     NOT NULL,  -- MANDATORY: e.g. 'Chairman', 'Treasurer'
+     aadhaar_encrypted   TEXT             DEFAULT NULL,  -- AES-256; displayed XXXX-XXXX-1234
+     pan_number_encrypted TEXT            DEFAULT NULL,  -- MANDATORY when trustee has PAN; AES-256 via KMS
+                                                         -- stored encrypted; masked 'XXXXX9999X' in API responses
+                                                         -- AUDIT NOTE: SEC-01 fix — was VARCHAR(10) plain text; DO NOT revert
+     phone               VARCHAR(15)      DEFAULT NULL,
+     email               VARCHAR(255)     DEFAULT NULL,
+     address             TEXT             DEFAULT NULL,  -- MANDATORY: residential address for legal notice delivery
+     appointment_date    DATE             NOT NULL,   -- MANDATORY
+     cessation_date      DATE             DEFAULT NULL,  -- cessation_date = Tenure End Date per PDF terminology
+     is_active           TINYINT(1)       NOT NULL DEFAULT 1,
+     created_at          DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at          DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                      ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by          BIGINT UNSIGNED  NOT NULL,
+     updated_by          BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_board_trust FOREIGN KEY (trust_id)
+       REFERENCES trust_registrations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   INDEXES:
+   CREATE INDEX idx_board_trust_active ON trust_board_members(trust_id, is_active);
+
+   Active member query:
+   SELECT * FROM trust_board_members
+   WHERE trust_id = :trust_id
+   AND is_active = 1
+   AND (cessation_date IS NULL OR cessation_date > CURRENT_DATE);
+
+   3.3 trust_financials
+
+   CREATE TABLE trust_financials (
+     id               BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     trust_id         BIGINT UNSIGNED  NOT NULL,
+     financial_year   CHAR(7)          NOT NULL,  -- Format: YYYY-YY e.g. 2025-26
+     gross_income     DECIMAL(15,2)    NOT NULL,
+     expenditure      DECIMAL(15,2)    NOT NULL,
+     closing_balance  DECIMAL(15,2)    NOT NULL,
+     submitted_at     DATETIME(6)      DEFAULT NULL,
+     submitted_by     BIGINT UNSIGNED  DEFAULT NULL,
+     created_at       DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at       DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                   ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by       BIGINT UNSIGNED  NOT NULL,
+     updated_by       BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_trust_year (trust_id, financial_year),
+     CONSTRAINT fk_financials_trust FOREIGN KEY (trust_id)
+       REFERENCES trust_registrations(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.4 trust_meetings  (Formal Meeting Minutes)
+
+   CREATE TABLE trust_meetings (
+     id                   BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     trust_id             BIGINT UNSIGNED  NOT NULL,
+     meeting_date         DATE             NOT NULL,  -- MANDATORY
+     meeting_type         ENUM('ANNUAL_GENERAL','EXTRAORDINARY','BOARD') NOT NULL DEFAULT 'BOARD',
+     agenda               TEXT             NOT NULL,  -- MANDATORY
+     resolution_summary   TEXT             DEFAULT NULL,
+     minutes_doc_s3_key   VARCHAR(500)     DEFAULT NULL,  -- uploaded PDF of signed minutes
+     recorded_by          BIGINT UNSIGNED  NOT NULL,  -- user_id of TA who recorded
+     created_at           DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at           DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                       ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by           BIGINT UNSIGNED  NOT NULL,
+     updated_by           BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     CONSTRAINT fk_meeting_trust FOREIGN KEY (trust_id) REFERENCES trust_registrations(id),
+     CONSTRAINT fk_meeting_recorder FOREIGN KEY (recorded_by) REFERENCES users(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_meeting_trust ON trust_meetings(trust_id, meeting_date DESC);
+
+   3.5 trust_documents  (Junction: trust <-> documents)
+
+   CREATE TABLE trust_documents (
+     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     trust_id        BIGINT UNSIGNED NOT NULL,
+     document_id     BIGINT UNSIGNED NOT NULL,
+     document_type   ENUM('REGISTRATION_CERT','TRUST_DEED','PAN_CARD',
+                          'BANK_STATEMENT','MEETING_MINUTES','OTHER') NOT NULL,
+     created_at      DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at      DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                 ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by      BIGINT UNSIGNED NOT NULL,
+     updated_by      BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_trust_doc (trust_id, document_id),
+     CONSTRAINT fk_td_trust FOREIGN KEY (trust_id) REFERENCES trust_registrations(id),
+     CONSTRAINT fk_td_doc   FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+   CREATE INDEX idx_trust_doc_type ON trust_documents(trust_id, document_type);
+
+   API endpoints for trust documents:
+     GET  /api/trusts/{id}/documents       -- list all documents (DC, TA, SA)
+     POST /api/trusts/{id}/documents       -- upload document PDF (TA own, SA)
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - trust_registrations.pan_number_encrypted: AES-256 via KMS
+   - trust_registrations.bank_account_number_encrypted: AES-256 via KMS; masked in all API responses
+   - trust_board_members.aadhaar_encrypted: AES-256 via KMS
+   - trust_financials: DECIMAL(15,2) for all monetary amounts (INR only)
+   - UNIQUE(trust_id, financial_year) prevents duplicate annual submissions
+   - Trust data is DIRECT-SAVE (no DC approval workflow in v1). The TA creates/updates trust
+     data; it is immediately visible to the DC as live data. The Trust state machine in
+     00_state_machines.txt documents status as ACTIVE/DISSOLVED only; there is no
+     staging/approval cycle. This is an intentional v1 simplification.
+     Decision rationale: Trust registration is a legal document; the Registration Authority
+     has already validated it offline. The DC reviews it in read-only mode.
+   - trust_meetings: TA records meeting minutes; DC has read access. No approval workflow.
+   - trust_documents: PDF only, max 10 MB, MIME validated server-side (same rules as all docs)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Can a temple have more than one ACTIVE trust simultaneously?
+     Decision: No. Only one ACTIVE trust_registration per temple_id at any time.
+     Enforce via: UNIQUE KEY uq_active_trust (temple_id) WHERE status = 'ACTIVE'.
+     Note: MySQL does not support partial unique indexes; enforce at application layer.
+   - Board member phone/contact: is it PII requiring masking?
+     Decision: Phone number is not masked in DC view (needed for legal notice delivery).
+     TA view shows full phone. Audit trail records all access.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - If a trust is DISSOLVED but board members are still active, queries
+     must join to trust status. Query template:
+     WHERE t.status = 'ACTIVE' AND bm.is_active = 1
+   - Financial year format CHAR(7) '2025-26' must be validated at API layer
+     to prevent free-text entry corrupting the constraint.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - One active trust per temple at any time (single ACTIVE record per temple_id)
+   - All trust financial figures are in INR
+   - trust_financials is a direct submission (no DC approval workflow in v1)

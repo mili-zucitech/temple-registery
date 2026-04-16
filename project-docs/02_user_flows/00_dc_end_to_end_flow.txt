@@ -1,0 +1,210 @@
+﻿FOLDER: /project-docs/02_user_flows
+FILE: 00_dc_end_to_end_flow.txt
+TITLE: District Collector - End-to-End User Flow
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - DC end-to-end flow
+  - Temple_Registry_Requirements_v1.1.pdf (Section 3.2 - DC Functions)
+
+RELATED REQUIREMENTS:
+  Section 3.2 (DC Functions), Section 4.3 (DC Permissions) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document traces the complete journey of a District Collector user
+   through TRM from first login to completing an asset declaration review.
+   It is the specification reference for frontend routing and backend
+   API sequencing for the DC module.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   The DC flow has 6 phases: Login+MFA, Dashboard, Temple Search, Temple
+   Detail View, Declaration Review (Approve/Reject/Clarify), and Export.
+   All phases are district-scoped automatically via JWT claims.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   PHASE 1 - AUTHENTICATION
+   -------------------------
+   Step 1.1  DC navigates to portal URL
+   Step 1.2  Enters username and password
+             - Backend: validateCredentials() -> check bcrypt hash
+             - On 5th failure: lockAccount(30 min); send SMS alert
+   Step 1.3  MFA challenge presented
+             - TOTP (Authenticator App) or OTP (SMS to registered phone)
+             - Backend: validateMfaCode(); time-window check (30s tolerance)
+   Step 1.4  On success: JWT access token (15-min TTL) + refresh token
+             (7-day TTL) issued
+             - Access token claims: { role: "DISTRICT_COLLECTOR",
+               district_id: 5, user_id: 123, ... }
+   Step 1.5  Frontend stores access token in memory (not localStorage)
+             Refresh token stored in httpOnly secure cookie
+
+   PHASE 2 - DASHBOARD (DC HOME)
+   ------------------------------
+   Step 2.1  DC lands on dashboard
+             - API: GET /dashboard/dc
+             - Returns: pending_review_count, overdue_count (>30 days
+               past year-end), recently_approved_count, district_name
+   Step 2.2  Dashboard cards:
+             [ Pending Review: 12 ] [ Overdue: 3 ] [ Approved (this FY): 47 ]
+   Step 2.3  Priority alerts: Overdue declarations highlighted in red
+             - Any declaration with status=PENDING_REVIEW and
+               submitted_at < current_financial_year_end - 30 days
+   Step 2.4  Quick navigation: [Search Temples] [Pending Declarations]
+             [Export Reports]
+
+   PHASE 3 - TEMPLE SEARCH
+   -------------------------
+   Step 3.1  DC clicks [Search Temples]
+   Step 3.2  Search form displayed with cascading geo-dropdowns:
+             District (pre-filled, read-only for DC) -> Taluk -> Hobli
+             Plus: Temple Grade (A/B/C, multi-select), Temple Name (text),
+                   Declaration Status filter
+   Step 3.3  DC submits search
+             - API: GET /temples/search?talukId=12&grade=A&grade=B
+               &declarationStatus=PENDING_REVIEW
+             - Backend applies district_id = 5 scope automatically
+             - Returns paginated list (keyset pagination, default 20/page)
+   Step 3.4  Results table columns:
+             Temple Name | Grade | Taluk | Hobli | Last Declaration | Status
+   Step 3.5  DC can sort by: Temple Name, Grade, Declaration Status
+   Step 3.6  DC can export search results as CSV
+             - API: POST /exports/temples?format=csv (filtered by same params)
+             - Recorded in audit_export_events
+
+   PHASE 4 - TEMPLE DETAIL VIEW
+   ------------------------------
+   Step 4.1  DC clicks on a temple name from results
+   Step 4.2  Temple Detail page loads with tabs:
+             [Profile] [Trust & Board] [Employees] [Contractors]
+             [Asset Declarations] [Documents]
+   Step 4.3  All data is read-only for DC (no edit controls rendered)
+   Step 4.4  Profile tab: Temple name, address, deity, grade, geo-location,
+             registration number, founding year
+   Step 4.5  Trust tab: Trust registration number, trustee names,
+             PAN (masked based on role), bank details (masked)
+   Step 4.6  Declarations tab: Table of all declarations sorted newest first
+             - Columns: Financial Year | Version | Submitted Date | Status
+             - Click declaration to open declaration detail view
+
+   PHASE 5 - DECLARATION REVIEW
+   ------------------------------
+   Step 5.1  DC opens a declaration in PENDING_REVIEW status
+   Step 5.2  Declaration detail shows:
+             - Submitted data (fields from asset declaration form)
+             - Attached PDF documents (download via pre-signed URL)
+             - Submission history (version trail, clarification threads)
+             - snapshot_json: the exact data at time of submission
+   Step 5.3  DC reviews the declaration. Three actions available:
+             [ Approve ] [ Request Clarification ] [ Reject ]
+
+       ACTION A - APPROVE:
+       Step 5.4a  DC clicks [Approve]
+       Step 5.5a  Confirmation modal: "Approve declaration for FY 2024-25?"
+       Step 5.6a  DC confirms
+       Step 5.7a  API: POST /declarations/{id}/approve
+                  { "remarks": "optional remarks" }
+       Step 5.8a  Backend:
+                  - Validates DC has district jurisdiction over this temple
+                  - Updates status: PENDING_REVIEW -> APPROVED
+                  - Sets approved_by = dc_user_id, approved_at = NOW()
+                  - Creates audit_data_events record
+       Step 5.9a  Notification sent to Temple Authority: "Your declaration
+                  for FY 2024-25 has been approved."
+       Step 5.10a DC prompted to download acknowledgement letter (PDF)
+                  - API: POST /declarations/{id}/acknowledgement
+                  - Returns pre-signed S3 URL for generated PDF
+                  - Letter contains: temple name, FY, approved date,
+                    DC name and signature block, declaration reference number
+
+       ACTION B - REQUEST CLARIFICATION:
+       Step 5.4b  DC clicks [Request Clarification]
+       Step 5.5b  Modal: text area for clarification notes (required, min 20 chars)
+       Step 5.6b  DC submits clarification request
+       Step 5.7b  API: POST /declarations/{id}/clarify
+                  { "remarks": "Please provide valuation certificate for
+                    property item 3 and 4." }
+       Step 5.8b  Backend:
+                  - Updates status: PENDING_REVIEW -> CLARIFICATION_REQUESTED
+                  - Stores clarification remarks in declaration_clarifications
+                  - Freezes snapshot_json at this point
+       Step 5.9b  Notification to Temple Authority with clarification note
+
+       ACTION C - REJECT:
+       Step 5.4c  DC clicks [Reject]
+       Step 5.5c  Modal: rejection reason (required, min 50 chars)
+                  Warning: "Rejection will require temple to submit a new
+                  declaration for this financial year."
+       Step 5.6c  DC confirms rejection
+       Step 5.7c  API: POST /declarations/{id}/reject
+                  { "remarks": "Declaration is incomplete. Property schedule
+                    is missing. Total assets do not match attached annexure." }
+       Step 5.8c  Backend: status -> REJECTED
+       Step 5.9c  Notification to Temple Authority with rejection reason
+
+   PHASE 6 - EXPORT
+   ------------------
+   Step 6.1  DC clicks [Export Reports] from dashboard or search
+   Step 6.2  Export options:
+             - Temple List (by Taluk, Grade filter) - CSV
+             - Pending Declarations Summary - CSV
+             - Approved Declarations Summary (by FY) - CSV
+             - Individual Declaration Detail - PDF
+   Step 6.3  Export request submitted
+             - API: POST /exports  { "type": "TEMPLE_LIST", "filters": {...} }
+             - Async generation for large exports; email link when ready
+             - Small exports (< 500 rows): synchronous download
+   Step 6.4  Export recorded in audit_export_events
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - District pre-filled and read-only in DC search; DC cannot search
+     other districts even by modifying URL query params
+   - Acknowledge letter is generated server-side as PDF (not client-side)
+   - Clarification remarks minimum 20 chars; rejection minimum 50 chars
+     (enforced by @Size validation on DTO)
+   - Refresh token in httpOnly secure cookie (not accessible to JS)
+   - Access token stored in memory (not localStorage) to prevent XSS theft
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Step 5.10a: Should acknowledgement letters require a digital signature?
+   - Phase 6: What export formats are required beyond CSV? PDF tables?
+   - Phase 6: Is async export with email notification acceptable for
+     large exports, or must all exports be synchronous?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Phase 3 Step 3.3: Search with no filters returns all temples in the
+     district; for large districts (500+ temples) this may be slow without
+     proper indexing. See search index design in /project-docs/04_schema_design/.
+   - Phase 5 Step 5.8a: If the notification (Step 5.9a) fails, the approval
+     must not be rolled back. Notifications are best-effort via queue;
+     approval is transactional.
+   - Phase 5: Two DCs cannot share a district, so concurrent approval
+     conflicts are not possible. If this assumption changes in v2, add
+     optimistic locking to declarations.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - DC always has a valid active session before starting any of Phase 2-6
+   - District pre-assignment is done by SUPER_ADMIN before DC first login
+   - Financial year is defined as April 1 to March 31 (Karnataka standard)
+   - DC approval is a single-step action (no dual-approval requirement in v1)

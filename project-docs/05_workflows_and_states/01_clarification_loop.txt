@@ -1,0 +1,169 @@
+FOLDER: /project-docs/05_workflows_and_states
+FILE: 01_clarification_loop.txt
+TITLE: Clarification Loop Design - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from clarification loop architecture session (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the clarification request/response loop between DC and Temple
+   Authority within an asset declaration review. Covers data architecture,
+   state transitions, and the resubmit transaction.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 THREE DATA LAYERS
+
+   Layer 1 - FROZEN SNAPSHOT (asset_declarations.snapshot_json):
+     Written when declaration moves to PENDING_REVIEW. Never updated.
+     DC always sees what the temple looked like at time of submission.
+
+   Layer 2 - LIVE CLARIFICATION THREAD (declaration_clarifications table):
+     Append-only thread of all DC requests and Temple responses.
+     Each entry has: direction, section_name, field_names_json, comment_text.
+     Visible to both DC and Temple Authority.
+
+   Layer 3 - MUTABLE STAGING AREA:
+     While in CLARIFICATION_REQUESTED state, Temple Authority can update
+     the declaration content fields (movable_assets, immovable_assets, etc.)
+     These are the fields on the asset_declarations record itself (in DRAFT staging).
+     When resubmitted, a NEW version is created (version_number + 1).
+
+   3.2 CLARIFICATION ROUND - STEP BY STEP
+
+   Step 1 (DC Action): DC reviews PENDING_REVIEW declaration.
+     - DC identifies specific fields needing correction
+     - SERVICE GUARD: Before allowing this transition, check:
+         if (declaration.clarification_round >= 3) {
+           throw new ClarificationLimitExceededException(
+             "Maximum clarification rounds reached. You must APPROVE or REJECT."
+           );  // HTTP 422, error code TRM-DECL-009
+         }
+     - DC submits a ClarificationRequestDTO:
+         { declarationId, sectionName, fieldNames: [...], commentText }
+     - System action:
+         a. INSERT into declaration_clarifications (direction=DC_TO_TEMPLE)
+         b. UPDATE asset_declarations SET
+              status = 'CLARIFICATION_REQUESTED',
+              clarification_round = clarification_round + 1  -- ATOMIC INCREMENT
+         c. INSERT notification_events for TEMPLE_AUTHORITY
+
+   Step 2 (Temple Action): Temple receives notification; opens declaration.
+     - Flagged fields shown in red (UI uses fieldNames from latest DC entry)
+     - Temple edits the flagged content
+     - Temple submits a ClarificationReplyDTO:
+         { declarationId, replyText }
+     - System action:
+         a. INSERT into declaration_clarifications (direction=TEMPLE_TO_DC)
+         b. UPDATE asset_declarations SET status = 'PENDING_REVIEW'
+         c. INSERT notification_events for DC
+
+   Step 3 (DC Action): DC reviews updated declaration.
+     - If satisfied: APPROVE
+     - If still issues: another clarification round (Step 1 repeats)
+     - If not fixable: REJECT
+
+   3.3 RESUBMIT TRANSACTION (FULL VERSION CREATION)
+
+   If DC rejects and Temple creates a new version (not clarification loop):
+
+   BEGIN TRANSACTION;
+     -- Mark old version as SUPERSEDED
+     UPDATE asset_declarations
+     SET status = 'SUPERSEDED', updated_by = :user_id, updated_at = NOW(6)
+     WHERE temple_id = :temple_id
+     AND financial_year = :year
+     AND status = 'REJECTED';
+
+     -- Create new version (version_number + 1)
+     INSERT INTO asset_declarations
+       (temple_id, financial_year, version_number, status,
+        movable_assets, immovable_assets, annual_income, annual_expenditure,
+        created_by, updated_by)
+     VALUES
+       (:temple_id, :year,
+        (SELECT MAX(version_number) + 1 FROM asset_declarations
+         WHERE temple_id = :temple_id AND financial_year = :year),
+        'DRAFT',
+        :movable_assets, :immovable_assets, :income, :expenditure,
+        :user_id, :user_id);
+   COMMIT;
+
+   3.4 DIFF COMPUTATION
+
+   When DC views a resubmitted version, the UI should show a diff between:
+     - The previous version's content
+     - The current version's content
+
+   Backend provides a declarationDiff endpoint:
+     GET /api/declarations/{id}/diff?compareToVersion={prev_version}
+
+   Response: { changedFields: [{field, oldValue, newValue}] }
+   Computed in application layer by comparing JSON field values.
+
+   3.5 CLARIFICATION ROUND LIMIT (ENFORCED)
+
+   Hard limit: 3 rounds. Enforced at service layer on the CLARIFICATION_REQUESTED transition.
+
+   Implementation in DeclarationService.requestClarification():
+     if (declaration.getClarificationRound() >= 3) {
+       throw new ClarificationLimitExceededException();  // TRM-DECL-009 / HTTP 422
+     }
+     // Proceed with clarification
+     declaration.setClarificationRound(declaration.getClarificationRound() + 1);
+
+   SUPER_ADMIN ESCALATION (automatic, not advisory):
+   After round 2 (clarification_round = 2), the DC UI shows a hard warning:
+   "Round 2 of 3. Next clarification request is the last; after that you must
+   APPROVE or REJECT."
+   After round 3 is exhausted, DC's "Request Clarification" button is DISABLED.
+
+   Additionally, when clarification_round reaches 2, insert a SUPER_ADMIN notification:
+     INSERT notification_events (template_key='CLARIFICATION_ESCALATION', priority=2)
+   This notifies SUPER_ADMIN that a declaration has had 2 clarification rounds
+   and may need administrative oversight.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Clarification thread is append-only (declaration_clarifications table)
+   - declaration_clarifications.field_names_json is a JSON array of field names
+   - Resubmit after rejection creates a NEW version (version_number + 1);
+     it does NOT reuse the rejected version record
+   - Max clarification rounds = 3. Hard-blocked at service layer (not advisory).
+     DB column asset_declarations.clarification_round tracks count.
+   - SUPER_ADMIN notified at round 2 (escalation); DC blocked from further rounds at 3.
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should Temple Authority be able to add supporting documents specifically
+     for a clarification reply (attaching a new PDF to the reply)?
+   - Is there a deadline for Temple Authority to respond to a clarification
+     request? (Requirements do not specify a response SLA)
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - If Temple edits declaration content while status = CLARIFICATION_REQUESTED
+     and DC also reviews simultaneously, optimistic lock prevents lost updates
+   - Field names in field_names_json must match actual frontend field identifiers
+     exactly, or the red-highlight feature won't work. Define a canonical field
+     name registry in the frontend codebase.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - UI field names are stable identifiers (e.g., "movable_assets",
+     "annual_income"); not display labels
+   - All clarification thread entries are visible to both DC and Temple Authority
+     (no private DC-only notes in v1)

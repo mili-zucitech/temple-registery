@@ -1,0 +1,144 @@
+FOLDER: /project-docs/06_security_and_auth
+FILE: 01_rbac_implementation.txt
+TITLE: RBAC Implementation - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from RBAC analysis, data access scoping rules, and
+  permission matrix sessions (prior analysis).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document how Role-Based Access Control is implemented in Spring Security,
+   including @PreAuthorize patterns, jurisdiction scope enforcement, and the
+   complete role-permission matrix.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 ROLE DEFINITIONS
+
+   Role               | Scope           | Key Permissions
+   -------------------|-----------------|--------------------------------------------
+   SUPER_ADMIN        | Global          | All CRUD; user management; geo master data;
+                      |                 | grade config; override any workflow state
+   DISTRICT_COLLECTOR | 1 district      | Read all temples in district; approve/reject
+                      |                 | declarations; export reports
+   DC_STAFF           | 1 district      | Read all (same as DC); no approvals; limited
+                      |                 | export
+   TEMPLE_AUTHORITY   | 1 temple        | CRUD own temple profile, trust, staff,
+                      |                 | contractors, asset declarations only
+
+   3.2 SPRING SECURITY ROLE CONFIGURATION
+
+   roles map to Spring Security authorities:
+     ROLE_SUPER_ADMIN
+     ROLE_DISTRICT_COLLECTOR
+     ROLE_DC_STAFF
+     ROLE_TEMPLE_AUTHORITY
+
+   JwtAuthenticationFilter grants authorities from the role claim in JWT:
+     authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role))
+
+   3.3 @PreAuthorize PATTERNS (SERVICE LAYER)
+
+   -- Super Admin only:
+   @PreAuthorize("hasRole('SUPER_ADMIN')")
+
+   -- DC and above (DC, SA):
+   @PreAuthorize("hasAnyRole('DISTRICT_COLLECTOR','SUPER_ADMIN')")
+
+   -- DC read (DC, DC_STAFF, SA):
+   @PreAuthorize("hasAnyRole('DISTRICT_COLLECTOR','DC_STAFF','SUPER_ADMIN')")
+
+   -- Temple Authority (own temple only):
+   @PreAuthorize("hasRole('TEMPLE_AUTHORITY')")
+   -- Plus: service must verify temple_id matches the user's temple_id
+
+   -- Jurisdiction check (DC/DC_STAFF must be in same district):
+   @PreAuthorize("hasAnyRole('DISTRICT_COLLECTOR','DC_STAFF','SUPER_ADMIN')")
+   -- Plus: @PostAuthorize or service-layer district check
+
+   3.4 JURISDICTION SCOPE ENFORCEMENT (SERVICE LAYER)
+
+   For all DC operations, after role check, enforce district scope:
+
+   void assertDistrictScope(Long templeId, CurrentUser principal) {
+     if (principal.role == SUPER_ADMIN) return;  // SA has global scope
+     Long templeDistrict = geoCache.getDistrictByHobli(
+       templeRepository.getHobliId(templeId));
+     if (!templeDistrict.equals(principal.districtId)) {
+       throw new AccessDeniedException("Temple not in your jurisdiction");
+     }
+   }
+
+   For Temple Authority operations:
+   void assertTempleScope(Long templeId, CurrentUser principal) {
+     if (!templeId.equals(principal.templeId)) {
+       throw new AccessDeniedException("Not your temple");
+     }
+   }
+
+   3.5 COMPLETE PERMISSION MATRIX
+
+   Resource              | SA  | DC  | DC_STAFF | TA (own) | TA (other)
+   ----------------------|-----|-----|----------|----------|------------
+   Geo master data READ  | Y   | Y   | Y        | Y        | Y
+   Geo master data WRITE | Y   | N   | N        | N        | N
+   Temple READ           | Y   | Y*  | Y*       | Y (own)  | N
+   Temple CREATE         | Y   | N   | N        | Y (own)  | N
+   Temple UPDATE         | Y   | N   | N        | Y (own)  | N
+   Temple DELETE         | Y   | N   | N        | N        | N
+   Trust READ            | Y   | Y*  | Y*       | Y (own)  | N
+   Trust WRITE           | Y   | N   | N        | Y (own)  | N
+   Employee READ         | Y   | Y*  | Y*       | Y (own)  | N
+   Employee WRITE        | Y   | N   | N        | Y (own)  | N
+   Declaration READ      | Y   | Y*  | Y*       | Y (own)  | N
+   Declaration SUBMIT    | Y   | N   | N        | Y (own)  | N
+   Declaration APPROVE   | Y   | Y*  | N        | N        | N
+   Declaration REJECT    | Y   | Y*  | N        | N        | N
+   Declaration CLARIFY   | Y   | Y*  | N        | N        | N
+   Document UPLOAD       | Y   | N   | N        | Y (own)  | N
+   Document DOWNLOAD     | Y   | Y*  | Y*       | Y (own)  | N
+   Export PDF/CSV        | Y   | Y*  | Y* (lim) | N        | N
+   User CRUD             | Y   | N   | N        | N        | N
+   Audit log READ        | Y   | N   | N        | N        | N
+
+   * = within their district only
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - RBAC enforced at @PreAuthorize on service methods (not controllers)
+   - Jurisdiction check is a second gate after role check; must be explicit
+   - AccessDeniedException returns HTTP 403; never 404 (do not hint at existence)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should DC_STAFF export permissions be limited to specific data types?
+     Current decision: same data as DC, but no approval actions.
+   - Should SUPER_ADMIN actions trigger the same audit trail as other roles?
+     Answer: Yes; SUPER_ADMIN actions must be in audit_data_events too.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Template: Temple Authority queries must always include temple_id = :user_temple_id
+     in WHERE clause. If forgotten, Temple A can see Temple B's data.
+   - DC role check without district_id: A DC user with NULL district_id
+     (misconfigured) would fail all district scope checks. Add a non-null
+     constraint at registration and a startup check.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - A user has exactly one role (no compound roles)
+   - A DC user is assigned to exactly one district (1:1 binding)
+   - SUPER_ADMIN is not district-scoped (sees all districts/temples)

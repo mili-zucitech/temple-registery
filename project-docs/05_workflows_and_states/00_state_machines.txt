@@ -1,0 +1,193 @@
+FOLDER: /project-docs/05_workflows_and_states
+FILE: 00_state_machines.txt
+TITLE: State Machines - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from state machine design session (prior analysis).
+  All 5 module state machines documented.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Document the complete state transition model for all 5 workflow modules:
+   Temple Profile, Asset Declarations, Trust, Employees, and Contractors.
+   For each module: states, transitions, guard conditions, and role permissions.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 TEMPLE PROFILE STATE MACHINE
+
+   States: DRAFT, PENDING_REVIEW, APPROVED, REJECTED, SUPERSEDED
+
+   Transitions:
+   FROM              | TO               | ACTOR          | GUARD
+   ------------------|------------------|----------------|-----------------------------
+   (new)             | DRAFT            | TEMPLE_AUTH    | Temple must be registered
+   DRAFT             | PENDING_REVIEW   | TEMPLE_AUTH    | Required fields complete
+   PENDING_REVIEW    | APPROVED         | DC / SA        | DC in same district
+   PENDING_REVIEW    | REJECTED         | DC / SA        | DC in same district
+   PENDING_REVIEW    | CLARIFICATION*   | -              | (see 01_clarification_loop.txt)
+   REJECTED          | DRAFT            | TEMPLE_AUTH    | Max versions not exceeded
+   APPROVED          | SUPERSEDED       | SYSTEM         | On new version approval
+   Any               | SUPERSEDED       | SYSTEM         | On newer version approved
+
+   * Profile does not use CLARIFICATION_REQUESTED status; only Asset Declarations do.
+     DC rejects with a comment; Temple creates new version.
+
+   Action visibility matrix:
+   State             | TEMPLE_AUTH          | DC / DC_STAFF       | SUPER_ADMIN
+   ------------------|----------------------|---------------------|------------------
+   DRAFT             | View, Edit, Delete   | -                   | View
+   PENDING_REVIEW    | View (read-only)     | View, Approve/Reject| View, Override
+   APPROVED          | View                 | View                | View, Edit
+   REJECTED          | View, Create new     | View                | View, Override
+   SUPERSEDED        | View (history)       | View (history)      | View
+
+   3.2 ASSET DECLARATION STATE MACHINE
+
+   States: DRAFT, PENDING_REVIEW, APPROVED, CLARIFICATION_REQUESTED,
+           PHYSICAL_VERIFICATION_REQUESTED, REJECTED, SUPERSEDED
+
+   Transitions:
+   FROM                             | TO                              | ACTOR       | GUARD
+   ---------------------------------|---------------------------------|-------------|---------------------
+   (new)                            | DRAFT                           | TEMPLE_AUTH | Temple active,
+                                    |                                 |             | no APPROVED for year
+   DRAFT                            | PENDING_REVIEW                  | TEMPLE_AUTH | Required fields OK;
+                                    |                                 |             | snapshot_json written
+   PENDING_REVIEW                   | APPROVED                        | DC          | DC in district
+   PENDING_REVIEW                   | CLARIFICATION_REQUESTED         | DC          | DC in district
+   PENDING_REVIEW                   | PHYSICAL_VERIFICATION_REQUESTED | DC          | DC in district
+   PENDING_REVIEW                   | REJECTED                        | DC          | DC in district
+   CLARIFICATION_REQUESTED          | PENDING_REVIEW                  | TEMPLE_AUTH | Clarification reply
+                                    |                                 |             | submitted
+   PHYSICAL_VERIFICATION_REQUESTED  | APPROVED                        | DC, SA      | Physical visit done;
+                                    |                                 |             | DC records findings
+   PHYSICAL_VERIFICATION_REQUESTED  | REJECTED                        | DC, SA      | DC refuses after
+                                    |                                 |             | physical inspection
+   REJECTED                         | DRAFT (new version)             | TEMPLE_AUTH | version_number+1
+   APPROVED                         | (terminal)                      | -           | No transitions out
+   Any active                       | SUPERSEDED                      | SYSTEM      | Newer version approved
+
+   DC ACTIONS MAPPED TO PDF TERMINOLOGY:
+     PDF "accept"                     -> transition to APPROVED
+     PDF "query"                      -> transition to CLARIFICATION_REQUESTED
+     PDF "flag for physical verify"   -> transition to PHYSICAL_VERIFICATION_REQUESTED
+
+   PHYSICAL_VERIFICATION_REQUESTED RULES:
+     - DC must record findings in declaration_clarifications
+       (direction='DC_TO_TEMPLE', section_name='PHYSICAL_VERIFICATION')
+     - GUARD (enforced in service): Before DC can transition
+       PHYSICAL_VERIFICATION_REQUESTED -> APPROVED or -> REJECTED, the service
+       MUST verify at least one declaration_clarifications record exists for this
+       declaration with section_name = 'PHYSICAL_VERIFICATION' and
+       direction = 'DC_TO_TEMPLE'. If not present:
+         throw new PhysicalVerificationFindingsRequiredException();  // TRM-DECL-010 / HTTP 422
+     - SLA: JOB-07 alerts SUPER_ADMIN if declaration remains in this state > 30 days
+     - Only DC from the same district (or SA) may set and clear this state
+
+   3.3 TRUST MODULE STATE MACHINE
+
+   Trust Registration States: ACTIVE, DISSOLVED
+
+   Transitions:
+   ACTIVE -> DISSOLVED: TEMPLE_AUTH or SUPER_ADMIN (no DC approval needed)
+
+   Trust Approval Workflow:
+   Trust data is DIRECT-SAVE (no staging/approval cycle in v1). Changes made
+   by TEMPLE_AUTH are immediately visible to DC. This is consistent with
+   03_trust_schema.txt which has no staging tables. DC reviews trust data
+   in read-only mode only.
+
+   Board Member States: active (is_active=1), historical (is_active=0)
+
+   Transitions:
+   active -> historical: Set cessation_date; is_active = 0
+                         Actor: TEMPLE_AUTH
+
+   Trust Financials: Submitted once per year; no status field.
+                     Immutable after submission.
+
+   3.4 EMPLOYEE STATE MACHINE
+
+   Employment Status (employment_status column): ACTIVE, ON_LEAVE, RETIRED, RESIGNED
+   Logical Delete (deleted_at): used only for account-level deactivation by SUPER_ADMIN
+
+   Transitions:
+   FROM          | TO         | ACTOR          | NOTES
+   --------------|------------|----------------|-----------------------------------------------
+   (new record)  | ACTIVE     | TEMPLE_AUTH    | Auto on creation
+   ACTIVE        | ON_LEAVE   | TEMPLE_AUTH    | Temporary absence; no date_of_leaving set
+   ON_LEAVE      | ACTIVE     | TEMPLE_AUTH    | Return from leave
+   ACTIVE        | RETIRED    | TEMPLE_AUTH    | Set date_of_leaving; record remains visible
+   ACTIVE        | RESIGNED   | TEMPLE_AUTH    | Set date_of_leaving; record remains visible
+   Any status    | deleted    | SUPER_ADMIN    | Set deleted_at (account-level; not business state)
+
+   GUARD CONDITIONS:
+   - TEMPLE_AUTH can only transition employees of their own temple
+   - A RETIRED or RESIGNED employee cannot transition back to ACTIVE
+     (create a new employee record for re-employment)
+   - deleted_at must never be set by TEMPLE_AUTH (SA only)
+
+   3.5 CONTRACTOR STATE MACHINE
+
+   States: active (deleted_at IS NULL), ended (deleted_at IS NOT NULL)
+
+   Transitions:
+   active -> ended: Set deleted_at, deleted_by; optionally set contract_end_date
+                    Actor: TEMPLE_AUTH
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Asset declarations: APPROVED is a terminal state; no modifications after
+   - SUPERSEDED: set by SYSTEM only (not directly by any user role)
+   - Employee/contractor records: no approval workflow; direct TEMPLE_AUTH management
+   - Trust first registration: auto-ACTIVE on creation (no DC approval in v1)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should DC be able to reopen an APPROVED declaration (e.g., if fraud
+     discovered post-approval)?
+   - Is there a maximum number of REJECTED versions before a temple is
+     automatically flagged for SUPER_ADMIN review?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Race condition: Two DCs from same district (or DC + SUPER_ADMIN) review
+     the same declaration simultaneously. Use optimistic locking (version
+     column) on asset_declarations to detect conflicts. Add:
+       version INT UNSIGNED NOT NULL DEFAULT 0
+     to asset_declarations. Increment on every UPDATE. Spring Data JPA:
+       @Version private Integer version;
+     If two concurrent transitions collide, the loser receives HTTP 409
+     with error TRM-DECL-007: "Declaration was modified by another actor. Refresh and retry."
+   - CLARIFICATION_REQUESTED loop: Hard limit = 3 rounds.
+     clarification_round column tracks count; service blocks >3 (see 01_clarification_loop.txt).
+   - Temple SUSPENDED mid-workflow: If temple.status changes to SUSPENDED while
+     a declaration is PENDING_REVIEW, all DC workflow actions (approve/reject/clarify)
+     are blocked by a service guard until SUPER_ADMIN resolves the suspension.
+     State is preserved; no forced REJECTED transition.
+   - PHYSICAL_VERIFICATION_REQUESTED SLA: JOB-07 monitors and alerts SUPER_ADMIN
+     after 30 days. DC receive reminder in-app notification at day 15.
+   - Trust module DIRECT-SAVE inconsistency: Trust changes (board members, PAN, bank)
+     take effect immediately without DC approval. This is by design for v1.
+     DC can see all trust data but cannot block trust record changes.
+     If trust data tampering is a concern post-go-live, add a trust change audit
+     email to DC (notification, not blocking) as a v1.1 enhancement.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - A temple can have at most one PENDING_REVIEW declaration per financial year
+   - All state transitions are validated at the service layer (not only DB)
+   - State transition history is captured via audit_data_events

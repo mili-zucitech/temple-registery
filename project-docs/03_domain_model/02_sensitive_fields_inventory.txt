@@ -1,0 +1,246 @@
+﻿FOLDER: /project-docs/03_domain_model
+FILE: 02_sensitive_fields_inventory.txt
+TITLE: Sensitive Fields Inventory - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - 16-field sensitive data analysis (prior session)
+  - Design constraints SC-05 (01_design_constraints.txt)
+  - Temple_Registry_Requirements_v1.1.pdf (Security sections)
+
+RELATED REQUIREMENTS:
+  Sections 6.x (Data Security), 6.4 (PII Handling) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document inventories all 16 personally identifiable (PII) and
+   financially sensitive fields in the TRM system. For each field, it
+   specifies: storage approach, display masking rules, and which roles
+   can see the full value vs. masked value.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   16 sensitive fields across 5 categories:
+     - Aadhaar numbers: 4 fields (AES-256 encrypted, always masked in UI)
+     - PAN numbers: 4 fields (encrypted, partially masked in UI)
+     - Bank details: 3 fields (encrypted account number, IFSC readable)
+     - Contact details: 3 fields (phone/email - role-restricted visibility)
+     - Financial figures: 2 fields (trust financials - DC/SA only)
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 AADHAAR NUMBER FIELDS
+
+       FIELD: users.mfa_secret_encrypted (Aadhaar-linked OTP secret)
+       Table: users
+       Storage: AES-256 encrypted via AWS KMS. Column suffix: _encrypted.
+       Display: Never displayed in any UI or API response.
+       Role visibility: System only (never returned to frontend).
+       Notes: Used internally for eKYC OTP verification; not a user-visible field.
+
+       FIELD: trust_board_members.aadhaar_encrypted
+       Table: trust_board_members
+       Storage: AES-256 encrypted via AWS KMS.
+       Display: XXXX-XXXX-1234 (last 4 digits only)
+       Role visibility:
+         SUPER_ADMIN      : Masked display only (XXXX-XXXX-1234)
+         DISTRICT_COLLECTOR: Masked display only
+         DC_STAFF         : Masked display only
+         TEMPLE_AUTHORITY : Masked display only (their own data)
+       Notes: Full Aadhaar value must never appear in any API response.
+              Decrypt only for eKYC verification service (server-side only).
+              Audit every decrypt operation.
+
+       FIELD: employees.aadhaar_encrypted
+       Table: employees
+       Storage: AES-256 encrypted via AWS KMS.
+       Display: XXXX-XXXX-1234
+       Role visibility: Same as trust_board_members.aadhaar_encrypted above.
+       Notes: Archaka employees may need Aadhaar for succession documentation;
+              even in these cases, only masked value visible in UI.
+
+       FIELD: contractors (Aadhaar if captured)
+       Table: contractors (no Aadhaar field; PAN only for contractors)
+       Note: Contractors do not currently have an Aadhaar field. If added,
+             same rules as employees.aadhaar_encrypted apply.
+
+   3.2 PAN NUMBER FIELDS
+
+       FIELD: trust_registrations.pan_number_encrypted
+       Table: trust_registrations
+       Storage: AES-256 encrypted via AWS KMS.
+       Display: XXXXX1234X (first 5 + last 1 masked; only numeric middle shown)
+       Role visibility:
+         SUPER_ADMIN      : Full PAN (for administrative use)
+         DISTRICT_COLLECTOR: Masked
+         DC_STAFF         : Not visible
+         TEMPLE_AUTHORITY : Masked (their own trust only)
+
+       FIELD: trust_board_members.pan_number
+       Table: trust_board_members
+       Storage: Stored as plain text (PAN is not as sensitive as Aadhaar).
+       Display: XXXXX1234X (masked format)
+       Role visibility:
+         SUPER_ADMIN      : Full PAN
+         DISTRICT_COLLECTOR: Masked
+         DC_STAFF         : Not visible
+         TEMPLE_AUTHORITY : Masked (their own board only)
+       Notes: Reconsider encrypting if risk assessment warrants it in v2.
+
+       FIELD: employees.pan_number
+       Table: employees
+       Storage: Plain text (reconsider in v2).
+       Display: XXXXX1234X (masked)
+       Role visibility: Same as trust_board_members.pan_number.
+
+       FIELD: contractors.pan_number_encrypted
+       Table: contractors
+       Storage: AES-256 encrypted (contractors are external; higher risk).
+       Display: XXXXX1234X (masked)
+       Role visibility:
+         SUPER_ADMIN      : Full PAN
+         DISTRICT_COLLECTOR: Masked
+         DC_STAFF         : Not visible
+         TEMPLE_AUTHORITY : Full PAN (their own contractors)
+
+   3.3 BANK DETAIL FIELDS
+
+       FIELD: temple_profile.bank_account_number_encrypted
+       Table: temple_profile_current / temple_profile_staging
+       Storage: AES-256 encrypted via AWS KMS.
+       Display: XXXXXX6789 (last 4 digits shown)
+       Role visibility:
+         SUPER_ADMIN      : Full account number
+         DISTRICT_COLLECTOR: Last 4 digits only
+         DC_STAFF         : Not visible
+         TEMPLE_AUTHORITY : Last 4 digits (their own temple only)
+       Notes: Full value needed for payment verification (future scope).
+              For v1, only masked value needed.
+
+       FIELD: temple_profile.bank_ifsc
+       Table: temple_profile_current / temple_profile_staging
+       Storage: Plain text (IFSC is public bank metadata; not PII).
+       Display: Full value shown to all authorized roles.
+       Role visibility: All roles with temple access can see IFSC.
+
+       FIELD: temple_profile.bank_name
+       Table: temple_profile_current / temple_profile_staging
+       Storage: Plain text.
+       Display: Full value.
+       Role visibility: All authorized roles.
+
+   3.4 CONTACT DETAIL FIELDS
+
+       FIELD: temple_profile.email
+       Table: temple_profile_current / temple_profile_staging
+       Storage: Plain text.
+       Display: Full value for TEMPLE_AUTHORITY (their own); masked for others
+                (e.g., t***@domain.com)
+       Role visibility:
+         SUPER_ADMIN      : Full
+         DISTRICT_COLLECTOR: Full (needed for DC communication)
+         DC_STAFF         : Masked
+         TEMPLE_AUTHORITY : Full (their own temple only)
+
+       FIELD: temple_profile.phone
+       Table: temple_profile_current / temple_profile_staging
+       Storage: Plain text.
+       Display: Full value for roles that need to contact the temple.
+       Role visibility:
+         SUPER_ADMIN      : Full
+         DISTRICT_COLLECTOR: Full
+         DC_STAFF         : Full (needed for follow-up)
+         TEMPLE_AUTHORITY : Full (their own temple)
+
+       FIELD: users.email
+       Table: users
+       Storage: Plain text.
+       Display: Shown only to SUPER_ADMIN and the user themselves.
+       Role visibility:
+         SUPER_ADMIN      : Full
+         All other roles  : Own record only; cannot see other users' emails
+
+   3.5 FINANCIAL FIGURE FIELDS
+
+       FIELD: trust_financials.gross_income
+       Table: trust_financials
+       Storage: DECIMAL(15,2) plain text.
+       Display: Formatted currency (INR).
+       Role visibility:
+         SUPER_ADMIN      : Full
+         DISTRICT_COLLECTOR: Full (within jurisdiction)
+         DC_STAFF         : No access
+         TEMPLE_AUTHORITY : Full (their own trust only)
+
+       FIELD: trust_financials.expenditure / closing_balance
+       Table: trust_financials
+       Storage: DECIMAL(15,2) plain text.
+       Display: Formatted currency (INR).
+       Role visibility: Same as gross_income above.
+
+   3.6 ENCRYPTION IMPLEMENTATION NOTES
+
+       ALL _encrypted fields must follow this pattern in Spring Boot:
+
+       1. Application layer: Use @Convert(converter = AesEncryptionConverter.class)
+          JPA attribute converter to encrypt/decrypt transparently.
+       2. KMS: AES-256 key stored in AWS KMS; application retrieves via SDK.
+       3. The converter must never log the plaintext value.
+       4. Unit tests must assert that the stored value in DB is NOT the plaintext.
+
+       Masking pattern for API responses:
+       - Aadhaar: Return "XXXX-XXXX-" + last4
+       - PAN: Return "XXXXX" + middle2digits + "XXXXX" (only show middle 2)
+         Wait - standard mask: first 5 = X, char 6-9 = show, last = X
+         Standard PAN format: AAAAA9999A -> XXXXX9999X
+       - Bank account: Return "XXXXXX" + last4
+       - Email: Return first_char + "***@" + domain
+
+       NEVER return an _encrypted field value directly in an API DTO.
+       The DTO must contain the MASKED version of the field.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Aadhaar fields: AES-256 via KMS; always masked in UI; never in API response
+   - PAN for trust_registrations and contractors: AES-256 encrypted
+   - Bank account number: AES-256 encrypted; last 4 shown only
+   - All masking applied in DTO layer (not in entity); entities hold
+     decrypted values in memory only transiently
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should trust_board_members.pan_number be upgraded to encrypted storage
+     (currently plain text)? Low-risk for v1, but worth re-evaluating.
+   - Is there a DPDP Act (India's data protection bill) compliance scan
+     required before launching Aadhaar eKYC features?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - KMS key rotation: If the KMS key is rotated, all existing encrypted
+     values remain decryptable (KMS handles key version history). Document
+     the key rotation policy before production.
+   - Accidental logging: Any service that calls a method returning decrypted
+     PAN/Aadhaar must NOT log the return value. Add @Sensitive annotation
+     convention and code review checklist item for _encrypted field usage.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - AWS KMS is available in the selected AWS region
+   - AES-256 via KMS satisfies IT Act / Aadhaar data protection requirements
+   - All masking values are display-only; the backend always stores and
+     compares the full (encrypted) value

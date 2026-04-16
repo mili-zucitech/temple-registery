@@ -1,0 +1,256 @@
+﻿FOLDER: /project-docs/01_users_and_roles
+FILE: 02_data_access_scoping_rules.txt
+TITLE: Data Access Scoping Rules and Test Cases
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - 8 scoping rules + 15 test cases (TC-01 to TC-15)
+  - .github/copilot-instructions.md (RBAC section)
+
+RELATED REQUIREMENTS:
+  Section 4.x (Access Control), Section 5.x (Data Visibility) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document specifies the exact WHERE clause logic that must be applied
+   to every database query per role. It also includes 15 test cases (TC-01
+   to TC-15) that cover the scoping boundary conditions. These test cases
+   are mandatory for go-live (blocker S-03).
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   8 scoping rules define how data access is restricted per role. 15 test
+   cases exercise boundary conditions. All test cases must pass 100% before
+   go-live per blocker S-03 in /project-docs/00_context/02_go_live_blockers.txt
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 DATA ACCESS SCOPING RULES
+
+       RULE-01  SUPER_ADMIN - NO SCOPE FILTER
+                SUPER_ADMIN queries have no WHERE clause for jurisdiction
+                or ownership. All data is visible. This must be implemented
+                as an explicit code path, not by absence of a WHERE clause.
+                Implementation: if (role == SUPER_ADMIN) { // no scope filter }
+
+       RULE-02  DISTRICT_COLLECTOR - DISTRICT SCOPE
+                All temple-related queries must scope to district via JOIN (not nested IN).
+                Nested IN subqueries are non-deterministically optimized by MySQL and can
+                cause full-table scans at 30,000+ temple scale.
+
+                CORRECT implementation (JOIN with covering indexes):
+                  SELECT t.* FROM temples t
+                  JOIN geo_hoblis h ON h.id = t.hobli_id
+                  JOIN geo_taluks tal ON tal.id = h.taluk_id
+                  WHERE tal.district_id = :dcDistrictId
+
+                For partial geo selection (taluk and hobli are optional):
+                  AND (:talukId IS NULL OR tal.id = :talukId)
+                  AND (:hobliId IS NULL OR h.id = :hobliId)
+
+                district_id claim is extracted from JWT. If the claim is
+                absent, the request must be rejected with 403.
+                This JOIN pattern is also required for RULE-03 (DC_STAFF).
+
+       RULE-03  DC_STAFF - SAME DISTRICT SCOPE AS DC
+                DC_STAFF uses the same district_id scoping as
+                DISTRICT_COLLECTOR. DC_STAFF district_id is assigned
+                at account creation (same district as their DC).
+
+       RULE-04  TEMPLE_AUTHORITY - TEMPLE SCOPE
+                All queries must add:
+                  WHERE temple_id = :userTempleId
+                temple_id claim is extracted from JWT. Requests without
+                this claim must be rejected with 403.
+
+       RULE-05  ASSET DECLARATION SCOPE FOLLOWS TEMPLE SCOPE
+                Asset declarations are always scoped to the temple that
+                owns them. A DC sees declarations for all temples in their
+                district. A Temple Authority sees only their own temple's
+                declarations.
+
+       RULE-06  EMPLOYEE AND CONTRACTOR SCOPE FOLLOWS TEMPLE SCOPE
+                Same as RULE-05. Employee and contractor records belong
+                to a temple. DC sees all in district; Temple Authority
+                sees only their own.
+
+       RULE-07  DOCUMENT ACCESS FOLLOWS PARENT RECORD SCOPE
+                A document can only be accessed if the user can access
+                the parent record the document is attached to. DC cannot
+                access documents of temples outside their district even
+                if they have the document ID.
+
+       RULE-08  AUDIT TRAIL IS SUPER_ADMIN ONLY
+                audit_data_events, audit_auth_events, audit_export_events
+                are readable only by SUPER_ADMIN. No other role has read
+                access to audit tables. DC cannot read audit trail even
+                for their own district.
+
+   3.2 DATA ACCESS TEST CASES
+
+       TC-01  DC reads temples in their own district
+              User: DC (district_id = 5)
+              Action: GET /temples?district=5
+              Expected: 200 OK, returns temples with district_id=5
+              Scope rule: RULE-02
+
+       TC-02  DC reads temples in a different district
+              User: DC (district_id = 5)
+              Action: GET /temples?district=7
+              Expected: 403 Forbidden OR empty list (zero results scoped correctly)
+              Scope rule: RULE-02
+              Note: Must return 0 results or 403; never return district-7 data
+
+       TC-03  DC reads a specific temple in their district
+              User: DC (district_id = 5)
+              Action: GET /temples/101  (temple 101 is in district 5)
+              Expected: 200 OK, returns temple 101
+              Scope rule: RULE-02
+
+       TC-04  DC reads a specific temple outside their district
+              User: DC (district_id = 5)
+              Action: GET /temples/202  (temple 202 is in district 7)
+              Expected: 404 Not Found (entity appears not to exist)
+              Note: 404 preferred over 403 to not leak existence of records
+
+       TC-05  Temple Authority reads their own temple
+              User: TEMPLE_AUTHORITY (temple_id = 101)
+              Action: GET /temples/101
+              Expected: 200 OK, returns temple 101
+              Scope rule: RULE-04
+
+       TC-06  Temple Authority reads another temple
+              User: TEMPLE_AUTHORITY (temple_id = 101)
+              Action: GET /temples/202
+              Expected: 404 Not Found
+              Scope rule: RULE-04
+
+       TC-07  Temple Authority reads their own declarations
+              User: TEMPLE_AUTHORITY (temple_id = 101)
+              Action: GET /declarations?templeId=101
+              Expected: 200 OK, returns declarations for temple 101
+              Scope rule: RULE-05
+
+       TC-08  Temple Authority reads another temple's declarations
+              User: TEMPLE_AUTHORITY (temple_id = 101)
+              Action: GET /declarations?templeId=202
+              Expected: 403 Forbidden
+              Scope rule: RULE-05
+
+       TC-09  DC_STAFF reads temples in their district
+              User: DC_STAFF (district_id = 5)
+              Action: GET /temples?district=5
+              Expected: 200 OK, same result as TC-01
+              Scope rule: RULE-03
+
+       TC-10  DC_STAFF attempts to approve a declaration
+              User: DC_STAFF (district_id = 5)
+              Action: POST /declarations/55/approve
+              Expected: 403 Forbidden
+              Note: DC_STAFF does not have APPROVE permission
+
+       TC-11  DC reads an employee record for a temple in their district
+              User: DC (district_id = 5), temple 101 is in district 5
+              Action: GET /temples/101/employees
+              Expected: 200 OK, returns employee list
+              Scope rule: RULE-06
+
+       TC-12  DC reads an employee record for a temple outside their district
+              User: DC (district_id = 5), temple 202 is in district 7
+              Action: GET /temples/202/employees
+              Expected: 404 Not Found
+              Scope rule: RULE-06 + RULE-02
+
+       TC-13  DC downloads a document attached to a temple in their district
+              User: DC (district_id = 5), document is attached to temple 101
+              Action: GET /documents/77/download
+              Expected: 200 OK, pre-signed URL returned
+              Scope rule: RULE-07
+
+       TC-14  DC downloads a document attached to a temple outside their district
+              User: DC (district_id = 5), document is attached to temple 202
+                    which is in district 7
+              Action: GET /documents/88/download  (document of temple 202)
+              Expected: 404 Not Found
+              Scope rule: RULE-07
+
+       TC-15  DC_STAFF attempts to read audit trail
+              User: DC_STAFF
+              Action: GET /audit/events
+              Expected: 403 Forbidden
+              Scope rule: RULE-08
+
+   3.3 IMPLEMENTATION PATTERN
+
+       The scoping logic must be implemented as a centralized ScopeHelper
+       class or AOP aspect that is applied uniformly. Avoid copy-pasting
+       WHERE clauses across repositories.
+
+       Recommended pattern (Spring Data JPA):
+
+         In service layer:
+           ScopeContext scope = scopeHelper.buildForCurrentUser();
+           // scope.getDistrictId() for DC roles
+           // scope.getTempleId() for TEMPLE_AUTHORITY
+
+         In repository:
+           @Query("SELECT t FROM Temple t WHERE " +
+                  "(:districtId IS NULL OR t.districtId = :districtId) AND " +
+                  "(:templeId IS NULL OR t.id = :templeId)")
+           Page<Temple> findScoped(@Param("districtId") Long districtId,
+                                   @Param("templeId") Long templeId,
+                                   Pageable pageable);
+
+         For getById operations:
+           Temple temple = templeRepository.findById(id)
+               .filter(t -> scope.canAccess(t))
+               .orElseThrow(() -> new EntityNotFoundException("Temple not found"));
+           // Note: always use EntityNotFoundException (-> 404) not
+           // AccessDeniedException (-> 403) to avoid leaking existence
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - TC-04, TC-06, TC-12, TC-14: Return 404 (not 403) when scoped-out
+     resource is accessed, to avoid leaking existence information
+   - All 15 test cases must pass 100% before go-live (blocker S-03)
+   - Scope filters applied in repository layer, not controller layer
+   - Centralized ScopeHelper / AOP - no copy-pasted WHERE clause logic
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should the DC search endpoint return an empty list (200) or 403 when
+     a DC explicitly requests a different district? Current decision is
+     empty list (200) for list endpoints; 404 for single-resource endpoints.
+   - RULE-08: Does DC need to see audit events for their own actions only
+     (self-audit)? Current answer: No; audit is SUPER_ADMIN only.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Pagination cursors (keyset pagination) could leak records across pages
+     if scoping is applied inconsistently. Ensure scope filter is part of
+     the cursor query, not a post-filter.
+   - Bulk operations (bulk approve, bulk export) must apply scoping before
+     processing each record, not only at input validation time.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - JWT always contains valid district_id or temple_id for relevant roles
+   - A temple is always assigned to exactly one district (no multi-district
+     temples)
+   - district_id on the Temple record is set at creation and never changed
+     (temple relocation is out of scope for v1)

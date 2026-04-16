@@ -1,0 +1,156 @@
+FOLDER: /project-docs/09_testing_and_uat
+FILE: 00_data_access_test_cases.txt
+TITLE: Data Access Scoping Test Cases - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from data access scoping rules and RBAC analysis (prior sessions).
+  15 test cases (TC-01 to TC-15).
+
+RELATED REQUIREMENTS:
+  /project-docs/01_users_and_roles/02_data_access_scoping_rules.txt
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   15 concrete test cases that verify data access scoping (RBAC +
+   jurisdiction enforcement) works correctly for all role combinations.
+   All 15 must pass 100% before go-live (see go-live blocker S-03).
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 TEST DATA SETUP
+
+   Users:
+   - SA1: SUPER_ADMIN (global scope)
+   - DC1: DISTRICT_COLLECTOR in District A
+   - DCS1: DC_STAFF in District A
+   - DC2: DISTRICT_COLLECTOR in District B
+   - TA1: TEMPLE_AUTHORITY for Temple 1 (in District A)
+   - TA2: TEMPLE_AUTHORITY for Temple 2 (in District A)
+   - TA3: TEMPLE_AUTHORITY for Temple 3 (in District B)
+
+   Temples:
+   - Temple 1: District A, Grade A, Active
+   - Temple 2: District A, Grade B, Active
+   - Temple 3: District B, Grade A, Active
+
+   3.2 TEST CASES
+
+   TC-01: DC sees only own district temples
+     Actor: DC1
+     Action: GET /api/temples (no filters)
+     Expected: Returns Temple 1, Temple 2 only. Temple 3 NOT in results.
+     Assertion: response.data.content.map(t => t.id) does not contain Temple3.id
+
+   TC-02: DC cannot access temple in another district
+     Actor: DC1
+     Action: GET /api/temples/{Temple3.id}
+     Expected: HTTP 403 (or 404 to not hint at existence)
+     Assertion: response.status === 403
+
+   TC-03: DC_STAFF has same read access as DC
+     Actor: DCS1
+     Action: GET /api/temples (no filters)
+     Expected: Same results as DC1 (Temple 1 + Temple 2)
+     Assertion: Same as TC-01
+
+   TC-04: DC_STAFF cannot approve declarations
+     Actor: DCS1
+     Action: POST /api/declarations/{decl_id}/approve
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-05: Temple Authority sees only own temple
+     Actor: TA1
+     Action: GET /api/temples
+     Expected: Returns only Temple 1
+     Assertion: response.data.content.length === 1
+                response.data.content[0].id === Temple1.id
+
+   TC-06: Temple Authority cannot see another temple's detail
+     Actor: TA1
+     Action: GET /api/temples/{Temple2.id}
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-07: Temple Authority cannot see temples in another district
+     Actor: TA1
+     Action: GET /api/temples/{Temple3.id}
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-08: Temple Authority cannot submit declaration for another temple
+     Actor: TA1
+     Action: POST /api/declarations/{Temple2_decl.id}/submit
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-09: DC2 cannot see Temple 1's declarations
+     Actor: DC2
+     Action: GET /api/temples/{Temple1.id}/declarations
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-10: SA1 can see all temples globally
+     Actor: SA1
+     Action: GET /api/temples (no filters)
+     Expected: Returns Temple 1, Temple 2, Temple 3
+     Assertion: response.data.totalElements >= 3
+
+   TC-11: DC can approve declaration in own district
+     Actor: DC1
+     Action: POST /api/declarations/{Temple1_decl.id}/approve
+     Expected: HTTP 200; declaration status = APPROVED
+     Assertion: response.status === 200
+                getDeclaration(Temple1_decl.id).status === 'APPROVED'
+
+   TC-12: DC cannot approve declaration in another district
+     Actor: DC1
+     Action: POST /api/declarations/{Temple3_decl.id}/approve
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-13: Temple Authority can download own document
+     Actor: TA1
+     Action: GET /api/documents/{Temple1_doc.id}/url
+     Expected: HTTP 200; presigned URL in response
+     Assertion: response.status === 200; response.data.url starts with https://
+
+   TC-14: Temple Authority cannot download another temple's document
+     Actor: TA1
+     Action: GET /api/documents/{Temple2_doc.id}/url
+     Expected: HTTP 403
+     Assertion: response.status === 403
+
+   TC-15: SUPER_ADMIN can access any document
+     Actor: SA1
+     Action: GET /api/documents/{Temple3_doc.id}/url
+     Expected: HTTP 200; presigned URL in response
+     Assertion: response.status === 200
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - All 15 test cases are mandatory integration tests (not just unit tests)
+   - Tests use a shared test data setup (@BeforeAll) to avoid repetition
+   - Each test verifies both HTTP status AND response body where applicable
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should TC-01 through TC-15 be implemented as Spring Boot @SpringBootTest
+     integration tests or as Postman collection tests in the CI pipeline?
+     Recommendation: Both; @SpringBootTest for regression, Postman for UAT.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Test data is seeded via @Sql scripts or TestContainers MySQL
+   - Tests run against an isolated test database (not shared dev DB)
+   - JWT tokens for test actors are generated via a test utility method

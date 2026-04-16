@@ -1,0 +1,247 @@
+﻿FOLDER: /project-docs/02_user_flows
+FILE: 02_friction_points.txt
+TITLE: Friction Points & Mitigations - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from:
+  - 20-friction-point analysis (prior analysis session)
+  - DC end-to-end flow (02_user_flows/00_dc_end_to_end_flow.txt)
+  - Temple Authority flow (02_user_flows/01_temple_authority_end_to_end_flow.txt)
+  - Temple_Registry_Requirements_v1.1.pdf (UX sections)
+
+RELATED REQUIREMENTS:
+  Sections 4.x (User Interface), 5.x (Workflows) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document catalogs the 20 highest-risk friction points identified
+   across both primary user flows (DC and Temple Authority). For each friction
+   point, the document records: where it occurs, why it causes friction, and
+   the concrete mitigation to implement.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   20 friction points grouped by user journey stage. Friction point severity
+   is rated H (High) / M (Medium) / L (Low). All High-severity friction
+   points must be mitigated before go-live.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 REGISTRATION & ONBOARDING FRICTION (ROF)
+
+       ROF-01  [H] MFA SETUP AT FIRST LOGIN IS CONFUSING
+               Friction: Government users unfamiliar with TOTP apps or OTP
+               flow may abandon registration if the MFA setup screen is
+               not clearly guided.
+               Mitigation: Add inline help text and a step-by-step visual
+               guide for MFA enrollment. Offer SMS OTP as a simpler
+               alternative to TOTP app. Provide a "test my MFA" button
+               before confirming enrollment.
+
+       ROF-02  [H] AADHAAR eKYC OTP FAILURE HANDLING
+               Friction: UIDAI OTP delivery can be delayed or fail silently.
+               If the user cannot proceed past eKYC, they have no recourse.
+               Mitigation: Show a "Resend OTP" option after 30 seconds.
+               Display a helpline contact if 3 OTP attempts fail. Log all
+               eKYC failures for operator review.
+
+       ROF-03  [M] GEO-HIERARCHY AUTO-DETECTION
+               Friction: Temple Authority must manually select State ->
+               City/Town -> District -> Taluk -> Hobli. For a user who
+               knows only their temple name or address, this is tedious.
+               Mitigation: Provide a text-based "find my location" search
+               that auto-fills the geo-hierarchy dropdowns from a typed
+               address or temple name match.
+
+       ROF-04  [M] DUPLICATE TEMPLE REGISTRATION
+               Friction: Nothing prevents a temple from being registered
+               twice under slightly different names (e.g., "Sri Rama Temple"
+               vs "Shri Rama Mandir").
+               Mitigation: Before CREATE, do a fuzzy name match within the
+               same Hobli and show "possible duplicates" for the user to
+               confirm. Super Admin can merge duplicate records.
+
+   3.2 TEMPLE PROFILE DATA ENTRY FRICTION (PDF)
+
+       PDF-01  [H] LONG PROFILE FORM WITHOUT SAVE PROGRESS
+               Friction: Temple profile form has many fields (basic info,
+               deity details, historical info, documents). An accidental
+               refresh loses all progress.
+               Mitigation: Implement auto-save to a DRAFT state after every
+               field blur. Show a "last saved at HH:MM" indicator. Allow
+               resuming a draft on next login.
+
+       PDF-02  [M] DOCUMENT UPLOAD FAILURE IS SILENT
+               Friction: If a PDF upload to S3 fails mid-stream, the user
+               sees either a spinner hang or a generic error with no guidance.
+               Mitigation: Show upload progress bar. On failure, display
+               specific error: size exceeded / wrong format / network error.
+               Allow retry without re-selecting the file.
+
+       PDF-03  [L] NO PREVIEW BEFORE UPLOAD
+               Friction: Users upload documents without knowing the portal
+               will display them to DCs. Accidental wrong-document uploads.
+               Mitigation: Show PDF filename, size, and page count after
+               selection but before upload. Add "are you sure?" confirmation
+               for files > 5 MB.
+
+   3.3 ASSET DECLARATION SUBMISSION FRICTION (ADS)
+
+       ADS-01  [H] FINANCIAL YEAR BOUNDARY CONFUSION
+               Friction: Users unsure whether they are submitting for the
+               current or previous financial year. Selecting the wrong year
+               creates a version conflict or a duplicate.
+               Mitigation: Pre-select the current applicable financial year.
+               Show a clear label: "You are submitting for FY 2025-26."
+               Allow override only for SUPER_ADMIN.
+
+       ADS-02  [H] CLARIFICATION LOOP IS OPAQUE
+               Friction: When DC sends a clarification request, the temple
+               authority receives a notification but lands on the dashboard
+               with no clear indication of what specifically needs fixing.
+               Mitigation: Clarification request must include: (1) section
+               name, (2) specific field names, (3) DC comment text.
+               Highlight the flagged fields in red when Temple Authority
+               opens the declaration in CLARIFICATION_REQUESTED state.
+
+       ADS-03  [M] VERSION HISTORY NOT VISIBLE
+               Friction: Temple Authority cannot see previous versions of
+               their declarations, making it hard to understand what changed
+               between submissions.
+               Mitigation: Add a "Version History" tab on the declaration
+               detail page showing all versions with dates, statuses, and
+               a diff view for changed fields.
+
+       ADS-04  [M] OVERDUE DECLARATION NO REMINDER
+               Friction: Temple Authority forgets to submit annual declaration
+               and only discovers they are overdue when penalized.
+               Mitigation: Email + SMS reminder at: 30 days before deadline,
+               7 days before, on deadline day, and weekly after overdue.
+               Show a persistent red banner on the dashboard for overdue items.
+
+   3.4 DC REVIEW AND APPROVAL FRICTION (DRF)
+
+       DRF-01  [H] NO BULK OPERATIONS FOR DC
+               Friction: DC must open each pending declaration individually.
+               In districts with hundreds of temples, this is not scalable.
+               Mitigation: Add bulk-select checkbox on the pending declarations
+               list. Support bulk "send to staff for review" assignment.
+
+       DRF-02  [H] SEARCH RESULT RELEVANCE
+               Friction: DC searches for a temple but the result set is
+               too large or sorted unhelpfully (e.g., alphabetical only).
+               Mitigation: Default sort by "pending actions first, then
+               overdue declarations, then recently updated." Show a
+               "# pending actions" badge on each result row.
+
+       DRF-03  [M] CLARIFICATION HISTORY NOT PRESERVED ON APPROVAL
+               Friction: Once an asset declaration is approved, the clarification
+               thread history disappears from the DC view.
+               Mitigation: Preserve all clarification thread entries in the
+               declaration's audit history. Show a "Clarification History"
+               collapsible section on the approved declaration view.
+
+       DRF-04  [L] EXPORT FORMAT OPTIONS
+               Friction: DC needs data in Excel for manual analysis but the
+               portal only exports PDF.
+               Mitigation: Support both PDF (for official records) and CSV
+               (for data analysis) export. Apply DC jurisdiction scoping
+               to both formats.
+
+   3.5 NAVIGATION AND SESSION FRICTION (NSF)
+
+       NSF-01  [H] SESSION TIMEOUT MID-FORM LOSES DATA
+               Friction: 30-minute session timeout occurs while Temple
+               Authority is filling a long declaration form. On redirect
+               to login, all unsaved form data is lost.
+               Mitigation: Auto-save form to DRAFT on every React Query
+               mutation. Show a "Your session expires in 5 minutes" warning
+               modal with a "Stay logged in" button that refreshes the
+               JWT access token.
+
+       NSF-02  [M] NO BACK-NAVIGATION CONTEXT
+               Friction: After a DC approves a declaration, the "back"
+               button returns to the top of the search results, losing
+               the search filters previously applied.
+               Mitigation: Persist search filter state in URL query params.
+               Returning to the list restores filters from URL.
+
+       NSF-03  [L] MOBILE RESPONSIVENESS
+               Friction: DC field visits may require access on a tablet
+               or mobile device. Un-responsive layout makes this unusable.
+               Mitigation: Responsive design using Tailwind CSS breakpoints.
+               Prioritize the search/view flow for tablet sizes. Full form
+               entry remains desktop-only.
+
+   3.6 AUDIT AND REPORTING FRICTION (ARF)
+
+       ARF-01  [M] AUDIT LOG NOT ACCESSIBLE TO TEMPLE AUTHORITY
+               Friction: Temple Authority wants to confirm that their
+               submission was received but cannot see any confirmation
+               other than status label changes.
+               Mitigation: Show a read-only "Activity Log" on the temple's
+               own dashboard: timestamps for each submission, DC review
+               events, and clarification requests (redacted for privacy).
+
+       ARF-02  [M] SUPER ADMIN HAS NO SYSTEM HEALTH DASHBOARD
+               Friction: Super Admin managing all 30,000+ temples has no
+               aggregate view of system activity, pending declarations,
+               or overdue compliance.
+               Mitigation: Super Admin dashboard shows: total temples by
+               grade, pending declarations count by district, overdue count,
+               login activity, and failed authentication rate.
+
+       ARF-03  [L] DC EXPORT REPORT HAS NO COVER PAGE
+               Friction: Exported PDF reports lack official header (district
+               name, DC name, date, report title) required for official
+               government submissions.
+               Mitigation: Generate PDF export cover page using iText/PDFBox
+               with district seal placeholder, DC name, report date, and
+               footer quoting the HR&CE Act section.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - ROF-01 (MFA guidance) and NSF-01 (session auto-save) are go-live
+     requirements - not optional UX improvements
+   - ADS-02 (clarification field highlighting) is required for the
+     clarification loop to be usable in production
+   - Search default sort order: pending actions first, then overdue,
+     then recently updated
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - NSF-03: Is tablet/mobile responsiveness a v1 requirement or post-launch?
+   - DRF-04: Is CSV export in scope for v1 or just PDF?
+   - ROF-04: What is the authority for merging duplicate temple records
+     (Super Admin, or DC within their district)?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - ADS-01: If the financial year boundary auto-selection logic has a bug
+     at year-end (April 1), temples may submit for the wrong year in bulk.
+     Add an integration test that runs with a mocked April 1 system date.
+   - NSF-01: Auto-save to DRAFT requires the declaration to be in a saveable
+     state (valid temple_id, financial_year). Validate these fields first
+     before enabling auto-save.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - "High" severity friction points are treated as go-live blockers
+   - 20 friction points listed are not exhaustive; additional UX issues
+     will surface during UAT
+   - Desktop browser is the primary access device for all user roles

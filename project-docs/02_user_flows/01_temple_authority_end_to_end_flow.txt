@@ -1,0 +1,260 @@
+﻿FOLDER: /project-docs/02_user_flows
+FILE: 01_temple_authority_end_to_end_flow.txt
+TITLE: Temple Authority - End-to-End User Flow
+
+SOURCE:
+  Derived from:
+  - Requirements analysis session - Temple Authority end-to-end flow
+  - Temple_Registry_Requirements_v1.1.pdf (Section 3.1 - Temple Functions)
+
+RELATED REQUIREMENTS:
+  Section 3.1 (Temple Authority Functions), Section 4.4 (Temple Permissions) -
+  Temple Registry Requirements v1.1
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   This document traces the complete journey of a Temple Authority user from
+   initial registration through the annual declaration submission cycle,
+   including the clarification and approval loop. It is the specification
+   reference for the Temple Authority module frontend and API design.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   The Temple Authority flow has 7 phases: Registration+KYC, Profile Setup,
+   Dashboard, Annual Declaration Cycle (Draft -> Submit -> Review Response),
+   Document Management, Trust/Staff Updates, and Acknowledgement Retrieval.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   PHASE 1 - REGISTRATION AND AADHAAR eKYC
+   -----------------------------------------
+   Step 1.1  Temple Authority navigates to portal URL
+   Step 1.2  Clicks [Register as Temple Authority]
+   Step 1.3  Registration form:
+             - Full name, email, mobile number
+             - Temple name, district, taluk, hobli (geo dropdowns)
+             - Password (min 10 chars, uppercase + lowercase + digit + special)
+   Step 1.4  Backend:
+             - Validates uniqueness: email and mobile not already registered
+             - Checks: no existing TEMPLE_AUTHORITY account for this geo-
+               temple combination (duplicate check via RULE-06)
+             - Creates user record (status=PENDING_ACTIVATION) + temple record
+               (status=DRAFT) atomically in one transaction
+   Step 1.5  Aadhaar eKYC step:
+             - User enters Aadhaar number
+             - Backend sends OTP request to UIDAI (via licensed UIDAI API)
+             - User enters OTP received on Aadhaar-linked mobile
+             - Backend verifies OTP with UIDAI
+             - On success: name + DOB from UIDAI response stored as verified
+             - Aadhaar number stored AES-256 encrypted (KMS)
+   Step 1.6  MFA setup:
+             - User scans TOTP QR code (Google Authenticator / Authy)
+             - OR provides mobile for OTP-based MFA
+             - Backup codes generated and shown (one time; user must save)
+   Step 1.7  Registration submitted; status = PENDING_ACTIVATION
+             - Email confirmation sent to user
+             - SUPER_ADMIN receives alert: "New temple authority registration
+               awaiting activation for [Temple Name]"
+   Step 1.8  SUPER_ADMIN reviews and activates the account
+             - Account status changes to ACTIVE
+             - User receives activation email with login link
+
+   PHASE 2 - TEMPLE PROFILE SETUP (first login)
+   ----------------------------------------------
+   Step 2.1  Temple Authority logs in (MFA required)
+   Step 2.2  First-login checklist prompt:
+             [x] Complete Temple Profile
+             [ ] Add Trust Details
+             [ ] Add Board Members
+             [ ] Add Permanent Staff
+             [ ] Submit First Declaration
+   Step 2.3  Temple Profile form:
+             - Basic info: temple name, registration number, founding year
+             - Address: door number, street, village, pin code
+             - Deity name(s), presiding deity
+             - Temple grade (populated by SUPER_ADMIN; read-only for TA)
+             - Contact: phone, email
+             - Bank details: account number (masked display), IFSC, bank name
+   Step 2.4  Temple Authority saves profile (status remains DRAFT until
+             submitted to DC for grade assignment review)
+   Step 2.5  Adds Trust details and board members (trust module)
+   Step 2.6  Adds Archaka and other employee records (employee module)
+
+   PHASE 3 - DASHBOARD (TEMPLE AUTHORITY HOME)
+   ---------------------------------------------
+   Step 3.1  Dashboard shows temple status cards:
+             [ Profile: COMPLETE ] [ Trust: COMPLETE ] [ Staff: 4 records ]
+             [ Current Declaration: DRAFT ] [ Last Approved: FY 2023-24 ]
+   Step 3.2  Pending actions panel:
+             - "Annual declaration for FY 2024-25 is due by 30 June 2025"
+               (overdue flag if past due date)
+             - "Your declaration for FY 2024-25 requires clarification.
+               View DC's remarks."
+   Step 3.3  Quick links: [Edit Profile] [View Declarations] [Submit Declaration]
+
+   PHASE 4 - ANNUAL DECLARATION CYCLE
+   ------------------------------------
+
+       SUB-PHASE 4A - CREATING A DRAFT DECLARATION
+       Step 4A.1  TA clicks [Submit Declaration] and selects financial year
+       Step 4A.2  System checks if a declaration already exists for this FY:
+                  - No existing declaration: create new DRAFT (version 1)
+                  - Existing REJECTED declaration: create new DRAFT
+                    (version incremented; old record unchanged)
+                  - Existing APPROVED declaration: show read-only view only
+       Step 4A.3  Declaration form sections:
+                  a. Temple Income:
+                     - Hundi collection, devotee offerings, rental income,
+                       government grants, other income
+                  b. Temple Expenditure:
+                     - Maintenance, salaries, festival expenses, repairs, other
+                  c. Property Schedule:
+                     - Land parcels (survey number, area, type, estimated value)
+                     - Buildings (type, area, construction year, value)
+                     - Moveable assets (jewellery, vehicles, equipment)
+                  d. Bank Balances:
+                     - FD details, savings account balances, investments
+                  e. Pending Litigations (if any)
+       Step 4A.4  TA can save as DRAFT at any point
+                  - API: PUT /declarations/{id}  { "status": "DRAFT", ... }
+       Step 4A.5  TA attaches supporting documents (PDF, max 10 MB each):
+                  - Audited accounts, property certificates, bank statements
+                  - Upload API: POST /documents/upload  { "module": "DECLARATION",
+                    "referenceId": declarationId }
+
+       SUB-PHASE 4B - SUBMITTING FOR DC REVIEW
+       Step 4B.1  TA reviews completed draft and clicks [Submit to DC]
+       Step 4B.2  Pre-submission validation (frontend + backend):
+                  - All required fields filled
+                  - At least one supporting document attached
+                  - No open validation errors
+       Step 4B.3  Confirmation modal: "Submit declaration for FY 2024-25?
+                  Once submitted you cannot edit it until the DC responds."
+       Step 4B.4  TA confirms
+       Step 4B.5  API: POST /declarations/{id}/submit
+                  Backend:
+                  - Generates snapshot_json (frozen snapshot of current data)
+                  - Sets status: DRAFT -> PENDING_REVIEW
+                  - Sets submitted_at = NOW(), submitted_by = user_id
+                  - Sends notification to DC: "New declaration submitted
+                    by [Temple Name] for FY 2024-25"
+                  - Records audit event
+
+       SUB-PHASE 4C - HANDLING DC RESPONSE
+
+           CASE: APPROVED
+           Step 4C.1  TA receives notification: "Declaration approved"
+           Step 4C.2  TA navigates to declaration
+           Step 4C.3  Declaration shows APPROVED status with:
+                      - DC name, approval date, official remarks
+                      - [Download Acknowledgement] button
+           Step 4C.4  TA clicks [Download Acknowledgement]
+                      - API: GET /declarations/{id}/acknowledgement
+                      - Download pre-signed URL for official PDF letter
+           Step 4C.5  Acknowledgement PDF saved; compliance satisfied
+
+           CASE: CLARIFICATION REQUESTED
+           Step 4C.1  TA receives notification with link and DC's remarks
+           Step 4C.2  TA clicks [Respond to Clarification]
+           Step 4C.3  Clarification view shows:
+                      - Frozen snapshot (what was submitted)
+                      - DC's clarification notes (highlighted)
+                      - Editable staging layer for corrections
+           Step 4C.4  TA makes corrections in the staging layer only
+                      (submitted snapshot is preserved and visible for reference)
+           Step 4C.5  TA can upload additional or replacement documents
+           Step 4C.6  TA clicks [Resubmit]
+                      - API: POST /declarations/{id}/resubmit
+                      - Backend: status: CLARIFICATION_REQUESTED -> PENDING_REVIEW
+                      - snapshot_json updated to new version
+                      - Previous clarification thread preserved in history
+                      - DC notified of resubmission
+
+           CASE: REJECTED
+           Step 4C.1  TA receives notification with rejection reason
+           Step 4C.2  TA views rejection reason in declaration detail
+           Step 4C.3  TA creates a new declaration for same FY:
+                      - Previous REJECTED declaration is visible in history
+                      - New DRAFT created with version incremented
+           Step 4C.4  TA follows Sub-Phase 4A again for the new draft
+
+   PHASE 5 - DOCUMENT MANAGEMENT
+   --------------------------------
+   Step 5.1  TA navigates to [Document] tab in temple portal
+   Step 5.2  View uploaded documents grouped by module:
+             - Temple Profile Documents
+             - Trust Documents
+             - Declaration Documents (by FY)
+   Step 5.3  TA can download any previously uploaded document (pre-signed URL)
+   Step 5.4  Documents attached to APPROVED declarations are read-only
+             (cannot be deleted or replaced)
+
+   PHASE 6 - TRUST AND STAFF UPDATES
+   ------------------------------------
+   Step 6.1  TA navigates to [Trust & Board] tab
+   Step 6.2  Updates board member list (add new, mark resigned with end_date)
+             - Note: board members are not hard-deleted; resigned members
+               have end_date set (soft delete equivalent for board history)
+   Step 6.3  TA navigates to [Employees] tab
+   Step 6.4  For departing staff: set deleted_at for soft delete (not hard delete)
+   Step 6.5  For new staff: add employee record with employee_type field
+             (ARCHAKA, ADMINISTRATIVE, SECURITY, CLEANING, OTHER)
+   Step 6.6  Contractor records follow same pattern
+
+   PHASE 7 - ACKNOWLEDGEMENT RETRIEVAL
+   --------------------------------------
+   Step 7.1  TA navigates to [Declarations] tab, selects APPROVED declaration
+   Step 7.2  Clicks [Download Acknowledgement]
+   Step 7.3  System checks if acknowledgement PDF already generated:
+             - If yes: returns pre-signed URL immediately
+             - If no: generates on demand (async); email link when ready
+   Step 7.4  TA downloads acknowledgement letter
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Registration + temple record creation are atomic (one transaction)
+   - Declaration snapshot_json is frozen at submission; never overwritten
+   - REJECTED declaration requires a fresh new declaration (no in-place edit
+     of a REJECTED record)
+   - All document attachments for APPROVED declarations are immutable
+   - Soft-delete for all employee and contractor records (no hard delete)
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Phase 1 Step 1.5: Is UIDAI Aadhaar OTP API integration confirmed for v1?
+   - Phase 4B Step 4B.2: What specific fields are required vs. optional in
+     the declaration form?
+   - Phase 4, SUB-PHASE 4C: How many clarification rounds are permitted
+     before escalation? Current assumption: unlimited rounds.
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Phase 1: UIDAI API downtime could block registration. Consider fallback
+     to manual verification by SUPER_ADMIN with uploaded identity document.
+   - Phase 4C (Clarification): If TA and DC have multiple clarification rounds
+     and the financial year deadline passes, the declaration becomes overdue.
+     System must flag this but not block submission.
+   - Phase 4A Step 4A.5: Large document uploads (near 10 MB) on slow internet
+     connections need upload progress feedback and resumable upload support.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Financial year: April 1 to March 31
+   - One declaration per financial year per temple (one active cycle at a time)
+   - Clarification rounds have no hard limit in v1
+   - TA can self-serve profile updates without DC approval for minor changes
+     (address update, contact info); only grade changes require DC involvement

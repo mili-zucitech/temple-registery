@@ -1,0 +1,210 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 01_geo_hierarchy_schema.txt
+TITLE: Geo Hierarchy Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from geo-hierarchy schema design session (prior analysis).
+  Temple_Registry_Requirements_v1.1.pdf (geo sections).
+
+RELATED REQUIREMENTS:
+  Sections 3.1 (Geo Hierarchy), 4.1 (Master Data Management)
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the 5 geo-hierarchy tables that underpin all cascading dropdowns,
+   DC jurisdiction scoping, and temple location assignment.
+
+--------------------------------------------------------------------------------
+
+2. SUMMARY
+
+   5 tables: geo_states -> geo_cities -> geo_districts -> geo_taluks -> geo_hoblis
+   Each level has a parent FK and a unique code. Queries ALWAYS traverse top-down.
+   All geo data is owned by SUPER_ADMIN. DC jurisdiction is locked at district level.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 TABLE DEFINITIONS
+
+   -- Level 1: State
+   CREATE TABLE geo_states (
+     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     name        VARCHAR(100) NOT NULL,
+     code        VARCHAR(10)  NOT NULL,
+     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                              ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by  BIGINT UNSIGNED NOT NULL,
+     updated_by  BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_state_code (code)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Level 2: City / Town
+   CREATE TABLE geo_cities (
+     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     state_id    BIGINT UNSIGNED NOT NULL,
+     name        VARCHAR(100) NOT NULL,
+     code        VARCHAR(10)  NOT NULL,
+     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                              ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by  BIGINT UNSIGNED NOT NULL,
+     updated_by  BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_city_code (state_id, code),
+     CONSTRAINT fk_city_state FOREIGN KEY (state_id) REFERENCES geo_states(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Level 3: District (DC jurisdiction boundary)
+   CREATE TABLE geo_districts (
+     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     city_id     BIGINT UNSIGNED NOT NULL,
+     name        VARCHAR(100) NOT NULL,
+     code        VARCHAR(10)  NOT NULL,
+     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                              ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by  BIGINT UNSIGNED NOT NULL,
+     updated_by  BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_district_code (city_id, code),
+     CONSTRAINT fk_district_city FOREIGN KEY (city_id) REFERENCES geo_cities(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Level 4: Taluk
+   CREATE TABLE geo_taluks (
+     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     district_id   BIGINT UNSIGNED NOT NULL,
+     name          VARCHAR(100) NOT NULL,
+     code          VARCHAR(10)  NOT NULL,
+     created_at    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at    DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by    BIGINT UNSIGNED NOT NULL,
+     updated_by    BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_taluk_code (district_id, code),
+     CONSTRAINT fk_taluk_district FOREIGN KEY (district_id)
+       REFERENCES geo_districts(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Level 5: Hobli (temple location)
+   CREATE TABLE geo_hoblis (
+     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     taluk_id    BIGINT UNSIGNED NOT NULL,
+     name        VARCHAR(100) NOT NULL,
+     code        VARCHAR(10)  NOT NULL,
+     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                              ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by  BIGINT UNSIGNED NOT NULL,
+     updated_by  BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_hobli_code (taluk_id, code),
+     CONSTRAINT fk_hobli_taluk FOREIGN KEY (taluk_id) REFERENCES geo_taluks(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.2 INDEXES FOR CASCADING DROPDOWN QUERIES
+
+   -- Dropdown query: "Give me all cities in state X"
+   CREATE INDEX idx_cities_state ON geo_cities(state_id, name);
+
+   -- Dropdown query: "Give me all districts in city X"
+   CREATE INDEX idx_districts_city ON geo_districts(city_id, name);
+
+   -- Dropdown query: "Give me all taluks in district X"
+   CREATE INDEX idx_taluks_district ON geo_taluks(district_id, name);
+
+   -- Dropdown query: "Give me all hoblis in taluk X"
+   CREATE INDEX idx_hoblis_taluk ON geo_hoblis(taluk_id, name);
+
+   -- Jurisdiction lookup: "What district does hobli X belong to?"
+   -- (needed for DC scoping checks)
+   -- Use the FK chain: hobli -> taluk -> district
+   -- Covered by the FK indexes above + a view if needed
+
+   3.3 DISTRICT-TO-HOBLI JOIN QUERY (FOR JURISDICTION CHECK)
+
+   -- Check if a hobli is within a DC's district:
+   SELECT h.id
+   FROM   geo_hoblis h
+   JOIN   geo_taluks t  ON t.id = h.taluk_id
+   JOIN   geo_districts d ON d.id = t.district_id
+   WHERE  h.id = :hobli_id
+   AND    d.id = :district_id;
+
+   -- This must be cached at application startup as a flat lookup table
+   -- (hobli_id -> district_id mapping) to avoid repeated joins on every
+   -- temple access request.
+
+   3.4 CACHING STRATEGY
+
+   Cache the entire geo tree at application startup using Spring's
+   @Cacheable with Caffeine or in-memory map:
+
+   GeoHierarchyCache {
+     Map<Long, List<GeoCity>>     citiesByState;
+     Map<Long, List<GeoDistrict>> districtsByCity;
+     Map<Long, List<GeoTaluk>>    taluksByDistrict;
+     Map<Long, List<GeoHobli>>    hoblisByTaluk;
+     Map<Long, Long>              districtByHobli;  // for jurisdiction checks
+   }
+
+   Invalidation: On any SUPER_ADMIN write to a geo table, invalidate the
+   entire cache (geo data changes are rare).
+
+   Cache warm-up: On application startup via ApplicationReadyEvent listener.
+
+   3.5 FRONTEND CASCADING DROPDOWN RESET RULES
+
+   When any level changes:
+     State changes   -> reset City, District, Taluk, Hobli to ""
+     City changes    -> reset District, Taluk, Hobli to ""
+     District changes-> reset Taluk, Hobli to ""
+     Taluk changes   -> reset Hobli to ""
+
+   Implemented in React: each dropdown's useEffect depends only on its
+   direct parent's selected value. React Query refetchOnMount for child
+   dropdowns whenever parent value changes.
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - Geo hierarchy is 5 levels deep: State -> City -> District -> Taluk -> Hobli
+   - State dropdown is pre-selected as Karnataka and is read-only for all users
+   - DC jurisdiction is scoped at district level (geo_districts.id)
+   - Geo data managed exclusively by SUPER_ADMIN; no Temple Authority edits
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Are geo codes (e.g., Karnataka = KA) official government codes or
+     system-assigned codes? If official, seed data should use official codes.
+   - Should geo hierarchy support multiple active states in future (v2)?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - District boundary changes: If Karnataka reorganizes district boundaries,
+     existing temples and DC accounts reference old district IDs. Add a
+     migration tool (Super Admin only) to re-assign temples to new districts.
+   - Cache invalidation race condition: If two SUPER_ADMIN sessions update
+     geo data simultaneously, implement an optimistic lock (version column)
+     on geo tables.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   - Geo hierarchy is pre-seeded with all Karnataka state/city/district/
+     taluk/hobli data before go-live
+   - Seed data is delivered as a Flyway migration CSV import script
+   - No API exists for Temple Authority or DC to modify geo hierarchy

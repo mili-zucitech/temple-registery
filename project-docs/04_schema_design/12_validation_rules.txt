@@ -1,0 +1,334 @@
+﻿FOLDER: /project-docs/04_schema_design
+FILE: 12_validation_rules.txt
+TITLE: DTO Validation Rules & Error Code Catalogue - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from all schema files, PDF requirements, and gap analysis findings.
+  Resolves GAP-20 and INCONSISTENCY-08 identified in 11_gap_and_review/03_gap_analysis.txt.
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define all field-level validation rules for every module's request DTOs.
+   Define the standard API error response body.
+   Define the error code catalogue (TRM-XXXX-NNN format) for all modules.
+   Backend developers MUST implement these rules using jakarta.validation annotations.
+
+--------------------------------------------------------------------------------
+
+2. STANDARD API ERROR RESPONSE BODY
+
+   All validation errors return HTTP 400. All security/auth errors return 401 or 403.
+   The ApiResponse<T> wrapper for error cases:
+
+   {
+     "success": false,
+     "data": null,
+     "error": {
+       "code": "TRM-AUTH-001",
+       "message": "Human-readable summary",
+       "fieldErrors": [
+         { "field": "email", "message": "must not be blank" },
+         { "field": "password", "message": "must be at least 10 characters" }
+       ]
+     },
+     "timestamp": "2026-04-08T10:30:00.000Z",
+     "requestId": "550e8400-e29b-41d4-a716-446655440000"
+   }
+
+   - fieldErrors is present only for HTTP 400 (validation failures)
+   - For HTTP 401/403/404/409/500: fieldErrors is null or absent
+   - Stack traces are NEVER included in any response (OWASP SC-06)
+
+--------------------------------------------------------------------------------
+
+3. ERROR CODE CATALOGUE
+
+   Format: TRM-{MODULE}-{CODE}
+   Modules: AUTH, TEMPLE, TRUST, EMPLOYEE, CONTRACTOR, DECL, DOC, GEO, EXPORT, SYS
+
+   3.1 AUTH (TRM-AUTH-NNN)
+
+   Code           | HTTP | Description
+   ---------------|------|-----------------------------------------------------
+   TRM-AUTH-001   | 401  | Invalid credentials (username or password incorrect)
+   TRM-AUTH-002   | 401  | MFA code invalid or expired
+   TRM-AUTH-003   | 401  | Refresh token expired or revoked
+   TRM-AUTH-004   | 403  | Account is locked (failed attempt limit reached)
+   TRM-AUTH-005   | 403  | Account is not yet active (pending verification)
+   TRM-AUTH-006   | 400  | Password does not meet complexity requirements
+   TRM-AUTH-007   | 409  | Email address is already registered
+   TRM-AUTH-008   | 400  | Aadhaar OTP invalid or expired
+   TRM-AUTH-009   | 400  | Temple registration number not found for TA registration
+   TRM-AUTH-010   | 401  | No valid MFA recovery codes available; contact system administrator
+
+   3.2 TEMPLE (TRM-TEMPLE-NNN)
+
+   Code              | HTTP | Description
+   ------------------|------|--------------------------------------------------
+   TRM-TEMPLE-001    | 404  | Temple not found
+   TRM-TEMPLE-002    | 409  | Registration number already exists
+   TRM-TEMPLE-003    | 403  | User does not have access to this temple
+   TRM-TEMPLE-004    | 400  | Invalid GPS coordinates (out of range)
+   TRM-TEMPLE-005    | 409  | A PENDING_REVIEW profile already exists for this temple
+   TRM-TEMPLE-006    | 422  | Cannot submit profile: required fields missing
+                             |   (contact_person_name, photo_s3_key)
+
+   3.3 TRUST (TRM-TRUST-NNN)
+
+   Code             | HTTP | Description
+   -----------------|------|--------------------------------------------------
+   TRM-TRUST-001    | 404  | Trust not found
+   TRM-TRUST-002    | 409  | An ACTIVE trust already exists for this temple
+   TRM-TRUST-003    | 400  | Invalid PAN number format
+   TRM-TRUST-004    | 400  | Bank account number must not be blank when trust is submitted
+   TRM-TRUST-005    | 404  | Board member not found or not in this trust
+   TRM-TRUST-006    | 422  | Cannot set cessation_date before appointment_date
+
+   3.4 EMPLOYEE (TRM-EMP-NNN)
+
+   Code            | HTTP | Description
+   ----------------|------|--------------------------------------------------
+   TRM-EMP-001     | 404  | Employee not found
+   TRM-EMP-002     | 409  | employee_id already exists in this temple
+   TRM-EMP-003     | 422  | Invalid employment_status transition (e.g. RETIRED -> ACTIVE)
+   TRM-EMP-004     | 422  | is_hereditary_succession=1 is only valid for ARCHAKA type
+   TRM-EMP-005     | 400  | date_of_leaving must not be before date_of_joining
+   TRM-EMP-006     | 422  | Cannot set employment_status=RESIGNED without date_of_leaving
+   TRM-EMP-007     | 403  | Employee belongs to a different temple
+
+   3.5 CONTRACTOR (TRM-CONTR-NNN)
+
+   Code               | HTTP | Description
+   -------------------|------|--------------------------------------------------
+   TRM-CONTR-001      | 404  | Contractor not found
+   TRM-CONTR-002      | 400  | contract_end_date must not be before contract_start_date
+   TRM-CONTR-003      | 400  | Invalid contract_type value
+   TRM-CONTR-004      | 403  | Contractor belongs to a different temple
+
+   3.6 ASSET DECLARATION (TRM-DECL-NNN)
+
+   Code            | HTTP | Description
+   ----------------|------|--------------------------------------------------
+   TRM-DECL-001    | 404  | Declaration not found
+   TRM-DECL-002    | 409  | An APPROVED declaration already exists for this financial year
+   TRM-DECL-003    | 422  | Invalid state transition (current status does not allow this action)
+   TRM-DECL-004    | 403  | User is not in the same district as this temple (DC action)
+   TRM-DECL-005    | 400  | financial_year format must be YYYY-YY (e.g. 2025-26)
+   TRM-DECL-006    | 422  | Declaration is not in DRAFT status; cannot update fields
+   TRM-DECL-007    | 409  | Declaration was modified by another actor; refresh and retry (optimistic lock conflict)
+   TRM-DECL-008    | 409  | A declaration for this financial year is already under review (concurrent submission conflict)
+   TRM-DECL-009    | 422  | Maximum clarification rounds (3) reached; must APPROVE or REJECT
+   TRM-DECL-010    | 422  | Physical verification findings required before approving or rejecting
+   TRM-DECL-011    | 422  | Acknowledgement not yet generated (declaration not APPROVED)
+   TRM-DECL-012    | 400  | Clarification notes must not be blank on clarification request
+   TRM-DECL-013    | 400  | Physical verification notes must not be blank
+   TRM-DECL-014    | 400  | Correction notes must not be blank on resubmit
+   TRM-DECL-015    | 422  | Temple is SUSPENDED; declaration workflow actions are blocked
+
+   3.7 DOCUMENT (TRM-DOC-NNN)
+
+   Code           | HTTP | Description
+   ---------------|------|--------------------------------------------------
+   TRM-DOC-001    | 404  | Document not found
+   TRM-DOC-002    | 403  | User does not have access to this document
+   TRM-DOC-003    | 400  | File type not allowed (only application/pdf accepted)
+   TRM-DOC-004    | 400  | File size exceeds 10 MB limit
+   TRM-DOC-005    | 400  | File is empty or corrupt (zero bytes)
+
+   3.8 GEO (TRM-GEO-NNN)
+
+   Code           | HTTP | Description
+   ---------------|------|--------------------------------------------------
+   TRM-GEO-001    | 404  | Geo entity not found (state, district, taluk, hobli)
+   TRM-GEO-002    | 409  | Geo entity name already exists under this parent
+
+   3.9 EXPORT (TRM-EXPORT-NNN)
+
+   Code              | HTTP | Description
+   ------------------|------|--------------------------------------------------
+   TRM-EXPORT-001    | 400  | Invalid export format (must be PDF or CSV)
+   TRM-EXPORT-002    | 422  | Export query returned 0 results; nothing to export
+
+   3.10 SYSTEM (TRM-SYS-NNN)
+
+   Code           | HTTP | Description
+   ---------------|------|--------------------------------------------------
+   TRM-SYS-001    | 500  | Unexpected internal server error
+   TRM-SYS-002    | 503  | Downstream service unavailable (S3, SES, SNS, UIDAI)
+   TRM-SYS-003    | 429  | Rate limit exceeded on auth endpoints
+
+--------------------------------------------------------------------------------
+
+4. FIELD VALIDATION RULES BY MODULE
+
+   4.1 AUTH / USER REGISTRATION
+
+   Field              | Mandatory | Validation Rule
+   -------------------|-----------|-----------------------------------------------
+   email              | YES       | @Email; @NotBlank; max 255 chars
+   password           | YES       | @NotBlank; @Size(min=10, max=128)
+                      |           | @Pattern: (?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])
+                      |           | (must contain upper, lower, digit, special char)
+   mobile             | YES       | @Pattern(regexp="^\\+91[0-9]{10}$") (E.164 format)
+   temple_reg_number  | YES (TA)  | @NotBlank; @Size(max=50)
+   aadhaar_otp        | YES       | @Pattern(regexp="^[0-9]{6}$")
+
+   4.2 TEMPLE (CREATE / UPDATE)
+
+   Field                  | Mandatory | Validation Rule
+   -----------------------|-----------|-----------------------------------------------
+   name                   | YES       | @NotBlank; @Size(max=255)
+   alias_name             | NO        | @Size(max=200)
+   registration_number    | YES       | @NotBlank; @Size(max=50)
+   grade                  | YES       | @NotNull; ENUM {A, B, C}
+   hobli_id               | YES       | @NotNull; @Positive
+   address_line1          | YES       | @NotBlank; @Size(max=255)
+   address_line2          | NO        | @Size(max=255)
+   pincode                | YES       | @Pattern(regexp="^[0-9]{6}$")
+   deity_name             | YES       | @NotBlank; @Size(max=255)
+   religious_tradition    | YES       | @NotNull; ENUM {SHAIVITE, VAISHNAVITE, SHAKTA, JAIN, BUDDHIST, OTHER}
+   gps_latitude           | NO*       | @DecimalMin("-90.0") @DecimalMax("90.0") (when provided)
+   gps_longitude          | NO*       | @DecimalMin("-180.0") @DecimalMax("180.0") (when provided)
+   established_year       | NO        | @Min(500) @Max(2024) (when provided; allows ancient temples)
+   landmark               | NO        | @Size(max=500)
+
+   * GPS: MANDATORY on final submission (PENDING_REVIEW transition); optional on DRAFT save.
+
+   4.3 TEMPLE PROFILE STAGING (SUBMIT)
+
+   Field                     | Mandatory | Validation Rule
+   --------------------------|-----------|-----------------------------------------------
+   contact_person_name       | YES       | @NotBlank; @Size(max=255)
+   contact_person_designation| YES       | @NotBlank; @Size(max=100)
+   photo_s3_key              | YES       | @NotBlank; must be a valid S3 key (non-empty string)
+                             |           | document must exist in documents table with MIME=image/* or PDF
+   phone                     | NO        | @Pattern(regexp="^[0-9]{10}$") (when provided)
+   email                     | NO        | @Email; @Size(max=255) (when provided)
+   bank_ifsc                 | NO        | @Pattern(regexp="^[A-Z]{4}0[A-Z0-9]{6}$") (when provided)
+   languages_of_worship      | NO        | @Size(max=500)
+   linked_institution_name   | NO        | @Size(max=500)
+
+   4.4 TRUST REGISTRATION
+
+   Field                        | Mandatory | Validation Rule
+   -----------------------------|-----------|-----------------------------------------------
+   trust_name                   | YES       | @NotBlank; @Size(max=255)
+   registration_number          | YES       | @NotBlank; @Size(max=100)
+   registration_date            | YES       | @NotNull; @PastOrPresent
+   registering_authority        | YES       | @NotBlank; @Size(max=255)
+   trust_type                   | YES       | @NotNull; ENUM {PUBLIC, PRIVATE}
+   pan_number                   | YES       | @Pattern(regexp="^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
+   bank_account_number          | YES       | @NotBlank; @Size(min=9, max=18); digits only
+   bank_name                    | YES       | @NotBlank; @Size(max=255)
+   bank_branch                  | YES       | @NotBlank; @Size(max=255)
+   annual_income_approx         | NO        | @DecimalMin("0.0") (when provided)
+
+   4.5 TRUST BOARD MEMBER
+
+   Field              | Mandatory | Validation Rule
+   -------------------|-----------|-----------------------------------------------
+   name               | YES       | @NotBlank; @Size(max=255)
+   designation        | YES       | @NotBlank; @Size(max=100)
+   address            | YES       | @NotBlank; @Size(max=2000)
+   appointment_date   | YES       | @NotNull; @PastOrPresent
+   cessation_date     | NO        | @Future or null; must be after appointment_date if present
+   phone              | NO        | @Pattern(regexp="^[0-9]{10}$") (when provided)
+   email              | NO        | @Email (when provided)
+   aadhaar            | NO        | @Pattern(regexp="^[0-9]{12}$") (when provided; stored encrypted)
+
+   4.6 EMPLOYEE
+
+   Field               | Mandatory | Validation Rule
+   --------------------|-----------|-----------------------------------------------
+   employee_type       | YES       | @NotNull; ENUM {ARCHAKA, ADMINISTRATIVE, ACCOUNTS, MAINTENANCE, SECURITY, OTHER}
+   employment_status   | YES       | @NotNull; ENUM {ACTIVE, ON_LEAVE, RETIRED, RESIGNED}; Default ACTIVE
+   name                | YES       | @NotBlank; @Size(max=255)
+   date_of_joining     | YES       | @NotNull; @PastOrPresent
+   employee_id         | NO        | @Size(max=50); unique per temple (app-layer check)
+   designation         | NO        | @Size(max=100)
+   salary_grade        | NO        | @Size(max=50)
+   mobile              | YES       | @Pattern(regexp="^[0-9]{10}$")
+   address             | YES       | @NotBlank; @Size(max=2000)
+   date_of_leaving     | NO        | @PastOrPresent; must be after date_of_joining if present
+   date_of_birth       | NO        | @Past; employee must be >= 18 years old
+
+   CROSS-FIELD RULES:
+     - is_hereditary_succession = true ONLY when employee_type = ARCHAKA
+     - employment_status = RESIGNED requires date_of_leaving to be set
+     - employment_status = RETIRED requires date_of_leaving to be set
+
+   4.7 CONTRACTOR
+
+   Field                    | Mandatory | Validation Rule
+   -------------------------|-----------|-----------------------------------------------
+   contractor_name          | YES       | @NotBlank; @Size(max=255)
+   contract_type            | YES       | @NotNull; ENUM {CIVIL_WORKS, ELECTRICAL, SECURITY, CATERING, EVENTS, MAINTENANCE, OTHER}
+   contract_reference_number| YES       | @NotBlank; @Size(max=100)
+   work_order_date          | YES       | @NotNull; @PastOrPresent
+   contract_start_date      | YES       | @NotNull
+   payment_status           | YES       | @NotNull; ENUM {PENDING, PARTIAL, COMPLETED, DISPUTED}; Default PENDING
+   gst_number               | NO        | @Pattern(regexp="^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$")
+   contract_end_date        | NO        | must be after contract_start_date if present
+   contract_value           | NO        | @DecimalMin("0.0") (when provided)
+
+   4.8 ASSET DECLARATION (SUBMIT / UPDATE DRAFT)
+
+   Field                | Mandatory for SUBMIT | Validation Rule
+   ---------------------|---------------------|-----------------------------------------------
+   financial_year       | YES                 | @NotBlank; @Pattern(regexp="^\\d{4}-\\d{2}$")
+                        |                     | Cross-check: first year + 1 == last 2 digits
+                        |                     | e.g. 2025-26 -> 25 + 1 = 26 (valid)
+   annual_income        | YES                 | @NotNull; @DecimalMin("0.0")
+   annual_expenditure   | YES                 | @NotNull; @DecimalMin("0.0")
+
+   Asset sub-table rules (all sub-tables validated before PENDING_REVIEW transition):
+   - At least one sub-table entry required if the declaration covers that asset type
+   - Mandatory fields per sub-table: see Section 3.3 and 3.4 of 06_asset_declaration_schema.txt
+
+   4.9 DECLARE FIELD FORMAT PATTERNS (reference)
+
+   Field type         | Pattern / Rule
+   -------------------|------------------------------------------
+   PAN Number         | ^[A-Z]{5}[0-9]{4}[A-Z]{1}$
+   GST Number         | ^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$
+   IFSC Code          | ^[A-Z]{4}0[A-Z0-9]{6}$
+   PIN Code           | ^[0-9]{6}$
+   Mobile (India)     | ^[0-9]{10}$ (10 digits, no prefix; E.164 in DB: +91XXXXXXXXXX)
+   Aadhaar            | ^[0-9]{12}$ (validated, then stored encrypted only)
+   Financial Year     | ^\d{4}-\d{2}$ with cross-check (e.g. 2025-26)
+   Vehicle Reg (KA)   | ^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$ (for Karnataka plates)
+   S3 Key             | non-empty string; no spaces; must exist in documents table
+
+--------------------------------------------------------------------------------
+
+5. DECISIONS LOCKED
+
+   - Validation is enforced at the API layer (jakarta.validation + @Valid on @RequestBody)
+   - DB constraints (NOT NULL) are the last line of defense; they must not produce
+     raw SQL errors to the client. GlobalExceptionHandler must catch DataIntegrityViolationException
+     and return TRM-SYS-001 with no stack trace.
+   - Error code format TRM-{MODULE}-{NNN} is fixed; add new codes by appending to this file
+   - fieldErrors in the error response must use the DTO field name (not the DB column name)
+   - Financial year cross-check is validated in a custom @FinancialYear constraint annotation
+     (com.zucitech.trm.common.validation.FinancialYear)
+
+--------------------------------------------------------------------------------
+
+6. GLOBALEXCEPTIONHANDLER MAPPINGS
+
+   Exception class                      | HTTP | Code
+   -------------------------------------|------|----------------
+   MethodArgumentNotValidException      | 400  | from fieldErrors
+   ConstraintViolationException         | 400  | from fieldErrors
+   DataIntegrityViolationException      | 409  | TRM-SYS-001*
+   EntityNotFoundException              | 404  | module-specific
+   AccessDeniedException                | 403  | TRM-{MOD}-003/004
+   AuthenticationException              | 401  | TRM-AUTH-001
+   StateTransitionException (custom)    | 422  | TRM-DECL-003 or TRM-EMP-003
+   S3Exception                         | 503  | TRM-SYS-002
+   All uncaught Throwable               | 500  | TRM-SYS-001 (no detail exposed)
+
+   * DataIntegrityViolationException should be pre-empted by application-layer uniqueness checks.
+     If it reaches the handler anyway, return 409 Conflict (not 500).

@@ -1,0 +1,238 @@
+FOLDER: /project-docs/04_schema_design
+FILE: 08_document_storage_schema.txt
+TITLE: Document Storage Schema - Temple Registry & Management Portal
+
+SOURCE:
+  Derived from document storage schema design session (prior analysis).
+  Temple_Registry_Requirements_v1.1.pdf (Section 3.6 - File Uploads).
+
+--------------------------------------------------------------------------------
+
+1. PURPOSE
+
+   Define the canonical documents table, all per-module junction tables,
+   the document_access_log table, and the S3 object key structure.
+
+--------------------------------------------------------------------------------
+
+3. DETAILED CONTENT
+
+   3.1 documents - CANONICAL METADATA TABLE
+
+   CREATE TABLE documents (
+     id                 BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+     original_filename  VARCHAR(500)     NOT NULL,
+     s3_key             VARCHAR(1000)    NOT NULL,
+     s3_bucket          VARCHAR(100)     NOT NULL,
+     mime_type          VARCHAR(100)     NOT NULL,        -- must be application/pdf
+     file_size_bytes    INT UNSIGNED     NOT NULL,        -- max 10,485,760 (10 MB)
+     module_reference   ENUM('TEMPLE','TRUST','EMPLOYEE',
+                             'CONTRACTOR','DECLARATION')  NOT NULL,
+     uploaded_by        BIGINT UNSIGNED  NOT NULL,
+     uploaded_at        DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     created_at         DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at         DATETIME(6)      NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                         ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by         BIGINT UNSIGNED  NOT NULL,
+     updated_by         BIGINT UNSIGNED  NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_s3_key (s3_key),
+     INDEX idx_doc_module (module_reference, uploaded_at),
+     INDEX idx_doc_uploader (uploaded_by, uploaded_at)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   3.2 PER-MODULE JUNCTION TABLES
+
+   -- Temple documents
+   CREATE TABLE temple_documents (
+     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     temple_id     BIGINT UNSIGNED NOT NULL,
+     document_id   BIGINT UNSIGNED NOT NULL,
+     document_type VARCHAR(100)    NOT NULL,
+     created_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                               ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by    BIGINT UNSIGNED NOT NULL,
+     updated_by    BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_temple_doc (temple_id, document_id),
+     CONSTRAINT fk_td_temple   FOREIGN KEY (temple_id)   REFERENCES temples(id),
+     CONSTRAINT fk_td_document FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Trust documents
+   CREATE TABLE trust_documents (
+     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     trust_id      BIGINT UNSIGNED NOT NULL,
+     document_id   BIGINT UNSIGNED NOT NULL,
+     document_type VARCHAR(100)    NOT NULL,
+     created_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                               ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by    BIGINT UNSIGNED NOT NULL,
+     updated_by    BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_trust_doc (trust_id, document_id),
+     CONSTRAINT fk_trd_trust    FOREIGN KEY (trust_id)    REFERENCES trust_registrations(id),
+     CONSTRAINT fk_trd_document FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Employee documents
+   CREATE TABLE employee_documents (
+     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     employee_id   BIGINT UNSIGNED NOT NULL,
+     document_id   BIGINT UNSIGNED NOT NULL,
+     document_type VARCHAR(100)    NOT NULL,
+     created_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at    DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                               ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by    BIGINT UNSIGNED NOT NULL,
+     updated_by    BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_emp_doc (employee_id, document_id),
+     CONSTRAINT fk_ed_employee FOREIGN KEY (employee_id) REFERENCES employees(id),
+     CONSTRAINT fk_ed_document FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   -- Declaration documents
+   CREATE TABLE declaration_documents (
+     id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     declaration_id BIGINT UNSIGNED NOT NULL,
+     document_id    BIGINT UNSIGNED NOT NULL,
+     document_type  VARCHAR(100)    NOT NULL,
+     created_at     DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     updated_at     DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                ON UPDATE CURRENT_TIMESTAMP(6),
+     created_by     BIGINT UNSIGNED NOT NULL,
+     updated_by     BIGINT UNSIGNED NOT NULL,
+     PRIMARY KEY (id),
+     UNIQUE KEY uq_decl_doc (declaration_id, document_id),
+     CONSTRAINT fk_dd_declaration FOREIGN KEY (declaration_id)
+       REFERENCES asset_declarations(id),
+     CONSTRAINT fk_dd_document FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   Note: contractor_documents is defined in 05_contractor_schema.txt.
+
+   3.3 document_access_log - PRE-SIGNED URL AUDIT
+
+   CREATE TABLE document_access_log (
+     id                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+     document_id           BIGINT UNSIGNED NOT NULL,
+     accessed_by           BIGINT UNSIGNED NOT NULL,
+     accessed_at           DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+     ip_address            VARCHAR(45)     DEFAULT NULL,
+     presigned_url_expiry  DATETIME(6)     NOT NULL,
+     PRIMARY KEY (id),
+     INDEX idx_dal_document (document_id, accessed_at),
+     INDEX idx_dal_user (accessed_by, accessed_at),
+     CONSTRAINT fk_dal_document FOREIGN KEY (document_id) REFERENCES documents(id)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+   RULE: INSERT only. Written BEFORE the pre-signed URL is returned to caller.
+
+   3.4 STORAGE KEY / PATH STRUCTURE
+
+   Pattern: {module}/{temple_id}/{year_month}/{uuid}.pdf
+
+   Examples:
+     temple/42/2026-04/a1b2c3d4-e5f6-7890-abcd-ef1234567890.pdf
+     declaration/42/2026-04/b2c3d4e5-f6a7-8901-bcde-f12345678901.pdf
+     employee/42/2026-04/c3d4e5f6-a7b8-9012-cdef-123456789012.pdf
+
+   Rules:
+   - UUID v4 as filename (never use original filename as the storage key)
+   - All files under one root storage path per environment:
+       LOCAL DEV: ./uploads/ (relative to application working directory;
+                  configure via storage.root-path in application-local.yml)
+       PRODUCTION: private S3 bucket (trm-documents-prod or -staging)
+   - Access token TTL: 15 minutes maximum
+   - Never return raw storage paths or public file URLs to the client
+
+   3.5 UPLOAD PIPELINE (SERVER-SIDE VALIDATION)
+
+   Step 1: Receive multipart/form-data upload
+   Step 2: Read first 4 bytes (magic bytes) - must be: 25 50 44 46 (%PDF)
+   Step 3: Validate Content-Type header = application/pdf (secondary check)
+   Step 4: Validate file size <= 10,485,760 bytes (10 MB)
+   Step 5: Generate UUID key; delegate to StorageGateway.store(key, inputStream)
+   Step 6: Insert row into documents table
+   Step 7: Insert row into appropriate junction table
+   Step 8: Return document ID (not storage key) to frontend
+
+   StorageGateway interface (profile-switched implementation):
+
+     public interface StorageGateway {
+       void store(String key, InputStream data, long sizeBytes);
+       String generateAccessToken(String key);  // 15-min signed JWT or pre-signed URL
+       InputStream retrieve(String key);
+     }
+
+   LOCAL DEV IMPLEMENTATION (@Profile("local")):
+     - store(): writes file to {storage.root-path}/{key} creating parent
+       directories as needed
+     - generateAccessToken(): issues a 15-minute signed JWT containing the
+       key; the download endpoint verifies the JWT before serving the file
+       via ResponseEntity<Resource>
+     - retrieve(): reads from filesystem using Path.resolve(key)
+
+   PRODUCTION IMPLEMENTATION (@Profile("prod")):
+     - store(): PutObjectRequest to private S3 bucket
+     - generateAccessToken(): GeneratePresignedUrlRequest (TTL = 900 seconds)
+     - retrieve(): GetObjectRequest from S3 (used server-side only)
+
+   Download pipeline (both environments):
+   Step 1: Verify caller has permission to access this document_id
+             (join to junction table and verify temple_id / district_id scope)
+   Step 2: Generate access token (signed JWT locally; pre-signed URL in prod)
+   Step 3: Insert row into document_access_log
+   Step 4: Return access token/URL to client
+
+--------------------------------------------------------------------------------
+
+4. DECISIONS LOCKED
+
+   - MIME validation via magic bytes (server-side); reject on mismatch
+   - Storage key = UUID (never original filename)
+   - Access token TTL = 15 minutes maximum
+   - document_access_log written BEFORE token/URL is returned (not after)
+   - documents table retains the storage key even if document is "deleted"
+     (set a logical is_active flag; do not delete the row or the file)
+   - StorageGateway interface abstracts all file I/O;
+     LocalFileStorageGateway for dev, S3StorageGateway for production
+
+--------------------------------------------------------------------------------
+
+5. OPEN QUESTIONS
+
+   - Should file versioning be enabled (store multiple versions of same document)?
+   - Should virus scanning (ClamAV locally; AWS Macie in production) run on
+     uploaded PDFs?
+
+--------------------------------------------------------------------------------
+
+6. RISKS & EDGE CASES
+
+   - Access tokens (signed JWTs locally; pre-signed URLs in prod) can be
+     forwarded to an unauthorised party. The token itself is the credential.
+     Mitigate by short TTL (15 min) and access log monitoring.
+   - LOCAL DEV: ./uploads/ directory must not be served as a static resource
+     by any web server or IDE tool. Caddy/nginx must NOT alias this directory.
+     The only access path is through the download endpoint after JWT validation.
+   - PRODUCTION: S3 bucket ACL must be private + Block Public Access enabled
+     at bucket and account level.
+
+--------------------------------------------------------------------------------
+
+7. ASSUMPTIONS
+
+   LOCAL DEVELOPMENT:
+   - storage.root-path is configured in application-local.yml (e.g. ./uploads)
+   - The uploads directory is excluded from git via .gitignore
+   - Signed download JWT uses the same RS256 private key as the auth JWT
+     (separate claim: "purpose": "document_download", "key": "<storage-key>")
+
+   PRODUCTION:
+   - One S3 bucket per environment (prod, staging) with consistent naming
+   - All documents are PDFs; no image or video uploads in scope for v1
+   - document_access_log is append-only; no archival needed for v1
