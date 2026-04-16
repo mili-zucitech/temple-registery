@@ -47,6 +47,18 @@ public interface TempleSearchSummaryRepository extends JpaRepository<TempleSearc
     java.util.List<Object[]> countByGradeForDistrict(Long districtId);
 
     /**
+     * Taluk distribution for a district — returns [talukId, count] pairs (talukId may be null).
+     */
+    @Query("SELECT tss.talukId, COUNT(tss) FROM TempleSearchSummary tss WHERE (:districtId IS NULL OR tss.districtId = :districtId) GROUP BY tss.talukId ORDER BY COUNT(tss) DESC")
+    java.util.List<Object[]> countByTalukForDistrict(Long districtId);
+
+    /**
+     * District distribution (SUPER_ADMIN all-district view) — returns [districtId, count] pairs.
+     */
+    @Query("SELECT tss.districtId, COUNT(tss) FROM TempleSearchSummary tss GROUP BY tss.districtId ORDER BY COUNT(tss) DESC")
+    java.util.List<Object[]> countByDistrict();
+
+    /**
      * Count temples without any approved declaration (hasApprovedDeclaration = false).
      * Used by DcDashboardService KPI: templesWithoutApprovedDeclaration.
      */

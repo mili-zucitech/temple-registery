@@ -11,8 +11,8 @@ export const declarationApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Declaration'],
   endpoints: (builder) => ({
-    listAllDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { page?: number; size?: number; status?: string }>({
-      query: ({ page = 0, size = 10, status }) => ({ url: '/dc/declarations', params: { page, size, status } }),
+    listAllDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { page?: number; size?: number; status?: string; financialYear?: string }>({
+      query: ({ page = 0, size = 10, status, financialYear }) => ({ url: '/dc/declarations', params: { page, size, status, financialYear } }),
       providesTags: ['Declaration'],
     }),
     listDeclarations: builder.query<ApiResponse<PaginatedResponse<DeclarationResponse>>, { templeId: number; page?: number; size?: number }>({

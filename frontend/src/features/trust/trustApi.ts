@@ -12,7 +12,7 @@ export const trustApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Trust', 'BoardMember', 'TrustFinancial', 'BoardMeeting'],
   endpoints: (builder) => ({
-    getTrustByTemple: builder.query<ApiResponse<TrustResponse[]>, number>({
+    getTrustByTemple: builder.query<ApiResponse<TrustResponse>, number>({
       query: (templeId) => `/temples/${templeId}/trusts`,
       providesTags: (_r, _e, templeId) => [{ type: 'Trust', id: templeId }],
     }),
@@ -23,10 +23,6 @@ export const trustApi = createApi({
     updateTrust: builder.mutation<ApiResponse<TrustResponse>, { trustId: number; body: Partial<CreateTrustRequest> }>({
       query: ({ trustId, body }) => ({ url: `/trusts/${trustId}`, method: 'PUT', body }),
       invalidatesTags: ['Trust'],
-    }),
-    submitTrustForReview: builder.mutation<ApiResponse<TrustResponse>, { trustId: number }>({
-      query: ({ trustId }) => ({ url: `/trusts/${trustId}/submit-for-review`, method: 'PUT' }),
-      invalidatesTags: (_r, _e, { trustId }) => [{ type: 'Trust', id: trustId }, { type: 'BoardMember', id: trustId }],
     }),
 
     // ── Board Members ─────────────────────────────────────────────────────────
@@ -73,7 +69,7 @@ export const trustApi = createApi({
 })
 
 export const {
-  useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation, useSubmitTrustForReviewMutation,
+  useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation,
   useGetBoardMembersQuery, useAddBoardMemberMutation, useUpdateBoardMemberMutation,
   useListFinancialsQuery, useSubmitFinancialMutation,
   useListBoardMeetingsQuery, useGetBoardMeetingQuery, useCreateBoardMeetingMutation,

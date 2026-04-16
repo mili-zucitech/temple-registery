@@ -9,7 +9,9 @@ import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.admin.AdminService;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +32,7 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TempleSearchSummaryService searchSummaryService;
+    private final AuditService auditService;
     private final PaginationUtil paginationUtil;
 
     @Override
@@ -62,7 +66,10 @@ public class AdminServiceImpl implements AdminService {
                 .fullName(rq.getFullName()).mobile(rq.getMobile())
                 .role(rq.getRole()).districtId(rq.getDistrictId()).templeId(rq.getTempleId())
                 .isActive(true).build();
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "CREATE_USER",
+                "User", saved.getId(), "Created user: " + saved.getUsername());
+        return toResponse(saved);
     }
 
     @Override
@@ -72,12 +79,21 @@ public class AdminServiceImpl implements AdminService {
         User user = findOrThrow(id);
         if (rq.getEmail() != null) user.setEmail(rq.getEmail());
         if (rq.getFullName() != null) user.setFullName(rq.getFullName());
+        if (rq.getPassword() != null && !rq.getPassword().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(rq.getPassword()));
+            log.info("Password reset for user [{}]", id);
+            auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "RESET_PASSWORD",
+                    "User", id, "Password reset by admin");
+        }
         if (rq.getMobile() != null) user.setMobile(rq.getMobile());
         if (rq.getRole() != null) user.setRole(rq.getRole());
         if (rq.getActive() != null) user.setActive(rq.getActive());
         if (rq.getDistrictId() != null) user.setDistrictId(rq.getDistrictId());
         if (rq.getTempleId() != null) user.setTempleId(rq.getTempleId());
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "UPDATE_USER",
+                "User", id, "Updated user details");
+        return toResponse(saved);
     }
 
     @Override
@@ -87,6 +103,8 @@ public class AdminServiceImpl implements AdminService {
         User user = findOrThrow(id);
         user.setActive(false);
         userRepository.save(user);
+        auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "DEACTIVATE_USER",
+                "User", id, "Deactivated user");
         log.info("User [{}] deactivated.", id);
     }
 
@@ -97,6 +115,8 @@ public class AdminServiceImpl implements AdminService {
         User user = findOrThrow(id);
         user.setActive(true);
         userRepository.save(user);
+        auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "ACTIVATE_USER",
+                "User", id, "Activated user");
         log.info("User [{}] activated.", id);
     }
 
@@ -104,6 +124,16 @@ public class AdminServiceImpl implements AdminService {
     @PreAuthorize(RoleConstants.ADMIN_ONLY)
     public void rebuildSearchSummary() {
         searchSummaryService.rebuildAll();
+        auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "REBUILD_SEARCH_SUMMARY",
+                "System", 0L, "Triggered manual rebuild");
+    }
+
+    private Long currentActorId() {
+        var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims) {
+            return ((ScopeHelper.Claims) principal).getUserId();
+        }
+        return 0L;
     }
 
     private User findOrThrow(Long id) {

@@ -43,6 +43,10 @@ export const documentApi = createApi({
 })
 
 export const {
-  useListDocumentsQuery, useGetDocumentByIdQuery, useGetDocumentUrlQuery,
-  useUploadDocumentMutation, useSoftDeleteDocumentMutation,
+  useListDocumentsQuery,
+  useGetDocumentByIdQuery,
+  useGetDocumentUrlQuery,
+  useLazyGetDocumentUrlQuery,
+  useUploadDocumentMutation,
+  useSoftDeleteDocumentMutation,
 } = documentApi

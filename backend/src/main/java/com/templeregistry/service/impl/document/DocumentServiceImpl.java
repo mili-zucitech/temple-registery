@@ -3,10 +3,13 @@ package com.templeregistry.service.impl.document;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.document.DocumentResponse;
 import com.templeregistry.dto.response.document.DocumentUrlResponse;
+import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.document.Document;
 import com.templeregistry.entity.document.DocumentAccessLog;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.FileValidationException;
+import com.templeregistry.exception.ImmutableResourceException;
+import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.document.DocumentAccessLogRepository;
 import com.templeregistry.repository.document.DocumentRepository;
 import com.templeregistry.security.ScopeHelper;
@@ -38,6 +41,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentAccessLogRepository accessLogRepository;
     private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
+    private final DeclarationRepository declarationRepository;
 
     @Override
     @Transactional
@@ -85,38 +89,16 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public void softDelete(Long id) {
-        findOrThrow(id);
+        Document doc = findOrThrow(id);
+        if ("DECLARATION".equalsIgnoreCase(doc.getOwnerType()) && doc.getReferenceId() != null) {
+            declarationRepository.findById(doc.getReferenceId()).ifPresent(d -> {
+                if (d.getStatus() == DeclarationStatus.APPROVED) {
+                    throw new ImmutableResourceException(
+                            "Documents attached to an APPROVED declaration cannot be removed.");
+                }
+            });
+        }
         documentRepository.deleteById(id); // @SQLDelete intercepts → UPDATE is_deleted = true
-    }
-
-    @Override
-    @Transactional
-    public DocumentResponse registerExternalUpload(String ownerType, Long ownerId, String label,
-                                                    String s3Key, String mimeType,
-                                                    long fileSizeBytes, String originalFilename) {
-        validateExternalUpload(mimeType, fileSizeBytes);
-        Document doc = Document.builder()
-                .ownerType(ownerType).ownerId(ownerId).referenceId(null)
-                .originalFilename(originalFilename)
-                .s3Key(s3Key).mimeType(mimeType)
-                .fileSizeBytes(fileSizeBytes).documentLabel(label).build();
-        Document saved = documentRepository.save(doc);
-        log.info("External document registered: id=[{}] owner=[{}/{}]", saved.getId(), ownerType, ownerId);
-        return toResponse(saved);
-    }
-
-    private void validateExternalUpload(String mimeType, long fileSizeBytes) {
-        if (!ALLOWED_MIME.contains(mimeType)) {
-            throw new FileValidationException("Unsupported file type. Allowed: PDF, JPEG, PNG.");
-        }
-        // Document uploads for TA are max 10 MB (VAL-005); photo uploads are max 5 MB (VAL-006)
-        long maxDocumentBytes = 10 * 1024 * 1024L;
-        if (fileSizeBytes > maxDocumentBytes) {
-            throw new FileValidationException("File exceeds maximum allowed size of 10 MB.");
-        }
-        if (fileSizeBytes <= 0) {
-            throw new FileValidationException("File size must be positive.");
-        }
     }
 
     private void validateFile(MultipartFile file) {
