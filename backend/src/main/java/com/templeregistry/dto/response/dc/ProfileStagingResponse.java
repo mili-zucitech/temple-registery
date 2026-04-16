@@ -22,7 +22,7 @@ public class ProfileStagingResponse {
     private String contactPersonName;
     private String contactPersonDesignation;
     private String photoFilePath;
-    private String languagesOfWorship;
+    private java.util.List<String> languagesOfWorship;
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;

@@ -194,12 +194,54 @@ class TaDashboardServiceImplTest {
     // ─── Current profile ──────────────────────────────────────────────────────
 
     @Test
-    void should_returnNullCurrentProfile_when_noApprovedProfileExists() {
-        when(currentRepository.findByTempleId(TEMPLE_ID)).thenReturn(Optional.empty());
+    void should_returnCurrentProfileWithAllFields_when_approvedProfileExists() {
+        TempleProfileCurrent current = TempleProfileCurrent.builder()
+                .id(1L)
+                .templeId(TEMPLE_ID)
+                .phone("9876543210")
+                .email("temple@example.com")
+                .website("https://temple.org")
+                .contactPersonName("Rama Rao")
+                .contactPersonDesignation("Executive Officer")
+                .photoFilePath("temple-photos/profile.jpg")
+                .bankName("State Bank of India")
+                .bankIfsc("SBIN0001234")
+                .bankAccountNumberEncrypted("123456789012")
+                .languagesOfWorship("Kannada, Sanskrit")
+                .linkedInstitutions("[\"Sub Mutt 1\", \"Sub Mutt 2\"]")
+                .description("Ancient temple dedicated to Lord Venkateswara")
+                .annualFestivals("Brahmotsavam")
+                .landmark("Near Main Road")
+                .historicalSignificance("Legend says it was built by King...")
+                .publishedAt(LocalDateTime.now())
+                .build();
+
+        when(currentRepository.findByTempleId(TEMPLE_ID)).thenReturn(Optional.of(current));
+        when(templeMapper.mapToList(anyString())).thenAnswer(invocation -> {
+            String val = invocation.getArgument(0);
+            if (val == null) return null;
+            if (val.startsWith("[")) return java.util.Arrays.asList("Sub Mutt 1", "Sub Mutt 2");
+            return java.util.Arrays.asList(val.split(", "));
+        });
 
         TaCurrentProfileResponse result = taDashboardService.getCurrentProfile(claims);
 
-        assertThat(result).isNull();
+        assertThat(result).isNotNull();
+        assertThat(result.getPhone()).isEqualTo("9876543210");
+        assertThat(result.getEmail()).isEqualTo("temple@example.com");
+        assertThat(result.getWebsite()).isEqualTo("https://temple.org");
+        assertThat(result.getContactPersonName()).isEqualTo("Rama Rao");
+        assertThat(result.getContactPersonDesignation()).isEqualTo("Executive Officer");
+        assertThat(result.getPhotoFilePath()).isEqualTo("temple-photos/profile.jpg");
+        assertThat(result.getBankName()).isEqualTo("State Bank of India");
+        assertThat(result.getBankIfsc()).isEqualTo("SBIN0001234");
+        assertThat(result.getBankAccountMasked()).isEqualTo("****9012");
+        assertThat(result.getLanguagesOfWorship()).containsExactly("Kannada", "Sanskrit");
+        assertThat(result.getLinkedInstitutions()).containsExactly("Sub Mutt 1", "Sub Mutt 2");
+        assertThat(result.getDescription()).isEqualTo("Ancient temple dedicated to Lord Venkateswara");
+        assertThat(result.getAnnualFestivals()).isEqualTo("Brahmotsavam");
+        assertThat(result.getLandmark()).isEqualTo("Near Main Road");
+        assertThat(result.getHistoricalSignificance()).isEqualTo("Legend says it was built by King...");
     }
 
     @Test

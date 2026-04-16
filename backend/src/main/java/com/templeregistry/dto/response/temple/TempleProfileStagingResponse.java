@@ -33,15 +33,19 @@ public class TempleProfileStagingResponse {
 
     private String bankName;
     private String bankIfsc;
-    private String languagesOfWorship;
-    private String linkedInstitutions;
+    private java.util.List<String> languagesOfWorship;
+    private java.util.List<String> linkedInstitutions;
     private String description;
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;
     private String reviewComment;
     private LocalDateTime submittedAt;
+    private Long submittedBy;
     private LocalDateTime reviewedAt;
+    private Long reviewedBy;
     private LocalDateTime createdAt;
+    private Long createdBy;
     private LocalDateTime updatedAt;
+    private Long updatedBy;
 }

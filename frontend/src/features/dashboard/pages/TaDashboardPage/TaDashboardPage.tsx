@@ -20,8 +20,6 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type ChecklistStatus = 'complete' | 'pending' | 'rejected' | 'incomplete'
 
 interface ChecklistItem {
@@ -31,26 +29,22 @@ interface ChecklistItem {
   to: string
 }
 
-// ─── Animation variants ───────────────────────────────────────────────────────
-
 const fadeUp = {
   hidden: { opacity: 0, y: 10 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.35 } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 }
 const stagger = {
   hidden: {},
-  show:   { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.07 } },
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function lastSixMonths() {
   return Array.from({ length: 6 }, (_, i) => {
     const d = new Date()
     d.setMonth(d.getMonth() - (5 - i))
     return {
-      label:    d.toLocaleString('en-IN', { month: 'short' }),
-      year:     d.getFullYear(),
+      label: d.toLocaleString('en-IN', { month: 'short' }),
+      year: d.getFullYear(),
       monthIdx: d.getMonth(),
     }
   })
@@ -62,8 +56,6 @@ function fmtDate(iso: string | undefined) {
     day: '2-digit', month: 'short', year: 'numeric',
   })
 }
-
-// ─── Custom recharts tooltip ──────────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, label }: {
   active?: boolean
@@ -81,28 +73,24 @@ function ChartTooltip({ active, payload, label }: {
   )
 }
 
-// ─── Status icon ──────────────────────────────────────────────────────────────
-
 function StatusIcon({ status }: { status: ChecklistStatus }) {
   switch (status) {
-    case 'complete':   return <CheckCircle2 size={18} className="text-success flex-shrink-0" />
-    case 'pending':    return <Clock        size={18} className="text-warning flex-shrink-0" />
-    case 'rejected':   return <XCircle      size={18} className="text-destructive flex-shrink-0" />
-    default:           return <AlertTriangle size={18} className="text-muted-foreground flex-shrink-0" />
+    case 'complete': return <CheckCircle2 size={18} className="text-success flex-shrink-0" />
+    case 'pending': return <Clock size={18} className="text-warning flex-shrink-0" />
+    case 'rejected': return <XCircle size={18} className="text-destructive flex-shrink-0" />
+    default: return <AlertTriangle size={18} className="text-muted-foreground flex-shrink-0" />
   }
 }
 
 const BADGE_CLS: Record<ChecklistStatus, string> = {
-  complete:   'bg-success/10 text-success border-success/20',
-  pending:    'bg-warning/10 text-warning border-warning/20',
-  rejected:   'bg-destructive/10 text-destructive border-destructive/20',
+  complete: 'bg-success/10 text-success border-success/20',
+  pending: 'bg-warning/10 text-warning border-warning/20',
+  rejected: 'bg-destructive/10 text-destructive border-destructive/20',
   incomplete: 'bg-muted text-muted-foreground border-border',
 }
 const BADGE_LBL: Record<ChecklistStatus, string> = {
   complete: 'Complete', pending: 'Pending', rejected: 'Rejected', incomplete: 'Incomplete',
 }
-
-// ─── Quick Action tile ────────────────────────────────────────────────────────
 
 function QuickAction({
   label, sub, icon, to, bg, fg, iconBg, border, shine,
@@ -127,14 +115,11 @@ function QuickAction({
         bg, border,
       )}
     >
-      {/* Blurred shine orb */}
       <div className={cn(
         'absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-0 group-hover:opacity-60 transition-opacity duration-300 blur-md',
         shine,
       )} />
-      {/* White shimmer sweep */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/35 via-transparent to-transparent dark:from-white/8 pointer-events-none" />
-      {/* Icon + arrow row */}
       <div className="relative flex items-start justify-between">
         <span className={cn(
           'flex h-11 w-11 items-center justify-center rounded-xl flex-shrink-0 shadow-sm ring-1 ring-inset ring-black/[0.06]',
@@ -150,7 +135,6 @@ function QuickAction({
           <ChevronRight size={12} />
         </span>
       </div>
-      {/* Text */}
       <div className="relative">
         <p className={cn('text-sm font-bold leading-tight', fg)}>{label}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{sub}</p>
@@ -158,8 +142,6 @@ function QuickAction({
     </button>
   )
 }
-
-// ─── Page skeleton ────────────────────────────────────────────────────────────
 
 function DashboardSkeleton() {
   return (
@@ -184,18 +166,17 @@ function DashboardSkeleton() {
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export function TaDashboardPage() {
   const navigate = useNavigate()
 
-  const { data: userData, isLoading: userLoading }     = useGetCurrentUserQuery()
-  const user      = userData?.data
+  const { data: userData, isLoading: userLoading } = useGetCurrentUserQuery()
+  const user = userData?.data
   const checklist = user?.completionChecklist
-  const templeId  = user?.templeId
+  const templeId = user?.templeId
 
   const { data: templeData, isLoading: templeLoading } = useGetTempleByIdQuery(
-    templeId!, { skip: !templeId },
+    templeId!,
+    { skip: !templeId },
   )
   const temple = templeData?.data
 
@@ -203,7 +184,7 @@ export function TaDashboardPage() {
     { templeId: templeId!, page: 0, size: DEFAULT_PAGE_SIZE },
     { skip: !templeId },
   )
-  const declarations      = declData?.data?.content ?? []
+  const declarations = declData?.data?.content ?? []
   const totalDeclarations = declData?.data?.totalElements ?? 0
   const latestDeclaration = declarations[0]
 
@@ -212,17 +193,16 @@ export function TaDashboardPage() {
 
   const isLoading = userLoading || templeLoading || declLoading
 
-  // ── Compliance checklist items ─────────────────────────────────────────────
   const checklistItems: ChecklistItem[] = [
     {
       label: 'Temple Profile',
-      sub: checklist?.templeProfileStatus === 'APPROVED'  ? 'Approved by District Collector'
-         : checklist?.templeProfileStatus === 'SUBMITTED' ? 'Under DC review'
-         : checklist?.templeProfileStatus                 ? `Status: ${checklist.templeProfileStatus}`
-         : 'Not submitted yet',
-      status: checklist?.templeProfileStatus === 'APPROVED'  ? 'complete'
-            : checklist?.templeProfileStatus === 'SUBMITTED' ? 'pending'
-            : checklist?.templeProfileStatus === 'REJECTED'  ? 'rejected'
+      sub: checklist?.templeProfileStatus === 'APPROVED' ? 'Approved by District Collector'
+        : checklist?.templeProfileStatus === 'SUBMITTED' ? 'Under DC review'
+          : checklist?.templeProfileStatus ? `Status: ${checklist.templeProfileStatus}`
+            : 'Not submitted yet',
+      status: checklist?.templeProfileStatus === 'APPROVED' ? 'complete'
+        : checklist?.templeProfileStatus === 'SUBMITTED' ? 'pending'
+          : checklist?.templeProfileStatus === 'REJECTED' ? 'rejected'
             : 'incomplete',
       to: ROUTE_PATHS.TA_TEMPLE,
     },
@@ -235,11 +215,11 @@ export function TaDashboardPage() {
     {
       label: 'Asset Declaration (FY 25-26)',
       sub: latestDeclaration
-        ? `Status: ${latestDeclaration.status}${latestDeclaration.submittedAt ? ' · ' + fmtDate(latestDeclaration.submittedAt) : ''}`
+        ? `Status: ${latestDeclaration.status}${latestDeclaration.submittedAt ? ` · ${fmtDate(latestDeclaration.submittedAt)}` : ''}`
         : 'Not filed',
       status: latestDeclaration?.status === 'APPROVED' ? 'complete'
-            : (latestDeclaration?.status === 'SUBMITTED' || latestDeclaration?.status === 'CLARIFICATION_REQUESTED') ? 'pending'
-            : latestDeclaration?.status === 'REJECTED'  ? 'rejected'
+        : (latestDeclaration?.status === 'SUBMITTED' || latestDeclaration?.status === 'CLARIFICATION_REQUESTED') ? 'pending'
+          : latestDeclaration?.status === 'REJECTED' ? 'rejected'
             : 'incomplete',
       to: ROUTE_PATHS.TA_DECLARATIONS,
     },
@@ -257,19 +237,17 @@ export function TaDashboardPage() {
     },
   ]
 
-  const completedCount = checklistItems.filter(i => i.status === 'complete').length
-  const completionPct  = Math.round((completedCount / checklistItems.length) * 100)
+  const completedCount = checklistItems.filter((i) => i.status === 'complete').length
+  const completionPct = Math.round((completedCount / checklistItems.length) * 100)
 
-  // ── Declaration status counts ──────────────────────────────────────────────
-  const approvedCount = declarations.filter(d => d.status === 'APPROVED').length
-  const pendingCount  = declarations.filter(d => d.status === 'SUBMITTED' || d.status === 'CLARIFICATION_REQUESTED').length
-  const rejectedCount = declarations.filter(d => d.status === 'REJECTED').length
-  const draftCount    = declarations.filter(d => d.status === 'DRAFT').length
+  const approvedCount = declarations.filter((d) => d.status === 'APPROVED').length
+  const pendingCount = declarations.filter((d) => d.status === 'SUBMITTED' || d.status === 'CLARIFICATION_REQUESTED').length
+  const rejectedCount = declarations.filter((d) => d.status === 'REJECTED').length
+  const draftCount = declarations.filter((d) => d.status === 'DRAFT').length
 
-  // ── Chart data — last 6 months ─────────────────────────────────────────────
   const chartData = lastSixMonths().map(({ label, year, monthIdx }) => ({
     month: label,
-    count: declarations.filter(d => {
+    count: declarations.filter((d) => {
       if (!d.submittedAt) return false
       const dt = new Date(d.submittedAt)
       return dt.getFullYear() === year && dt.getMonth() === monthIdx
@@ -280,14 +258,11 @@ export function TaDashboardPage() {
 
   return (
     <motion.div className="space-y-5" initial="hidden" animate="show" variants={stagger}>
-
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <motion.div variants={fadeUp}>
         <div className="relative overflow-hidden rounded-xl bg-gradient-gold px-5 py-3.5 shadow-gold">
           <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15 pointer-events-none" />
           <div className="absolute right-20 -bottom-10 h-28 w-28 rounded-full bg-white/10 pointer-events-none" />
           <div className="relative flex items-center justify-between gap-4">
-            {/* Left: identity */}
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 border border-white/30 backdrop-blur-sm">
                 <Building2 size={20} className="text-white" />
@@ -320,17 +295,16 @@ export function TaDashboardPage() {
                 <p className="text-[11px] text-white/70 mt-0.5 truncate">
                   Reg. No: KA-{(temple?.districtId ?? 0).toString().padStart(3, '0')}-{new Date().getFullYear()}-{(temple?.id ?? 0).toString().padStart(5, '0')}
                   {temple?.tradition && ` · ${temple.tradition.charAt(0) + temple.tradition.slice(1).toLowerCase()} Tradition`}
-                  {temple?.city && ` · `}
-                  {temple?.city && (
+                  {temple?.villageTown && ' · '}
+                  {temple?.villageTown && (
                     <span className="inline-flex items-center gap-0.5">
-                      <MapPin size={10} className="inline" />{temple.city}
+                      <MapPin size={10} className="inline" />{temple.villageTown}
                     </span>
                   )}
                 </p>
               </div>
             </div>
 
-            {/* Right: completion + edit */}
             <div className="flex-shrink-0 py-3 flex items-center gap-3">
               <div className="hidden sm:flex flex-col items-end gap-1.5">
                 <div className="flex items-center gap-2">
@@ -356,7 +330,6 @@ export function TaDashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── KPI STRIP ────────────────────────────────────────────────────── */}
       <motion.div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" variants={stagger}>
         {([
           {
@@ -395,7 +368,7 @@ export function TaDashboardPage() {
             accentBar: 'bg-accent',
             sub: 'Service providers',
           },
-        ] as const).map(card => (
+        ] as const).map((card) => (
           <motion.div
             key={card.label}
             variants={fadeUp}
@@ -414,26 +387,22 @@ export function TaDashboardPage() {
         ))}
       </motion.div>
 
-      {/* ── QUICK ACTIONS ────────────────────────────────────────────────── */}
       <motion.div variants={fadeUp} className="rounded-2xl border border-border bg-card px-5 pt-4 pb-5 shadow-soft-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-foreground">Quick Actions</h2>
           <span className="text-[11px] text-muted-foreground">6 actions available</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <QuickAction label="Update Profile"   sub="Edit temple details"   icon={<Pencil size={17} />}        to={ROUTE_PATHS.TA_TEMPLE}          bg="bg-orange-50 dark:bg-orange-950/30"  fg="text-orange-600 dark:text-orange-400"  iconBg="bg-orange-100 dark:bg-orange-900/50"  border="border-orange-200 dark:border-orange-800"  shine="bg-orange-200" />
-          <QuickAction label="Submit Assets"    sub="Annual declaration"    icon={<ClipboardList size={17} />} to={ROUTE_PATHS.TA_DECLARATION_NEW} bg="bg-emerald-50 dark:bg-emerald-950/30" fg="text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-100 dark:bg-emerald-900/50" border="border-emerald-200 dark:border-emerald-800" shine="bg-emerald-200" />
-          <QuickAction label="Manage Staff"     sub="Employees & priests"   icon={<Users size={17} />}         to={ROUTE_PATHS.TA_EMPLOYEES}       bg="bg-sky-50 dark:bg-sky-950/30"        fg="text-sky-600 dark:text-sky-400"        iconBg="bg-sky-100 dark:bg-sky-900/50"        border="border-sky-200 dark:border-sky-800"        shine="bg-sky-200" />
-          <QuickAction label="Trust Details"    sub="Board & registration"  icon={<Shield size={17} />}        to={ROUTE_PATHS.TA_TRUST}           bg="bg-violet-50 dark:bg-violet-950/30"  fg="text-violet-600 dark:text-violet-400"  iconBg="bg-violet-100 dark:bg-violet-900/50"  border="border-violet-200 dark:border-violet-800"  shine="bg-violet-200" />
-          <QuickAction label="Upload Documents" sub="Files & photos"        icon={<Download size={17} />}      to={ROUTE_PATHS.TA_DOCUMENTS}       bg="bg-amber-50 dark:bg-amber-950/30"    fg="text-amber-600 dark:text-amber-400"    iconBg="bg-amber-100 dark:bg-amber-900/50"    border="border-amber-200 dark:border-amber-800"    shine="bg-amber-200" />
-          <QuickAction label="View Compliance"  sub="Audit & checklist"     icon={<FileText size={17} />}      to={ROUTE_PATHS.TA_PROFILE_STATUS}  bg="bg-rose-50 dark:bg-rose-950/30"      fg="text-rose-600 dark:text-rose-400"      iconBg="bg-rose-100 dark:bg-rose-900/50"      border="border-rose-200 dark:border-rose-800"      shine="bg-rose-200" />
+          <QuickAction label="Update Profile" sub="Edit temple details" icon={<Pencil size={17} />} to={ROUTE_PATHS.TA_TEMPLE} bg="bg-orange-50 dark:bg-orange-950/30" fg="text-orange-600 dark:text-orange-400" iconBg="bg-orange-100 dark:bg-orange-900/50" border="border-orange-200 dark:border-orange-800" shine="bg-orange-200" />
+          <QuickAction label="Submit Assets" sub="Annual declaration" icon={<ClipboardList size={17} />} to={ROUTE_PATHS.TA_DECLARATION_NEW} bg="bg-emerald-50 dark:bg-emerald-950/30" fg="text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-100 dark:bg-emerald-900/50" border="border-emerald-200 dark:border-emerald-800" shine="bg-emerald-200" />
+          <QuickAction label="Manage Staff" sub="Employees & priests" icon={<Users size={17} />} to={ROUTE_PATHS.TA_EMPLOYEES} bg="bg-sky-50 dark:bg-sky-950/30" fg="text-sky-600 dark:text-sky-400" iconBg="bg-sky-100 dark:bg-sky-900/50" border="border-sky-200 dark:border-sky-800" shine="bg-sky-200" />
+          <QuickAction label="Trust Details" sub="Board & registration" icon={<Shield size={17} />} to={ROUTE_PATHS.TA_TRUST} bg="bg-violet-50 dark:bg-violet-950/30" fg="text-violet-600 dark:text-violet-400" iconBg="bg-violet-100 dark:bg-violet-900/50" border="border-violet-200 dark:border-violet-800" shine="bg-violet-200" />
+          <QuickAction label="Upload Documents" sub="Files & photos" icon={<Download size={17} />} to={ROUTE_PATHS.TA_DOCUMENTS} bg="bg-amber-50 dark:bg-amber-950/30" fg="text-amber-600 dark:text-amber-400" iconBg="bg-amber-100 dark:bg-amber-900/50" border="border-amber-200 dark:border-amber-800" shine="bg-amber-200" />
+          <QuickAction label="View Compliance" sub="Audit & checklist" icon={<FileText size={17} />} to={ROUTE_PATHS.TA_PROFILE_STATUS} bg="bg-rose-50 dark:bg-rose-950/30" fg="text-rose-600 dark:text-rose-400" iconBg="bg-rose-100 dark:bg-rose-900/50" border="border-rose-200 dark:border-rose-800" shine="bg-rose-200" />
         </div>
       </motion.div>
 
-      {/* ── DECLARATION CHART + WORKFORCE ──────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-
-        {/* Declaration history bar chart */}
         <motion.div variants={fadeUp} className="lg:col-span-7 rounded-2xl border border-border bg-card p-5 shadow-soft-sm">
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -445,14 +414,13 @@ export function TaDashboardPage() {
             </span>
           </div>
 
-          {/* Micro-stats row */}
           <div className="flex items-center gap-5 pb-4 mb-4 border-b border-border">
             {[
-              { label: 'Total',    value: totalDeclarations, cls: 'text-foreground' },
-              { label: 'Approved', value: approvedCount,     cls: 'text-success' },
-              { label: 'Pending',  value: pendingCount,      cls: 'text-warning' },
-              { label: 'Drafts',   value: draftCount,        cls: 'text-muted-foreground' },
-            ].map(s => (
+              { label: 'Total', value: totalDeclarations, cls: 'text-foreground' },
+              { label: 'Approved', value: approvedCount, cls: 'text-success' },
+              { label: 'Pending', value: pendingCount, cls: 'text-warning' },
+              { label: 'Drafts', value: draftCount, cls: 'text-muted-foreground' },
+            ].map((s) => (
               <div key={s.label}>
                 <p className="text-[11px] text-muted-foreground">{s.label}</p>
                 <p className={cn('text-base font-bold', s.cls)}>{s.value}</p>
@@ -467,12 +435,15 @@ export function TaDashboardPage() {
                 <XAxis
                   dataKey="month"
                   tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  axisLine={false} tickLine={false}
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  axisLine={false} tickLine={false} width={24}
+                  axisLine={false}
+                  tickLine={false}
+                  width={24}
                 />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
                 <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
@@ -492,7 +463,6 @@ export function TaDashboardPage() {
           </div>
         </motion.div>
 
-        {/* Staff & Employees panel */}
         <motion.div variants={fadeUp} className="lg:col-span-5 rounded-2xl border border-border bg-card p-5 shadow-soft-sm">
           <h2 className="text-sm font-bold text-foreground">Staff & Employees</h2>
           <p className="text-xs text-muted-foreground mt-0.5 mb-4">Current temple workforce</p>
@@ -508,10 +478,10 @@ export function TaDashboardPage() {
 
           <div className="space-y-2">
             {[
-              { label: 'Employees',           count: checklist?.employeeCount  ?? 0, bg: 'bg-primary/10', fg: 'text-primary', icon: <Users size={15} />,   to: ROUTE_PATHS.TA_EMPLOYEES   },
-              { label: 'Contractors',          count: checklist?.contractorCount ?? 0, bg: 'bg-accent/10',  fg: 'text-accent',  icon: <Wrench size={15} />,  to: ROUTE_PATHS.TA_CONTRACTORS },
-              { label: 'Trust Board Members',  count: checklist?.trustExists ? '—' : 0, bg: 'bg-info/10',    fg: 'text-info',    icon: <Shield size={15} />,  to: ROUTE_PATHS.TA_TRUST       },
-            ].map(row => (
+              { label: 'Employees', count: checklist?.employeeCount ?? 0, bg: 'bg-primary/10', fg: 'text-primary', icon: <Users size={15} />, to: ROUTE_PATHS.TA_EMPLOYEES },
+              { label: 'Contractors', count: checklist?.contractorCount ?? 0, bg: 'bg-accent/10', fg: 'text-accent', icon: <Wrench size={15} />, to: ROUTE_PATHS.TA_CONTRACTORS },
+              { label: 'Trust Board Members', count: checklist?.trustExists ? '—' : 0, bg: 'bg-info/10', fg: 'text-info', icon: <Shield size={15} />, to: ROUTE_PATHS.TA_TRUST },
+            ].map((row) => (
               <button
                 key={row.label}
                 onClick={() => navigate(row.to)}
@@ -528,7 +498,8 @@ export function TaDashboardPage() {
           </div>
 
           <Button
-            variant="outline" size="sm"
+            variant="outline"
+            size="sm"
             className="w-full mt-4 text-xs"
             onClick={() => navigate(ROUTE_PATHS.TA_EMPLOYEES)}
           >
@@ -537,10 +508,7 @@ export function TaDashboardPage() {
         </motion.div>
       </div>
 
-      {/* ── MY SUBMISSIONS + COMPLIANCE CHECKLIST ────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* My Submissions */}
         <motion.div variants={fadeUp} className="rounded-2xl border border-border bg-card shadow-soft-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <div className="flex items-center justify-between">
@@ -548,18 +516,18 @@ export function TaDashboardPage() {
                 <h2 className="text-sm font-bold text-foreground">My Submissions</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Track status of data submitted to DC office</p>
               </div>
-              {/* Status donut */}
               {totalDeclarations > 0 && (
                 <div className="relative flex-shrink-0">
                   <PieChart width={52} height={52}>
                     <Pie
                       data={[
                         { value: approvedCount || 0.01 },
-                        { value: pendingCount  || 0.01 },
+                        { value: pendingCount || 0.01 },
                         { value: rejectedCount || 0.01 },
-                        { value: draftCount    || 0.01 },
+                        { value: draftCount || 0.01 },
                       ]}
-                      cx={22} cy={22}
+                      cx={22}
+                      cy={22}
                       innerRadius={14}
                       outerRadius={24}
                       startAngle={90}
@@ -581,14 +549,13 @@ export function TaDashboardPage() {
             </div>
           </div>
 
-          {/* Summary strip */}
           <div className="grid grid-cols-4 border-b border-border">
             {[
               { label: 'Approved', count: approvedCount, cls: 'text-success bg-success/5' },
-              { label: 'Pending',  count: pendingCount,  cls: 'text-warning bg-warning/5' },
+              { label: 'Pending', count: pendingCount, cls: 'text-warning bg-warning/5' },
               { label: 'Rejected', count: rejectedCount, cls: 'text-destructive bg-destructive/5' },
-              { label: 'Drafts',   count: draftCount,    cls: 'text-muted-foreground bg-muted' },
-            ].map(item => (
+              { label: 'Drafts', count: draftCount, cls: 'text-muted-foreground bg-muted' },
+            ].map((item) => (
               <div
                 key={item.label}
                 className={cn('flex flex-col items-center justify-center py-3 border-r last:border-r-0 border-border', item.cls)}
@@ -610,12 +577,14 @@ export function TaDashboardPage() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {declarations.slice(0, 5).map(dec => {
-                const iconStatus: ChecklistStatus =
-                  dec.status === 'APPROVED'  ? 'complete' :
-                  dec.status === 'REJECTED'  ? 'rejected' :
-                  (dec.status === 'SUBMITTED' || dec.status === 'CLARIFICATION_REQUESTED') ? 'pending' :
-                  'incomplete'
+              {declarations.slice(0, 5).map((dec) => {
+                const iconStatus: ChecklistStatus = dec.status === 'APPROVED'
+                  ? 'complete'
+                  : dec.status === 'REJECTED'
+                    ? 'rejected'
+                    : (dec.status === 'SUBMITTED' || dec.status === 'CLARIFICATION_REQUESTED')
+                      ? 'pending'
+                      : 'incomplete'
                 return (
                   <button
                     key={dec.id}
@@ -627,7 +596,8 @@ export function TaDashboardPage() {
                       'bg-warning': iconStatus === 'pending',
                       'bg-destructive': iconStatus === 'rejected',
                       'bg-muted-foreground/30': iconStatus === 'incomplete',
-                    })} />
+                    })}
+                    />
                     <StatusIcon status={iconStatus} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">Declaration #{String(dec.id).padStart(4, '0')}</p>
@@ -653,7 +623,6 @@ export function TaDashboardPage() {
           )}
         </motion.div>
 
-        {/* Compliance Checklist */}
         <motion.div variants={fadeUp} className="rounded-2xl border border-border bg-card shadow-soft-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <div className="flex items-center justify-between">
@@ -661,7 +630,6 @@ export function TaDashboardPage() {
                 <h2 className="text-sm font-bold text-foreground">Compliance Checklist</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{completedCount}/{checklistItems.length} requirements met</p>
               </div>
-              {/* Donut chart showing completion */}
               <div className="relative flex-shrink-0">
                 <PieChart width={56} height={56}>
                   <Pie
@@ -669,7 +637,8 @@ export function TaDashboardPage() {
                       { value: completedCount },
                       { value: checklistItems.length - completedCount },
                     ]}
-                    cx={24} cy={24}
+                    cx={24}
+                    cy={24}
                     innerRadius={16}
                     outerRadius={26}
                     startAngle={90}
@@ -689,7 +658,7 @@ export function TaDashboardPage() {
           </div>
 
           <div className="divide-y divide-border">
-            {checklistItems.map(item => (
+            {checklistItems.map((item) => (
               <button
                 key={item.label}
                 onClick={() => navigate(item.to)}
@@ -700,7 +669,8 @@ export function TaDashboardPage() {
                   'bg-warning': item.status === 'pending',
                   'bg-destructive': item.status === 'rejected',
                   'bg-muted-foreground/30': item.status === 'incomplete',
-                })} />
+                })}
+                />
                 <StatusIcon status={item.status} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{item.label}</p>
@@ -719,7 +689,6 @@ export function TaDashboardPage() {
         </motion.div>
       </div>
 
-      {/* ── NOTICES & ALERTS ─────────────────────────────────────────────── */}
       <motion.div variants={fadeUp} className="rounded-2xl border border-border bg-card shadow-soft-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -751,7 +720,8 @@ export function TaDashboardPage() {
                 <div className={cn(
                   'absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full',
                   (!n.read || idx === 0) ? 'bg-destructive' : 'bg-primary/30',
-                )} />
+                )}
+                />
                 <div className={cn(
                   'mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
                   (!n.read || idx === 0) ? 'bg-destructive/10' : 'bg-primary/10',
@@ -776,9 +746,6 @@ export function TaDashboardPage() {
           </div>
         )}
       </motion.div>
-
     </motion.div>
   )
 }
-
-

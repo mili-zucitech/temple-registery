@@ -6,18 +6,21 @@ import type { ReactElement, ReactNode } from 'react'
 import { rootReducer } from '@/app/rootReducer'
 import { authApi } from '@/features/auth/authApi'
 import { declarationApi } from '@/features/declaration/declarationApi'
+import { trustApi } from '@/features/trust/trustApi'
+import { templeApi } from '@/features/temple/templeApi'
+import { employeeApi } from '@/features/employee/employeeApi'
 
-function buildTestStore(preloadedState?: Parameters<typeof configureStore>[0]['preloadedState']) {
+function buildTestStore(preloadedState?: any) {
   return configureStore({
     reducer: rootReducer,
     preloadedState,
     middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware().concat(authApi.middleware, declarationApi.middleware),
-  })
+      getDefaultMiddleware().concat(authApi.middleware, declarationApi.middleware, trustApi.middleware, templeApi.middleware, employeeApi.middleware),
+  }) as any
 }
 
 interface WrapperOptions extends Omit<RenderOptions, 'wrapper'> {
-  preloadedState?: Parameters<typeof buildTestStore>[0]
+  preloadedState?: any
   initialRoute?: string
 }
 
@@ -27,7 +30,7 @@ function Wrapper({
   initialRoute,
 }: {
   children: ReactNode
-  store: ReturnType<typeof buildTestStore>
+  store: any
   initialRoute: string
 }) {
   return (

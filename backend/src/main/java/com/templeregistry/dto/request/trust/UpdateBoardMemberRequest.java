@@ -1,39 +1,26 @@
 package com.templeregistry.dto.request.trust;
 
-import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import java.time.LocalDate;
-
-/**
- * Request body for updating an existing board member record.
- * Used to edit details or to mark a member as resigned.
- * tenureEndDate (cessation date) is required by VAL-014 when isCurrent transitions to false.
- */
 @Getter
+@Setter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class UpdateBoardMemberRequest {
-
+    @NotBlank(message = "Name is required")
+    @Size(max = 200)
     private String fullName;
+
+    @NotBlank(message = "Designation is required")
+    @Size(max = 150)
     private String designation;
-    private LocalDate appointmentDate;
+
+    @NotBlank(message = "Contact number is required")
+    @Pattern(regexp = "^[0-9]{10}$", message = "Invalid contact number format")
     private String contactNumber;
+
+    @NotBlank(message = "Address is required")
     private String address;
-
-    /**
-     * Set to false to mark the member as resigned/retired (historical).
-     * When false, tenureEndDate is mandatory (VAL-014).
-     */
-    private Boolean isCurrent;
-
-    /**
-     * Cessation date — mandatory when isCurrent = false (VAL-014).
-     * Maps to tenure_end_date column.
-     */
-    private LocalDate tenureEndDate;
 }

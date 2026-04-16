@@ -17,6 +17,7 @@ export const ROUTE_PATHS = {
   // Temple Authority
   TA_DASHBOARD: '/ta/dashboard',
   TA_TEMPLE: '/ta/temple',
+  TA_TEMPLE_EDIT: '/ta/temple/edit',
   TA_TRUST: '/ta/trust',
   TA_EMPLOYEES: '/ta/employees',
   TA_CONTRACTORS: '/ta/contractors',

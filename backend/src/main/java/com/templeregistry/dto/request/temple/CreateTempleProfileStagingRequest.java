@@ -51,11 +51,10 @@ public class CreateTempleProfileStagingRequest {
     @Pattern(regexp = "^[A-Z]{4}0[A-Z0-9]{6}$", message = "Bank IFSC must match pattern: 4 alpha + 0 + 6 alphanumeric")
     private String bankIfsc;
 
-    @Size(max = 500)
-    private String languagesOfWorship;
+    private java.util.List<String> languagesOfWorship;
 
-    /** JSON string representing an array of linked mutt/sub-temple names. */
-    private String linkedInstitutions;
+    /** JSON array of linked mutt/sub-temple names. */
+    private java.util.List<String> linkedInstitutions;
 
     private String description;
 

@@ -32,9 +32,14 @@ import { USER_ROLES } from '@/constants/roles'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import {
   useDcTempleProfile,
-  useDcDeclarationDetail,
   useWorkflowActions,
 } from '@/features/dc/dcHooks'
+import {
+  useApproveTrustMutation,
+  useRejectTrustMutation,
+  useApproveBoardMemberMutation,
+  useRejectBoardMemberMutation,
+} from '@/features/dc/dcApi'
 import {
   workflowApproveSchema,
   workflowRejectSchema,
@@ -44,8 +49,8 @@ import {
   type DcClarifyRequest,
   type DeclarationSummary,
 } from '@/features/dc/dcTypes'
+import { toast } from 'sonner'
 
-type ActionKind = 'approve' | 'reject' | 'clarify' | 'flag-physical' | null
 
 export function DcTempleProfilePage() {
   const { templeId } = useParams<{ templeId: string }>()
@@ -69,6 +74,11 @@ export function DcTempleProfilePage() {
     confirmFlagPhysical,
     isSubmitting,
   } = useWorkflowActions()
+
+  const [approveTrust, { isLoading: isApprovingTrust }] = useApproveTrustMutation()
+  const [rejectTrust, { isLoading: isRejectingTrust }] = useRejectTrustMutation()
+  const [approveBoardMember, { isLoading: isApprovingMember }] = useApproveBoardMemberMutation()
+  const [rejectBoardMember, { isLoading: isRejectingMember }] = useRejectBoardMemberMutation()
 
   if (isLoading) {
     return (
@@ -94,6 +104,54 @@ export function DcTempleProfilePage() {
   }
 
   const { temple, trust, boardMembers, employees, contractors, declarations } = profile
+
+  const handleApproveTrust = async () => {
+    if (!trust?.id) return
+    try {
+      await approveTrust({ trustId: trust.id }).unwrap()
+      toast.success('Trust approved successfully')
+    } catch {
+      toast.error('Failed to approve trust')
+    }
+  }
+
+  const handleRejectTrust = async () => {
+    if (!trust?.id) return
+    const reason = window.prompt('Enter rejection reason for the trust (minimum 10 characters):')
+    if (!reason || reason.length < 10) {
+      if (reason) toast.error('Reason must be at least 10 characters long.')
+      return
+    }
+    try {
+      await rejectTrust({ trustId: trust.id, body: { remarks: reason } }).unwrap()
+      toast.success('Trust rejected successfully')
+    } catch {
+      toast.error('Failed to reject trust')
+    }
+  }
+
+  const handleApproveMember = async (memberId: number) => {
+    try {
+      await approveBoardMember({ memberId }).unwrap()
+      toast.success('Board member approved successfully')
+    } catch {
+      toast.error('Failed to approve board member')
+    }
+  }
+
+  const handleRejectMember = async (memberId: number) => {
+    const reason = window.prompt('Enter rejection reason for this board member (minimum 10 characters):')
+    if (!reason || reason.length < 10) {
+      if (reason) toast.error('Reason must be at least 10 characters long.')
+      return
+    }
+    try {
+      await rejectBoardMember({ memberId, body: { remarks: reason } }).unwrap()
+      toast.success('Board member rejected successfully')
+    } catch {
+      toast.error('Failed to reject board member')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -197,17 +255,25 @@ export function DcTempleProfilePage() {
         <TabsContent value="trust" className="mt-4 space-y-6">
           {trust ? (
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-4">Trust Registration</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-foreground">Trust Registration</h2>
+                {canAct && (
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleApproveTrust} disabled={isApprovingTrust} className="gap-1">
+                      <Check size={14} /> Approve
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={handleRejectTrust} disabled={isRejectingTrust} className="gap-1">
+                      <X size={14} /> Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <DetailItem label="Trust Name" value={trust.trustName} />
-                <DetailItem label="Type" value={trust.trustType} />
+                <DetailItem label="Status" value={trust.status} />
                 <DetailItem label="Registration No." value={trust.registrationNumber} />
-                <DetailItem label="Registering Authority" value={trust.registeringAuthority} />
-                <DetailItem label="Date of Registration" value={trust.dateOfRegistration} />
+                <DetailItem label="Date of Registration" value={trust.registrationDate} />
                 <DetailItem label="PAN (masked)" value={trust.panNumberMasked} />
-                <DetailItem label="Bank Account (masked)" value={trust.bankAccountMasked} />
-                <DetailItem label="Bank Name" value={trust.bankName} />
-                <DetailItem label="Bank Branch" value={trust.bankBranch} />
               </dl>
             </section>
           ) : (
@@ -224,6 +290,7 @@ export function DcTempleProfilePage() {
                     <th className="py-2 text-left font-semibold text-muted-foreground">Role</th>
                     <th className="py-2 text-left font-semibold text-muted-foreground hidden sm:table-cell">Phone</th>
                     <th className="py-2 text-left font-semibold text-muted-foreground hidden md:table-cell">Aadhaar</th>
+                    {canAct && <th className="py-2 text-right font-semibold text-muted-foreground">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -235,6 +302,18 @@ export function DcTempleProfilePage() {
                       <td className="py-2 hidden md:table-cell text-muted-foreground font-mono text-xs">
                         {m.aadhaarMasked ?? '—'}
                       </td>
+                      {canAct && (
+                        <td className="py-2 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="ghost" className="h-8 px-2 text-success hover:text-success hover:bg-success/10" onClick={() => handleApproveMember(m.id)} disabled={isApprovingMember}>
+                              <Check size={14} />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleRejectMember(m.id)} disabled={isRejectingMember}>
+                              <X size={14} />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -435,7 +514,7 @@ interface WorkflowDialogProps {
   open: boolean
   kind: DialogKind
   onClose: () => void
-  onSubmit: (payload: DialogFormPayload) => Promise<void>
+  onSubmit: (payload: any) => Promise<void>
   isSubmitting: boolean
 }
 

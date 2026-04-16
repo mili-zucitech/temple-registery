@@ -242,15 +242,10 @@ export interface DeclarationDetailResponse {
 export interface DcTrustSummary {
   id: number
   trustName: string
-  trustType: string | null
+  status: string | null
   registrationNumber: string | null
-  registeringAuthority: string | null
-  dateOfRegistration: string | null
+  registrationDate: string | null
   panNumberMasked: string | null
-  bankAccountMasked: string | null
-  bankName: string | null
-  bankBranch: string | null
-  annualIncome: number | null
 }
 
 export interface TrustFinancialSummary {

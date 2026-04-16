@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, User } from 'lucide-react'
@@ -8,8 +8,6 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useWizard } from '../RegisterContext'
 import { step3Schema, type Step3Data } from '../registerTypes'
-
-// ── Password strength ─────────────────────────────────────────────────────────
 
 type StrengthLevel = 0 | 1 | 2 | 3 | 4
 
@@ -40,8 +38,6 @@ const STRENGTH_COLORS: Record<StrengthLevel, string> = {
   4: 'bg-success',
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export function Step3AccountSetup() {
   const { state, saveStep3, nextStep, prevStep } = useWizard()
   const [showPassword, setShowPassword] = useState(false)
@@ -59,11 +55,11 @@ export function Step3AccountSetup() {
     mode: 'onBlur',
   })
 
-  const password = form.watch('password')
+  const password = form.watch('password') ?? ''
   const strength = useMemo(() => computeStrength(password), [password])
 
   const onSubmit = (values: Step3Data) => {
-    const { confirmPassword: _, ...rest } = values
+    const { confirmPassword: _confirmPassword, ...rest } = values
     saveStep3(rest)
     nextStep()
   }
@@ -79,7 +75,6 @@ export function Step3AccountSetup() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          {/* Full Name */}
           <FormField
             control={form.control}
             name="fullName"
@@ -89,6 +84,7 @@ export function Step3AccountSetup() {
                 <FormControl>
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     placeholder="As per Aadhaar card"
                     autoFocus
                     autoComplete="name"
@@ -99,7 +95,6 @@ export function Step3AccountSetup() {
             )}
           />
 
-          {/* Username */}
           <FormField
             control={form.control}
             name="username"
@@ -111,6 +106,7 @@ export function Step3AccountSetup() {
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       {...field}
+                      value={field.value ?? ''}
                       className="pl-9"
                       placeholder="e.g. ta_chamundi"
                       autoComplete="username"
@@ -125,7 +121,6 @@ export function Step3AccountSetup() {
             )}
           />
 
-          {/* Email */}
           <FormField
             control={form.control}
             name="email"
@@ -135,6 +130,7 @@ export function Step3AccountSetup() {
                 <FormControl>
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     type="email"
                     placeholder="you@example.com"
                     autoComplete="email"
@@ -145,7 +141,6 @@ export function Step3AccountSetup() {
             )}
           />
 
-          {/* Password */}
           <FormField
             control={form.control}
             name="password"
@@ -156,6 +151,7 @@ export function Step3AccountSetup() {
                   <div className="relative">
                     <Input
                       {...field}
+                      value={field.value ?? ''}
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Min 10 characters"
                       autoComplete="new-password"
@@ -172,7 +168,6 @@ export function Step3AccountSetup() {
                   </div>
                 </FormControl>
 
-                {/* Strength indicator */}
                 {password && (
                   <div className="space-y-1 pt-1">
                     <div className="flex gap-1">
@@ -208,7 +203,6 @@ export function Step3AccountSetup() {
             )}
           />
 
-          {/* Confirm Password */}
           <FormField
             control={form.control}
             name="confirmPassword"
@@ -219,6 +213,7 @@ export function Step3AccountSetup() {
                   <div className="relative">
                     <Input
                       {...field}
+                      value={field.value ?? ''}
                       type={showConfirm ? 'text' : 'password'}
                       placeholder="Re-enter your password"
                       autoComplete="new-password"

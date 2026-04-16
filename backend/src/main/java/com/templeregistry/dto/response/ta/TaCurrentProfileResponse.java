@@ -30,8 +30,8 @@ public class TaCurrentProfileResponse {
 
     private String bankName;
     private String bankIfsc;
-    private String languagesOfWorship;
-    private String linkedInstitutions;
+    private java.util.List<String> languagesOfWorship;
+    private java.util.List<String> linkedInstitutions;
     private String description;
     private String annualFestivals;
     private String landmark;
