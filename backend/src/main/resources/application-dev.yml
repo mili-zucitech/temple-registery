@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/temple_registry_dev?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
+    url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
+    password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
 
   jpa:
     hibernate:
@@ -26,11 +26,19 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
+trm:
+  export:
+    base-dir: ./exports
+
 app:
+  base-url: http://localhost:8080   
+
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
+
   encryption:
     key: "TempleRegistryDevelopmentKey2024"
+
   storage:
     base-dir: ./uploads
 

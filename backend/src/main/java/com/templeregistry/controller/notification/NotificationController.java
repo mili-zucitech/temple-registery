@@ -1,4 +1,4 @@
-﻿package com.templeregistry.controller.notification;
+package com.templeregistry.controller.notification;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;

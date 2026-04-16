@@ -244,6 +244,23 @@ export const dcApi = createApi({
       }),
       invalidatesTags: ['DcExport'],
     }),
+
+    approveTrust: builder.mutation<ApiResponse<any>, { trustId: number }>({
+      query: ({ trustId }) => ({ url: `/dc/trusts/${trustId}/approve`, method: 'POST' }),
+      invalidatesTags: ['DcTempleProfile'],
+    }),
+    rejectTrust: builder.mutation<ApiResponse<any>, { trustId: number; body: { remarks: string } }>({
+      query: ({ trustId, body }) => ({ url: `/dc/trusts/${trustId}/reject`, method: 'POST', body }),
+      invalidatesTags: ['DcTempleProfile'],
+    }),
+    approveBoardMember: builder.mutation<ApiResponse<any>, { memberId: number }>({
+      query: ({ memberId }) => ({ url: `/dc/trusts/board-members/${memberId}/approve`, method: 'POST' }),
+      invalidatesTags: ['DcTempleProfile'],
+    }),
+    rejectBoardMember: builder.mutation<ApiResponse<any>, { memberId: number; body: { remarks: string } }>({
+      query: ({ memberId, body }) => ({ url: `/dc/trusts/board-members/${memberId}/reject`, method: 'POST', body }),
+      invalidatesTags: ['DcTempleProfile'],
+    }),
   }),
 })
 
@@ -266,4 +283,8 @@ export const {
   useMarkAllNotificationsReadMutation,
   useExportTemplesMutation,
   useExportDeclarationsMutation,
+  useApproveTrustMutation,
+  useRejectTrustMutation,
+  useApproveBoardMemberMutation,
+  useRejectBoardMemberMutation,
 } = dcApi

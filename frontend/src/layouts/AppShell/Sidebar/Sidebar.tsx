@@ -1,8 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Search, FileText, Users, Building2,
-  ClipboardList, Download, Settings, LogOut, Shield,
+  ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity,
 } from 'lucide-react'
 import { useLogout } from '@/features/auth/authHooks'
 import { useAppSelector } from '@/app/store'
@@ -34,6 +34,8 @@ function getTaNavItems(): NavItem[] {
     { label: 'Contractors', to: ROUTE_PATHS.TA_CONTRACTORS, icon: <FileText size={16} /> },
     { label: 'Declarations', to: ROUTE_PATHS.TA_DECLARATIONS, icon: <ClipboardList size={16} /> },
     { label: 'Documents', to: ROUTE_PATHS.TA_DOCUMENTS, icon: <Download size={16} /> },
+    { label: 'Profile Status', to: ROUTE_PATHS.TA_PROFILE_STATUS, icon: <Clock size={16} /> },
+    { label: 'Activity', to: ROUTE_PATHS.TA_ACTIVITY, icon: <Activity size={16} /> },
   ]
 }
 

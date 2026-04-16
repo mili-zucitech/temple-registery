@@ -36,10 +36,10 @@ export function TempleDetailPage() {
                 <StatusBadge status={temple.assetDeclarationStatus} />
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{temple.tradition} · {temple.city ?? 'Location not set'}</p>
+            <p className="text-sm text-muted-foreground">{temple.tradition} · {temple.villageTown ?? 'Location not set'}</p>
             {temple.contactName && (
               <p className="text-xs text-muted-foreground mt-1">
-                Contact: {temple.contactName} {temple.contactPhone && `· ${temple.contactPhone}`}
+                Contact: {temple.contactName} {temple.contactMobile && `· ${temple.contactMobile}`}
               </p>
             )}
           </div>
@@ -73,7 +73,18 @@ export function TempleDetailPage() {
           <p className="text-sm text-muted-foreground">Asset declarations for temple {templeId}.</p>
         </TabsContent>
         <TabsContent value="documents" className="mt-4">
-          <p className="text-sm text-muted-foreground">Documents for temple {templeId}.</p>
+          <div className="space-y-2">
+            <h3 className="font-semibold mb-2">Temple Photo</h3>
+            {temple.photoUrl ? (
+              <img
+                src={temple.photoUrl}
+                alt="Temple Photo"
+                className="w-32 h-32 object-cover rounded border"
+              />
+            ) : (
+              <p className="text-muted-foreground">No photo uploaded for this temple.</p>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

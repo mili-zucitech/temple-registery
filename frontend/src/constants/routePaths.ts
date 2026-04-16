@@ -17,6 +17,7 @@ export const ROUTE_PATHS = {
   // Temple Authority
   TA_DASHBOARD: '/ta/dashboard',
   TA_TEMPLE: '/ta/temple',
+  TA_TEMPLE_EDIT: '/ta/temple/edit',
   TA_TRUST: '/ta/trust',
   TA_EMPLOYEES: '/ta/employees',
   TA_CONTRACTORS: '/ta/contractors',
@@ -24,6 +25,8 @@ export const ROUTE_PATHS = {
   TA_DECLARATION_NEW: '/ta/declarations/new',
   TA_DECLARATION_DETAIL: '/ta/declarations/:id',
   TA_DOCUMENTS: '/ta/documents',
+  TA_PROFILE_STATUS: '/ta/profile-status',
+  TA_ACTIVITY: '/ta/activity',
 
   // Admin
   ADMIN_DASHBOARD: '/admin/dashboard',
