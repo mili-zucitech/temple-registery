@@ -14,6 +14,9 @@ public class UpdateUserRequest {
     @Size(max = 128)
     private String fullName;
 
+    @Size(min = 8, max = 128)
+    private String password;
+
     private String mobile;
     private UserRole role;
     private Boolean active;

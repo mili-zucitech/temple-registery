@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import {
   useListUsersQuery, useDeactivateUserMutation, useActivateUserMutation,
+  useCreateUserMutation, useUpdateUserMutation,
   type UserAdminResponse
 } from '../../adminApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
@@ -10,13 +11,19 @@ import { TableSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
-import { Users } from 'lucide-react'
+import { Users, Plus, Edit2 } from 'lucide-react'
+import { UserFormDialog } from '../../components/UserFormDialog/UserFormDialog'
 
 export function UserManagementPage() {
   const [page, setPage] = useState(0)
   const { data, isLoading, isError } = useListUsersQuery({ page, size: DEFAULT_PAGE_SIZE })
   const [deactivate, { isLoading: deactivating }] = useDeactivateUserMutation()
   const [activate, { isLoading: activating }] = useActivateUserMutation()
+  const [createUser, { isLoading: creating }] = useCreateUserMutation()
+  const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
+
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserAdminResponse | null>(null)
 
   const users = data?.data?.content ?? []
   const totalPages = data?.data?.totalPages ?? 0
@@ -36,6 +43,31 @@ export function UserManagementPage() {
     }
   }
 
+  const handleCreate = () => {
+    setSelectedUser(null)
+    setDialogOpen(true)
+  }
+
+  const handleEdit = (user: UserAdminResponse) => {
+    setSelectedUser(user)
+    setDialogOpen(true)
+  }
+
+  const handleFormSubmit = async (values: any) => {
+    try {
+      if (selectedUser) {
+        await updateUser({ id: selectedUser.id, body: values }).unwrap()
+        toast.success('User updated successfully')
+      } else {
+        await createUser(values).unwrap()
+        toast.success('User created successfully')
+      }
+      setDialogOpen(false)
+    } catch (err: any) {
+      toast.error(err.data?.message || 'Failed to save user')
+    }
+  }
+
   if (isError) {
     return <EmptyState title="Failed to load users" description="Unable to fetch user data." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
   }
@@ -44,6 +76,9 @@ export function UserManagementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{totalElements.toLocaleString()} user(s)</p>
+        <Button onClick={handleCreate} className="gap-2">
+          <Plus size={16} /> Create User
+        </Button>
       </div>
 
       {isLoading ? (
@@ -85,14 +120,19 @@ export function UserManagementPage() {
                     {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      variant={user.active ? 'destructive' : 'outline'}
-                      size="sm"
-                      onClick={() => toggleUserStatus(user)}
-                      disabled={deactivating || activating}
-                    >
-                      {user.active ? 'Deactivate' : 'Activate'}
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
+                        <Edit2 size={14} />
+                      </Button>
+                      <Button
+                        variant={user.active ? 'destructive' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleUserStatus(user)}
+                        disabled={deactivating || activating}
+                      >
+                        {user.active ? 'Deactivate' : 'Activate'}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -108,6 +148,14 @@ export function UserManagementPage() {
           <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page >= totalPages - 1}>Next</Button>
         </div>
       )}
+
+      <UserFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        user={selectedUser}
+        onSubmit={handleFormSubmit}
+        isLoading={creating || updating}
+      />
     </div>
   )
 }

@@ -29,4 +29,10 @@ public class Contractor extends BaseEntity {
     @Column(name = "contract_value", precision = 18, scale = 2) private BigDecimal contractValue;
     @Column(name = "payment_status", length = 50) private String paymentStatus;
     @Column(name = "document_id") private Long documentId;
+
+    // DC Governance Fields
+    @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
+    @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
+    @Column(name = "is_gst_valid") private Boolean isGstValid;
+    @Column(name = "is_payment_pending", nullable = false) private boolean isPaymentPending = false;
 }

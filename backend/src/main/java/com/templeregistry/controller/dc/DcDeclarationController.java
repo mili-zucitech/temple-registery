@@ -8,6 +8,7 @@ import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
 import com.templeregistry.dto.response.dc.DeclarationDetailResponse;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleProfileService;
 import com.templeregistry.service.dc.DeclarationWorkflowService;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/declarations")
 @RequiredArgsConstructor
 @Tag(name = "DC Declaration Workflow", description = "Declaration review and workflow actions for the DC portal")
+@PreAuthorize(RoleConstants.IS_DC_ROLE)
 public class DcDeclarationController {
 
     private final DcTempleProfileService dcTempleProfileService;
@@ -31,14 +34,15 @@ public class DcDeclarationController {
     private final DeclarationService declarationService;
 
     @GetMapping
-    @Operation(summary = "List all declarations in the DC's district, paginated. Optionally filter by status.")
+    @Operation(summary = "List all declarations in the DC's district, paginated. Optionally filter by status and financial year.")
     public ResponseEntity<ApiResponse<PaginatedResponse<DeclarationResponse>>> listDeclarations(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String financialYear) {
         ScopeHelper.Claims claims = currentClaims();
-        PaginatedResponse<DeclarationResponse> result =
-                declarationService.listByDistrict(claims.districtId(), status, page, size);
+        PaginatedResponse<DeclarationResponse> result = declarationService.listByDistrict(claims.districtId(), status, financialYear,
+                page, size);
         return ResponseEntity.ok(ApiResponse.success("Declarations retrieved.", result));
     }
 
@@ -80,13 +84,22 @@ public class DcDeclarationController {
     }
 
     @PostMapping("/{id}/flag-physical")
-    @Operation(summary = "Flag a declaration for physical verification. Transitions PENDING_REVIEW → PHYSICAL_VERIFICATION_REQUESTED.")
+    @Operation(summary = "Flag a declaration for physical verification. Transitions PENDING_REVIEW / UNDER_REVIEW / RESUBMITTED → PHYSICAL_VERIFICATION_REQUESTED.")
     public ResponseEntity<ApiResponse<WorkflowActionResponse>> flagPhysical(
             @PathVariable Long id,
             @Valid @RequestBody DcClarifyRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
-        WorkflowActionResponse result = declarationWorkflowService.flagPhysicalVerification(id, request, currentClaims());
+        WorkflowActionResponse result = declarationWorkflowService.flagPhysicalVerification(id, request,
+                currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Flagged for physical verification.", result));
+    }
+
+    @PostMapping("/{id}/under-review")
+    @Operation(summary = "Mark a declaration as under active review. Transitions PENDING_REVIEW / RESUBMITTED → UNDER_REVIEW.")
+    public ResponseEntity<ApiResponse<WorkflowActionResponse>> markUnderReview(
+            @PathVariable Long id) {
+        WorkflowActionResponse result = declarationWorkflowService.markUnderReview(id, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Declaration marked as under review.", result));
     }
 
     private ScopeHelper.Claims currentClaims() {

@@ -1,4 +1,6 @@
+
 import { Outlet, useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import { Sidebar } from './Sidebar/Sidebar'
 import { TopBar } from './TopBar/TopBar'
 
@@ -14,8 +16,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/ta/contractors': 'Contractors',
   '/ta/declarations': 'Declarations',
   '/ta/documents': 'Documents',
-  '/ta/profile-status': 'Profile Status',
-  '/ta/activity': 'Activity',
   '/admin/dashboard': 'Admin Dashboard',
   '/admin/users': 'User Management',
   '/admin/audit': 'Audit Logs',
@@ -28,14 +28,25 @@ const PAGE_TITLES: Record<string, string> = {
 export function AppShell() {
   const { pathname } = useLocation()
   const title = PAGE_TITLES[pathname] ?? 'Temple Registry'
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar title={title} />
-        <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+      {/* Sidebar for desktop/tablet, drawer for mobile */}
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      {/* Overlay for mobile drawer */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <div className="flex flex-1 flex-col overflow-hidden relative">
+        <TopBar title={title} onMenuClick={() => setSidebarOpen((v) => !v)} />
+        <main className="flex-1 overflow-y-auto w-full bg-background/50">
+          <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

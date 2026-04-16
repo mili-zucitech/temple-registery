@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import {
-  useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation, useSubmitTrustForReviewMutation,
+  useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation,
   useGetBoardMembersQuery, useAddBoardMemberMutation,
   useListFinancialsQuery, useSubmitFinancialMutation,
   useListBoardMeetingsQuery, useCreateBoardMeetingMutation,
@@ -14,6 +14,7 @@ import {
   TRUST_TYPES,
   type CreateTrustRequest, type CreateBoardMemberRequest, type SubmitTrustFinancialRequest, type CreateBoardMeetingRequest,
 } from '@/features/trust/trustTypes'
+import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
-import { BoardMemberTabs } from '../../components/BoardMemberTabs'
 
 export function TaTrustPage() {
   const [tab, setTab] = useState('details')
@@ -32,8 +32,7 @@ export function TaTrustPage() {
   const templeId = userData?.data?.templeId
 
   const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, { skip: !templeId })
-  const trustList = trustData?.data
-  const trust = Array.isArray(trustList) ? trustList[0] : trustList
+  const trust = trustData?.data
 
   const { data: membersData, isLoading: membersLoading } = useGetBoardMembersQuery(
     { trustId: trust?.id!, page, size: DEFAULT_PAGE_SIZE },
@@ -50,7 +49,6 @@ export function TaTrustPage() {
 
   const [createTrust, { isLoading: creating }] = useCreateTrustMutation()
   const [updateTrust, { isLoading: updating }] = useUpdateTrustMutation()
-  const [submitForReview, { isLoading: submittingReview }] = useSubmitTrustForReviewMutation()
   const [addMember, { isLoading: addingMember }] = useAddBoardMemberMutation()
   const [submitFinancial, { isLoading: submittingFinancial }] = useSubmitFinancialMutation()
   const [createMeeting, { isLoading: creatingMeeting }] = useCreateBoardMeetingMutation()
@@ -61,24 +59,19 @@ export function TaTrustPage() {
   const [showMeetingForm, setShowMeetingForm] = useState(false)
 
   const trustForm = useForm<CreateTrustRequest>({
-    resolver: zodResolver(createTrustSchema) as any,
-    mode: 'onChange',
+    resolver: zodResolver(createTrustSchema),
     defaultValues: {
       trustName: trust?.trustName ?? '',
-      trustRegistrationNumber: trust?.trustRegistrationNumber ?? '',
+      registrationNumber: trust?.registrationNumber ?? '',
       registeringAuthority: trust?.registeringAuthority ?? '',
-      trustType: (trust?.trustType as any) ?? 'PUBLIC',
-      dateOfRegistration: trust?.dateOfRegistration ?? '',
-      trustPANNumber: trust?.trustPANNumber ?? '',
-      bankAccountNumber: trust?.bankAccountNumber ?? '',
-      bankNameAndBranch: trust?.bankNameAndBranch ?? '',
-      annualIncome: trust?.annualIncome ?? ('' as any),
+      bankName: trust?.bankName ?? '',
+      bankBranch: trust?.bankBranch ?? '',
     },
   })
 
   const memberForm = useForm<CreateBoardMemberRequest>({
     resolver: zodResolver(createBoardMemberSchema),
-    defaultValues: { fullName: '', aadhaar: '', designation: '', appointmentDate: '', contactNumber: '', address: '' },
+    defaultValues: { fullName: '', designation: '', contactNumber: '' },
   })
 
   const financialForm = useForm<SubmitTrustFinancialRequest>({
@@ -93,16 +86,12 @@ export function TaTrustPage() {
 
   const onSaveTrust = async (values: CreateTrustRequest) => {
     if (!templeId) return
-    const payload = {
-      ...values,
-      annualIncome: values.annualIncome === '' ? undefined : values.annualIncome
-    }
     try {
       if (trust) {
-        await updateTrust({ trustId: trust.id, body: payload }).unwrap()
+        await updateTrust({ trustId: trust.id, body: values }).unwrap()
         toast.success('Trust details updated')
       } else {
-        await createTrust({ templeId, body: payload }).unwrap()
+        await createTrust({ templeId, body: values }).unwrap()
         toast.success('Trust registered successfully')
       }
       setShowTrustForm(false)
@@ -111,20 +100,10 @@ export function TaTrustPage() {
     }
   }
 
-  const onSubmitForReview = async () => {
-    if (!trust?.id) return
-    try {
-      await submitForReview({ trustId: trust.id }).unwrap()
-      toast.success('Trust and board details submitted for DC review')
-    } catch {
-      toast.error('Failed to submit for review')
-    }
-  }
-
   const onAddMember = async (values: CreateBoardMemberRequest) => {
     if (!trust?.id) return
     try {
-      await addMember({ trustId: trust.id, body: { ...values } }).unwrap()
+      await addMember({ trustId: trust.id, body: values }).unwrap()
       toast.success('Board member added')
       memberForm.reset()
       setShowMemberForm(false)
@@ -166,23 +145,11 @@ export function TaTrustPage() {
           <h1 className="text-2xl font-bold text-foreground">Trust Management</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage trust registration, board members, meetings, and financials.</p>
         </div>
-        <div className="flex items-center gap-3">
-          {trust && !trust.isVerifiedByDc && (
-            <Button className="bg-gradient-gold shadow-gold" disabled={submittingReview} onClick={onSubmitForReview}>
-              {submittingReview ? 'Submitting…' : 'Submit for DC Review'}
-            </Button>
-          )}
-          {trust && trust.isVerifiedByDc && (
-            <span className="text-sm font-medium text-success bg-success/10 px-3 py-1.5 rounded-full">
-              ✓ Approved by DC
-            </span>
-          )}
-          {!trust && (
-            <Button className="bg-gradient-gold shadow-gold" onClick={() => setShowTrustForm(true)}>
-              Register Trust
-            </Button>
-          )}
-        </div>
+        {!trust && (
+          <Button className="bg-gradient-gold shadow-gold" onClick={() => setShowTrustForm(true)}>
+            Register Trust
+          </Button>
+        )}
       </div>
 
       {!trust && !showTrustForm ? (
@@ -202,21 +169,15 @@ export function TaTrustPage() {
 
           {/* ── Trust Details ─────────────────────────────────────────────────── */}
           <TabsContent value="details" className="mt-6">
-            {trust?.dcFlagReason && !showTrustForm && (
-              <div className="mb-4 p-4 rounded-lg bg-destructive/10 border border-destructive text-destructive">
-                <h3 className="font-semibold">DC Review Feedback</h3>
-                <p className="text-sm mt-1">{trust.dcFlagReason}</p>
-              </div>
-            )}
             {showTrustForm || !trust ? (
-              <Form {...trustForm as any}>
-                <form onSubmit={trustForm.handleSubmit(onSaveTrust as any)} className="space-y-4 rounded-lg border border-border bg-card p-6">
+              <Form {...trustForm}>
+                <form onSubmit={trustForm.handleSubmit(onSaveTrust)} className="space-y-4 rounded-lg border border-border bg-card p-6">
                   <h2 className="font-semibold text-foreground">{trust ? 'Edit Trust Details' : 'Register Trust'}</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField control={trustForm.control as any} name="trustName" render={({ field }) => (
+                    <FormField control={trustForm.control} name="trustName" render={({ field }) => (
                       <FormItem><FormLabel>Trust Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="trustType" render={({ field }) => (
+                    <FormField control={trustForm.control} name="trustType" render={({ field }) => (
                       <FormItem><FormLabel>Trust Type *</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
@@ -226,43 +187,29 @@ export function TaTrustPage() {
                         </Select>
                         <FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="trustRegistrationNumber" render={({ field }) => (
+                    <FormField control={trustForm.control} name="registrationNumber" render={({ field }) => (
                       <FormItem><FormLabel>Registration Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="dateOfRegistration" render={({ field }) => (
+                    <FormField control={trustForm.control} name="dateOfRegistration" render={({ field }) => (
                       <FormItem><FormLabel>Date of Registration *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="registeringAuthority" render={({ field }) => (
-                      <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormField control={trustForm.control} name="registeringAuthority" render={({ field }) => (
+                      <FormItem><FormLabel>Registering Authority</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="trustPANNumber" render={({ field }) => (
-                      <FormItem><FormLabel>PAN Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormField control={trustForm.control} name="bankName" render={({ field }) => (
+                      <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="bankAccountNumber" render={({ field }) => (
-                      <FormItem><FormLabel>Bank Account Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormField control={trustForm.control} name="bankBranch" render={({ field }) => (
+                      <FormItem><FormLabel>Bank Branch</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={trustForm.control as any} name="bankNameAndBranch" render={({ field }) => (
-                      <FormItem><FormLabel>Bank Name and Branch *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control as any} name="annualIncome" render={({ field }) => (
+                    <FormField control={trustForm.control} name="annualIncome" render={({ field }) => (
                       <FormItem><FormLabel>Annual Income (₹)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} value={field.value ?? ''} /></FormControl>
+                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
                         <FormMessage /></FormItem>
                     )} />
                   </div>
-                  {/* Show a summary of all validation errors if form is invalid */}
-                  {!trustForm.formState.isValid && trustForm.formState.errors && (
-                    <div className="rounded bg-red-50 border border-red-200 text-red-700 px-4 py-2 mb-2">
-                      <div className="font-semibold mb-1">Please fix the following errors:</div>
-                      <ul className="list-disc list-inside text-sm">
-                        {Object.entries(trustForm.formState.errors).map(([field, err]: any) => (
-                          <li key={field}>{err.message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating || updating || !trustForm.formState.isValid}>
+                    <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating || updating}>
                       {(creating || updating) ? 'Saving…' : trust ? 'Update Trust' : 'Register Trust'}
                     </Button>
                     {trust && <Button type="button" variant="outline" onClick={() => setShowTrustForm(false)}>Cancel</Button>}
@@ -277,12 +224,11 @@ export function TaTrustPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><span className="text-muted-foreground">Type:</span> <span className="font-medium">{trust.trustType?.replace('_', ' ')}</span></div>
-                  <div><span className="text-muted-foreground">Reg. No:</span> <span className="font-medium">{trust.trustRegistrationNumber ?? '—'}</span></div>
+                  <div><span className="text-muted-foreground">Reg. No:</span> <span className="font-medium">{trust.registrationNumber ?? '—'}</span></div>
                   <div><span className="text-muted-foreground">Authority:</span> <span className="font-medium">{trust.registeringAuthority ?? '—'}</span></div>
                   <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{trust.dateOfRegistration ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Bank Account:</span> <span className="font-medium">{trust.bankAccountNumber ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Bank & Branch:</span> <span className="font-medium">{trust.bankNameAndBranch ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">PAN:</span> <span className="font-medium">{trust.trustPANNumber ?? '—'}</span></div>
+                  <div><span className="text-muted-foreground">Bank:</span> <span className="font-medium">{trust.bankName ?? '—'}</span></div>
+                  <div><span className="text-muted-foreground">Branch:</span> <span className="font-medium">{trust.bankBranch ?? '—'}</span></div>
                   <div><span className="text-muted-foreground">Annual Income:</span> <span className="font-medium">{trust.annualIncome != null ? `₹${trust.annualIncome.toLocaleString()}` : '—'}</span></div>
                 </div>
               </div>
@@ -302,23 +248,14 @@ export function TaTrustPage() {
                     <FormField control={memberForm.control} name="fullName" render={({ field }) => (
                       <FormItem><FormLabel>Full Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={memberForm.control} name="aadhaar" render={({ field }) => (
-                      <FormItem><FormLabel>Aadhaar Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
                     <FormField control={memberForm.control} name="designation" render={({ field }) => (
-                      <FormItem><FormLabel>Designation *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={memberForm.control} name="appointmentDate" render={({ field }) => (
-                      <FormItem><FormLabel>Appointment Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={memberForm.control} name="tenureEndDate" render={({ field }) => (
-                      <FormItem><FormLabel>Tenure End Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Appointment Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={memberForm.control} name="contactNumber" render={({ field }) => (
-                      <FormItem><FormLabel>Contact Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={memberForm.control} name="address" render={({ field }) => (
-                      <FormItem><FormLabel>Address *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                   </div>
                   <div className="flex gap-2">
@@ -332,10 +269,31 @@ export function TaTrustPage() {
               (membersData?.data?.content ?? []).length === 0 ? (
                 <EmptyState title="No board members" description="Add board members to this trust." />
               ) : (
-                <BoardMemberTabs members={membersData?.data?.content ?? []} />
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold">Name</th>
+                        <th className="px-4 py-3 text-left font-semibold">Designation</th>
+                        <th className="px-4 py-3 text-left font-semibold">Appointment</th>
+                        <th className="px-4 py-3 text-left font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {(membersData?.data?.content ?? []).map(m => (
+                        <tr key={m.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-3 font-medium">{m.fullName}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{m.designation ?? '—'}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{m.appointmentDate ?? '—'}</td>
+                          <td className="px-4 py-3"><StatusBadge status={m.isCurrent ? 'ACTIVE' : 'RETIRED'} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )
             )}
-         </TabsContent>
+          </TabsContent>
 
           {/* ── Board Meetings ────────────────────────────────────────────────── */}
           <TabsContent value="meetings" className="mt-6 space-y-4">

@@ -28,20 +28,4 @@ public interface DocumentService {
 
     /** Soft-deletes the DB record; does NOT delete the S3 object (retain for audit). */
     void softDelete(Long id);
-
-    /**
-     * Register metadata for a file the client has already uploaded directly to S3.
-     * Server validates MIME type and file size before persisting the reference.
-     *
-     * @param ownerType       "TEMPLE", "TRUST", "EMPLOYEE", etc.
-     * @param ownerId         ID of the owning entity
-     * @param label           human-readable document label
-     * @param s3Key           S3 object key supplied by the client
-     * @param mimeType        MIME type declared by client (validated: PDF/JPEG/PNG, max 10 MB)
-     * @param fileSizeBytes   file size in bytes (validated server-side against VAL-005)
-     * @param originalFilename original filename for display
-     */
-    DocumentResponse registerExternalUpload(String ownerType, Long ownerId, String label,
-                                            String s3Key, String mimeType,
-                                            long fileSizeBytes, String originalFilename);
 }

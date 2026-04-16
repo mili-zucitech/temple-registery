@@ -17,6 +17,8 @@ import {
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage
 } from '@/components/ui/form'
+import { useAppSelector } from '@/app/store'
+import { USER_ROLES } from '@/constants/roles'
 
 type ActionType = 'approve' | 'reject' | 'clarification' | null
 
@@ -25,6 +27,11 @@ export function DeclarationReviewPage() {
   const navigate = useNavigate()
   const id = Number(declarationId)
   const [activeAction, setActiveAction] = useState<ActionType>(null)
+
+  // Must be called before any early returns (React hooks rule).
+  // Only DISTRICT_COLLECTOR and SUPER_ADMIN can approve/reject/clarify.
+  const role = useAppSelector((s) => s.auth.currentUser?.role)
+  const canAct = role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
   const { data, isLoading, isError } = useGetDeclarationQuery(id, { skip: !id })
   const [approve, { isLoading: approving }] = useApproveDeclarationMutation()
@@ -68,12 +75,12 @@ export function DeclarationReviewPage() {
   if (isLoading) return <CardSkeleton />
   if (isError || !declaration) return <EmptyState title="Declaration not found" />
 
-  const canReview = declaration.status === 'SUBMITTED' || declaration.status === 'CLARIFICATION_REQUESTED'
+  const canReview = (declaration.status === 'SUBMITTED' || declaration.status === 'CLARIFICATION_REQUESTED') && canAct
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl w-full space-y-6 px-2 sm:px-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Declaration #{declaration.id}</h2>
           <p className="text-sm text-muted-foreground">Temple #{declaration.templeId}</p>
@@ -82,9 +89,9 @@ export function DeclarationReviewPage() {
       </div>
 
       {/* Asset Details */}
-      <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+      <div className="rounded-lg border border-border bg-card p-3 sm:p-5 space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Immovable Assets</h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Detail label="Agricultural Land (acres)" value={declaration.agriculturalLandAcres} />
           <Detail label="Agri. Land Value (₹)" value={declaration.agriculturalLandValue} />
           <Detail label="Buildings (sqft)" value={declaration.buildingsSqft} />
@@ -92,7 +99,7 @@ export function DeclarationReviewPage() {
         </div>
 
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground pt-2">Movable Assets</h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Detail label="Gold (grams)" value={declaration.goldGrams} />
           <Detail label="Silver (grams)" value={declaration.silverGrams} />
           <Detail label="Vehicles" value={declaration.vehiclesCount} />
@@ -110,7 +117,7 @@ export function DeclarationReviewPage() {
       {/* Actions */}
       {canReview && (
         <div className="space-y-4">
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button className="bg-gradient-gold shadow-gold" disabled={approving}>

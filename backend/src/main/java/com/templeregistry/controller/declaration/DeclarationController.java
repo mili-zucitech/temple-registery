@@ -4,6 +4,7 @@ import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.declaration.*;
 import com.templeregistry.dto.response.declaration.*;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.declaration.DeclarationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,11 +12,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Declarations", description = "Asset declaration lifecycle: DRAFT â†’ SUBMITTED â†’ APPROVED/REJECTED")
+@PreAuthorize("isAuthenticated()")
+@Tag(name = "Declarations", description = "Asset declaration lifecycle: DRAFT → SUBMITTED → APPROVED/REJECTED")
 public class DeclarationController {
 
     private final DeclarationService declarationService;
@@ -107,5 +110,11 @@ public class DeclarationController {
     @Operation(summary = "Show field-level diff between current submitted values and last approved snapshot")
     public ResponseEntity<ApiResponse<?>> getDiff(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Diff retrieved.", declarationService.getDiff(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/clarifications")
+    @Operation(summary = "Get clarification thread for a declaration (DC/TA)")
+    public ResponseEntity<ApiResponse<?>> listClarifications(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Clarifications retrieved.", declarationService.listClarifications(id)));
     }
 }

@@ -41,7 +41,7 @@ public class NotificationQueryServiceImpl implements NotificationQueryService {
 
     @Override
     @Transactional
-    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    @PreAuthorize(RoleConstants.CAN_WRITE_DC)
     public void markRead(Long notificationId, ScopeHelper.Claims claims) {
         InAppNotification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new EntityNotFoundException("InAppNotification", notificationId));
@@ -61,7 +61,7 @@ public class NotificationQueryServiceImpl implements NotificationQueryService {
 
     @Override
     @Transactional
-    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    @PreAuthorize(RoleConstants.CAN_WRITE_DC)
     public int markAllRead(ScopeHelper.Claims claims) {
         int count = notificationRepository.markAllRead(claims.userId());
         log.debug("Marked {} notifications as read for userId={}", count, claims.userId());

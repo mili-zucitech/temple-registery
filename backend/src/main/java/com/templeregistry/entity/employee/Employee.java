@@ -30,10 +30,14 @@ public class Employee extends BaseEntity {
     @Column(name = "salary_grade", length = 50) private String salaryGrade;
     @Column(name = "mobile", length = 15) private String mobile;
     @Column(name = "address", columnDefinition = "TEXT") private String address;
-    @Column(name = "is_hereditary") private boolean isHereditary;
+    @Column(name = "is_hereditary") private Boolean isHereditary;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20) private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
     @Column(name = "date_of_leaving") private LocalDate dateOfLeaving;
+
+    // DC Governance Fields
+    @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
+    @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
 }

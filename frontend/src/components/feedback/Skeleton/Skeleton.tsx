@@ -24,10 +24,13 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 
 export function CardSkeleton() {
   return (
-    <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-      <Skeleton className="h-4 w-1/3" />
-      <Skeleton className="h-8 w-1/2" />
-      <Skeleton className="h-4 w-full" />
+    <div className="rounded-2xl border border-border bg-card/40 p-6 space-y-4 shadow-soft-sm">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-10 w-10 rounded-xl" />
+        <Skeleton className="h-4 w-1/3" />
+      </div>
+      <Skeleton className="h-8 w-1/2 rounded-lg" />
+      <Skeleton className="h-3 w-full rounded-md" />
     </div>
   )
 }
