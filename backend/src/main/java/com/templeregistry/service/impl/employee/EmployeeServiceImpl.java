@@ -6,11 +6,15 @@ import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.employee.EmployeeStatus;
+import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.repository.employee.EmployeeRepository;
+import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.employee.EmployeeService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,14 +36,19 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final Set<EmployeeStatus> TERMINAL_STATUSES = Set.of(EmployeeStatus.RETIRED, EmployeeStatus.RESIGNED);
 
     private final EmployeeRepository employeeRepository;
+    private final TempleRepository templeRepository;
     private final OwnershipGuard ownershipGuard;
+    private final JurisdictionGuard jurisdictionGuard;
     private final PaginationUtil paginationUtil;
 
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public PaginatedResponse<EmployeeResponse> listByTemple(Long templeId, int page, int size) {
+        Temple temple = templeRepository.findById(templeId)
+                .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
         ownershipGuard.assertOwnsTemple(templeId);
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         Page<Employee> result = employeeRepository.findAllByTempleId(
                 templeId, PageRequest.of(page, paginationUtil.clampSize(size)));
         return PaginatedResponse.of(result.map(this::toResponse));
@@ -48,7 +58,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public EmployeeResponse create(Long templeId, CreateEmployeeRequest rq) {
+        Temple temple = templeRepository.findById(templeId)
+                .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
         ownershipGuard.assertOwnsTemple(templeId);
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         Employee emp = Employee.builder()
                 .templeId(templeId).fullName(rq.getFullName()).employeeType(rq.getEmployeeType())
                 .employeeRef(rq.getEmployeeRef()).designation(rq.getDesignation())
@@ -65,7 +78,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     @PreAuthorize("isAuthenticated()")
     public EmployeeResponse getById(Long id) {
         Employee emp = findOrThrow(id);
+        Temple temple = templeRepository.findById(emp.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", emp.getTempleId()));
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         return toResponse(emp);
     }
 
@@ -74,7 +90,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse update(Long id, UpdateEmployeeRequest rq) {
         Employee emp = findOrThrow(id);
+        Temple temple = templeRepository.findById(emp.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", emp.getTempleId()));
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
 
         // VAL-012: terminal state guard — RESIGNED/RETIRED → ACTIVE is blocked
         if (rq.getStatus() != null && rq.getStatus() == EmployeeStatus.ACTIVE
@@ -109,9 +128,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public void softDelete(Long id) {
         Employee emp = findOrThrow(id);
+        Temple temple = templeRepository.findById(emp.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", emp.getTempleId()));
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         employeeRepository.deleteById(id); // @SQLDelete intercepts to UPDATE
         log.info("Employee soft-deleted: id=[{}]", id);
+    }
+
+    private ScopeHelper.Claims currentClaims() {
+        return (ScopeHelper.Claims) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
     }
 
     private Employee findOrThrow(Long id) {
@@ -120,9 +147,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private EmployeeResponse toResponse(Employee e) {
         return EmployeeResponse.builder()
-                .id(e.getId()).templeId(e.getTempleId()).fullName(e.getFullName())
-                .employeeType(e.getEmployeeType()).designation(e.getDesignation())
-                .dateOfJoining(e.getDateOfJoining()).salaryGrade(e.getSalaryGrade())
-                .status(e.getStatus()).isHereditary(e.isHereditary()).build();
+            .id(e.getId()).templeId(e.getTempleId()).fullName(e.getFullName())
+            .employeeType(e.getEmployeeType()).designation(e.getDesignation())
+            .dateOfJoining(e.getDateOfJoining()).salaryGrade(e.getSalaryGrade())
+            .status(e.getStatus()).isHereditary(e.getIsHereditary()).build();
     }
 }

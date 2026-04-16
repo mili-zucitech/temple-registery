@@ -338,11 +338,11 @@ INSERT IGNORE INTO users (
 -- All FK references (district_id, taluk_id, hobli_id) reference IDs inserted above.
 -- =============================================================================
 INSERT INTO temples (
-    name, grade, tradition,
-    district_id, taluk_id, hobli_id,
-    city, pin_code,
-    contact_name, contact_phone,
-    trust_registered, asset_declaration_status,
+    registration_number, name, alias_name, grade, primary_deity, tradition,
+    year_established, district_id, taluk_id, hobli_id,
+    village_town, pin_code,
+    contact_name, contact_designation, contact_mobile,
+    trust_registered, asset_declaration_status, status,
     is_deleted, created_at, updated_at, created_by, updated_by, version
 )
 WITH RECURSIVE seq(n) AS (
@@ -485,6 +485,9 @@ geo2 AS (
     FROM geo g
 )
 SELECT
+    -- Registration number: TMP-KA-XXXXXX (unique)
+    CONCAT('TMP-KA-', LPAD(g2.n, 6, '0'))        AS registration_number,
+
     -- Temple name: "Sri {Deity} {suffix}"
     CONCAT('Sri ', g2.primary_deity,
         ELT(1 + (g2.n % 6),
@@ -492,18 +495,28 @@ SELECT
             ' Kshetra', ' Mandir', ' Pranadharana Temple')
     )                                              AS name,
 
+    -- Alias name (25% have no alias)
+    CASE g2.n % 4
+        WHEN 0 THEN CONCAT(g2.primary_deity, ' Mandir')
+        WHEN 1 THEN CONCAT(g2.primary_deity, ' Devasthana')
+        WHEN 2 THEN NULL
+        ELSE        CONCAT('Shri ', g2.primary_deity, ' Temple')
+    END                                            AS alias_name,
+
     g2.grade,
+    g2.primary_deity,
     g2.tradition,
+    g2.year_established,
     g2.district_id,
     CAST(g2.taluk_id  AS UNSIGNED)                AS taluk_id,
     CAST(g2.hobli_id  AS UNSIGNED)                AS hobli_id,
 
-    -- City names (district-appropriate)
+    -- Village/town names (district-appropriate)
     ELT(1 + (g2.n % 12),
         'Mysuru', 'Srirangapatna', 'Nanjangud', 'T Narasipur', 'Hunsur',
         'Periyapatna', 'H D Kote', 'Pandavapura', 'Krishnarajanagara',
         'Tirumakudalu Narasipura', 'Bannur', 'Gundlupet')
-                                                   AS city,
+                                                   AS village_town,
 
     -- Pin code (Karnataka district codes 570-591 for south, 580-591 for north)
     CASE
@@ -519,11 +532,15 @@ SELECT
         'Rangaswamy', 'Krishnamurti', 'Venkataramaiah', 'Srinivasa Rao',
         'Narayanaswamy', 'Raghavendra', 'Lakshmipathi', 'Subrahmanya')
                                                    AS contact_name,
+    ELT(1 + (g2.n % 4),
+        'Executive Officer', 'Temple Trustee', 'Head Priest', 'Manager')
+                                                   AS contact_designation,
     CONCAT('90', LPAD((g2.n * 7 + 10000000) % 100000000, 8, '0'))
-                                                   AS contact_phone,
+                                                   AS contact_mobile,
 
     g2.trust_registered,
     g2.asset_declaration_status,
+    'ACTIVE'                                       AS status,
     0                                              AS is_deleted,
     DATE_SUB(@ts, INTERVAL (g2.n % 1800) DAY)     AS created_at,
     DATE_SUB(@ts, INTERVAL (g2.n % 365)  DAY)     AS updated_at,
@@ -535,7 +552,11 @@ FROM geo2 g2;
 -- Edge-case override: 5 famous-name Shiva temples in Mysuru (same name, different locations)
 -- Tests: "same name in multiple taluks" filter scenario
 UPDATE temples SET name = 'Sri Siddeshwara Swamy Temple'
-WHERE id IN (1, 21, 41, 61, 81);
+WHERE registration_number IN ('TMP-KA-000001','TMP-KA-000021','TMP-KA-000041','TMP-KA-000061','TMP-KA-000081');
+
+-- Edge-case override: 3 suspended temples (to test status filter)
+UPDATE temples SET status = 'SUSPENDED'
+WHERE registration_number IN ('TMP-KA-000050','TMP-KA-000150','TMP-KA-000250');
 
 -- =============================================================================
 -- SECTION 4: TRUST REGISTRATIONS
@@ -543,7 +564,7 @@ WHERE id IN (1, 21, 41, 61, 81);
 -- =============================================================================
 INSERT INTO trust_registrations (
     temple_id, trust_type, trust_name, registration_number,
-    registered_date, bank_ifsc, bank_name,
+    registered_date, date_of_registration, bank_ifsc, bank_name,
     is_deleted, created_at, updated_at, created_by, updated_by, version
 )
 SELECT
@@ -552,6 +573,7 @@ SELECT
     CONCAT(t.name, ' Trust')                          AS trust_name,
     CONCAT('KTRT-', LPAD(t.id, 6, '0'))               AS registration_number,
     DATE_SUB(CURDATE(), INTERVAL (t.id % 20 + 1) YEAR) AS registered_date,
+    DATE_SUB(CURDATE(), INTERVAL (t.id % 20 + 1) YEAR) AS date_of_registration,
     ELT(1 + (t.id % 5),
         'SBIN0000001', 'CNRB0000001', 'KARB0000001',
         'UBIN0001234', 'BARB0000001')                 AS bank_ifsc,
@@ -762,7 +784,7 @@ SELECT
     ad.id,
     CONCAT('SY-', LPAD(ad.temple_id, 5, '0'), '-', (ad.temple_id % 3 + 1)),
     ROUND(ad.agricultural_land_acres / (ad.temple_id % 3 + 1), 4),
-    CONCAT('Survey No. ', ad.temple_id % 500 + 1, ', ', t.city),
+    CONCAT('Survey No. ', ad.temple_id % 500 + 1, ', ', t.village_town),
     ROUND(ad.agricultural_land_acres * 12000, 2)
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
@@ -797,7 +819,7 @@ LIMIT 300;
 -- SECTION 9: CONTRACTORS (80 records across 80 temples)
 -- =============================================================================
 INSERT INTO contractors (
-    temple_id, company_name, gst_number, service_type,
+    temple_id, company_name, name, gst_number, service_type,
     contract_reference, work_order_date, contract_start_date, contract_end_date,
     contract_value, payment_status,
     is_deleted, created_at, updated_at, created_by, updated_by
@@ -809,6 +831,11 @@ SELECT
         'Rangaswamy Contractors', 'Venkataramaiah Works', 'Srinivasa Projects',
         'Karnataka Heritage Builders', 'Raghavendra Infra'),
         ' Pvt Ltd')                                    AS company_name,
+    CONCAT(ELT(1 + (t.id % 8),
+        'Sri Constructions', 'Narayana Engineering', 'Gopala Builders',
+        'Rangaswamy Contractors', 'Venkataramaiah Works', 'Srinivasa Projects',
+        'Karnataka Heritage Builders', 'Raghavendra Infra'),
+        ' Pvt Ltd')                                    AS name,
     CONCAT('29AABCT', LPAD(t.id, 5, '0'), 'Z', (1 + t.id % 9)) AS gst_number,
     ELT(1 + (t.id % 6),
         'Temple Renovation', 'Gopura Construction', 'Compound Wall Repair',
@@ -873,26 +900,62 @@ WHERE t.grade IN ('A','B') AND t.is_deleted = 0;
 -- Derived from temples + trust + declaration data just seeded.
 -- =============================================================================
 INSERT INTO temple_search_summary (
-    temple_id, name, grade, tradition,
-    district_id, district_name, city,
-    trust_registered, declaration_status,
-    latitude, longitude, updated_at
+    temple_id, name, registration_number, grade, primary_deity,
+    tradition, hobli_id, taluk_id, district_id, city_id,
+    temple_status, trust_registered, asset_declaration_status,
+    year_established,
+    pending_declarations, overdue_declarations, pending_profile_review,
+    has_active_trust, has_approved_declaration,
+    last_declaration_at, last_profile_update_at,
+    updated_at
 )
 SELECT
     t.id                                               AS temple_id,
     t.name,
+    t.registration_number,
     t.grade,
+    t.primary_deity,
     t.tradition,
+    t.hobli_id,
+    t.taluk_id,
     t.district_id,
-    d.name                                             AS district_name,
-    t.city,
+    -- Resolve city_id via districts table
+    d_city.city_id                                     AS city_id,
+    t.status                                           AS temple_status,
     t.trust_registered,
-    t.asset_declaration_status                         AS declaration_status,
-    t.latitude,
-    t.longitude,
+    t.asset_declaration_status,
+    t.year_established,
+
+    -- pending_declarations: count of PENDING_REVIEW + CLARIFICATION_REQUESTED
+    (SELECT COUNT(*) FROM asset_declarations ad
+     WHERE ad.temple_id = t.id
+       AND ad.status IN ('PENDING_REVIEW','CLARIFICATION_REQUESTED','PHYSICAL_VERIFICATION_REQUESTED')
+       AND ad.is_deleted = 0)                          AS pending_declarations,
+
+    -- overdue_declarations
+    (SELECT COUNT(*) FROM asset_declarations ad
+     WHERE ad.temple_id = t.id
+       AND ad.status = 'OVERDUE' AND ad.is_deleted = 0) AS overdue_declarations,
+
+    0                                                  AS pending_profile_review,
+
+    -- has_active_trust
+    IF(t.trust_registered = 1
+         AND EXISTS (SELECT 1 FROM trust_registrations tr
+                     WHERE tr.temple_id = t.id AND tr.is_deleted = 0), 1, 0)
+                                                       AS has_active_trust,
+
+    -- has_approved_declaration
+    IF(t.asset_declaration_status = 'APPROVED', 1, 0)  AS has_approved_declaration,
+
+    -- last_declaration_at
+    (SELECT MAX(ad.submitted_at) FROM asset_declarations ad
+     WHERE ad.temple_id = t.id AND ad.is_deleted = 0)  AS last_declaration_at,
+
+    NULL                                               AS last_profile_update_at,
     t.updated_at
 FROM temples t
-JOIN districts d ON d.id = t.district_id
+JOIN districts d_city ON d_city.id = t.district_id
 WHERE t.is_deleted = 0;
 
 -- =============================================================================

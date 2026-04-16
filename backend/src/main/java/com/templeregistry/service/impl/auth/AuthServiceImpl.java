@@ -8,6 +8,7 @@ import com.templeregistry.entity.auth.RefreshToken;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.exception.AccountLockedException;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.exception.MfaVerificationException;
 import com.templeregistry.repository.auth.RefreshTokenRepository;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.security.TokenRevocationGuard;

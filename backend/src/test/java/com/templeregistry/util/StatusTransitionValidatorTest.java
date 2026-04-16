@@ -12,18 +12,20 @@ class StatusTransitionValidatorTest {
     private final StatusTransitionValidator validator = new StatusTransitionValidator();
 
     @Test
-    void should_allow_DRAFT_to_SUBMITTED() {
-        assertThatCode(() -> validator.validateDeclarationTransition("DRAFT", "SUBMITTED"))
+    void should_allow_DRAFT_to_PENDING_REVIEW() {
+        assertThatCode(() -> validator.validateDeclarationTransition("DRAFT", "PENDING_REVIEW"))
                 .doesNotThrowAnyException();
     }
 
     @ParameterizedTest
     @CsvSource({
-            "SUBMITTED, APPROVED",
-            "SUBMITTED, REJECTED",
-            "SUBMITTED, CLARIFICATION_REQUESTED",
-            "SUBMITTED, PHYSICAL_VERIFICATION_REQUESTED",
-            "CLARIFICATION_REQUESTED, SUBMITTED",
+            "PENDING_REVIEW, APPROVED",
+            "PENDING_REVIEW, REJECTED",
+            "PENDING_REVIEW, CLARIFICATION_REQUESTED",
+            "PENDING_REVIEW, PHYSICAL_VERIFICATION_REQUESTED",
+            "PENDING_REVIEW, UNDER_REVIEW",
+            "CLARIFICATION_REQUESTED, RESUBMITTED",
+            "RESUBMITTED, UNDER_REVIEW",
             "PHYSICAL_VERIFICATION_REQUESTED, APPROVED",
             "PHYSICAL_VERIFICATION_REQUESTED, REJECTED"
     })
@@ -34,7 +36,7 @@ class StatusTransitionValidatorTest {
 
     @Test
     void should_throw_when_REJECTED_state_is_mutated() {
-        assertThatThrownBy(() -> validator.validateDeclarationTransition("REJECTED", "SUBMITTED"))
+        assertThatThrownBy(() -> validator.validateDeclarationTransition("REJECTED", "PENDING_REVIEW"))
                 .isInstanceOf(IllegalStatusTransitionException.class);
     }
 

@@ -33,4 +33,16 @@ public class DcDashboardResponse {
 
     /** Count per grade — used for pie/bar chart. */
     private List<GradeDistributionItem> gradeDistribution;
+
+    /**
+     * Temples per Taluk for a district-scoped principal (DC/DC_STAFF).
+     * SUPER_ADMIN requests may return an empty list.
+     */
+    private List<AreaDistributionItem> talukDistribution;
+
+    /**
+     * Temples per District for SUPER_ADMIN (all-district view).
+     * District-scoped principals may receive an empty list.
+     */
+    private List<AreaDistributionItem> districtDistribution;
 }

@@ -16,7 +16,6 @@ public class UserProfileResponse {
     private String username;
     private String email;
     private String fullName;
-    private String mobile;
     private UserRole role;
     private boolean isActive;
     private Long districtId;

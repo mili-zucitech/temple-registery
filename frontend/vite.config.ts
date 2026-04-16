@@ -16,16 +16,6 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/uploads': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
     },
   },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    css: false,
-  },
-} as any)
+})

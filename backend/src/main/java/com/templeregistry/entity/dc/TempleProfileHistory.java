@@ -38,15 +38,6 @@ public class TempleProfileHistory {
     private int version;
 
     // Archived content fields
-    @Column(name = "phone", length = 15)
-    private String phone;
-
-    @Column(name = "email", length = 255)
-    private String email;
-
-    @Column(name = "website", length = 500)
-    private String website;
-
     @Column(name = "contact_person_name", length = 255)
     private String contactPersonName;
 
@@ -56,12 +47,6 @@ public class TempleProfileHistory {
     @Column(name = "photo_file_path", length = 1000)
     private String photoFilePath;
 
-    @Column(name = "bank_name", length = 100)
-    private String bankName;
-
-    @Column(name = "bank_ifsc", length = 11)
-    private String bankIfsc;
-
     @Column(name = "bank_account_number_encrypted", columnDefinition = "TEXT")
     private String bankAccountNumberEncrypted;
 
@@ -70,9 +55,6 @@ public class TempleProfileHistory {
 
     @Column(name = "linked_institutions", columnDefinition = "JSON")
     private String linkedInstitutions;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
 
     @Column(name = "annual_festivals", columnDefinition = "TEXT")
     private String annualFestivals;

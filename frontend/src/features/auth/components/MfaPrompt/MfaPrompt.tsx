@@ -20,18 +20,12 @@ export function MfaPrompt() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit((values) => handleVerify(values, form.setError))} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleVerify)} className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {mfaType === 'TOTP'
             ? 'Enter the 6-digit code from your authenticator app.'
             : 'Enter the 6-digit OTP sent to your registered mobile number.'}
         </p>
-
-        {import.meta.env.DEV && mfaType === 'SMS_OTP' && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            <span className="font-semibold">Dev mode:</span> OTP is printed in the backend console logs.
-          </div>
-        )}
 
         <FormField
           control={form.control}
@@ -46,7 +40,6 @@ export function MfaPrompt() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   {...field}
-                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />

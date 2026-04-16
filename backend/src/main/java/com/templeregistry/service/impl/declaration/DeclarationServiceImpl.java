@@ -2,6 +2,7 @@ package com.templeregistry.service.impl.declaration;
 
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.declaration.*;
+import com.templeregistry.dto.response.dc.ClarificationItemResponse;
 import com.templeregistry.dto.response.declaration.*;
 import com.templeregistry.entity.declaration.*;
 import com.templeregistry.entity.temple.Temple;
@@ -14,6 +15,7 @@ import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
@@ -32,6 +34,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,13 +45,16 @@ public class DeclarationServiceImpl implements DeclarationService {
 
     private final DeclarationRepository declarationRepository;
     private final DeclarationClarificationRepository clarificationRepository;
+    private final AssetDeclarationVersionRepository versionRepository;
     private final TempleRepository templeRepository;
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
     private final StatusTransitionValidator transitionValidator;
     private final AcknowledgementNumberGenerator ackGenerator;
+    private final NotificationEventPublisher notificationPublisher;
     private final PaginationUtil paginationUtil;
     private final AuditService auditService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -61,18 +69,45 @@ public class DeclarationServiceImpl implements DeclarationService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(RoleConstants.CAN_READ_ALL)
-    public PaginatedResponse<DeclarationResponse> listByDistrict(Long districtId, String status, int page, int size) {
+    public PaginatedResponse<DeclarationResponse> listByDistrict(Long districtId, String status, String financialYear, int page, int size) {
+        log.info("[DeclarationService] listByDistrict called with: districtId={}, status={}, financialYear={}, page={}, size={}",
+                districtId, status, financialYear, page, size);
+        
         var pageable = PageRequest.of(page, paginationUtil.clampSize(size));
         Page<AssetDeclaration> result;
+        // districtId == null means SUPER_ADMIN with no district restriction — return
+        // all.
         if (status != null && !status.isBlank()) {
             DeclarationStatus ds = DeclarationStatus.valueOf(status.toUpperCase());
-            result = declarationRepository.findAllByDistrictIdAndStatus(districtId, ds, pageable);
+            if (financialYear != null && !financialYear.isBlank()) {
+                log.info("[DeclarationService] Filtering by financialYear={}", financialYear);
+                result = districtId != null
+                        ? declarationRepository.findAllByDistrictIdAndStatusAndFinancialYear(districtId, ds, financialYear, pageable)
+                        : declarationRepository.findAllByStatusAndFinancialYear(ds, financialYear, pageable);
+            } else {
+                result = districtId != null
+                        ? declarationRepository.findAllByDistrictIdAndStatus(districtId, ds, pageable)
+                        : declarationRepository.findAllByStatus(ds, pageable);
+            }
         } else {
-            result = declarationRepository.findAllByDistrictId(districtId, pageable);
+            result = districtId != null
+                    ? declarationRepository.findAllByDistrictId(districtId, pageable)
+                    : declarationRepository.findAll(pageable);
         }
-        return PaginatedResponse.of(result.map(this::toResponse));
+        
+        log.info("[DeclarationService] Query returned {} results", result.getTotalElements());
+        
+        // Batch fetch temple names to avoid N+1 query problem
+        Set<Long> templeIds = result.getContent().stream()
+                .map(AssetDeclaration::getTempleId)
+                .collect(Collectors.toSet());
+        
+        Map<Long, String> templeNames = templeRepository.findAllById(templeIds)
+                .stream()
+                .collect(Collectors.toMap(Temple::getId, Temple::getName));
+        
+        return PaginatedResponse.of(result.map(d -> toResponse(d, templeNames)));
     }
-
 
     @Transactional
     public DeclarationResponse create(Long templeId, CreateDeclarationRequest rq) {
@@ -113,10 +148,27 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void submit(Long id) {
         AssetDeclaration d = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(d.getTempleId());
-        transitionValidator.validateDeclarationTransition(d.getStatus().name(), DeclarationStatus.PENDING_REVIEW.name());
+        transitionValidator.validateDeclarationTransition(d.getStatus().name(),
+                DeclarationStatus.PENDING_REVIEW.name());
         d.setStatus(DeclarationStatus.PENDING_REVIEW);
         d.setSubmittedAt(LocalDateTime.now());
-        declarationRepository.save(d);
+
+        try {
+            String json = objectMapper.writeValueAsString(toResponse(d));
+            d.setSnapshotJson(json);
+            declarationRepository.save(d);
+
+            versionRepository.save(AssetDeclarationVersion.builder()
+                    .declarationId(d.getId())
+                    .versionNumber(d.getVersionNumber())
+                    .snapshotJson(json)
+                    .createdByUserId(currentUserId())
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to write snapshot JSON for declaration [{}]", id, e);
+            throw new RuntimeException("Failed to create snapshot", e);
+        }
+
         log.info("Declaration [{}] submitted.", id);
     }
 
@@ -185,13 +237,30 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration d = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(d.getTempleId());
         transitionValidator.validateDeclarationTransition(
-                d.getStatus().name(), DeclarationStatus.PENDING_REVIEW.name());
+                d.getStatus().name(), DeclarationStatus.RESUBMITTED.name());
         applyResubmitFields(d, rq);
-        d.setStatus(DeclarationStatus.PENDING_REVIEW);
+        d.setStatus(DeclarationStatus.RESUBMITTED);
         d.setSubmittedAt(LocalDateTime.now());
-        declarationRepository.save(d);
+        d.setVersionNumber(d.getVersionNumber() + 1);
+
+        try {
+            String json = objectMapper.writeValueAsString(toResponse(d));
+            d.setSnapshotJson(json);
+            declarationRepository.save(d);
+
+            versionRepository.save(AssetDeclarationVersion.builder()
+                    .declarationId(d.getId())
+                    .versionNumber(d.getVersionNumber())
+                    .snapshotJson(json)
+                    .createdByUserId(currentUserId())
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to write snapshot JSON for resubmitted declaration [{}]", id, e);
+            throw new RuntimeException("Failed to create snapshot", e);
+        }
+
         saveClarification(id, rq.getCorrectionNotes(), ClarificationDirection.TEMPLE_TO_DC);
-        log.info("Declaration [{}] resubmitted.", id);
+        log.info("Declaration [{}] resubmitted. New version: {}", id, d.getVersionNumber());
     }
 
     @Override
@@ -227,13 +296,13 @@ public class DeclarationServiceImpl implements DeclarationService {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             java.util.Map<?, ?> snapshot = mapper.readValue(d.getSnapshotJson(), java.util.Map.class);
             compareField(diffs, "agriculturalLandAcres", snapshot, d.getAgriculturalLandAcres());
-            compareField(diffs, "agriculturalLandValue",  snapshot, d.getAgriculturalLandValue());
-            compareField(diffs, "buildingsSqft",          snapshot, d.getBuildingsSqft());
-            compareField(diffs, "buildingsValue",         snapshot, d.getBuildingsValue());
-            compareField(diffs, "goldGrams",              snapshot, d.getGoldGrams());
-            compareField(diffs, "silverGrams",            snapshot, d.getSilverGrams());
-            compareField(diffs, "financialAssetsValue",   snapshot, d.getFinancialAssetsValue());
-            compareField(diffs, "otherMovableValue",      snapshot, d.getOtherMovableValue());
+            compareField(diffs, "agriculturalLandValue", snapshot, d.getAgriculturalLandValue());
+            compareField(diffs, "buildingsSqft", snapshot, d.getBuildingsSqft());
+            compareField(diffs, "buildingsValue", snapshot, d.getBuildingsValue());
+            compareField(diffs, "goldGrams", snapshot, d.getGoldGrams());
+            compareField(diffs, "silverGrams", snapshot, d.getSilverGrams());
+            compareField(diffs, "financialAssetsValue", snapshot, d.getFinancialAssetsValue());
+            compareField(diffs, "otherMovableValue", snapshot, d.getOtherMovableValue());
         } catch (Exception e) {
             log.warn("Failed to parse snapshot JSON for declaration [{}]: {}", id, e.getMessage());
         }
@@ -247,7 +316,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration d = findOrThrow(id);
         if (d.getStatus() != DeclarationStatus.PENDING_REVIEW) {
             throw new IllegalStateException(
-                    "Only PENDING_REVIEW declarations can be force-reverted to DRAFT. Current status: " + d.getStatus());
+                    "Only PENDING_REVIEW declarations can be force-reverted to DRAFT. Current status: "
+                            + d.getStatus());
         }
         d.setStatus(DeclarationStatus.DRAFT);
         declarationRepository.save(d);
@@ -267,12 +337,47 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<ClarificationItemResponse> listClarifications(Long declarationId) {
+        AssetDeclaration d = findOrThrow(declarationId);
+        assertAccess(d);
+        return clarificationRepository.findAllByDeclarationIdOrderByCreatedAtAsc(declarationId)
+                .stream()
+                .map(c -> ClarificationItemResponse.builder()
+                        .id(c.getId())
+                        .direction(c.getDirection().name())
+                        .message(c.getMessage())
+                        .sectionName(c.getSectionName())
+                        .fieldNamesJson(c.getFieldNamesJson())
+                        .authorId(c.getAuthorId())
+                        .createdAt(c.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    @Override
     @Scheduled(cron = "0 0 6 * * *") // daily at 6 AM
     @Transactional
     public void flagOverdue() {
-        List<AssetDeclaration> overdue = declarationRepository.findOverdue(LocalDate.now());
-        log.info("Overdue declarations found: {}", overdue.size());
-        // TODO: send notifications for each overdue declaration
+        LocalDate today = LocalDate.now();
+        List<AssetDeclaration> overdue = declarationRepository.findDeclarationsToFlagAsOverdue(today);
+
+        log.info("Found {} declarations to mark as OVERDUE", overdue.size());
+
+        for (AssetDeclaration d : overdue) {
+            String oldStatus = d.getStatus().name();
+            d.setStatus(DeclarationStatus.OVERDUE);
+            d.setOverdue(true);
+            d.setOverdueFlaggedAt(LocalDateTime.now());
+            declarationRepository.save(d);
+
+            notificationPublisher.publish(
+                    d.getSubmittedBy(), "DECLARATION_OVERDUE", d.getId(), "ASSET_DECLARATION");
+
+            auditService.logDataEvent(0L, "SYSTEM", "STATUS_CHANGE", "AssetDeclaration", d.getId(),
+                    "status=" + oldStatus + " -> OVERDUE (automatic batch)");
+        }
     }
 
     private AssetDeclaration findOrThrow(Long id) {
@@ -287,7 +392,8 @@ public class DeclarationServiceImpl implements DeclarationService {
 
     private Long currentUserId() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        if (principal instanceof ScopeHelper.Claims c)
+            return c.userId();
         return 0L;
     }
 
@@ -303,9 +409,11 @@ public class DeclarationServiceImpl implements DeclarationService {
     private AssetDeclaration buildFromRequest(CreateDeclarationRequest rq, Long templeId, Long districtId) {
         return AssetDeclaration.builder()
                 .templeId(templeId).districtId(districtId).status(DeclarationStatus.DRAFT)
-                .agriculturalLandAcres(rq.getAgriculturalLandAcres()).agriculturalLandValue(rq.getAgriculturalLandValue())
+                .agriculturalLandAcres(rq.getAgriculturalLandAcres())
+                .agriculturalLandValue(rq.getAgriculturalLandValue())
                 .buildingsSqft(rq.getBuildingsSqft()).buildingsValue(rq.getBuildingsValue())
-                .leasedPropertiesCount(rq.getLeasedPropertiesCount()).leasedPropertiesValue(rq.getLeasedPropertiesValue())
+                .leasedPropertiesCount(rq.getLeasedPropertiesCount())
+                .leasedPropertiesValue(rq.getLeasedPropertiesValue())
                 .otherLandValue(rq.getOtherLandValue()).goldGrams(rq.getGoldGrams()).silverGrams(rq.getSilverGrams())
                 .idolsCount(rq.getIdolsCount()).vehiclesCount(rq.getVehiclesCount())
                 .financialAssetsValue(rq.getFinancialAssetsValue()).otherMovableValue(rq.getOtherMovableValue())
@@ -313,23 +421,42 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private void applyFields(AssetDeclaration d, CreateDeclarationRequest rq) {
-        d.setAgriculturalLandAcres(rq.getAgriculturalLandAcres()); d.setAgriculturalLandValue(rq.getAgriculturalLandValue());
-        d.setBuildingsSqft(rq.getBuildingsSqft()); d.setBuildingsValue(rq.getBuildingsValue());
-        d.setGoldGrams(rq.getGoldGrams()); d.setSilverGrams(rq.getSilverGrams());
-        d.setFinancialAssetsValue(rq.getFinancialAssetsValue()); d.setOtherMovableValue(rq.getOtherMovableValue());
+        d.setAgriculturalLandAcres(rq.getAgriculturalLandAcres());
+        d.setAgriculturalLandValue(rq.getAgriculturalLandValue());
+        d.setBuildingsSqft(rq.getBuildingsSqft());
+        d.setBuildingsValue(rq.getBuildingsValue());
+        d.setGoldGrams(rq.getGoldGrams());
+        d.setSilverGrams(rq.getSilverGrams());
+        d.setFinancialAssetsValue(rq.getFinancialAssetsValue());
+        d.setOtherMovableValue(rq.getOtherMovableValue());
         d.setDueDate(rq.getDueDate());
     }
 
     private void applyResubmitFields(AssetDeclaration d, ResubmitDeclarationRequest rq) {
-        if (rq.getAgriculturalLandAcres() != null) d.setAgriculturalLandAcres(rq.getAgriculturalLandAcres());
-        if (rq.getGoldGrams() != null) d.setGoldGrams(rq.getGoldGrams());
-        if (rq.getSilverGrams() != null) d.setSilverGrams(rq.getSilverGrams());
-        if (rq.getFinancialAssetsValue() != null) d.setFinancialAssetsValue(rq.getFinancialAssetsValue());
+        if (rq.getAgriculturalLandAcres() != null)
+            d.setAgriculturalLandAcres(rq.getAgriculturalLandAcres());
+        if (rq.getGoldGrams() != null)
+            d.setGoldGrams(rq.getGoldGrams());
+        if (rq.getSilverGrams() != null)
+            d.setSilverGrams(rq.getSilverGrams());
+        if (rq.getFinancialAssetsValue() != null)
+            d.setFinancialAssetsValue(rq.getFinancialAssetsValue());
     }
 
     private DeclarationResponse toResponse(AssetDeclaration d) {
+        return toResponse(d, null);
+    }
+
+    private DeclarationResponse toResponse(AssetDeclaration d, Map<Long, String> templeNames) {
+        String templeName = (templeNames != null)
+                ? templeNames.getOrDefault(d.getTempleId(), null)
+                : templeRepository.findById(d.getTempleId())
+                        .map(Temple::getName)
+                        .orElse(null);
+        
         return DeclarationResponse.builder()
-                .id(d.getId()).templeId(d.getTempleId()).districtId(d.getDistrictId())
+                .id(d.getId()).templeId(d.getTempleId()).templeName(templeName)
+                .districtId(d.getDistrictId()).financialYear(d.getFinancialYear())
                 .status(d.getStatus()).agriculturalLandAcres(d.getAgriculturalLandAcres())
                 .agriculturalLandValue(d.getAgriculturalLandValue()).buildingsSqft(d.getBuildingsSqft())
                 .buildingsValue(d.getBuildingsValue()).goldGrams(d.getGoldGrams()).silverGrams(d.getSilverGrams())
@@ -340,7 +467,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private void compareField(List<DeclarationDiffResponse> diffs, String field,
-                              java.util.Map<?, ?> snapshot, Object currentValue) {
+            java.util.Map<?, ?> snapshot, Object currentValue) {
         Object snapshotValue = snapshot.get(field);
         String snv = snapshotValue != null ? snapshotValue.toString() : null;
         String curv = currentValue != null ? currentValue.toString() : null;

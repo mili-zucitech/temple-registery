@@ -41,8 +41,8 @@ export function TempleListPage() {
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="rounded-lg border border-border bg-card p-4 flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[200px]">
+      <div className="rounded-lg border border-border bg-card p-3 sm:p-4 flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
+        <div className="flex-1 min-w-[180px]">
           <label className="text-sm font-medium mb-1 block">Temple Name</label>
           <Input
             placeholder="Search by name…"
@@ -51,7 +51,7 @@ export function TempleListPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <label className="text-sm font-medium mb-1 block">Grade</label>
           <Select value={grade || 'all'} onValueChange={(v) => setGrade(v === 'all' ? '' : v)}>
             <SelectTrigger>
@@ -65,9 +65,8 @@ export function TempleListPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleSearch} className="bg-gradient-gold shadow-gold">Search</Button>
+        <Button onClick={handleSearch} className="bg-gradient-gold shadow-gold w-full sm:w-auto">Search</Button>
       </div>
-
       {/* Results */}
       <div>
         <p className="text-sm text-muted-foreground mb-3">{total.toLocaleString()} temple(s) found</p>
@@ -81,40 +80,41 @@ export function TempleListPage() {
             icon={<Building2 size={32} />}
           />
         ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-lg border border-border overflow-x-auto">
+            <table className="min-w-[700px] w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-foreground">Name</th>
-                  <th className="px-4 py-3 text-left font-semibold text-foreground">Grade</th>
-                  <th className="px-4 py-3 text-left font-semibold text-foreground">District</th>
-                  <th className="px-4 py-3 text-left font-semibold text-foreground">Declaration</th>
-                  <th className="px-4 py-3 text-left font-semibold text-foreground">Trust</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap">Name</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap">Grade</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap">District</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap">Declaration</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap">Trust</th>
+                  <th className="px-4 py-3 whitespace-nowrap" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {temples.map((temple) => (
                   <tr key={temple.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium">{temple.name}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{temple.name}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <TempleGradeBadge grade={temple.grade} />
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{temple.districtName ?? '—'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{temple.districtName ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {temple.declarationStatus
                         ? <StatusBadge status={temple.declarationStatus} />
                         : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <span className={temple.trustRegistered ? 'text-success' : 'text-muted-foreground'}>
                         {temple.trustRegistered ? 'Registered' : 'Not registered'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="min-w-[64px]"
                         onClick={() => navigate(`/dc/temples/${temple.templeId}`)}
                       >
                         View

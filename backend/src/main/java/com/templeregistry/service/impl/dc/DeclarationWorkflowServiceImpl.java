@@ -10,8 +10,11 @@ import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.ClarificationDirection;
 import com.templeregistry.entity.declaration.DeclarationClarification;
 import com.templeregistry.entity.declaration.DeclarationStatus;
+import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.exception.ClarificationLimitExceededException;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleRepository;
@@ -64,6 +67,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -157,6 +161,11 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         Temple temple = loadTempleWithGeo(d.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
+        if (d.getClarificationRound() >= 3) {
+            throw new ClarificationLimitExceededException(
+                    "Maximum clarification rounds reached. You must approve or reject this declaration.");
+        }
+
         transitionValidator.validateDeclarationTransition(
                 d.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUESTED.name());
 
@@ -173,6 +182,11 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         auditService.logDataEvent(claims.userId(), claims.role(), "CLARIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId,
                 "round=" + d.getClarificationRound());
+
+        if (d.getClarificationRound() == 2) {
+            userRepository.findAllByRole(UserRole.SUPER_ADMIN).forEach(sa ->
+                    notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION", declarationId, "ASSET_DECLARATION"));
+        }
 
         summaryService.refresh(d.getTempleId());
 
@@ -219,6 +233,32 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                 .newStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name())
                 .acknowledgementNumber(null)
                 .message("Physical verification requested.")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_APPROVE)
+    public WorkflowActionResponse markUnderReview(Long declarationId, ScopeHelper.Claims claims) {
+        AssetDeclaration d = loadWithLock(declarationId);
+        Temple temple = loadTempleWithGeo(d.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+
+        transitionValidator.validateDeclarationTransition(
+                d.getStatus().name(), DeclarationStatus.UNDER_REVIEW.name());
+
+        d.setStatus(DeclarationStatus.UNDER_REVIEW);
+        declarationRepository.save(d);
+
+        auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_UNDER_REVIEW",
+                "AssetDeclaration", declarationId, "userId=" + claims.userId());
+
+        log.info("Declaration [{}] marked UNDER_REVIEW by userId={}", declarationId, claims.userId());
+
+        return WorkflowActionResponse.builder()
+                .declarationId(declarationId)
+                .newStatus(DeclarationStatus.UNDER_REVIEW.name())
+                .message("Declaration is now under review.")
                 .build();
     }
 

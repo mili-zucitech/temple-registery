@@ -1,9 +1,9 @@
 package com.templeregistry.controller.trust;
 
 import com.templeregistry.common.ApiResponse;
+import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.trust.*;
-import com.templeregistry.dto.response.trust.BoardMemberResponse;
-import com.templeregistry.dto.response.trust.TrustResponse;
+import com.templeregistry.dto.response.trust.*;
 import com.templeregistry.service.trust.TrustService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,83 +14,106 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import org.springframework.web.bind.annotation.RequestParam;
-import com.templeregistry.common.PaginatedResponse;
 
 @RestController
-@RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Trusts", description = "Trust lifecycle and Board Member management")
+@Tag(name = "Trusts", description = "Trust registrations, board members, and financials")
 public class TrustController {
 
     private final TrustService trustService;
 
-    // --- Trust APIs ---
+    @GetMapping("/api/v1/temples/{templeId}/trusts")
+    @Operation(summary = "List trust registrations for a temple")
+    public ResponseEntity<ApiResponse<List<TrustResponse>>> listByTemple(@PathVariable Long templeId) {
+        return ResponseEntity.ok(ApiResponse.success("Trusts retrieved.", trustService.listByTemple(templeId)));
+    }
 
-    @PostMapping("/temples/{templeId}/trusts")
-    @Operation(summary = "Create a new trust for a temple")
-    public ResponseEntity<ApiResponse<TrustResponse>> createTrust(
-            @PathVariable Long templeId, @Valid @RequestBody CreateTrustRequest request) {
+    @PostMapping("/api/v1/temples/{templeId}/trusts")
+    @Operation(summary = "Create trust registration for a temple")
+    public ResponseEntity<ApiResponse<TrustResponse>> create(
+            @PathVariable Long templeId, @Valid @RequestBody CreateTrustRequest rq) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Trust created successfully.", trustService.createTrust(templeId, request)));
+                .body(ApiResponse.success("Trust created.", trustService.create(templeId, rq)));
     }
 
-    @GetMapping("/temples/{templeId}/trusts")
-    @Operation(summary = "Get all trusts (active and dissolved) for a temple")
-    public ResponseEntity<ApiResponse<List<TrustResponse>>> getTrustsByTemple(@PathVariable Long templeId) {
-        return ResponseEntity.ok(ApiResponse.success("Trusts retrieved successfully.", trustService.getTrustsByTemple(templeId)));
+    @GetMapping("/api/v1/trusts/{id}")
+    @Operation(summary = "Get trust detail")
+    public ResponseEntity<ApiResponse<TrustResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Trust retrieved.", trustService.getById(id)));
     }
 
-    @PutMapping("/trusts/{id}")
-    @Operation(summary = "Update an active trust")
-    public ResponseEntity<ApiResponse<TrustResponse>> updateTrust(
-            @PathVariable Long id, @Valid @RequestBody UpdateTrustRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Trust updated successfully.", trustService.updateTrust(id, request)));
+    @PutMapping("/api/v1/trusts/{id}")
+    @Operation(summary = "Update trust registration")
+    public ResponseEntity<ApiResponse<TrustResponse>> update(
+            @PathVariable Long id, @Valid @RequestBody CreateTrustRequest rq) {
+        return ResponseEntity.ok(ApiResponse.success("Trust updated.", trustService.update(id, rq)));
     }
 
-    @PutMapping("/trusts/{id}/dissolve")
-    @Operation(summary = "Dissolve an active trust")
-    public ResponseEntity<ApiResponse<TrustResponse>> dissolveTrust(
-            @PathVariable Long id, @Valid @RequestBody DissolveTrustRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Trust dissolved successfully.", trustService.dissolveTrust(id, request)));
+    @GetMapping("/api/v1/trusts/{trustId}/board-members")
+    @Operation(summary = "List board members (current and past)")
+    public ResponseEntity<ApiResponse<List<BoardMemberResponse>>> listBoardMembers(@PathVariable Long trustId) {
+        return ResponseEntity.ok(ApiResponse.success("Board members retrieved.", trustService.listBoardMembers(trustId)));
     }
 
-    @PutMapping("/trusts/{id}/submit-for-review")
-    @Operation(summary = "Submit trust and board details for DC review")
-    public ResponseEntity<ApiResponse<TrustResponse>> submitForReview(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Trust submitted for DC review successfully.", trustService.submitForReview(id)));
-    }
-
-    // --- Board Member APIs ---
-
-    @PostMapping("/trusts/{trustId}/board-members")
-    @Operation(summary = "Add a board member to an active trust")
+    @PostMapping("/api/v1/trusts/{trustId}/board-members")
+    @Operation(summary = "Add a board member")
     public ResponseEntity<ApiResponse<BoardMemberResponse>> addBoardMember(
-            @PathVariable Long trustId, @Valid @RequestBody CreateBoardMemberRequest request) {
+            @PathVariable Long trustId, @Valid @RequestBody CreateBoardMemberRequest rq) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Board member added successfully.", trustService.addBoardMember(trustId, request)));
+                .body(ApiResponse.success("Board member added.", trustService.addBoardMember(trustId, rq)));
     }
 
-    @GetMapping("/trusts/{trustId}/board-members")
-    @Operation(summary = "Get all board members (current and historical) for a trust")
-    public ResponseEntity<ApiResponse<PaginatedResponse<BoardMemberResponse>>> getBoardMembersByTrust(
+    @PostMapping("/api/v1/trusts/{trustId}/financials")
+    @Operation(summary = "Submit annual financials for a trust (VAL-013: one record per FY)")
+    public ResponseEntity<ApiResponse<Void>> submitFinancial(
+            @PathVariable Long trustId, @Valid @RequestBody SubmitTrustFinancialRequest rq) {
+        trustService.submitFinancial(trustId, rq);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Financials submitted."));
+    }
+
+    @GetMapping("/api/v1/trusts/{trustId}/financials")
+    @Operation(summary = "List all submitted financial years for a trust")
+    public ResponseEntity<ApiResponse<List<TrustFinancialResponse>>> listFinancials(
+            @PathVariable Long trustId) {
+        return ResponseEntity.ok(ApiResponse.success("Financials retrieved.",
+                trustService.listFinancials(trustId)));
+    }
+
+    @PutMapping("/api/v1/trusts/{trustId}/board-members/{memberId}")
+    @Operation(summary = "Update a board member (isCurrent=false requires tenureEndDate per VAL-014)")
+    public ResponseEntity<ApiResponse<BoardMemberResponse>> updateBoardMember(
+            @PathVariable Long trustId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody UpdateBoardMemberRequest rq) {
+        return ResponseEntity.ok(ApiResponse.success("Board member updated.",
+                trustService.updateBoardMember(trustId, memberId, rq)));
+    }
+
+    @PostMapping("/api/v1/trusts/{trustId}/meetings")
+    @Operation(summary = "Record a board meeting")
+    public ResponseEntity<ApiResponse<BoardMeetingResponse>> createBoardMeeting(
+            @PathVariable Long trustId, @Valid @RequestBody CreateBoardMeetingRequest rq) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Board meeting recorded.",
+                        trustService.createBoardMeeting(trustId, rq)));
+    }
+
+    @GetMapping("/api/v1/trusts/{trustId}/meetings")
+    @Operation(summary = "List board meetings for a trust (paginated, most recent first)")
+    public ResponseEntity<ApiResponse<PaginatedResponse<BoardMeetingResponse>>> listBoardMeetings(
             @PathVariable Long trustId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(ApiResponse.success("Board members retrieved successfully.", trustService.getBoardMembersByTrust(trustId, page, size)));
+        return ResponseEntity.ok(ApiResponse.success("Board meetings retrieved.",
+                trustService.listBoardMeetings(trustId, page, size)));
     }
 
-    @PutMapping("/board-members/{id}")
-    @Operation(summary = "Update a current board member")
-    public ResponseEntity<ApiResponse<BoardMemberResponse>> updateBoardMember(
-            @PathVariable Long id, @Valid @RequestBody UpdateBoardMemberRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Board member updated successfully.", trustService.updateBoardMember(id, request)));
-    }
-
-    @PutMapping("/board-members/{id}/resign")
-    @Operation(summary = "Mark a board member as resigned")
-    public ResponseEntity<ApiResponse<BoardMemberResponse>> resignBoardMember(
-            @PathVariable Long id, @Valid @RequestBody ResignBoardMemberRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Board member resigned successfully.", trustService.resignBoardMember(id, request)));
+    @GetMapping("/api/v1/trusts/{trustId}/meetings/{meetingId}")
+    @Operation(summary = "Get a single board meeting by ID")
+    public ResponseEntity<ApiResponse<BoardMeetingResponse>> getBoardMeeting(
+            @PathVariable Long trustId, @PathVariable Long meetingId) {
+        return ResponseEntity.ok(ApiResponse.success("Board meeting retrieved.",
+                trustService.getBoardMeeting(meetingId)));
     }
 }

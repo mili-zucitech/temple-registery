@@ -1,8 +1,9 @@
 import { z } from 'zod'
 
 export const DECLARATION_STATUSES = [
-  'DRAFT', 'SUBMITTED', 'CLARIFICATION_REQUESTED',
-  'PHYSICAL_VERIFICATION_REQUESTED', 'APPROVED', 'REJECTED',
+  'DRAFT', 'SUBMITTED', 'PENDING_REVIEW', 'UNDER_REVIEW', 'RESUBMITTED',
+  'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED',
+  'APPROVED', 'REJECTED', 'OVERDUE', 'SUPERSEDED'
 ] as const
 export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
 
@@ -32,6 +33,7 @@ export type ClarificationRequest = z.infer<typeof clarificationSchema>
 
 export interface DeclarationResponse {
   id: number; templeId: number; templeName?: string; districtId: number; status: DeclarationStatus
+  financialYear?: string
   agriculturalLandAcres?: number; agriculturalLandValue?: number
   buildingsSqft?: number; buildingsValue?: number
   goldGrams?: number; silverGrams?: number; idolsCount?: number; vehiclesCount?: number
