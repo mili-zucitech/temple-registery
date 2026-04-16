@@ -1,5 +1,7 @@
 package com.templeregistry.dto.request.temple;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,6 +19,18 @@ import lombok.NoArgsConstructor;
 @Builder
 public class CreateTempleProfileStagingRequest {
 
+    /** VAL-016: exactly 10 numeric digits. */
+    @Pattern(regexp = "^[0-9]{10}$", message = "Phone must be exactly 10 digits with no country code prefix")
+    private String phone;
+
+    /** VAL-017: RFC 5322-compliant email. */
+    @Email(message = "Must be a valid email address")
+    @Size(max = 255)
+    private String email;
+
+    @Size(max = 500)
+    private String website;
+
     @Size(max = 255)
     private String contactPersonName;
 
@@ -27,14 +41,22 @@ public class CreateTempleProfileStagingRequest {
     @Size(max = 1000)
     private String photoFilePath;
 
-    /** Plain text bank account number; service will encrypt before persisting. */
+    /** Plain text bank account number; JPA AttributeConverter encrypts (AES-256-GCM) before persist. */
     private String bankAccountNumber;
 
-    @Size(max = 500)
-    private String languagesOfWorship;
+    @Size(max = 100)
+    private String bankName;
 
-    /** JSON string representing an array of linked mutt/sub-temple names. */
-    private String linkedInstitutions;
+    /** VAL-021: /^[A-Z]{4}0[A-Z0-9]{6}$/ (11 chars). */
+    @Pattern(regexp = "^[A-Z]{4}0[A-Z0-9]{6}$", message = "Bank IFSC must match pattern: 4 alpha + 0 + 6 alphanumeric")
+    private String bankIfsc;
+
+    private java.util.List<String> languagesOfWorship;
+
+    /** JSON array of linked mutt/sub-temple names. */
+    private java.util.List<String> linkedInstitutions;
+
+    private String description;
 
     private String annualFestivals;
 

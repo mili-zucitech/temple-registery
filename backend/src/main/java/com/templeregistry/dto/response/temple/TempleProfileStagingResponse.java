@@ -21,6 +21,9 @@ public class TempleProfileStagingResponse {
     /** The display-friendly label: DRAFT, SUBMITTED, APPROVED, REJECTED, SUPERSEDED. */
     private String statusLabel;
 
+    private String phone;
+    private String email;
+    private String website;
     private String contactPersonName;
     private String contactPersonDesignation;
     private String photoFilePath;
@@ -28,14 +31,21 @@ public class TempleProfileStagingResponse {
     /** Bank account: last 4 digits only (VAL-008). Never echoes full number. */
     private String bankAccountMasked;
 
-    private String languagesOfWorship;
-    private String linkedInstitutions;
+    private String bankName;
+    private String bankIfsc;
+    private java.util.List<String> languagesOfWorship;
+    private java.util.List<String> linkedInstitutions;
+    private String description;
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;
     private String reviewComment;
     private LocalDateTime submittedAt;
+    private Long submittedBy;
     private LocalDateTime reviewedAt;
+    private Long reviewedBy;
     private LocalDateTime createdAt;
+    private Long createdBy;
     private LocalDateTime updatedAt;
+    private Long updatedBy;
 }

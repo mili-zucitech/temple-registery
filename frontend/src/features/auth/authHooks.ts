@@ -7,11 +7,7 @@ import {
   useLoginMutation,
   useMfaVerifyMutation,
   useLogoutMutation,
-  useAadhaarOtpRequestMutation,
-  useAadhaarOtpVerifyMutation,
   useRegisterMutation,
-  usePasswordResetRequestMutation,
-  usePasswordResetConfirmMutation,
   useGetCurrentUserQuery,
   authApi,
 } from './authApi'
@@ -42,24 +38,19 @@ export function useLogin() {
     if ('data' in result && result.data.success) {
       const payload = result.data.data
       if ('tempToken' in payload) {
-        // MFA required — navigate to MFA page carrying temp token
         const challenge = payload as MfaChallengeResponse
         navigate(ROUTE_PATHS.MFA_VERIFY, {
           state: { tempToken: challenge.tempToken, mfaType: challenge.challengeType },
         })
       } else {
-        // Direct auth — tokens are set as httpOnly cookies by the server.
-        // Immediately hydrate Redux so PrivateRoute / RoleRoute don't redirect to login
-        // before the /auth/me refetch completes.
         const meta = payload as AuthTokenResponse
         dispatch(setCurrentUser({
           userId: meta.userId,
           username: values.username,
-          fullName: values.username,    // placeholder — /auth/me will overwrite
+          fullName: values.username,
           role: meta.role as import('@/constants/roles').UserRole,
           aadhaarVerified: false,
         }))
-        // Invalidate stale getCurrentUser cache so PrivateRoute re-fetches cleanly
         dispatch(authApi.util.invalidateTags(['CurrentUser']))
         toast.success('Login successful')
         navigate(getDashboardPath(meta.role))
@@ -77,7 +68,10 @@ export function useMfaVerify() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
-  const handleVerify = async (values: MfaVerifyRequest) => {
+  const handleVerify = async (
+    values: MfaVerifyRequest,
+    setError?: (name: 'mfaCode', error: { message: string }) => void,
+  ) => {
     const result = await verify(values)
     if ('data' in result && result.data.success) {
       const meta = result.data.data as { role?: string; userId?: number }
@@ -94,7 +88,12 @@ export function useMfaVerify() {
       toast.success('Verification successful')
       navigate(getDashboardPath(meta.role))
     } else {
-      toast.error('Invalid or expired OTP. Please try again.')
+      const message = 'Invalid or expired OTP. Please try again.'
+      if (setError) {
+        setError('mfaCode', { message })
+      } else {
+        toast.error(message)
+      }
     }
   }
 

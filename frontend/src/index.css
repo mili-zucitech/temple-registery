@@ -99,3 +99,23 @@
     @apply font-display;
   }
 }
+
+@layer utilities {
+  .scrollbar-gold {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(36 80% 50% / 0.45) transparent;
+  }
+  .scrollbar-gold::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-gold::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-gold::-webkit-scrollbar-thumb {
+    background: hsl(36 80% 50% / 0.45);
+    border-radius: 9999px;
+  }
+  .scrollbar-gold::-webkit-scrollbar-thumb:hover {
+    background: hsl(36 80% 50% / 0.7);
+  }
+}

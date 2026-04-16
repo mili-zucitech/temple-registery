@@ -9,14 +9,18 @@ import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "temples", indexes = {
-        @Index(name = "idx_temples_district_id",  columnList = "district_id"),
-        @Index(name = "idx_temples_hobli_id",     columnList = "hobli_id"),
-        @Index(name = "idx_temples_grade",         columnList = "grade"),
-        @Index(name = "idx_temples_registration",  columnList = "registration_number")
+        @Index(name = "idx_temples_district_id", columnList = "district_id"),
+        @Index(name = "idx_temples_hobli_id", columnList = "hobli_id"),
+        @Index(name = "idx_temples_grade", columnList = "grade"),
+        @Index(name = "idx_temples_registration", columnList = "registration_number")
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE temples SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Temple extends BaseEntity {
 
     @Version
@@ -99,8 +103,9 @@ public class Temple extends BaseEntity {
     @Column(name = "contact_email", length = 255)
     private String contactEmail;
 
-    @Column(name = "photo_url", length = 500)
-    private String photoUrl;
+    @OneToMany(mappedBy = "temple", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC")
+    private java.util.List<TemplePhoto> photos = new java.util.ArrayList<>();
 
     @Column(name = "languages_of_worship", length = 255)
     private String languagesOfWorship;

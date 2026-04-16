@@ -1,8 +1,7 @@
+import type { ReactNode } from 'react'
 import { Check, X, HelpCircle, Clipboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-type ActionKind = 'approve' | 'reject' | 'clarify' | 'flag-physical'
 
 interface WorkflowActionBarProps {
   /** Whether the current user has permission to take workflow actions. */
@@ -81,7 +80,7 @@ export function WorkflowActionBar({
 
 interface ActionButtonProps {
   label: string
-  icon: React.ReactNode
+  icon: ReactNode
   onClick: () => void
   disabled: boolean
   variant: 'default' | 'destructive' | 'outline'

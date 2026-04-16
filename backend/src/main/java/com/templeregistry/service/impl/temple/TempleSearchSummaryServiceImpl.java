@@ -63,7 +63,6 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .yearEstablished(t.getYearEstablished())
-                .photoUrl(t.getPhotoUrl())
                 // DC module counters — initialised to 0 here; DC refresh() will recompute from sub-queries
                 .pendingDeclarations(0)
                 .overdueDeclarations(0)

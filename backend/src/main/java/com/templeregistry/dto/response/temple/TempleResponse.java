@@ -33,7 +33,7 @@ public class TempleResponse {
     private String contactMobile;
     private String contactEmail;
     private String photoUrl;
-    private String languagesOfWorship;
+    private java.util.List<String> languagesOfWorship;
     private boolean trustRegistered;
     private String assetDeclarationStatus;
 }

@@ -19,7 +19,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.entity.trust.BoardMember;
 import com.templeregistry.entity.trust.TrustFinancial;
-import com.templeregistry.entity.trust.TrustRegistration;
+import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.dc.*;
@@ -49,6 +49,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class DcTempleProfileServiceImpl implements DcTempleProfileService {
+        private final com.templeregistry.mapper.temple.TempleMapper templeMapper;
 
     private final TempleRepository templeRepository;
     private final TempleSearchSummaryRepository summaryRepository;
@@ -95,11 +96,11 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 .orElse(null);
 
         // Trust (use the first active trust registration)
-        List<TrustRegistration> trusts = trustRepository.findAllByTempleId(templeId);
-        TrustRegistration primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
+        List<Trust> trusts = trustRepository.findAllByTempleId(templeId);
+        Trust primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
 
         TempleFullProfileResponse.DcTrustSummary trustSummary = null;
-        List<BoardMemberResponse> boardMembers    = List.of();
+        List<BoardMemberResponse> boardMembers = List.of();
         List<TempleFullProfileResponse.TrustFinancialSummary> financials = List.of();
 
         if (primaryTrust != null) {
@@ -284,30 +285,23 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 .contactDesignation(t.getContactDesignation())
                 .contactMobile(t.getContactMobile())
                 .contactEmail(t.getContactEmail())
-                .photoUrl(t.getPhotoUrl())
-                .languagesOfWorship(t.getLanguagesOfWorship())
+                .languagesOfWorship(templeMapper.mapToList(t.getLanguagesOfWorship()))
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .build();
     }
 
-    private TempleFullProfileResponse.DcTrustSummary toTrustSummary(TrustRegistration t,
+    private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t,
                                                                       ScopeHelper.Claims claims) {
-        String maskedPan = maskPan(t.getPanNumberEncrypted(), claims.role());
-        String maskedBank = maskBankAccount(t.getBankAccountNumberEncrypted());
+        String maskedPan = maskPan(t.getTrustPANNumber(), claims.role());
 
         return TempleFullProfileResponse.DcTrustSummary.builder()
                 .id(t.getId())
                 .trustName(t.getTrustName())
-                .trustType(t.getTrustType() != null ? t.getTrustType().name() : null)
-                .registrationNumber(t.getRegistrationNumber())
-                .registeringAuthority(t.getRegisteringAuthority())
-                .dateOfRegistration(t.getDateOfRegistration())
+                .status(t.getStatus() != null ? t.getStatus().name() : null)
+                .registrationNumber(t.getTrustRegistrationNumber())
+                .registrationDate(t.getDateOfRegistration())
                 .panNumberMasked(maskedPan)
-                .bankAccountMasked(maskedBank)
-                .bankName(t.getBankName())
-                .bankBranch(t.getBankBranch())
-                .annualIncome(t.getAnnualIncome())
                 .build();
     }
 
@@ -331,22 +325,20 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         return "**XXXXX" + account.substring(account.length() - 4);
     }
 
-    private BoardMemberResponse toBoardMemberResponse(BoardMember m) {
-        String maskedAadhaar = m.getAadhaarEncrypted() != null && m.getAadhaarEncrypted().length() >= 4
-                ? "XXXX-XXXX-" + m.getAadhaarEncrypted().substring(m.getAadhaarEncrypted().length() - 4)
-                : null;
-        return BoardMemberResponse.builder()
-                .id(m.getId())
-                .trustId(m.getTrustId())
-                .fullName(m.getFullName())
-                .aadhaarMasked(maskedAadhaar)
-                .designation(m.getDesignation())
-                .appointmentDate(m.getAppointmentDate())
-                .tenureEndDate(m.getTenureEndDate())
-                .contactNumber(m.getContactNumber())
-                .isCurrent(m.isCurrent())
-                .build();
-    }
+        private BoardMemberResponse toBoardMemberResponse(BoardMember m) {
+                return BoardMemberResponse.builder()
+                                .id(m.getId())
+                                .trustId(m.getTrustId())
+                                .fullName(m.getFullName())
+                                .maskedAadhaar(m.getMaskedAadhaar())
+                                .designation(m.getDesignation())
+                                .appointmentDate(m.getAppointmentDate())
+                                .tenureEndDate(m.getTenureEndDate())
+                                .contactNumber(m.getContactNumber())
+                                .address(m.getAddress())
+                                .isCurrent(m.isCurrent())
+                                .build();
+        }
 
     private TempleFullProfileResponse.TrustFinancialSummary toFinancialSummary(TrustFinancial f) {
         return TempleFullProfileResponse.TrustFinancialSummary.builder()
@@ -417,7 +409,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 .contactPersonName(p.getContactPersonName())
                 .contactPersonDesignation(p.getContactPersonDesignation())
                 .photoFilePath(p.getPhotoFilePath())
-                .languagesOfWorship(p.getLanguagesOfWorship())
+                .languagesOfWorship(templeMapper.mapToList(p.getLanguagesOfWorship()))
                 .annualFestivals(p.getAnnualFestivals())
                 .landmark(p.getLandmark())
                 .historicalSignificance(p.getHistoricalSignificance())
@@ -444,7 +436,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 .contactPersonName(s.getContactPersonName())
                 .contactPersonDesignation(s.getContactPersonDesignation())
                 .photoFilePath(s.getPhotoFilePath())
-                .languagesOfWorship(s.getLanguagesOfWorship())
+                .languagesOfWorship(templeMapper.mapToList(s.getLanguagesOfWorship()))
                 .annualFestivals(s.getAnnualFestivals())
                 .landmark(s.getLandmark())
                 .historicalSignificance(s.getHistoricalSignificance())

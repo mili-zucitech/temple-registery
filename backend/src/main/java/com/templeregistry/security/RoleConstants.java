@@ -30,4 +30,7 @@ public final class RoleConstants {
             "hasAnyRole('SUPER_ADMIN', 'DISTRICT_COLLECTOR', 'DC_STAFF', 'AUDITOR')";
     public static final String ADMIN_ONLY =
             "hasRole('SUPER_ADMIN')";
+
+    public static final String TEMPLE_AUTHORITY_ONLY =
+            "hasRole('TEMPLE_AUTHORITY')";
 }
