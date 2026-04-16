@@ -26,4 +26,7 @@ public class DcContextResponse {
 
     /** Resolved name of the district. Null for SUPER_ADMIN. */
     private String districtName;
+
+    /** City (revenue division) that the district belongs to. Null for SUPER_ADMIN. */
+    private Long cityId;
 }

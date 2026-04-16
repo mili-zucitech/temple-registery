@@ -5,11 +5,13 @@ import com.templeregistry.dto.response.dc.DcContextResponse;
 import com.templeregistry.entity.geo.District;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.geo.DistrictRepository;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/dc")
 @RequiredArgsConstructor
+@PreAuthorize(RoleConstants.CAN_WRITE_DC)
 @Tag(name = "DC Context", description = "Current DC user identity and scope")
 public class DcContextController {
 
@@ -30,10 +33,12 @@ public class DcContextController {
         ScopeHelper.Claims claims = currentClaims();
 
         String districtName = null;
+        Long cityId = null;
         if (claims.districtId() != null) {
             districtName = districtRepository.findById(claims.districtId())
                     .map(District::getName)
                     .orElse(null);
+            cityId = districtRepository.findCityIdById(claims.districtId()).orElse(null);
         }
 
         String fullName = userRepository.findById(claims.userId())
@@ -51,6 +56,7 @@ public class DcContextController {
                 .aadhaarVerified(aadhaarVerified)
                 .districtId(claims.districtId())
                 .districtName(districtName)
+                .cityId(cityId)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("User context retrieved.", response));

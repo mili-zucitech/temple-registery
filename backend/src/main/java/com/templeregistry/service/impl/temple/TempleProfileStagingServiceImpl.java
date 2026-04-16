@@ -34,7 +34,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class TempleProfileStagingServiceImpl implements TempleProfileStagingService {
-    private final com.templeregistry.mapper.temple.TempleMapper templeMapper;
 
     private final TempleProfileStagingRepository stagingRepository;
     private final TempleRepository templeRepository;
@@ -100,8 +99,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
 
         // Notification trigger #3: DC notified
         notificationService.notify(
-                null, // DC notification — placeholder; real impl looks up DC user for this temple's
-                      // district
+                null, // DC notification — placeholder; real impl looks up DC user for this temple's district
                 "Temple Profile Submitted for Review",
                 "Temple [" + templeId + "] has submitted a profile update for your review.",
                 "TEMPLE_PROFILE_STAGING", saved.getId());
@@ -219,45 +217,20 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
 
     private Long currentUserId() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof ScopeHelper.Claims c)
-            return c.userId();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
         return 0L;
     }
 
     private void applyFields(TempleProfileStaging staging, CreateTempleProfileStagingRequest rq) {
-        if (rq.getPhone() != null)
-            staging.setPhone(rq.getPhone());
-        if (rq.getEmail() != null)
-            staging.setEmail(rq.getEmail());
-        if (rq.getWebsite() != null)
-            staging.setWebsite(rq.getWebsite());
-        if (rq.getContactPersonName() != null)
-            staging.setContactPersonName(rq.getContactPersonName());
-        if (rq.getContactPersonDesignation() != null)
-            staging.setContactPersonDesignation(rq.getContactPersonDesignation());
-        if (rq.getPhotoFilePath() != null)
-            staging.setPhotoFilePath(rq.getPhotoFilePath());
-        // Plain text; AesEncryptionConverter transparently encrypts on JPA save
-        // (AES-256-GCM)
-        if (rq.getBankAccountNumber() != null)
-            staging.setBankAccountNumberEncrypted(rq.getBankAccountNumber());
-        if (rq.getBankName() != null)
-            staging.setBankName(rq.getBankName());
-        if (rq.getBankIfsc() != null)
-            staging.setBankIfsc(rq.getBankIfsc());
-        if (rq.getLanguagesOfWorship() != null)
-            staging.setLanguagesOfWorship(templeMapper.mapToJson(rq.getLanguagesOfWorship()));
-        ;
-        if (rq.getLinkedInstitutions() != null)
-            staging.setLinkedInstitutions(templeMapper.mapToJson(rq.getLinkedInstitutions()));
-        if (rq.getDescription() != null)
-            staging.setDescription(rq.getDescription());
-        if (rq.getAnnualFestivals() != null)
-            staging.setAnnualFestivals(rq.getAnnualFestivals());
-        if (rq.getLandmark() != null)
-            staging.setLandmark(rq.getLandmark());
-        if (rq.getHistoricalSignificance() != null)
-            staging.setHistoricalSignificance(rq.getHistoricalSignificance());
+        if (rq.getContactPersonName() != null)        staging.setContactPersonName(rq.getContactPersonName());
+        if (rq.getContactPersonDesignation() != null) staging.setContactPersonDesignation(rq.getContactPersonDesignation());
+        if (rq.getPhotoFilePath() != null)            staging.setPhotoFilePath(rq.getPhotoFilePath());
+        if (rq.getBankAccountNumber() != null)        staging.setBankAccountNumberEncrypted(rq.getBankAccountNumber());
+        if (rq.getLanguagesOfWorship() != null)       staging.setLanguagesOfWorship(rq.getLanguagesOfWorship());
+        if (rq.getLinkedInstitutions() != null)       staging.setLinkedInstitutions(rq.getLinkedInstitutions());
+        if (rq.getAnnualFestivals() != null)          staging.setAnnualFestivals(rq.getAnnualFestivals());
+        if (rq.getLandmark() != null)                 staging.setLandmark(rq.getLandmark());
+        if (rq.getHistoricalSignificance() != null)   staging.setHistoricalSignificance(rq.getHistoricalSignificance());
     }
 
     private void promoteToTemple(Temple temple, TempleProfileStaging staging) {
@@ -267,7 +240,8 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
             temple.setContactDesignation(staging.getContactPersonDesignation());
         if (staging.getLanguagesOfWorship() != null)
             temple.setLanguagesOfWorship(staging.getLanguagesOfWorship());
-
+        if (staging.getPhotoFilePath() != null)
+            temple.setPhotoUrl(staging.getPhotoFilePath());
     }
 
     private TempleProfileStagingResponse toResponse(TempleProfileStaging s) {
@@ -289,30 +263,20 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .templeId(s.getTempleId())
                 .versionNumber(s.getVersionNumber())
                 .statusLabel(statusLabel)
-                .phone(s.getPhone())
-                .email(s.getEmail())
-                .website(s.getWebsite())
                 .contactPersonName(s.getContactPersonName())
                 .contactPersonDesignation(s.getContactPersonDesignation())
                 .photoFilePath(s.getPhotoFilePath())
                 .bankAccountMasked(masked)
-                .bankName(s.getBankName())
-                .bankIfsc(s.getBankIfsc())
-                .languagesOfWorship(templeMapper.mapToList(s.getLanguagesOfWorship()))
-                .linkedInstitutions(templeMapper.mapToList(s.getLinkedInstitutions()))
-                .description(s.getDescription())
+                .languagesOfWorship(s.getLanguagesOfWorship())
+                .linkedInstitutions(s.getLinkedInstitutions())
                 .annualFestivals(s.getAnnualFestivals())
                 .landmark(s.getLandmark())
                 .historicalSignificance(s.getHistoricalSignificance())
                 .reviewComment(s.getReviewComment())
                 .submittedAt(s.getSubmittedAt())
-                .submittedBy(s.getSubmittedBy())
                 .reviewedAt(s.getReviewedAt())
-                .reviewedBy(s.getReviewedBy())
                 .createdAt(s.getCreatedAt())
-                .createdBy(s.getCreatedBy())
                 .updatedAt(s.getUpdatedAt())
-                .updatedBy(s.getUpdatedBy())
                 .build();
     }
 }

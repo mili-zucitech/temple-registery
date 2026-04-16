@@ -32,7 +32,13 @@ public interface DeclarationWorkflowService {
     WorkflowActionResponse requestClarification(Long declarationId, DcClarifyRequest request, ScopeHelper.Claims claims);
 
     /**
-     * Flag for physical verification: transitions PENDING_REVIEW → PHYSICAL_VERIFICATION_REQUESTED.
+     * Mark a declaration as being under active review by the DC.
+     * Transitions PENDING_REVIEW / RESUBMITTED → UNDER_REVIEW.
+     */
+    WorkflowActionResponse markUnderReview(Long declarationId, ScopeHelper.Claims claims);
+
+    /**
+     * Flag for physical verification: transitions PENDING_REVIEW / UNDER_REVIEW / RESUBMITTED → PHYSICAL_VERIFICATION_REQUESTED.
      * Saves a clarification record with direction DC_TO_TEMPLE and provided notes.
      * Requires DISTRICT_COLLECTOR or SUPER_ADMIN role.
      * dc_e2e Section 3.3.

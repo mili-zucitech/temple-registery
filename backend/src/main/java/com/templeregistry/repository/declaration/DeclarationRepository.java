@@ -19,14 +19,22 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
 
     Page<AssetDeclaration> findAllByTempleId(Long templeId, Pageable pageable);
 
-    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'SUBMITTED' AND d.dueDate < :today")
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'PENDING_REVIEW' AND d.dueDate < :today")
     List<AssetDeclaration> findOverdue(LocalDate today);
+
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.dueDate < :today AND d.status NOT IN ('APPROVED', 'REJECTED', 'SUPERSEDED', 'OVERDUE')")
+    List<AssetDeclaration> findDeclarationsToFlagAsOverdue(LocalDate today);
 
     Page<AssetDeclaration> findAllByDistrictIdAndStatus(Long districtId, DeclarationStatus status, Pageable pageable);
 
-    /** SA query: declarations stuck in PHYSICAL_VERIFICATION_REQUESTED beyond a date threshold. */
+    /**
+     * SA query: declarations stuck in PHYSICAL_VERIFICATION_REQUESTED beyond a date
+     * threshold.
+     */
     @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'PHYSICAL_VERIFICATION_REQUESTED' AND d.submittedAt < :thresholdDateTime")
-    Page<AssetDeclaration> findPhysicalVerificationPendingOlderThan(java.time.LocalDateTime thresholdDateTime, Pageable pageable);
+    Page<AssetDeclaration> findPhysicalVerificationPendingOlderThan(java.time.LocalDateTime thresholdDateTime,
+            Pageable pageable);
+
     /**
      * Load a declaration with pessimistic write lock for workflow mutations.
      * Prevents concurrent approve/reject/clarify operations on the same row.
@@ -44,11 +52,27 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
     Page<AssetDeclaration> findAllByDistrictId(Long districtId, Pageable pageable);
 
     /**
+     * SUPER_ADMIN: all declarations filtered by status only, no district
+     * restriction.
+     */
+    Page<AssetDeclaration> findAllByStatus(DeclarationStatus status, Pageable pageable);
+
+    /**
+     * District-scoped query with status and financial year filter.
+     */
+    Page<AssetDeclaration> findAllByDistrictIdAndStatusAndFinancialYear(Long districtId, DeclarationStatus status, String financialYear, Pageable pageable);
+
+    /**
+     * SUPER_ADMIN: all declarations filtered by status and financial year.
+     */
+    Page<AssetDeclaration> findAllByStatusAndFinancialYear(DeclarationStatus status, String financialYear, Pageable pageable);
+
+    /**
      * Count declarations requiring DC attention for a given district.
      * dc_e2e Section 2.6 (S9) — pending_declarations counts all 3 active states.
      */
     @Query("SELECT COUNT(d) FROM AssetDeclaration d WHERE d.districtId = :districtId " +
-           "AND d.status IN ('PENDING_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED')")
+            "AND d.status IN ('PENDING_REVIEW', 'RESUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED')")
     long countActivePendingByDistrict(Long districtId);
 
     boolean existsByTempleIdAndStatusIn(Long templeId, List<DeclarationStatus> statuses);

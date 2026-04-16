@@ -16,9 +16,31 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ['Playfair Display', 'Georgia', 'serif'],
-        body: ['DM Sans', 'system-ui', 'sans-serif'],
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        body: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        xs: ['12px', { lineHeight: '1.4' }],
+        sm: ['13px', { lineHeight: '1.4' }],
+        base: ['14px', { lineHeight: '1.5' }],
+        md: ['16px', { lineHeight: '1.5' }],
+        lg: ['18px', { lineHeight: '1.5' }],
+        xl: ['24px', { lineHeight: '1.5' }],
+      },
+      fontWeight: {
+        regular: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+      },
+      letterSpacing: {
+        tight: '0px',
+        normal: '0px',
+        label: '0.2px',
+        section: '0.3px',
+        title: '0.4px',
+        button: '0.5px',
+        'button-wide': '1px',
       },
       colors: {
         border: 'hsl(var(--border))',

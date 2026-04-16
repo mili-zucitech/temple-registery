@@ -1,258 +1,181 @@
 package com.templeregistry.service.impl.trust;
 
-import com.templeregistry.dto.request.trust.*;
-import com.templeregistry.dto.response.trust.BoardMemberResponse;
-import com.templeregistry.dto.response.trust.TrustResponse;
+import com.templeregistry.dto.request.trust.CreateBoardMeetingRequest;
+import com.templeregistry.dto.request.trust.SubmitTrustFinancialRequest;
+import com.templeregistry.dto.request.trust.UpdateBoardMemberRequest;
+import com.templeregistry.entity.trust.BoardMeeting;
 import com.templeregistry.entity.trust.BoardMember;
-import com.templeregistry.entity.trust.Trust;
-import com.templeregistry.entity.trust.TrustStatus;
-import com.templeregistry.exception.DuplicateResourceException;
-import com.templeregistry.exception.IllegalStatusTransitionException;
-import com.templeregistry.mapper.trust.TrustMapper;
+import com.templeregistry.entity.trust.TrustFinancial;
+import com.templeregistry.entity.trust.TrustRegistration;
+import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
+import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.util.PaginationUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TrustServiceImplTest {
 
-    @Mock private TrustRepository trustRepository;
-    @Mock private BoardMemberRepository boardMemberRepository;
-    @Mock private TrustMapper trustMapper;
-    @Mock private OwnershipGuard ownershipGuard;
+    @Mock TrustRepository trustRepository;
+    @Mock BoardMemberRepository boardMemberRepository;
+    @Mock BoardMeetingRepository boardMeetingRepository;
+    @Mock TrustFinancialRepository financialRepository;
+    @Mock OwnershipGuard ownershipGuard;
+    @Mock PaginationUtil paginationUtil;
 
-    @InjectMocks private TrustServiceImpl trustService;
+    @InjectMocks TrustServiceImpl trustService;
 
-    private Trust activeTrust;
-    private BoardMember currentMember;
+    private TrustRegistration trust;
+    private BoardMember activeMember;
 
     @BeforeEach
     void setUp() {
-        activeTrust = Trust.builder()
-                .templeId(1L)
-                .trustName("Sri Rama Trust")
-                .status(TrustStatus.ACTIVE)
-                .trustPANNumber("ABCDE1234F")
-                .build();
-        activeTrust.setId(100L);
+        trust = TrustRegistration.builder().templeId(1L).trustName("Sri Rama Trust").build();
+        activeMember = BoardMember.builder().trustId(1L).fullName("Govinda Rao").isCurrent(true).build();
 
-        currentMember = BoardMember.builder()
-                .trustId(100L)
-                .fullName("Govinda Rao")
+        lenient().doNothing().when(ownershipGuard).assertOwnsTemple(any());
+    }
+
+    /* ── VAL-014: Board member cessation date required ──────────────── */
+
+    @Test
+    void should_throw_when_marking_member_not_current_without_tenureEndDate() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        when(boardMemberRepository.findById(1L)).thenReturn(Optional.of(activeMember));
+
+        UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
+                .isCurrent(false)
+                .tenureEndDate(null)
+                .build();
+
+        assertThatThrownBy(() -> trustService.updateBoardMember(1L, 1L, rq))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("VAL-014");
+    }
+
+    @Test
+    void should_update_board_member_with_tenureEndDate_when_marking_not_current() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        when(boardMemberRepository.findById(2L)).thenReturn(Optional.of(activeMember));
+        when(boardMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LocalDate endDate = LocalDate.of(2024, 6, 30);
+        UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
+                .isCurrent(false)
+                .tenureEndDate(endDate)
+                .build();
+
+        trustService.updateBoardMember(1L, 2L, rq);
+
+        assertThat(activeMember.isCurrent()).isFalse();
+        assertThat(activeMember.getTenureEndDate()).isEqualTo(endDate);
+    }
+
+    @Test
+    void should_allow_update_if_isCurrent_remains_true_without_tenureEndDate() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        when(boardMemberRepository.findById(3L)).thenReturn(Optional.of(activeMember));
+        when(boardMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
+                .fullName("Updated Name")
                 .isCurrent(true)
+                .tenureEndDate(null)
                 .build();
-        currentMember.setId(200L);
+
+        assertThatNoException().isThrownBy(() -> trustService.updateBoardMember(1L, 3L, rq));
+    }
+
+    /* ── VAL-013: One financial submission per FY ───────────────────── */
+
+    @Test
+    void should_throw_when_financial_already_submitted_for_same_FY() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        TrustFinancial existing = TrustFinancial.builder().trustId(1L).financialYear("2023-24").build();
+        when(financialRepository.findAllByTrustIdOrderByFinancialYearDesc(1L))
+                .thenReturn(List.of(existing));
+
+        SubmitTrustFinancialRequest rq = mock(SubmitTrustFinancialRequest.class);
+        when(rq.getFinancialYear()).thenReturn("2023-24");
+
+        assertThatThrownBy(() -> trustService.submitFinancial(1L, rq))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("VAL-013")
+                .hasMessageContaining("2023-24");
     }
 
     @Test
-    void submitForReview_should_reset_flags_for_trust_and_members() {
-        activeTrust.setVerifiedByDc(true);
-        activeTrust.setDcFlagReason("Old reason");
+    void should_save_financial_when_FY_is_new() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        when(financialRepository.findAllByTrustIdOrderByFinancialYearDesc(1L)).thenReturn(List.of());
+        when(financialRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        BoardMember m1 = new BoardMember();
-        m1.setCurrent(true);
-        m1.setVerifiedByDc(true);
-        m1.setDcFlagReason("Flagged");
+        SubmitTrustFinancialRequest rq = mock(SubmitTrustFinancialRequest.class);
+        when(rq.getFinancialYear()).thenReturn("2024-25");
+        when(rq.getAnnualIncome()).thenReturn(java.math.BigDecimal.valueOf(600000));
+        when(rq.getAnnualExpenditure()).thenReturn(java.math.BigDecimal.valueOf(400000));
 
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.findAllByTrustIdAndIsCurrent(100L, true)).thenReturn(List.of(m1));
-        when(trustRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThatNoException().isThrownBy(() -> trustService.submitFinancial(1L, rq));
+        verify(financialRepository).save(any(TrustFinancial.class));
+    }
 
-        trustService.submitForReview(100L);
+    /* ── Board meeting CRUD ─────────────────────────────────────────── */
 
-        assertThat(activeTrust.isVerifiedByDc()).isFalse();
-        assertThat(activeTrust.getDcFlagReason()).isNull();
-        assertThat(m1.isVerifiedByDc()).isFalse();
-        assertThat(m1.getDcFlagReason()).isNull();
+    @Test
+    void should_create_board_meeting_and_return_response() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        BoardMeeting saved = BoardMeeting.builder()
+                .trustId(1L).meetingDate(LocalDate.of(2024, 7, 15)).agenda("Annual Review").build();
+        when(boardMeetingRepository.save(any())).thenReturn(saved);
 
-        verify(boardMemberRepository).saveAll(List.of(m1));
-        verify(trustRepository).save(activeTrust);
+        CreateBoardMeetingRequest rq = CreateBoardMeetingRequest.builder()
+                .meetingDate(LocalDate.of(2024, 7, 15))
+                .agenda("Annual Review")
+                .build();
+
+        var result = trustService.createBoardMeeting(1L, rq);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAgenda()).isEqualTo("Annual Review");
     }
 
     @Test
-    void should_add_new_member_as_current() {
-        CreateBoardMemberRequest req = new CreateBoardMemberRequest();
-        req.setFullName("Test Member");
-        req.setAadhaar("123456789012");
-        req.setDesignation("Chairman");
-        req.setAppointmentDate(LocalDate.now());
-        req.setContactNumber("9999999999");
-        req.setAddress("Temple Street");
+    void should_throw_EntityNotFoundException_when_trust_not_found_for_board_meeting() {
+        when(trustRepository.findById(99L)).thenReturn(Optional.empty());
 
-        BoardMember entity = new BoardMember();
-        entity.setId(10L);
-        entity.setCurrent(true);
+        CreateBoardMeetingRequest rq = CreateBoardMeetingRequest.builder()
+                .meetingDate(LocalDate.now()).build();
 
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(trustMapper.fromCreateMemberRequest(req)).thenReturn(entity);
-        when(boardMemberRepository.save(any())).thenReturn(entity);
-        when(trustMapper.toMemberResponse(any())).thenReturn(new BoardMemberResponse());
-
-        trustService.addBoardMember(100L, req);
-        assertThat(entity.isCurrent()).isTrue();
+        assertThatThrownBy(() -> trustService.createBoardMeeting(99L, rq))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 
-    @Test
-    void should_auto_transition_to_past_when_tenure_ends() {
-        BoardMember member = new BoardMember();
-        member.setId(10L);
-        member.setTrustId(100L);
-        member.setCurrent(true);
-        member.setTenureEndDate(LocalDate.now().minusDays(1));
-
-        Page<BoardMember> page = new PageImpl<>(Collections.singletonList(member));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.findAllByTrustId(eq(100L), any(PageRequest.class))).thenReturn(page);
-        when(trustMapper.toMemberResponse(any())).thenReturn(null);
-
-        trustService.getBoardMembersByTrust(100L, 0, 10);
-        assertThat(member.isCurrent()).isFalse();
-    }
+    /* ── EntityNotFoundException on board member ─────────────────────── */
 
     @Test
-    void should_not_auto_transition_when_tenure_ends_today() {
-        BoardMember member = new BoardMember();
-        member.setId(10L);
-        member.setTrustId(100L);
-        member.setCurrent(true);
-        member.setTenureEndDate(LocalDate.now()); // same-day
+    void should_throw_EntityNotFoundException_when_board_member_not_found() {
+        when(trustRepository.findById(1L)).thenReturn(Optional.of(trust));
+        when(boardMemberRepository.findById(99L)).thenReturn(Optional.empty());
 
-        Page<BoardMember> page = new PageImpl<>(Collections.singletonList(member));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.findAllByTrustId(eq(100L), any(PageRequest.class))).thenReturn(page);
-        when(trustMapper.toMemberResponse(any())).thenReturn(null);
+        UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder().fullName("Ghost").build();
 
-        trustService.getBoardMembersByTrust(100L, 0, 10);
-        assertThat(member.isCurrent()).isTrue(); // Should remain true
-    }
-
-    @Test
-    void should_not_auto_transition_when_tenure_end_is_null() {
-        BoardMember member = new BoardMember();
-        member.setId(10L);
-        member.setTrustId(100L);
-        member.setCurrent(true);
-        member.setTenureEndDate(null);
-
-        Page<BoardMember> page = new PageImpl<>(Collections.singletonList(member));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.findAllByTrustId(eq(100L), any(PageRequest.class))).thenReturn(page);
-        when(trustMapper.toMemberResponse(any())).thenReturn(null);
-
-        trustService.getBoardMembersByTrust(100L, 0, 10);
-        assertThat(member.isCurrent()).isTrue();
-    }
-
-    @Test
-    void should_not_auto_transition_when_tenure_ends_in_future() {
-        BoardMember member = new BoardMember();
-        member.setId(10L);
-        member.setTrustId(100L);
-        member.setCurrent(true);
-        member.setTenureEndDate(LocalDate.now().plusDays(1));
-
-        Page<BoardMember> page = new PageImpl<>(Collections.singletonList(member));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.findAllByTrustId(eq(100L), any(PageRequest.class))).thenReturn(page);
-        when(trustMapper.toMemberResponse(any())).thenReturn(null);
-
-        trustService.getBoardMembersByTrust(100L, 0, 10);
-        assertThat(member.isCurrent()).isTrue();
-    }
-
-    @Test
-    void createTrust_should_fail_if_active_trust_exists() {
-        when(trustRepository.existsByTempleIdAndStatus(1L, TrustStatus.ACTIVE)).thenReturn(true);
-        CreateTrustRequest request = new CreateTrustRequest();
-
-        assertThatThrownBy(() -> trustService.createTrust(1L, request))
-                .isInstanceOf(DuplicateResourceException.class)
-                .hasMessageContaining("ACTIVE trust");
-    }
-
-    @Test
-    void updateTrust_should_fail_if_trust_dissolved() {
-        activeTrust.setStatus(TrustStatus.DISSOLVED);
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        UpdateTrustRequest request = new UpdateTrustRequest();
-
-        assertThatThrownBy(() -> trustService.updateTrust(100L, request))
-                .isInstanceOf(IllegalStatusTransitionException.class)
-                .hasMessageContaining("TRM-TRUST-001");
-    }
-
-    @Test
-    void dissolveTrust_should_succeed() {
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(trustRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(trustMapper.toTrustResponse(any())).thenReturn(new TrustResponse());
-
-        DissolveTrustRequest request = new DissolveTrustRequest();
-        request.setDissolutionDate(LocalDate.now());
-        request.setDissolutionReason("Merged");
-
-        TrustResponse response = trustService.dissolveTrust(100L, request);
-
-        assertThat(activeTrust.getStatus()).isEqualTo(TrustStatus.DISSOLVED);
-        verify(trustRepository).save(activeTrust);
-    }
-
-    @Test
-    void addBoardMember_should_fail_if_trust_dissolved() {
-        activeTrust.setStatus(TrustStatus.DISSOLVED);
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        CreateBoardMemberRequest request = new CreateBoardMemberRequest();
-
-        assertThatThrownBy(() -> trustService.addBoardMember(100L, request))
-                .isInstanceOf(IllegalStatusTransitionException.class)
-                .hasMessageContaining("TRM-TRUST-001");
-    }
-
-    @Test
-    void resignBoardMember_should_succeed() {
-        when(boardMemberRepository.findById(200L)).thenReturn(Optional.of(currentMember));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        when(boardMemberRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(trustMapper.toMemberResponse(any())).thenReturn(new BoardMemberResponse());
-
-        ResignBoardMemberRequest request = new ResignBoardMemberRequest();
-        request.setCessationDate(LocalDate.now());
-
-        BoardMemberResponse response = trustService.resignBoardMember(200L, request);
-
-        assertThat(currentMember.isCurrent()).isFalse();
-        assertThat(currentMember.getTenureEndDate()).isNotNull();
-        verify(boardMemberRepository).save(currentMember);
-    }
-
-    @Test
-    void updateBoardMember_should_fail_if_historical() {
-        currentMember.setCurrent(false);
-        when(boardMemberRepository.findById(200L)).thenReturn(Optional.of(currentMember));
-        when(trustRepository.findById(100L)).thenReturn(Optional.of(activeTrust));
-        UpdateBoardMemberRequest request = new UpdateBoardMemberRequest();
-
-        assertThatThrownBy(() -> trustService.updateBoardMember(200L, request))
-                .isInstanceOf(IllegalStatusTransitionException.class)
-                .hasMessageContaining("TRM-BM-001");
+        assertThatThrownBy(() -> trustService.updateBoardMember(1L, 99L, rq))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 }

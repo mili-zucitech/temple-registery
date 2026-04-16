@@ -1,10 +1,10 @@
-import { useGetStatesQuery, useGetCitiesQuery, useGetDistrictsQuery, useGetTaluksQuery, useGetHoblisQuery } from './geoApi'
+import { useGetStatesQuery, useGetCitiesQuery, useGetDistrictsByStateQuery, useGetTaluksQuery, useGetHoblisQuery } from './geoApi'
 import type { GeoSelection } from './geoTypes'
 
 export function useGeoHierarchy(selection: GeoSelection) {
   const states = useGetStatesQuery()
   const cities = useGetCitiesQuery(selection.stateId!, { skip: !selection.stateId })
-  const districts = useGetDistrictsQuery(selection.cityId!, { skip: !selection.cityId })
+  const districts = useGetDistrictsByStateQuery(selection.stateId!, { skip: !selection.stateId })
   const taluks = useGetTaluksQuery(selection.districtId!, { skip: !selection.districtId })
   const hoblis = useGetHoblisQuery(selection.talukId!, { skip: !selection.talukId })
 

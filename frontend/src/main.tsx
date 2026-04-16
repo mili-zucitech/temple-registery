@@ -10,10 +10,10 @@ const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element not found')
 
 createRoot(rootElement).render(
-  <StrictMode>
-    <Provider store={store}>
-      <AppRouter />
-      <Toaster richColors position="top-right" closeButton />
-    </Provider>
-  </StrictMode>
+	<StrictMode>
+		<Provider store={store}>
+			<AppRouter />
+			<Toaster richColors position="top-right" closeButton />
+		</Provider>
+	</StrictMode>
 )
