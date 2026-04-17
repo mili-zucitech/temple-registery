@@ -1,22 +1,14 @@
 //dashborad
-import { motion } from 'framer-motion'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
-import { useGetTempleByIdQuery } from '@/features/temple/templeApi'
 import { useListDeclarationsQuery } from '@/features/declaration/declarationApi'
-import { useListNotificationsQuery } from '@/features/notification/notificationApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Button } from '@/components/ui/button'
-import { useListDeclarationsQuery } from '@/features/declaration/declarationApi'
-import { useGetCurrentUserQuery } from '@/features/auth/authApi'
-import { useNavigate } from 'react-router-dom'
 import { FileText, Clock, File, Building2, Users, Wrench } from 'lucide-react'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { KpiCard } from '@/components/data-display/KpiCard/KpiCard'
 
 export function TaDashboardPage() {
   const navigate = useNavigate()
