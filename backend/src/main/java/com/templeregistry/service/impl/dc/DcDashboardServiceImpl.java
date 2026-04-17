@@ -1,6 +1,7 @@
 package com.templeregistry.service.impl.dc;
 
 import com.templeregistry.dto.response.dc.DcDashboardResponse;
+import com.templeregistry.dto.response.dc.AreaDistributionItem;
 import com.templeregistry.dto.response.dc.GradeDistributionItem;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.RoleConstants;
@@ -42,6 +43,28 @@ public class DcDashboardServiceImpl implements DcDashboardService {
                         .build())
                 .toList();
 
+        List<AreaDistributionItem> talukDistribution = List.of();
+        List<AreaDistributionItem> districtDistribution = List.of();
+        if (districtId != null) {
+            talukDistribution = summaryRepository.countByTalukForDistrict(districtId).stream()
+                    .filter(row -> row[0] != null)
+                    .limit(12)
+                    .map(row -> AreaDistributionItem.builder()
+                            .areaId(((Number) row[0]).longValue())
+                            .count(((Number) row[1]).longValue())
+                            .build())
+                    .toList();
+        } else {
+            districtDistribution = summaryRepository.countByDistrict().stream()
+                    .filter(row -> row[0] != null)
+                    .limit(12)
+                    .map(row -> AreaDistributionItem.builder()
+                            .areaId(((Number) row[0]).longValue())
+                            .count(((Number) row[1]).longValue())
+                            .build())
+                    .toList();
+        }
+
         log.info("DC dashboard loaded: districtId={} totalTemples={}", districtId, totalTemples);
 
         return DcDashboardResponse.builder()
@@ -51,6 +74,8 @@ public class DcDashboardServiceImpl implements DcDashboardService {
                 .pendingProfileReviews(pendingProfileReviews)
                 .templesWithoutApprovedDeclaration(templesWithoutApprovedDeclaration)
                 .gradeDistribution(gradeDistribution)
+                .talukDistribution(talukDistribution)
+                .districtDistribution(districtDistribution)
                 .build();
     }
 }

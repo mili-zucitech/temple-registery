@@ -15,10 +15,8 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.Date;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -79,17 +77,6 @@ public class JwtServiceImpl implements JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-    }
-
-    @Override
-    public String generateRegistrationToken(Map<String, Object> claims, Duration ttl) {
-        long now = System.currentTimeMillis();
-        var builder = Jwts.builder()
-                .subject("registration")
-                .issuedAt(new Date(now))
-                .expiration(new Date(now + ttl.toMillis()));
-        claims.forEach(builder::claim);
-        return builder.signWith(privateKey).compact();
     }
 
     @Override

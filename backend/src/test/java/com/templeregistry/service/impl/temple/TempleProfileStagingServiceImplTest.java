@@ -37,7 +37,6 @@ class TempleProfileStagingServiceImplTest {
     @Mock NotificationService notificationService;
     @Mock OwnershipGuard ownershipGuard;
     @Mock PaginationUtil paginationUtil;
-    @Mock com.templeregistry.mapper.temple.TempleMapper templeMapper;
 
     @InjectMocks TempleProfileStagingServiceImpl stagingService;
 

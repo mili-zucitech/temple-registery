@@ -1,6 +1,10 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useAppSelector, useAppDispatch } from '@/app/store'
+import { dcApi } from './dcApi'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { API_BASE } from '@/constants/apiPaths'
+import type { GeoSelection } from '@/features/geo/geoTypes'
 import {
   useGetDcDashboardQuery,
   useSearchDcTemplesQuery,
@@ -11,12 +15,14 @@ import {
   useRejectDeclarationMutation,
   useClarifyDeclarationMutation,
   useFlagPhysicalVerificationMutation,
+  useMarkUnderReviewDeclarationMutation,
   useApproveProfileMutation,
   useRejectProfileMutation,
   useGetDcNotificationsQuery,
   useGetDcUnreadCountQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useGetDcContextQuery,
 } from './dcApi'
 import type {
   DcTempleSearchFilterRequest,
@@ -63,34 +69,193 @@ export function useDcDashboard() {
 /**
  * URL-synced paginated temple search.
  * Reads and writes filter state directly from/to the URL via useSearchParams.
- * District override is enforced server-side; clients need not set districtId for DC roles.
+ * For DC/DC_STAFF roles the district is locked server-side (JWT wins); we also
+ * pre-populate and lock it client-side for a frictionless experience.
  */
+
 export function useDcTempleSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const dispatch = useAppDispatch()
+  const currentUser = useAppSelector((s) => s.auth.currentUser)
+
+
+  // Fetch DC context to know the user's district + city scope
+  const { data: contextData, refetch: refetchContext } = useGetDcContextQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+    skip: !currentUser?.userId,
+  })
+  const dcContext = contextData?.data ?? null
+
+  // Track previous userId to detect user switch
+  const prevUserIdRef = useRef<number | undefined>(undefined)
+
+  // Local state for districtId to block API until ready
+  const [districtId, setDistrictId] = useState<number | null>(null)
+
+  // Ensure districtId is initialized from user as soon as available
+  useEffect(() => {
+    if (currentUser?.districtId) {
+      setDistrictId(currentUser.districtId)
+    }
+  }, [currentUser?.districtId])
+
+  // On userId change, reset RTK Query cache, refetch context, and reset URL params
+  useEffect(() => {
+    if (!currentUser?.userId) return
+    const prevUserId = prevUserIdRef.current
+    if (prevUserId !== undefined && prevUserId !== currentUser.userId) {
+      dispatch(dcApi.util.resetApiState())
+      refetchContext()
+      setSearchParams(() => {
+        const updated = new URLSearchParams()
+        if (currentUser.districtId) updated.set('districtId', String(currentUser.districtId))
+        updated.set('stateId', '1')
+        updated.set('page', '0')
+        updated.set('size', '10')
+        return updated
+      }, { replace: true })
+      setDistrictId(currentUser.districtId ?? null)
+      // eslint-disable-next-line no-console
+      console.log('[TempleSearch] User switch:', {
+        prevUserId,
+        newUserId: currentUser.userId,
+        districtId: currentUser.districtId,
+      })
+    }
+    prevUserIdRef.current = currentUser.userId
+  }, [currentUser?.userId, currentUser?.districtId, dispatch, setSearchParams, refetchContext])
+
+  // Pre-populate districtId + cityId for DC/DC_STAFF only when those params are absent
+  useEffect(() => {
+    if (!dcContext) return
+    const isDcRole = dcContext.role === 'DISTRICT_COLLECTOR' || dcContext.role === 'DC_STAFF'
+    if (!isDcRole) return
+    if (!dcContext.districtId) return
+    if (searchParams.has('districtId') && searchParams.has('stateId')) return
+    setSearchParams((prev) => {
+      const updated = new URLSearchParams(prev)
+      if (!updated.has('districtId')) updated.set('districtId', String(dcContext.districtId))
+      if (!updated.has('cityId') && dcContext.cityId) updated.set('cityId', String(dcContext.cityId))
+      if (!updated.has('stateId')) updated.set('stateId', '1')
+      updated.set('page', '0')
+      return updated
+    }, { replace: true })
+    setDistrictId(dcContext.districtId)
+  }, [dcContext, searchParams, setSearchParams])
 
   const page = Number(searchParams.get('page') ?? '0')
   const size = Number(searchParams.get('size') ?? '10')
 
-  const filters: DcTempleSearchFilterRequest = useMemo(() => ({
-    districtId: parseIntParam(searchParams.get('districtId')),
+  // Log API request params for debugging
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[TempleSearch] Params', {
+      userId: currentUser?.userId,
+      districtId: searchParams.get('districtId'),
+      talukId: searchParams.get('talukId'),
+      hobliId: searchParams.get('hobliId'),
+      page,
+      size,
+    })
+  }, [currentUser?.userId, searchParams, page, size])
+
+  // Pre-populate districtId + cityId for DC/DC_STAFF only when those params
+  // are absent from the URL (first visit or after a full clear). Uses !has()
+  // guards so an explicit user selection is never overwritten.
+  useEffect(() => {
+    if (!dcContext) return
+    const isDcRole = dcContext.role === 'DISTRICT_COLLECTOR' || dcContext.role === 'DC_STAFF'
+    if (!isDcRole) return
+    if (!dcContext.districtId) return
+
+    // Only write defaults when the params are completely absent — never override
+    // a districtId the user intentionally selected.
+    if (searchParams.has('districtId') && searchParams.has('stateId')) return
+
+    setSearchParams((prev) => {
+      const updated = new URLSearchParams(prev)
+      if (!updated.has('districtId')) updated.set('districtId', String(dcContext.districtId))
+      if (!updated.has('cityId') && dcContext.cityId) updated.set('cityId', String(dcContext.cityId))
+      if (!updated.has('stateId')) updated.set('stateId', '1')
+      updated.set('page', '0')
+      return updated
+    }, { replace: true })
+  }, [dcContext, searchParams, setSearchParams])
+
+  const filters: DcTempleSearchFilterRequest & { userId?: number } = useMemo(() => ({
+    userId: currentUser?.userId,
+    districtId: districtId ?? undefined,
+    cityId: parseIntParam(searchParams.get('cityId')),
     talukId: parseIntParam(searchParams.get('talukId')),
     hobliId: parseIntParam(searchParams.get('hobliId')),
     keyword: searchParams.get('keyword') ?? undefined,
     deityName: searchParams.get('deityName') ?? undefined,
     tradition: searchParams.get('tradition') ?? undefined,
     declarationStatus: searchParams.get('declarationStatus') ?? undefined,
+    hasApprovedDeclaration: searchParams.get('hasApprovedDeclaration') === 'true'
+      ? true
+      : searchParams.get('hasApprovedDeclaration') === 'false'
+        ? false
+        : undefined,
+    pendingProfileReview: searchParams.get('pendingProfileReview') === 'true'
+      ? true
+      : searchParams.get('pendingProfileReview') === 'false'
+        ? false
+        : undefined,
     grade: searchParams.get('grade') ? searchParams.get('grade')!.split(',') : undefined,
     trustRegistered: searchParams.get('trustRegistered') === 'true'
       ? true
       : searchParams.get('trustRegistered') === 'false'
         ? false
         : undefined,
+    establishedYearFrom: parseIntParam(searchParams.get('establishedYearFrom')),
+    establishedYearTo: parseIntParam(searchParams.get('establishedYearTo')),
     sort: searchParams.get('sort') ?? undefined,
     page,
     size,
-  }), [searchParams])
+  }), [searchParams, currentUser?.userId, districtId, page, size])
 
-  const { data, isLoading, isError, isFetching } = useSearchDcTemplesQuery(filters)
+  // Only fetch when userId and districtId are both available
+  const shouldFetch = !!currentUser?.userId && !!districtId
+  const { data, isLoading, isError, isFetching, refetch } = useSearchDcTemplesQuery(filters, {
+    refetchOnMountOrArgChange: true,
+    skip: !shouldFetch,
+  })
+
+  // Log API call timing for debugging
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[TempleSearch] API call', {
+      shouldFetch,
+      userId: currentUser?.userId,
+      districtId,
+      filters,
+    })
+  }, [shouldFetch, currentUser?.userId, districtId, filters])
+
+  const geoSelection: GeoSelection = useMemo(() => ({
+    stateId: parseIntParam(searchParams.get('stateId')) ?? 1,
+    cityId: parseIntParam(searchParams.get('cityId')),
+    districtId: districtId ?? undefined,
+    talukId: parseIntParam(searchParams.get('talukId')),
+    hobliId: parseIntParam(searchParams.get('hobliId')),
+  }), [searchParams, districtId])
+
+  const applyGeoSelection = useCallback(
+    (geo: GeoSelection) => {
+      setSearchParams((prev) => {
+        const updated = new URLSearchParams(prev)
+        updated.set('page', '0')
+        ;(['stateId', 'cityId', 'districtId', 'talukId', 'hobliId'] as (keyof GeoSelection)[]).forEach((key) => {
+          const val = geo[key]
+          if (val != null) updated.set(key, String(val))
+          else updated.delete(key)
+        })
+        return updated
+      })
+    },
+    [setSearchParams],
+  )
 
   const applyFilters = useCallback(
     (next: Partial<DcTempleSearchFilterRequest>) => {
@@ -114,8 +279,15 @@ export function useDcTempleSearch() {
     [setSearchParams],
   )
 
+
   const clearFilters = useCallback(() => {
-    setSearchParams(new URLSearchParams({ page: '0', size: String(size) }))
+    setSearchParams((prev) => {
+      const cleared = new URLSearchParams({ page: '0', size: String(size) })
+      ;(['stateId', 'cityId', 'districtId'] as const).forEach((key) => {
+        if (prev.has(key)) cleared.set(key, prev.get(key)!)
+      })
+      return cleared
+    })
   }, [setSearchParams, size])
 
   const goToPage = useCallback(
@@ -129,26 +301,43 @@ export function useDcTempleSearch() {
     [setSearchParams],
   )
 
+  // Render guard: do not render until user and districtId are ready
+  const ready = !!currentUser?.userId && !!districtId
+
   return {
     temples: data?.data?.content ?? [],
     total: data?.data?.totalElements ?? 0,
     totalPages: data?.data?.totalPages ?? 0,
     filters,
+    geoSelection,
     page,
     size,
     isLoading,
     isError,
     isFetching,
     applyFilters,
+    applyGeoSelection,
     clearFilters,
     goToPage,
+    dcContext,
+    currentUser,
+    setSearchParams,
+    searchParams,
+    refetchContext,
+    refetchSearch: refetch,
+    ready,
   }
 }
 
 // ─── useDcTempleProfile ───────────────────────────────────────────────────────
 
 /**
- * Loads the full aggregated temple profile and its pending profile staging (if any).
+ * Loads the full aggregated temple profile for the DC module.
+ * The pending profile staging is intentionally NOT fetched here — it returns 404
+ * for every temple that has no pending review submission, which would:
+ *   (a) slow down page load (isLoading waits for both)
+ *   (b) fire the global RTK Query error middleware on every non-pending temple
+ * Use useDcPendingProfileStaging(templeId) separately when staging data is needed.
  */
 export function useDcTempleProfile(templeId: number) {
   const {
@@ -157,19 +346,28 @@ export function useDcTempleProfile(templeId: number) {
     isError: profileError,
   } = useGetDcTempleProfileQuery(templeId, { skip: !templeId })
 
-  const {
-    data: stagingData,
-    isLoading: stagingLoading,
-    isError: stagingError,
-  } = useGetDcPendingProfileStagingQuery(templeId, { skip: !templeId })
-
   return {
     profile: profileData?.data ?? null,
-    pendingStaging: stagingData?.data ?? null,
-    isLoading: profileLoading || stagingLoading,
-    isError: profileError || stagingError,
+    isLoading: profileLoading,
+    isError: profileError,
     profileLoading,
-    stagingLoading,
+  }
+}
+
+/**
+ * Lazily loads pending profile staging for a specific temple.
+ * Call this ONLY when you actually need the staging data (e.g., the "Pending Review" section).
+ * Returns `{ pendingStaging: null }` when the temple has no pending review submission.
+ */
+export function useDcPendingProfileStaging(templeId: number, skip = false) {
+  const { data, isLoading, isError } = useGetDcPendingProfileStagingQuery(templeId, {
+    skip: !templeId || skip,
+  })
+
+  return {
+    pendingStaging: data?.data ?? null,
+    isLoading,
+    isError,
   }
 }
 
@@ -224,6 +422,7 @@ export function useWorkflowActions() {
   const [rejectDeclaration, { isLoading: rejecting }] = useRejectDeclarationMutation()
   const [clarifyDeclaration, { isLoading: clarifying }] = useClarifyDeclarationMutation()
   const [flagPhysical, { isLoading: flagging }] = useFlagPhysicalVerificationMutation()
+  const [markUnderReview] = useMarkUnderReviewDeclarationMutation()
 
   const isSubmitting = approving || rejecting || clarifying || flagging
 
@@ -244,9 +443,19 @@ export function useWorkflowActions() {
           body,
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
-        toast.success(result.data?.acknowledgementNumber
-          ? `Approved. Acknowledgement: ${result.data.acknowledgementNumber}`
-          : result.message ?? 'Declaration approved.')
+        if (result.data?.acknowledgementNumber) {
+          const ackNo = result.data.acknowledgementNumber
+          const declarationId = dialog.declarationId!
+          toast.success(`Approved. Acknowledgement: ${ackNo}`, {
+            duration: 10000,
+            action: {
+              label: 'Download Letter',
+              onClick: () => window.open(`${API_BASE}/dc/declarations/${declarationId}/acknowledgement`, '_blank', 'noopener,noreferrer'),
+            },
+          })
+        } else {
+          toast.success(result.message ?? 'Declaration approved.')
+        }
         closeDialog()
       } catch {
         toast.error('Failed to approve declaration. Please try again.')
@@ -309,6 +518,18 @@ export function useWorkflowActions() {
     [dialog.declarationId, flagPhysical, closeDialog],
   )
 
+  const confirmMarkUnderReview = useCallback(
+    async (declarationId: number) => {
+      try {
+        await markUnderReview(declarationId).unwrap()
+        // No toast needed for silent background transition
+      } catch {
+        console.error('Failed to mark declaration as under review')
+      }
+    },
+    [markUnderReview]
+  )
+
   return {
     dialog,
     openDialog,
@@ -317,6 +538,7 @@ export function useWorkflowActions() {
     confirmReject,
     confirmClarify,
     confirmFlagPhysical,
+    confirmMarkUnderReview,
     isSubmitting,
   }
 }
@@ -333,9 +555,9 @@ export function useProfileWorkflowActions() {
   const isSubmitting = approving || rejecting
 
   const submitApproveProfile = useCallback(
-    async (stagingId: number, body: ApproveProfileRequest) => {
+    async (stagingId: number, templeId: number, body: ApproveProfileRequest) => {
       try {
-        const result = await approveProfile({ stagingId, body }).unwrap()
+        const result = await approveProfile({ stagingId, templeId, body }).unwrap()
         toast.success(result.message ?? 'Profile approved.')
         return true
       } catch {
@@ -347,9 +569,9 @@ export function useProfileWorkflowActions() {
   )
 
   const submitRejectProfile = useCallback(
-    async (stagingId: number, body: RejectProfileRequest) => {
+    async (stagingId: number, templeId: number, body: RejectProfileRequest) => {
       try {
-        const result = await rejectProfile({ stagingId, body }).unwrap()
+        const result = await rejectProfile({ stagingId, templeId, body }).unwrap()
         toast.success(result.message ?? 'Profile rejected.')
         return true
       } catch {

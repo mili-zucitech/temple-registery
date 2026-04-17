@@ -22,26 +22,34 @@ public class ExportController {
     private final ExportService exportService;
 
     @PostMapping("/temples")
-    @Operation(summary = "Export temple list as CSV")
+    @Operation(summary = "Export temple list as CSV or PDF")
     public ResponseEntity<byte[]> exportTemples(@Valid @RequestBody ExportTemplesRequest rq) {
         byte[] data = exportService.exportTemples(rq);
+        String filename = "temples-export." + rq.getFormat().toLowerCase();
         return ResponseEntity.ok()
-                .headers(csvHeaders("temples-export.csv"))
+                .headers(buildHeaders(rq.getFormat(), filename))
                 .body(data);
     }
 
     @PostMapping("/declarations")
-    @Operation(summary = "Export asset declaration list as CSV")
+    @Operation(summary = "Export asset declaration list as CSV or PDF")
     public ResponseEntity<byte[]> exportDeclarations(@Valid @RequestBody ExportDeclarationsRequest rq) {
         byte[] data = exportService.exportDeclarations(rq);
+        String filename = "declarations-export." + rq.getFormat().toLowerCase();
         return ResponseEntity.ok()
-                .headers(csvHeaders("declarations-export.csv"))
+                .headers(buildHeaders(rq.getFormat(), filename))
                 .body(data);
     }
 
-    private HttpHeaders csvHeaders(String filename) {
+    private HttpHeaders buildHeaders(String format, String filename) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        
+        if ("PDF".equalsIgnoreCase(format)) {
+            headers.setContentType(MediaType.APPLICATION_PDF);
+        } else {
+            headers.setContentType(MediaType.parseMediaType("text/csv"));
+        }
+        
         headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
         return headers;
     }

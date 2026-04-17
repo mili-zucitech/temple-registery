@@ -60,11 +60,17 @@ public class TempleFullProfileResponse {
     public static class DcTrustSummary {
         private Long id;
         private String trustName;
-        private String status;
+        private String trustType;
         private String registrationNumber;
-        private LocalDate registrationDate;
+        private String registeringAuthority;
+        private LocalDate dateOfRegistration;
         /** Masked as AB*****1Z for DC/DC_STAFF. Full value only for SUPER_ADMIN. */
         private String panNumberMasked;
+        /** Always masked as **XXXXX1234 for all roles. */
+        private String bankAccountMasked;
+        private String bankName;
+        private String bankBranch;
+        private BigDecimal annualIncome;
     }
 
     @Getter
@@ -81,7 +87,8 @@ public class TempleFullProfileResponse {
         private String contactPersonName;
         private String contactPersonDesignation;
         private String photoFilePath;
-        private java.util.List<String> languagesOfWorship;
+        private String languagesOfWorship;
+        private String linkedInstitutions;
         private String annualFestivals;
         private String landmark;
         private String historicalSignificance;

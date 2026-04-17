@@ -28,10 +28,13 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
     @Async
     @Transactional
     public void refresh(Long templeId) {
-        Temple temple = templeRepository.findById(templeId)
+        Temple temple = templeRepository.findWithFullGeoById(templeId)
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
         summaryRepository.deleteByTempleId(templeId);
-        summaryRepository.save(toSummary(temple));
+        TempleSearchSummary summary = toSummary(temple);
+        log.debug("Search summary refresh: templeId={} resolved districtId={} talukId={} hobliId={}",
+                templeId, summary.getDistrictId(), summary.getTalukId(), summary.getHobliId());
+        summaryRepository.save(summary);
         log.info("Search summary refreshed for temple [{}]", templeId);
     }
 
@@ -40,14 +43,25 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
     @Transactional
     public void rebuildAll() {
         log.info("Starting full temple_search_summary rebuild...");
-        summaryRepository.deleteAll();
-        List<Temple> temples = templeRepository.findAll();
+        summaryRepository.deleteAllInBatch();
+        List<Temple> temples = templeRepository.findAllWithFullGeo();
         List<TempleSearchSummary> summaries = temples.stream().map(this::toSummary).toList();
         summaryRepository.saveAll(summaries);
         log.info("Temple search summary rebuild complete. {} records written.", summaries.size());
     }
 
     private TempleSearchSummary toSummary(Temple t) {
+        // Traverse the canonical hobli → taluk → district → city chain to derive geo IDs.
+        // Do NOT read Temple.talukId / Temple.districtId flat scalars — they may be unset
+        // (e.g. during staging→approval) and would cause district filtering to return wrong results.
+        com.templeregistry.entity.geo.Hobli hobli = t.getHobli();
+        if (hobli == null) {
+            log.warn("Temple [{}] has no hobli association — broken geo chain; geo IDs will be null in search summary", t.getId());
+        }
+        com.templeregistry.entity.geo.Taluk taluk = hobli != null ? hobli.getTaluk() : null;
+        com.templeregistry.entity.geo.District district = taluk != null ? taluk.getDistrict() : null;
+        com.templeregistry.entity.geo.City city = district != null ? district.getCity() : null;
+
         return TempleSearchSummary.builder()
                 .templeId(t.getId())
                 .name(t.getName())
@@ -55,14 +69,15 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .grade(t.getGrade() != null ? t.getGrade().name() : null)
                 .primaryDeity(t.getPrimaryDeity())
                 .tradition(t.getTradition() != null ? t.getTradition().name() : null)
-                .hobliId(t.getHobliId())
-                .talukId(t.getTalukId())
-                .districtId(t.getDistrictId())
-                .cityId(0L)            // populated by DC module refresh() once geo chain is loaded
+                .hobliId(hobli != null ? hobli.getId() : null)
+                .talukId(taluk != null ? taluk.getId() : null)
+                .districtId(district != null ? district.getId() : null)
+                .cityId(city != null ? city.getId() : null)
                 .templeStatus("ACTIVE") // default; DC module refresh() will read temple.status when added
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .yearEstablished(t.getYearEstablished())
+                .photoUrl(t.getPhotoUrl())
                 // DC module counters — initialised to 0 here; DC refresh() will recompute from sub-queries
                 .pendingDeclarations(0)
                 .overdueDeclarations(0)

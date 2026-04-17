@@ -20,9 +20,12 @@ public class StatusTransitionValidator {
     // Declaration state machine
     private static final Map<String, Set<String>> DECLARATION_TRANSITIONS = Map.of(
             "DRAFT",                           Set.of("PENDING_REVIEW"),
-            "PENDING_REVIEW",                  Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
-            "CLARIFICATION_REQUESTED",         Set.of("PENDING_REVIEW"),
-            "PHYSICAL_VERIFICATION_REQUESTED", Set.of("APPROVED", "REJECTED")
+            "PENDING_REVIEW",                  Set.of("UNDER_REVIEW", "APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED", "OVERDUE", "DRAFT"),
+            "UNDER_REVIEW",                    Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
+            "RESUBMITTED",                     Set.of("UNDER_REVIEW", "APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
+            "CLARIFICATION_REQUESTED",         Set.of("RESUBMITTED", "OVERDUE"),
+            "PHYSICAL_VERIFICATION_REQUESTED", Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "RESUBMITTED"),
+            "OVERDUE",                         Set.of("RESUBMITTED", "PENDING_REVIEW")
     );
 
     public void validateDeclarationTransition(String from, String to) {

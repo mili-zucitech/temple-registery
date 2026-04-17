@@ -41,6 +41,12 @@ public class GeoController {
         return ResponseEntity.ok(ApiResponse.success("Cities retrieved.", geoService.listCitiesByState(stateId)));
     }
 
+    @GetMapping("/states/{stateId}/districts")
+    @Operation(summary = "List all districts in a state (skipping city level)")
+    public ResponseEntity<ApiResponse<List<DistrictResponse>>> listDistrictsByState(@PathVariable Long stateId) {
+        return ResponseEntity.ok(ApiResponse.success("Districts retrieved.", geoService.listDistrictsByState(stateId)));
+    }
+
     @PostMapping("/cities")
     @Operation(summary = "Create a city (SUPER_ADMIN only)")
     public ResponseEntity<ApiResponse<CityResponse>> createCity(@Valid @RequestBody CreateCityRequest rq) {

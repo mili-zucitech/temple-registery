@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(classes = TempleRegistryApplication.class, webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("dev")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class ApplicationContextIntegrationTest {
 
     @Container

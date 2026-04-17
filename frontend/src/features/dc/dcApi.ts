@@ -19,6 +19,8 @@ import type {
   ExportJobResponse,
   ExportTemplesRequest,
   ExportDeclarationsRequest,
+  DcFlagRequest,
+  DcVerifyRequest,
 } from './dcTypes'
 
 export const dcApi = createApi({
@@ -149,20 +151,33 @@ export const dcApi = createApi({
         'DcTempleSearch',
       ],
     }),
+    
+    markUnderReviewDeclaration: builder.mutation<ApiResponse<WorkflowActionResponse>, number>({
+      query: (id) => ({
+        url: `/dc/declarations/${id}/under-review`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, id) => [
+        { type: 'DcDeclaration', id },
+        'DcDashboard',
+        'DcTempleSearch',
+      ],
+    }),
 
     // ─── Profile Workflow Actions ─────────────────────────────────────────────
 
     approveProfile: builder.mutation<
       ApiResponse<WorkflowActionResponse>,
-      { stagingId: number; body: ApproveProfileRequest }
+      { stagingId: number; templeId: number; body: ApproveProfileRequest }
     >({
       query: ({ stagingId, body }) => ({
         url: `/dc/profiles/${stagingId}/approve`,
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_r, _e, { stagingId }) => [
-        { type: 'DcProfileStaging', id: stagingId },
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'DcProfileStaging', id: templeId },
+        { type: 'DcTempleProfile', id: templeId },
         'DcTempleSearch',
         'DcDashboard',
       ],
@@ -170,18 +185,94 @@ export const dcApi = createApi({
 
     rejectProfile: builder.mutation<
       ApiResponse<WorkflowActionResponse>,
-      { stagingId: number; body: RejectProfileRequest }
+      { stagingId: number; templeId: number; body: RejectProfileRequest }
     >({
       query: ({ stagingId, body }) => ({
         url: `/dc/profiles/${stagingId}/reject`,
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_r, _e, { stagingId }) => [
-        { type: 'DcProfileStaging', id: stagingId },
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'DcProfileStaging', id: templeId },
+        { type: 'DcTempleProfile', id: templeId },
         'DcDashboard',
       ],
     }),
+
+    // ─── Compliance/Verification Actions ──────────────────────────────────────
+    verifyTemple: builder.mutation<ApiResponse<void>, { id: number; body: DcVerifyRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/temples/${id}/verify`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
+    }),
+
+    flagTemple: builder.mutation<ApiResponse<void>, { id: number; body: DcFlagRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/temples/${id}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
+    }),
+
+    verifyTrust: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/trusts/${id}/verify`,
+        method: 'POST',
+        body,
+      }),
+      // Invalidates the profile that contains this trust
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    flagTrust: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/trusts/${id}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    verifyEmployee: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/employees/${id}/verify`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    flagEmployee: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/employees/${id}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    verifyContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/contractors/${id}/verify`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    flagContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
+      query: ({ id, body }) => ({
+        url: `/dc/compliance/contractors/${id}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
 
     // ─── Notifications ────────────────────────────────────────────────────────
 
@@ -244,23 +335,6 @@ export const dcApi = createApi({
       }),
       invalidatesTags: ['DcExport'],
     }),
-
-    approveTrust: builder.mutation<ApiResponse<any>, { trustId: number }>({
-      query: ({ trustId }) => ({ url: `/dc/trusts/${trustId}/approve`, method: 'POST' }),
-      invalidatesTags: ['DcTempleProfile'],
-    }),
-    rejectTrust: builder.mutation<ApiResponse<any>, { trustId: number; body: { remarks: string } }>({
-      query: ({ trustId, body }) => ({ url: `/dc/trusts/${trustId}/reject`, method: 'POST', body }),
-      invalidatesTags: ['DcTempleProfile'],
-    }),
-    approveBoardMember: builder.mutation<ApiResponse<any>, { memberId: number }>({
-      query: ({ memberId }) => ({ url: `/dc/trusts/board-members/${memberId}/approve`, method: 'POST' }),
-      invalidatesTags: ['DcTempleProfile'],
-    }),
-    rejectBoardMember: builder.mutation<ApiResponse<any>, { memberId: number; body: { remarks: string } }>({
-      query: ({ memberId, body }) => ({ url: `/dc/trusts/board-members/${memberId}/reject`, method: 'POST', body }),
-      invalidatesTags: ['DcTempleProfile'],
-    }),
   }),
 })
 
@@ -275,6 +349,7 @@ export const {
   useRejectDeclarationMutation,
   useClarifyDeclarationMutation,
   useFlagPhysicalVerificationMutation,
+  useMarkUnderReviewDeclarationMutation,
   useApproveProfileMutation,
   useRejectProfileMutation,
   useGetDcNotificationsQuery,
@@ -283,8 +358,12 @@ export const {
   useMarkAllNotificationsReadMutation,
   useExportTemplesMutation,
   useExportDeclarationsMutation,
-  useApproveTrustMutation,
-  useRejectTrustMutation,
-  useApproveBoardMemberMutation,
-  useRejectBoardMemberMutation,
+  useVerifyTempleMutation,
+  useFlagTempleMutation,
+  useVerifyTrustMutation,
+  useFlagTrustMutation,
+  useVerifyEmployeeMutation,
+  useFlagEmployeeMutation,
+  useVerifyContractorMutation,
+  useFlagContractorMutation,
 } = dcApi

@@ -50,7 +50,7 @@ export function DeclarationCreatePage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl w-full space-y-6 px-2 sm:px-0">
       <div>
         <h2 className="text-lg font-semibold">New Asset Declaration</h2>
         <p className="text-sm text-muted-foreground">Enter all asset details for this declaration period.</p>
@@ -59,9 +59,9 @@ export function DeclarationCreatePage() {
       <Form {...form}>
         <form className="space-y-6">
           {/* Immovable Assets */}
-          <fieldset className="space-y-4 rounded-lg border border-border p-4">
+          <fieldset className="space-y-4 rounded-lg border border-border p-3 sm:p-4">
             <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Immovable Assets</legend>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <NumberField form={form} name="agriculturalLandAcres" label="Agricultural Land (acres)" />
               <NumberField form={form} name="agriculturalLandValue" label="Agri. Land Value (₹)" />
               <NumberField form={form} name="buildingsSqft" label="Buildings (sqft)" />
@@ -73,9 +73,9 @@ export function DeclarationCreatePage() {
           </fieldset>
 
           {/* Movable Assets */}
-          <fieldset className="space-y-4 rounded-lg border border-border p-4">
+          <fieldset className="space-y-4 rounded-lg border border-border p-3 sm:p-4">
             <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Movable Assets</legend>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <NumberField form={form} name="goldGrams" label="Gold (grams)" />
               <NumberField form={form} name="silverGrams" label="Silver (grams)" />
               <NumberField form={form} name="idolsCount" label="Idols (count)" />
@@ -98,10 +98,10 @@ export function DeclarationCreatePage() {
             )}
           />
 
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
               type="button"
-              className="bg-gradient-gold shadow-gold"
+              className="bg-gradient-gold shadow-gold w-full sm:w-auto"
               onClick={form.handleSubmit(handleSubmit)}
               disabled={creating || submitting}
             >
@@ -110,12 +110,13 @@ export function DeclarationCreatePage() {
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={form.handleSubmit(handleSaveDraft)}
               disabled={creating || submitting}
             >
               {creating ? 'Saving…' : 'Save Draft'}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
+            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={() => navigate(-1)}>Cancel</Button>
           </div>
         </form>
       </Form>

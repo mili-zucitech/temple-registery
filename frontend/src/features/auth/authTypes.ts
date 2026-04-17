@@ -90,7 +90,6 @@ export interface CurrentUser {
   userId: number
   username: string
   fullName: string
-  mobile?: string
   role: UserRole
   districtId?: number
   templeId?: number

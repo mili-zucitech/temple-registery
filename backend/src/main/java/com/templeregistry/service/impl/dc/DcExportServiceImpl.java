@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;
 import com.templeregistry.dto.response.dc.ExportJobResponse;
+import com.templeregistry.entity.dc.ExportJobRecord;
 import com.templeregistry.entity.dc.IdempotencyRecord;
 import com.templeregistry.exception.ExportQueueFullException;
 import com.templeregistry.exception.RateLimitExceededException;
+import com.templeregistry.repository.dc.ExportJobRecordRepository;
 import com.templeregistry.repository.dc.IdempotencyRecordRepository;
 import com.templeregistry.repository.dc.RateRequestLogRepository;
 import com.templeregistry.security.RoleConstants;
@@ -53,6 +55,7 @@ public class DcExportServiceImpl implements DcExportService {
     private final AsyncExportBean asyncExportBean;
     private final RateRequestLogRepository rateRepository;
     private final IdempotencyRecordRepository idempotencyRepository;
+    private final ExportJobRecordRepository exportJobRecordRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
 
@@ -76,13 +79,14 @@ public class DcExportServiceImpl implements DcExportService {
 
         String jobId    = UUID.randomUUID().toString();
         long rowCount   = asyncExportBean.countTemples(districtId);
+        storeExportJobRecord(jobId, claims.userId(), districtId, request.getFormat());
 
         ExportJobResponse response;
 
         if (rowCount < ASYNC_THRESHOLD) {
-            response = runSyncTempleExport(jobId, districtId, rowCount, claims);
+            response = runSyncTempleExport(jobId, districtId, rowCount, claims, request.getFormat());
         } else {
-            response = submitAsyncTempleExport(jobId, districtId, rowCount, claims);
+            response = submitAsyncTempleExport(jobId, districtId, rowCount, claims, request.getFormat());
         }
 
         storeIdempotencyResult(idempotencyKey, claims.userId(), response);
@@ -108,13 +112,14 @@ public class DcExportServiceImpl implements DcExportService {
 
         String jobId    = UUID.randomUUID().toString();
         long rowCount   = asyncExportBean.countDeclarations(districtId);
+        storeExportJobRecord(jobId, claims.userId(), districtId, request.getFormat());
 
         ExportJobResponse response;
 
         if (rowCount < ASYNC_THRESHOLD) {
-            response = runSyncDeclarationExport(jobId, districtId, rowCount, claims);
+            response = runSyncDeclarationExport(jobId, districtId, rowCount, claims, request.getFormat());
         } else {
-            response = submitAsyncDeclarationExport(jobId, districtId, rowCount, claims);
+            response = submitAsyncDeclarationExport(jobId, districtId, rowCount, claims, request.getFormat());
         }
 
         storeIdempotencyResult(idempotencyKey, claims.userId(), response);
@@ -183,40 +188,64 @@ public class DcExportServiceImpl implements DcExportService {
         }
     }
 
+    private void storeExportJobRecord(String jobId, Long actorUserId, Long districtId, String format) {
+        // Keep downloads possible for a reasonable window; file retention policy is handled at ops layer.
+        LocalDateTime now = LocalDateTime.now();
+        ExportJobRecord record = ExportJobRecord.builder()
+                .jobId(jobId)
+                .actorUserId(actorUserId)
+                .districtId(districtId)
+                .format(format != null ? format : "CSV")
+                .createdAt(now)
+                .expiresAt(now.plusDays(7))
+                .build();
+        exportJobRecordRepository.save(record);
+    }
+
     private ExportJobResponse runSyncTempleExport(String jobId, Long districtId,
-                                                   long rowCount, ScopeHelper.Claims claims) {
-        java.nio.file.Path outputPath = asyncExportBean.resolveOutputPath(jobId, "csv");
+                                                   long rowCount, ScopeHelper.Claims claims, String format) {
+        String extension = "PDF".equalsIgnoreCase(format) ? "pdf" : "csv";
+        java.nio.file.Path outputPath = asyncExportBean.resolveOutputPath(jobId, extension);
         try {
-            asyncExportBean.writeTemplesCsv(outputPath, districtId);
+            if ("PDF".equalsIgnoreCase(format)) {
+                asyncExportBean.writeTemplesPdf(outputPath, districtId);
+            } else {
+                asyncExportBean.writeTemplesCsv(outputPath, districtId);
+            }
         } catch (IOException e) {
             throw new IllegalStateException("Sync temple export failed: jobId=" + jobId, e);
         }
         String downloadUrl = "/api/v1/dc/export/" + jobId + "/download";
         log.info("Sync temple export complete: jobId={} rows={}", jobId, rowCount);
         return ExportJobResponse.builder()
-                .jobId(jobId).format("CSV").status("SYNC_COMPLETE")
+                .jobId(jobId).format(format != null ? format : "CSV").status("SYNC_COMPLETE")
                 .downloadUrl(downloadUrl).recordCount((int) rowCount)
                 .build();
     }
 
     private ExportJobResponse runSyncDeclarationExport(String jobId, Long districtId,
-                                                        long rowCount, ScopeHelper.Claims claims) {
-        java.nio.file.Path outputPath = asyncExportBean.resolveOutputPath(jobId, "csv");
+                                                        long rowCount, ScopeHelper.Claims claims, String format) {
+        String extension = "PDF".equalsIgnoreCase(format) ? "pdf" : "csv";
+        java.nio.file.Path outputPath = asyncExportBean.resolveOutputPath(jobId, extension);
         try {
-            asyncExportBean.writeDeclarationsCsv(outputPath, districtId);
+            if ("PDF".equalsIgnoreCase(format)) {
+                asyncExportBean.writeDeclarationsPdf(outputPath, districtId);
+            } else {
+                asyncExportBean.writeDeclarationsCsv(outputPath, districtId);
+            }
         } catch (IOException e) {
             throw new IllegalStateException("Sync declaration export failed: jobId=" + jobId, e);
         }
         String downloadUrl = "/api/v1/dc/export/" + jobId + "/download";
         log.info("Sync declaration export complete: jobId={} rows={}", jobId, rowCount);
         return ExportJobResponse.builder()
-                .jobId(jobId).format("CSV").status("SYNC_COMPLETE")
+                .jobId(jobId).format(format != null ? format : "CSV").status("SYNC_COMPLETE")
                 .downloadUrl(downloadUrl).recordCount((int) rowCount)
                 .build();
     }
 
     private ExportJobResponse submitAsyncTempleExport(String jobId, Long districtId,
-                                                       long rowCount, ScopeHelper.Claims claims) {
+                                                       long rowCount, ScopeHelper.Claims claims, String format) {
         try {
             asyncExportBean.exportTemplesAsync(jobId, districtId, claims.userId());
         } catch (RejectedExecutionException e) {
@@ -224,13 +253,13 @@ public class DcExportServiceImpl implements DcExportService {
         }
         log.info("Async temple export queued: jobId={} rows={}", jobId, rowCount);
         return ExportJobResponse.builder()
-                .jobId(jobId).format("CSV").status("ASYNC_ACCEPTED")
+                .jobId(jobId).format(format != null ? format : "CSV").status("ASYNC_ACCEPTED")
                 .downloadUrl(null).recordCount((int) rowCount)
                 .build();
     }
 
     private ExportJobResponse submitAsyncDeclarationExport(String jobId, Long districtId,
-                                                            long rowCount, ScopeHelper.Claims claims) {
+                                                            long rowCount, ScopeHelper.Claims claims, String format) {
         try {
             asyncExportBean.exportDeclarationsAsync(jobId, districtId, claims.userId());
         } catch (RejectedExecutionException e) {
@@ -238,7 +267,7 @@ public class DcExportServiceImpl implements DcExportService {
         }
         log.info("Async declaration export queued: jobId={} rows={}", jobId, rowCount);
         return ExportJobResponse.builder()
-                .jobId(jobId).format("CSV").status("ASYNC_ACCEPTED")
+                .jobId(jobId).format(format != null ? format : "CSV").status("ASYNC_ACCEPTED")
                 .downloadUrl(null).recordCount((int) rowCount)
                 .build();
     }
