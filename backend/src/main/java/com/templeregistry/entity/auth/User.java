@@ -57,9 +57,6 @@ public class User extends BaseEntity {
     @Column(name = "mfa_secret")
     private String mfaSecret;
 
-    @Column(name = "mfa_phone", length = 15)
-    private String mfaPhone;
-
     @Column(name = "failed_login_count")
     private int failedLoginCount = 0;
 

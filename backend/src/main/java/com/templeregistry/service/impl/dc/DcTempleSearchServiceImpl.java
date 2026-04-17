@@ -21,7 +21,9 @@ import org.springframework.util.StringUtils;
 
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,12 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int DEFAULT_PAGE_SIZE = 10;
+
+    /** Allowed sort fields — prevents PropertyReferenceException on arbitrary user input. */
+    private static final java.util.Set<String> ALLOWED_SORT_FIELDS = java.util.Set.of(
+            "name", "grade", "yearEstablished", "assetDeclarationStatus",
+            "districtId", "trustRegistered", "pendingDeclarations", "overdueDeclarations"
+    );
 
     private final TempleSearchSummaryRepository summaryRepository;
 
@@ -41,8 +49,9 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
         // Enforce district scope: DC roles always use their own districtId from JWT
         Long effectiveDistrictId = resolveDistrictId(filter, claims);
 
-        int size = Math.min(filter.getSize() != null ? filter.getSize() : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-        int page = filter.getPage() != null ? filter.getPage() : 0;
+        // Clamp page and size to safe values — prevents IllegalArgumentException from PageRequest
+        int size = Math.min(Math.max(filter.getSize() != null ? filter.getSize() : DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+        int page = Math.max(filter.getPage() != null ? filter.getPage() : 0, 0);
         Sort sort = parseSort(filter.getSort());
 
         Specification<TempleSearchSummary> spec = buildSpec(filter, effectiveDistrictId);
@@ -58,7 +67,9 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
     private Long resolveDistrictId(TempleSearchFilterRequest filter, ScopeHelper.Claims claims) {
         String role = claims.role();
         if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
-            return claims.districtId(); // JWT always wins for DC roles
+            // DC/DC_STAFF are always locked to their JWT-bound districtId.
+            // Even if the UI/URL supplies a districtId parameter, it MUST NOT override jurisdiction.
+            return claims.districtId();
         }
         return filter.getDistrictId(); // SUPER_ADMIN / AUDITOR may filter or leave null
     }
@@ -67,25 +78,57 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
+            log.debug("DC temple search buildSpec: effectiveDistrictId={} talukId={} hobliId={}",
+                    districtId, filter.getTalukId(), filter.getHobliId());
+
             if (districtId != null) {
                 predicates.add(cb.equal(root.get("districtId"), districtId));
+            } else if (filter.getCityId() != null) {
+                // cityId is only meaningful when no district-level restriction is active.
+                // DC/DC_STAFF always have districtId from JWT; only SUPER_ADMIN reaches here.
+                predicates.add(cb.equal(root.get("cityId"), filter.getCityId()));
             }
-            if (filter.getTalukId() != null) {
-                predicates.add(cb.equal(root.get("talukId"), filter.getTalukId()));
-            }
+            // Apply geo refinement at the lowest selected level — filters are mutually exclusive:
+            // hobliId (most specific) wins; talukId is used only when hobliId is absent.
+            // This prevents conflicting predicates when the user selects hobliId (which implies its taluk).
             if (filter.getHobliId() != null) {
                 predicates.add(cb.equal(root.get("hobliId"), filter.getHobliId()));
+            } else if (filter.getTalukId() != null) {
+                predicates.add(cb.equal(root.get("talukId"), filter.getTalukId()));
             }
             if (StringUtils.hasText(filter.getKeyword())) {
-                String pattern = "%" + filter.getKeyword().toLowerCase() + "%";
+                String keyword = filter.getKeyword().trim();
+                if (keyword.length() < 2) {
+                    // Prevent expensive contains-search for 0-1 char inputs (scans even with indexes).
+                    log.debug("DC temple search: ignoring too-short keyword (len={})", keyword.length());
+                } else {
+                    if (keyword.length() > 100) keyword = keyword.substring(0, 100);
+                // Escape SQL LIKE wildcards so user input is treated as a literal substring.
+                String safe = keyword
+                        .replace("\\", "\\\\")
+                        .replace("%",  "\\%")
+                        .replace("_",  "\\_");
+                String pattern = "%" + safe.toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("name")), pattern),
-                        cb.like(cb.lower(root.get("registrationNumber")), pattern)
+                        cb.like(cb.lower(root.get("registrationNumber")), pattern),
+                        cb.like(cb.lower(root.get("primaryDeity")), pattern)
                 ));
+                }
             }
             if (StringUtils.hasText(filter.getDeityName())) {
+                String deity = filter.getDeityName().trim();
+                if (deity.length() < 2) {
+                    log.debug("DC temple search: ignoring too-short deityName (len={})", deity.length());
+                } else {
+                    if (deity.length() > 100) deity = deity.substring(0, 100);
+                String safeDeity = deity
+                        .replace("\\", "\\\\")
+                        .replace("%",  "\\%")
+                        .replace("_",  "\\_");
                 predicates.add(cb.like(cb.lower(root.get("primaryDeity")),
-                        "%" + filter.getDeityName().toLowerCase() + "%"));
+                        "%" + safeDeity.toLowerCase() + "%"));
+                }
             }
             if (StringUtils.hasText(filter.getTradition())) {
                 predicates.add(cb.equal(root.get("tradition"), filter.getTradition()));
@@ -96,14 +139,35 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
             if (StringUtils.hasText(filter.getDeclarationStatus())) {
                 predicates.add(cb.equal(root.get("assetDeclarationStatus"), filter.getDeclarationStatus()));
             }
+            if (filter.getHasApprovedDeclaration() != null) {
+                predicates.add(cb.equal(root.get("hasApprovedDeclaration"), filter.getHasApprovedDeclaration()));
+            }
+            if (filter.getPendingProfileReview() != null) {
+                predicates.add(cb.equal(root.get("pendingProfileReview"), filter.getPendingProfileReview() ? 1 : 0));
+            }
             if (filter.getGrade() != null && !filter.getGrade().isEmpty()) {
-                predicates.add(root.get("grade").in(filter.getGrade()));
+                // Frontend sends grade as a comma-joined string (e.g. "A,B").
+                // Spring binds that as a List with one element "A,B", not ["A","B"].
+                // Defensively expand each element by splitting on comma.
+                List<String> expanded = filter.getGrade().stream()
+                        .flatMap(g -> Arrays.stream(g.split(",")))
+                        .map(String::trim)
+                        .filter(g -> !g.isEmpty())
+                        .collect(Collectors.toList());
+                if (!expanded.isEmpty()) {
+                    predicates.add(root.get("grade").in(expanded));
+                }
             }
-            if (filter.getEstablishedYearFrom() != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("yearEstablished"), filter.getEstablishedYearFrom()));
-            }
-            if (filter.getEstablishedYearTo() != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("yearEstablished"), filter.getEstablishedYearTo()));
+            if (filter.getEstablishedYearFrom() != null || filter.getEstablishedYearTo() != null) {
+                Integer from = filter.getEstablishedYearFrom();
+                Integer to   = filter.getEstablishedYearTo();
+                // Silently swap inverted range instead of failing — prevents confusing empty results.
+                if (from != null && to != null && from > to) {
+                    log.warn("DC temple search: inverted year range ({} > {}), swapping automatically", from, to);
+                    Integer tmp = from; from = to; to = tmp;
+                }
+                if (from != null) predicates.add(cb.greaterThanOrEqualTo(root.get("yearEstablished"), from));
+                if (to   != null) predicates.add(cb.lessThanOrEqualTo(root.get("yearEstablished"),   to));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -116,6 +180,11 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
         }
         String[] parts = sortParam.split(",");
         String field = parts[0].trim();
+        // Reject unknown sort fields — prevents PropertyReferenceException from JPA.
+        if (!ALLOWED_SORT_FIELDS.contains(field)) {
+            log.warn("DC temple search: unknown sort field '{}', falling back to 'name'", field);
+            field = "name";
+        }
         Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
                 ? Sort.Direction.DESC : Sort.Direction.ASC;
         return Sort.by(direction, field);

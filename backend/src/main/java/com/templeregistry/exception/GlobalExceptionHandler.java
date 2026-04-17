@@ -10,9 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import org.springframework.http.HttpHeaders;
 
@@ -57,6 +55,20 @@ public class GlobalExceptionHandler {
         log.warn("Illegal status transition: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(ex.getMessage(), "ILLEGAL_STATUS_TRANSITION"));
+    }
+
+    @ExceptionHandler(ClarificationLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleClarificationLimit(ClarificationLimitExceededException ex) {
+        log.warn("Clarification limit exceeded: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(ex.getMessage(), "TRM-DECL-009"));
+    }
+
+    @ExceptionHandler(ImmutableResourceException.class)
+    public ResponseEntity<ApiResponse<Void>> handleImmutable(ImmutableResourceException ex) {
+        log.warn("Immutable resource mutation blocked: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage(), "IMMUTABLE_RESOURCE"));
     }
 
     @ExceptionHandler(JurisdictionAccessDeniedException.class)
@@ -157,33 +169,10 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.validationError("Request validation failed.", errors));
     }
 
-    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        String msg = String.format("The parameter '%s' of value '%s' could not be converted to type '%s'",
-                ex.getName(), ex.getValue(), ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "Unknown");
-        log.warn("Type mismatch: {}", msg);
-        
-        // Handle specific case for undefined trust IDs
-        if ("undefined".equals(ex.getValue()) && "id".equals(ex.getName())) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Trust not registered.", "TRUST_NOT_FOUND"));
-        }
-        
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(msg, "INVALID_PARAMETER_TYPE"));
-    }
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred. Please contact support.", "INTERNAL_ERROR"));
-    }
-
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
-        log.warn("Resource not found: {}", ex.getResourcePath());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("The requested file was not found.", "RESOURCE_NOT_FOUND"));
     }
 }

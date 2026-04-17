@@ -19,10 +19,15 @@ export interface AuditEventResponse {
   entityId: number; details?: string; ipAddress?: string; createdAt: string
 }
 
+export interface AuthEventResponse {
+  id: number; username: string; eventType: string; status: string
+  ipAddress?: string; userAgent?: string; occurredAt: string
+}
+
 export const adminApi = createApi({
   reducerPath: 'adminApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['AdminUser', 'AuditEvent'],
+  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent'],
   endpoints: (builder) => ({
     listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/users', params: { page, size } }),
@@ -48,8 +53,15 @@ export const adminApi = createApi({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/audit-events', params: { page, size } }),
       providesTags: ['AuditEvent'],
     }),
+    listAuthEvents: builder.query<ApiResponse<PaginatedResponse<AuthEventResponse>>, { page?: number; size?: number }>({
+      query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/auth-events', params: { page, size } }),
+      providesTags: ['AuthEvent'],
+    }),
     rebuildSearchSummary: builder.mutation<ApiResponse<void>, void>({
       query: () => ({ url: '/admin/search-summary/rebuild', method: 'POST' }),
+    }),
+    getPhysicalVerificationPending: builder.query<ApiResponse<PaginatedResponse<any>>, { page?: number; size?: number }>({
+      query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/declarations/physical-verification-pending', params: { page, size } }),
     }),
   }),
 })
@@ -57,5 +69,6 @@ export const adminApi = createApi({
 export const {
   useListUsersQuery, useCreateUserMutation, useUpdateUserMutation,
   useDeactivateUserMutation, useActivateUserMutation,
-  useListAuditEventsQuery, useRebuildSearchSummaryMutation,
+  useListAuditEventsQuery, useListAuthEventsQuery,
+  useRebuildSearchSummaryMutation, useGetPhysicalVerificationPendingQuery,
 } = adminApi

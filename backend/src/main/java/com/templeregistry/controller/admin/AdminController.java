@@ -7,6 +7,7 @@ import com.templeregistry.dto.request.admin.UpdateUserRequest;
 import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.repository.audit.AuditAuthEventRepository;
 import com.templeregistry.repository.audit.AuditDataEventRepository;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.admin.AdminService;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.PaginationUtil;
@@ -17,12 +18,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @Tag(name = "Admin", description = "Super-admin: user management, audit logs, search summary rebuild")
+@PreAuthorize(RoleConstants.ADMIN_ONLY)
 public class AdminController {
 
     private final AdminService adminService;

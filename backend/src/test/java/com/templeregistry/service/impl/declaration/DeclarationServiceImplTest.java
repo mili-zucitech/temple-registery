@@ -1,5 +1,6 @@
 package com.templeregistry.service.impl.declaration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.dto.request.declaration.CreateDeclarationRequest;
 import com.templeregistry.dto.request.declaration.ClarificationRequest;
 import com.templeregistry.entity.declaration.AssetDeclaration;
@@ -8,6 +9,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
+import com.templeregistry.repository.declaration.AssetDeclarationVersionRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
@@ -36,6 +38,7 @@ class DeclarationServiceImplTest {
 
     @Mock DeclarationRepository declarationRepository;
     @Mock DeclarationClarificationRepository clarificationRepository;
+    @Mock AssetDeclarationVersionRepository versionRepository;
     @Mock TempleRepository templeRepository;
     @Mock OwnershipGuard ownershipGuard;
     @Mock JurisdictionGuard jurisdictionGuard;
@@ -43,16 +46,19 @@ class DeclarationServiceImplTest {
     @Mock AcknowledgementNumberGenerator ackGenerator;
     @Mock PaginationUtil paginationUtil;
     @Mock AuditService auditService;
+    @Mock ObjectMapper objectMapper;
 
     @InjectMocks DeclarationServiceImpl declarationService;
 
     private AssetDeclaration draftDeclaration;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         draftDeclaration = AssetDeclaration.builder()
                 .templeId(1L).districtId(10L)
                 .status(DeclarationStatus.DRAFT).build();
+
+        lenient().when(objectMapper.writeValueAsString(any())).thenReturn("{\"snapshot\":true}");
 
         // Mock security context — lenient; not all test paths reach this
         SecurityContext ctx = mock(SecurityContext.class);

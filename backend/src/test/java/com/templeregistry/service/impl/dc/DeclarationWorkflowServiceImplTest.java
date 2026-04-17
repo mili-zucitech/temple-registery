@@ -5,10 +5,14 @@ import com.templeregistry.dto.request.dc.DcClarifyRequest;
 import com.templeregistry.dto.request.dc.WorkflowApproveRequest;
 import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
+import com.templeregistry.entity.auth.User;
+import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.exception.ClarificationLimitExceededException;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleRepository;
@@ -27,6 +31,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +52,7 @@ class DeclarationWorkflowServiceImplTest {
     @Mock TempleSearchSummaryService summaryService;
     @Mock AuditService auditService;
     @Mock ObjectMapper objectMapper;
+    @Mock UserRepository userRepository;
 
     @InjectMocks
     DeclarationWorkflowServiceImpl workflowService;
@@ -168,6 +174,46 @@ class DeclarationWorkflowServiceImplTest {
         verify(clarificationRepository).save(any());
         verify(notificationPublisher).publish(eq(99L), eq("CLARIFICATION_REQUESTED"), eq(42L), anyString());
         verify(summaryService).refresh(1L);
+    }
+
+    @Test
+    void should_throwClarificationLimitExceeded_when_roundAlreadyAtMax() {
+        pendingDeclaration.setClarificationRound(3);
+        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+
+        DcClarifyRequest request = new DcClarifyRequest();
+        setField(request, "message", "Need more info.");
+
+        assertThatThrownBy(() -> workflowService.requestClarification(42L, request, dcClaims))
+                .isInstanceOf(ClarificationLimitExceededException.class);
+
+        verifyNoInteractions(clarificationRepository, notificationPublisher, summaryService);
+    }
+
+    @Test
+    void should_notifySuperAdmins_when_roundReachesTwo() {
+        pendingDeclaration.setClarificationRound(1);
+        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
+        User sa1 = User.builder().role(UserRole.SUPER_ADMIN).username("sa1").build();
+        sa1.setId(1000L);
+        User sa2 = User.builder().role(UserRole.SUPER_ADMIN).username("sa2").build();
+        sa2.setId(1001L);
+        when(userRepository.findAllByRole(UserRole.SUPER_ADMIN)).thenReturn(List.of(sa1, sa2));
+
+        DcClarifyRequest request = new DcClarifyRequest();
+        setField(request, "message", "Round 2 request.");
+        setField(request, "sectionName", "IMMOVABLE_LAND");
+
+        workflowService.requestClarification(42L, request, dcClaims);
+
+        verify(notificationPublisher).publish(eq(1000L), eq("CLARIFICATION_ESCALATION"), eq(42L), eq("ASSET_DECLARATION"));
+        verify(notificationPublisher).publish(eq(1001L), eq("CLARIFICATION_ESCALATION"), eq(42L), eq("ASSET_DECLARATION"));
     }
 
     // ── Flag Physical Verification ────────────────────────────────────────────

@@ -50,5 +50,5 @@ public class CreateTempleRequest {
     @Size(max = 150) private String contactDesignation;
     @Size(max = 15) private String contactMobile;
     @Email @Size(max = 255) private String contactEmail;
-    private java.util.List<String> languagesOfWorship;
+    @Size(max = 255) private String languagesOfWorship;
 }

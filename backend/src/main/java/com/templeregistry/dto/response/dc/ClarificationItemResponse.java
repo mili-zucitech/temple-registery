@@ -17,6 +17,8 @@ public class ClarificationItemResponse {
     private String direction;
     private String message;
     private String sectionName;
+    /** JSON array string of canonical field identifiers (may be null). */
+    private String fieldNamesJson;
     private Long authorId;
     private LocalDateTime createdAt;
 }

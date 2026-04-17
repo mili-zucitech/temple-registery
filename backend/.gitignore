@@ -18,3 +18,5 @@ src/main/resources/application-prod.yml
 # OS
 .DS_Store
 Thumbs.db
+
+backend/exports

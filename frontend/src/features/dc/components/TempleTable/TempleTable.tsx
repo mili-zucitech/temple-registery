@@ -3,6 +3,7 @@ import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { TableSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { DcTempleSearchItemResponse } from '@/features/dc/dcTypes'
 
@@ -17,6 +18,9 @@ interface TempleTableProps {
   onView: (templeId: number) => void
   onPageChange: (page: number) => void
   onClearFilters?: () => void
+  onRetry?: () => void
+  /** Lookup map: districtId → "City / District" label, built by the page from RTK cache. */
+  districtNameMap?: Record<number, string>
 }
 
 /**
@@ -38,6 +42,8 @@ export function TempleTable({
   onView,
   onPageChange,
   onClearFilters,
+  onRetry,
+  districtNameMap = {},
 }: TempleTableProps) {
   if (isLoading) {
     return (
@@ -52,7 +58,7 @@ export function TempleTable({
       <EmptyState
         title="Failed to load temples"
         description="Unable to retrieve temple data. Please try again."
-        action={{ label: 'Retry', onClick: () => window.location.reload() }}
+        action={onRetry ? { label: 'Retry', onClick: onRetry } : undefined}
       />
     )
   }
@@ -172,12 +178,29 @@ export function TempleTable({
   )
 }
 
-// ─── Internal helper ──────────────────────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function CountCell({ value, warnColor }: { value: number; warnColor: string }) {
   return value > 0 ? (
     <span className={`font-semibold ${warnColor}`}>{value}</span>
   ) : (
     <span className="text-muted-foreground">0</span>
+  )
+}
+
+/** Grade A = green, B = amber/orange, C = gray — per requirements §3. */
+function GradeBadge({ grade }: { grade: string }) {
+  return (
+    <Badge
+      className={
+        grade === 'A'
+          ? 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+          : grade === 'B'
+          ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100'
+          : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
+      }
+    >
+      Grade {grade}
+    </Badge>
   )
 }
