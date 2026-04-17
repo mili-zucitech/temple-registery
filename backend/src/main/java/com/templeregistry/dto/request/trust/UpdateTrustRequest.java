@@ -2,6 +2,8 @@ package com.templeregistry.dto.request.trust;
 
 import com.templeregistry.entity.trust.TrustType;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,15 +14,16 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UpdateTrustRequest {
     @NotBlank(message = "Trust name is required")
     @Size(max = 255)
     private String trustName;
 
     @NotBlank(message = "Trust registration number is required")
-    @Pattern(regexp = "^[a-zA-Z0-9]+$", message = "Trust registration number must be alphanumeric")
     @Size(max = 100)
-    private String trustRegistrationNumber;
+    private String registrationNumber;
 
     @NotNull(message = "Date of registration is required")
     private LocalDate dateOfRegistration;
@@ -32,15 +35,14 @@ public class UpdateTrustRequest {
     @NotNull(message = "Trust type is required")
     private TrustType trustType;
 
-    // PAN should NOT change after creation (immutable) - not included here
-
     @NotBlank(message = "Bank account number is required")
-    @Pattern(regexp = "^[0-9]{9,18}$", message = "Bank account number must be between 9 and 18 digits")
     private String bankAccountNumber;
 
-    @NotBlank(message = "Bank name and branch is required")
-    @Size(max = 255)
-    private String bankNameAndBranch;
+    @NotBlank(message = "Bank name is required")
+    private String bankName;
+
+    @NotBlank(message = "Bank branch is required")
+    private String bankBranch;
 
     @PositiveOrZero(message = "Annual income must be zero or positive")
     private BigDecimal annualIncome;

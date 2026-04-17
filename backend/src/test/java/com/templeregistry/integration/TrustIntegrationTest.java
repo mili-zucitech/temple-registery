@@ -78,15 +78,17 @@ public class TrustIntegrationTest {
 
     @Test
     void shouldReturn404WhenUpdatingUndefinedTrust() throws Exception {
-        UpdateTrustRequest request = new UpdateTrustRequest();
-        request.setTrustName("Updated Trust");
-        request.setTrustRegistrationNumber("TR002");
-        request.setDateOfRegistration(LocalDate.now());
-        request.setRegisteringAuthority("Authority");
-        request.setTrustType(TrustType.PUBLIC);
-        request.setBankNameAndBranch("SBI Main");
-        request.setBankAccountNumber("123456789012");
-        request.setAnnualIncome(new BigDecimal("10000.00"));
+        UpdateTrustRequest request = UpdateTrustRequest.builder()
+                .trustName("Updated Trust")
+                .registrationNumber("TR002")
+                .dateOfRegistration(LocalDate.now())
+                .registeringAuthority("Authority")
+                .trustType(TrustType.PUBLIC)
+                .bankName("SBI")
+                .bankBranch("Main")
+                .bankAccountNumber("123456789012")
+                .annualIncome(new BigDecimal("10000.00"))
+                .build();
 
         mockMvc.perform(put("/api/v1/trusts/undefined")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,16 +98,18 @@ public class TrustIntegrationTest {
     }
 
     @Test
-    void shouldReturn404WhenUpdatingNonExistentTrust() throws Exception {
-        UpdateTrustRequest request = new UpdateTrustRequest();
-        request.setTrustName("Updated Trust");
-        request.setTrustRegistrationNumber("TR002");
-        request.setDateOfRegistration(LocalDate.now());
-        request.setRegisteringAuthority("Authority");
-        request.setTrustType(TrustType.PUBLIC);
-        request.setBankNameAndBranch("SBI Main");
-        request.setBankAccountNumber("123456789012");
-        request.setAnnualIncome(new BigDecimal("10000.00"));
+    void shouldReturn404ForNonExistentTrust() throws Exception {
+        UpdateTrustRequest request = UpdateTrustRequest.builder()
+                .trustName("Updated Trust")
+                .registrationNumber("TR002")
+                .dateOfRegistration(LocalDate.now())
+                .registeringAuthority("Authority")
+                .trustType(TrustType.PUBLIC)
+                .bankName("SBI")
+                .bankBranch("Main")
+                .bankAccountNumber("123456789012")
+                .annualIncome(new BigDecimal("10000.00"))
+                .build();
 
         mockMvc.perform(put("/api/v1/trusts/999999")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -116,16 +120,18 @@ public class TrustIntegrationTest {
 
     @Test
     void shouldCreateAndRetrieveTrust() throws Exception {
-        CreateTrustRequest request = new CreateTrustRequest();
-        request.setTrustName("Test Trust");
-        request.setTrustRegistrationNumber("TR001");
-        request.setDateOfRegistration(LocalDate.now());
-        request.setRegisteringAuthority("Auth");
-        request.setTrustType(TrustType.PRIVATE);
-        request.setTrustPANNumber("ABCDE1234F");
-        request.setBankNameAndBranch("HDFC City");
-        request.setBankAccountNumber("98765432101");
-        request.setAnnualIncome(new BigDecimal("50000.00"));
+        CreateTrustRequest request = CreateTrustRequest.builder()
+                .trustName("Test Trust")
+                .registrationNumber("TR001")
+                .dateOfRegistration(LocalDate.now())
+                .registeringAuthority("Auth")
+                .trustType(TrustType.PRIVATE)
+                .panNumber("ABCDE1234F")
+                .bankName("HDFC")
+                .bankBranch("City")
+                .bankAccountNumber("98765432101")
+                .annualIncome(new BigDecimal("50000.00"))
+                .build();
 
         // 1. POST: Create Trust
         mockMvc.perform(post("/api/v1/temples/" + templeId + "/trusts")
@@ -133,13 +139,13 @@ public class TrustIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.trustName").value("Test Trust"))
-                .andExpect(jsonPath("$.data.trustRegistrationNumber").value("TR001"));
+                .andExpect(jsonPath("$.data.registrationNumber").value("TR001"));
 
         // 2. GET: Retrieve Trusts
         mockMvc.perform(get("/api/v1/temples/" + templeId + "/trusts")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].trustName").value("Test Trust"))
-                .andExpect(jsonPath("$.data[0].trustRegistrationNumber").value("TR001"));
+                .andExpect(jsonPath("$.data[0].registrationNumber").value("TR001"));
     }
 }
