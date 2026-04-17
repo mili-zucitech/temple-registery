@@ -30,7 +30,6 @@ public class CreateTempleProfileStagingRequest {
     /** Plain text bank account number; service will encrypt before persisting. */
     private String bankAccountNumber;
 
-    @Size(max = 500)
     private String languagesOfWorship;
 
     /** JSON string representing an array of linked mutt/sub-temple names. */

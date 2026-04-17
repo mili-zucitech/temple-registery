@@ -130,8 +130,8 @@ public class AdminServiceImpl implements AdminService {
 
     private Long currentActorId() {
         var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof ScopeHelper.Claims) {
-            return ((ScopeHelper.Claims) principal).getUserId();
+        if (principal instanceof ScopeHelper.Claims claims) {
+            return claims.userId();
         }
         return 0L;
     }

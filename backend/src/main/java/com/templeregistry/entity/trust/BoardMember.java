@@ -15,7 +15,8 @@ import java.time.LocalDate;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE board_members SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@lombok.experimental.SuperBuilder
 public class BoardMember extends BaseEntity {
 
     @Column(name = "trust_id", nullable = false) private Long trustId;

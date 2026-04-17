@@ -4,7 +4,7 @@ import com.templeregistry.dto.response.trust.BoardMemberResponse;
 import com.templeregistry.dto.response.trust.TrustResponse;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.BoardMember;
-import com.templeregistry.entity.trust.Trust;
+import com.templeregistry.entity.trust.TrustRegistration;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.trust.TrustMapper;
 import com.templeregistry.repository.temple.TempleRepository;
@@ -35,14 +35,14 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public TrustResponse approveTrust(Long trustId, ScopeHelper.Claims claims) {
-        Trust trust = trustRepository.findById(trustId)
+        TrustRegistration trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         assertDcScope(trust.getTempleId(), claims);
 
         trust.setVerifiedByDc(true);
         trust.setDcFlagReason(null);
         
-        Trust saved = trustRepository.save(trust);
+        TrustRegistration saved = trustRepository.save(trust);
         log.info("DC approved trust: id=[{}]", saved.getId());
         return trustMapper.toTrustResponse(saved);
     }
@@ -51,14 +51,14 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public TrustResponse rejectTrust(Long trustId, String reason, ScopeHelper.Claims claims) {
-        Trust trust = trustRepository.findById(trustId)
+        TrustRegistration trust = trustRepository.findById(trustId)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
         assertDcScope(trust.getTempleId(), claims);
 
         trust.setVerifiedByDc(false);
         trust.setDcFlagReason(reason);
         
-        Trust saved = trustRepository.save(trust);
+        TrustRegistration saved = trustRepository.save(trust);
         log.info("DC rejected trust: id=[{}] with reason=[{}]", saved.getId(), reason);
         return trustMapper.toTrustResponse(saved);
     }
@@ -69,7 +69,7 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
     public BoardMemberResponse approveBoardMember(Long memberId, ScopeHelper.Claims claims) {
         BoardMember member = boardMemberRepository.findById(memberId)
                 .orElseThrow(() -> new EntityNotFoundException("BoardMember", memberId));
-        Trust trust = trustRepository.findById(member.getTrustId())
+        TrustRegistration trust = trustRepository.findById(member.getTrustId())
                 .orElseThrow(() -> new EntityNotFoundException("Trust", member.getTrustId()));
         assertDcScope(trust.getTempleId(), claims);
 
@@ -87,7 +87,7 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
     public BoardMemberResponse rejectBoardMember(Long memberId, String reason, ScopeHelper.Claims claims) {
         BoardMember member = boardMemberRepository.findById(memberId)
                 .orElseThrow(() -> new EntityNotFoundException("BoardMember", memberId));
-        Trust trust = trustRepository.findById(member.getTrustId())
+        TrustRegistration trust = trustRepository.findById(member.getTrustId())
                 .orElseThrow(() -> new EntityNotFoundException("Trust", member.getTrustId()));
         assertDcScope(trust.getTempleId(), claims);
 
