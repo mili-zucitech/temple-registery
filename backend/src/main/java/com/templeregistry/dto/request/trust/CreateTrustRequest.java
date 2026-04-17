@@ -2,13 +2,16 @@ package com.templeregistry.dto.request.trust;
 
 import com.templeregistry.entity.trust.TrustType;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-@Getter @NoArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class CreateTrustRequest {
     @NotBlank @Size(max = 255) private String trustName;
     @NotNull private TrustType trustType;
