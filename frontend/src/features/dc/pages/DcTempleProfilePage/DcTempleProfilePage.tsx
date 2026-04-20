@@ -55,7 +55,7 @@ import {
   type WorkflowRejectRequest,
   type DcClarifyRequest,
 } from '@/features/dc/dcTypes'
-import type { TempleGrade } from '@/features/temple/templeTypes'
+import type { TempleGrade } from '@/features/temple-profile/hooks/templeTypes'
 
 import {
   OverviewTab,
@@ -329,8 +329,12 @@ export function DcTempleProfilePage() {
               profile={profile}
               pendingStaging={pendingStaging}
               canAct={canAct}
-              onVerifyTemple={(notes) => verifyTemple({ id, body: { notes } }).unwrap()}
-              onFlagTemple={(reason) => flagTemple({ id, body: { reason } }).unwrap()}
+              onVerifyTemple={async (notes) => {
+                await verifyTemple({ id, body: { notes } }).unwrap()
+              }}
+              onFlagTemple={async (reason) => {
+                await flagTemple({ id, body: { reason } }).unwrap()
+              }}
               onApproveProfile={(stagingId) => {
                 if (window.confirm('Approve this profile update?')) {
                   submitApproveProfile(stagingId, id, { notes: 'Approved via DC Portal' })
@@ -365,8 +369,12 @@ export function DcTempleProfilePage() {
               boardMembers={boardMembers}
               trustFinancials={profile.trustFinancials}
               canAct={canAct}
-              onVerifyTrust={(trustId, notes) => verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()}
-              onFlagTrust={(trustId, reason) => flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()}
+              onVerifyTrust={async (trustId, notes) => {
+                await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
+              }}
+              onFlagTrust={async (trustId, reason) => {
+                await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
+              }}
             />
           </TabsContent>
 
@@ -444,7 +452,10 @@ interface WorkflowDialogProps {
   isSubmitting: boolean
 }
 
-const DIALOG_META: Record<DialogKind, any> = {
+type DialogField = 'notes' | 'reason'
+type DialogValues = { notes: string; reason: string }
+
+const DIALOG_META: Record<DialogKind, { title: string; description: string; field: DialogField; label: string; placeholder: string; schema: any }> = {
   approve: {
     title: 'Approve Declaration',
     description: 'This will transition the declaration to APPROVED and generate an acknowledgement number.',
@@ -481,9 +492,9 @@ const DIALOG_META: Record<DialogKind, any> = {
 
 function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: WorkflowDialogProps) {
   const meta = DIALOG_META[kind]
-  const form = useForm({
+  const form = useForm<Partial<DialogValues>>({
     resolver: zodResolver(meta.schema),
-    defaultValues: { [meta.field]: '' },
+    defaultValues: { [meta.field]: '' } as Partial<DialogValues>,
   })
 
   const handleSubmit = form.handleSubmit(async (values) => {

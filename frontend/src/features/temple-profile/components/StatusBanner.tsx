@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { TaProfileStatus } from '@/features/temple/templeTypes'
+import type { TaProfileStatus } from '@/features/temple-profile/hooks/templeTypes'
 import type { LucideIcon } from 'lucide-react'
 import {
   CheckCircle2, Clock, FileEdit, XCircle,

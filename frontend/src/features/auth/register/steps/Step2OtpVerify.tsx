@@ -115,7 +115,7 @@ export function Step2OtpVerify() {
 
   const handleResend = async () => {
     if (!state.step1 || resendCooldown > 0 || resendCount >= 3) return
-    const success = await sendOtp(state.step1.aadhaarNumber)
+    const success = await sendOtp(state.step1.aadhaarNumber, state.step1.mobile)
     if (success) {
       setResendCount((c) => c + 1)
       setResendCooldown(RESEND_COOLDOWN)

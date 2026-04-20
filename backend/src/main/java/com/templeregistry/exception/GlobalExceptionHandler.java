@@ -71,6 +71,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage(), "IMMUTABLE_RESOURCE"));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
+        log.warn("Illegal state: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(ex.getMessage(), "ILLEGAL_STATE"));
+    }
+
     @ExceptionHandler(JurisdictionAccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleJurisdiction(JurisdictionAccessDeniedException ex) {
         log.warn("Jurisdiction violation: {}", ex.getMessage());

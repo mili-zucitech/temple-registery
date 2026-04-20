@@ -4,15 +4,18 @@ import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.temple.*;
 import com.templeregistry.dto.response.temple.*;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.temple.TemplePhoto;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
+import com.templeregistry.repository.temple.TemplePhotoRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.temple.TempleService;
 import com.templeregistry.util.PaginationUtil;
@@ -26,9 +29,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +43,8 @@ public class TempleServiceImpl implements TempleService {
     private final TempleRepository templeRepository;
     private final TempleSearchSummaryRepository summaryRepository;
     private final TempleMapper templeMapper;
+    private final TemplePhotoRepository templePhotoRepository;
+    private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
     private final JurisdictionGuard jurisdictionGuard;
     private final OwnershipGuard ownershipGuard;
@@ -153,5 +160,99 @@ public class TempleServiceImpl implements TempleService {
         Temple temple = templeRepository.findById(templeId)
             .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
         return templeMapper.toTempleResponse(temple);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public String uploadPrimaryPhoto(Long templeId, MultipartFile file) {
+        return uploadTemplePhotos(templeId, List.of(file)).stream().findFirst().orElse(null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public List<String> uploadTemplePhotos(Long templeId, List<MultipartFile> files) {
+        Temple temple = findOrThrow(templeId);
+        ownershipGuard.assertOwnsTemple(templeId);
+        if (files == null || files.isEmpty()) {
+            return List.of();
+        }
+
+        List<TemplePhoto> existing = templePhotoRepository.findByTempleIdOrderByDisplayOrderAsc(templeId);
+        int nextOrder = existing.size();
+        boolean hasPrimary = existing.stream().anyMatch(TemplePhoto::isPrimary);
+        List<String> uploadedUrls = new ArrayList<>();
+
+        for (int i = 0; i < files.size(); i++) {
+            MultipartFile file = files.get(i);
+            String path = fileStorageService.upload("temples/" + templeId + "/photos", file);
+            boolean makePrimary = !hasPrimary && i == 0;
+
+            TemplePhoto photo = TemplePhoto.builder()
+                    .temple(temple)
+                    .filePath(path)
+                    .originalFilename(file.getOriginalFilename())
+                    .isPrimary(makePrimary)
+                    .displayOrder(nextOrder++)
+                    .build();
+            templePhotoRepository.save(photo);
+
+            if (makePrimary) {
+                temple.setPhotoUrl(path);
+                hasPrimary = true;
+            }
+            uploadedUrls.add(fileStorageService.presignedUrl(path));
+        }
+
+        templeRepository.save(temple);
+        return uploadedUrls;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<TemplePhotoDto> getTemplePhotos(Long templeId) {
+        findOrThrow(templeId);
+        ownershipGuard.assertOwnsTemple(templeId);
+        return templePhotoRepository.findByTempleIdOrderByDisplayOrderAsc(templeId).stream()
+                .map(photo -> new TemplePhotoDto(
+                        photo.getId(),
+                        fileStorageService.presignedUrl(photo.getFilePath()),
+                        photo.isPrimary(),
+                        photo.getOriginalFilename(),
+                        photo.getCreatedAt(),
+                        photo.getWidth(),
+                        photo.getHeight()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public void deleteTemplePhoto(Long templeId, Long photoId) {
+        Temple temple = findOrThrow(templeId);
+        ownershipGuard.assertOwnsTemple(templeId);
+        TemplePhoto target = templePhotoRepository.findById(photoId)
+                .orElseThrow(() -> new EntityNotFoundException("TemplePhoto", photoId));
+        if (!target.getTemple().getId().equals(templeId)) {
+            throw new EntityNotFoundException("TemplePhoto", photoId);
+        }
+
+        boolean wasPrimary = target.isPrimary();
+        templePhotoRepository.delete(target);
+        fileStorageService.delete(target.getFilePath());
+
+        List<TemplePhoto> remaining = templePhotoRepository.findByTempleIdOrderByDisplayOrderAsc(templeId);
+        if (remaining.isEmpty()) {
+            temple.setPhotoUrl(null);
+        } else if (wasPrimary) {
+            TemplePhoto newPrimary = remaining.get(0);
+            newPrimary.setPrimary(true);
+            templePhotoRepository.save(newPrimary);
+            temple.setPhotoUrl(newPrimary.getFilePath());
+        }
+        templeRepository.save(temple);
     }
 }

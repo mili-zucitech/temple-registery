@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Save, SendHorizontal } from 'lucide-react'
+import { ArrowLeft, Save, SendHorizontal, FileCheck2 } from 'lucide-react'
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
@@ -12,13 +12,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { StatusBanner } from '../../components/StatusBanner'
-import { useTempleProfile } from '@/features/temple/taProfileHooks'
 import { MultipleImageUpload } from '../../components/MultipleImageUpload'
-import { taProfileStagingSchema, submitTempleProfileSchema, type TaProfileStagingRequest } from '@/features/temple/templeTypes'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { ConfirmSubmitOverlay } from './ConfirmSubmitOverlay'
 import { AccordionSection } from './AccordianSection'
 import { TagInputField } from './TagInputField'
+import { useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
+import { submitTempleProfileSchema, taProfileStagingSchema, type TaProfileStagingFormValues } from '../../hooks/templeTypes'
 
 
 
@@ -75,9 +75,16 @@ export function TaTempleEditPage() {
     }
   }, [isLoading, profileStatus, navigate])
 
-  const form = useForm<TaProfileStagingRequest>({
+  const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
     defaultValues: {
+      phone: '',
+      email: '',
+      website: '',
+      contactPersonName: '',
+      contactPersonDesignation: '',
+      languagesOfWorship: '',
+      linkedInstitutions: '',
       description: '',
       annualFestivals: '',
       landmark: '',
@@ -109,16 +116,8 @@ export function TaTempleEditPage() {
           (source as any).contactPersonDesignation ??
           '',
 
-        // expects string[]
-        languagesOfWorship: normalizeToCommaString((source as any).languagesOfWorship)
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
-
-        linkedInstitutions: normalizeToCommaString((source as any).linkedInstitutions)
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
+        languagesOfWorship: normalizeToCommaString((source as any).languagesOfWorship),
+        linkedInstitutions: normalizeToCommaString((source as any).linkedInstitutions),
 
         description: (source as any).description ?? '',
         annualFestivals: (source as any).annualFestivals ?? '',
@@ -139,33 +138,12 @@ export function TaTempleEditPage() {
     }
   }, [isLoading, temple, stagingProfile, form])
 
-  const onSaveDraft = async (data: TaProfileStagingRequest) => {
-    // Convert languagesOfWorship and linkedInstitutions to comma string for API if needed
-    const payload = {
-      ...data,
-      languagesOfWorship: Array.isArray(data.languagesOfWorship)
-        ? data.languagesOfWorship.join(', ')
-        : data.languagesOfWorship,
-      linkedInstitutions: Array.isArray(data.linkedInstitutions)
-        ? data.linkedInstitutions.join(', ')
-        : data.linkedInstitutions,
-    }
-    await handleSave(payload)
+  const onSaveDraft = async (data: TaProfileStagingFormValues) => {
+    await handleSave(data)
   }
 
   const onSubmitClick = () => {
-    // Convert array fields to comma string for validation
-    const rawValues = form.getValues()
-    const valuesForValidation = {
-      ...rawValues,
-      languagesOfWorship: Array.isArray(rawValues.languagesOfWorship)
-        ? rawValues.languagesOfWorship.join(', ')
-        : rawValues.languagesOfWorship,
-      linkedInstitutions: Array.isArray(rawValues.linkedInstitutions)
-        ? rawValues.linkedInstitutions.join(', ')
-        : rawValues.linkedInstitutions,
-    }
-    const result = submitTempleProfileSchema.safeParse(valuesForValidation)
+    const result = submitTempleProfileSchema.safeParse(form.getValues())
     if (!result.success) {
       const msg = result.error.errors[0]?.message ?? 'Please fill in all required fields.'
       toast.error(msg)
@@ -229,6 +207,18 @@ export function TaTempleEditPage() {
 
             {/* Sticky action bar */}
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(ROUTE_PATHS.TA_TEMPLE_REVIEW)}
+                disabled={form.formState.isDirty}
+                title={form.formState.isDirty ? 'Save draft before opening review' : undefined}
+                className="gap-1.5"
+              >
+                <FileCheck2 size={14} />
+                Review Profile
+              </Button>
               <Button
                 type="submit"
                 variant="outline"
@@ -470,6 +460,16 @@ export function TaTempleEditPage() {
             >
               <Save size={14} />
               {isSaving ? 'Saving…' : 'Save Draft'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 gap-1.5"
+              onClick={() => navigate(ROUTE_PATHS.TA_TEMPLE_REVIEW)}
+              disabled={form.formState.isDirty}
+            >
+              <FileCheck2 size={14} />
+              Review
             </Button>
             <Button
               type="button"

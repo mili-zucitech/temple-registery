@@ -18,8 +18,9 @@ import {
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
 import type { UseFormSetError } from 'react-hook-form'
-import type { UseFormSetError } from 'react-hook-form'
 import type { LoginRequest, MfaVerifyRequest, MfaChallengeResponse, AuthTokenResponse } from './authTypes'
+import { templeApi } from '../temple-profile/hooks/templeApi'
+import { resetFilters } from '../temple-profile/hooks/templeSlice'
 
 export function useCurrentUser() {
   const { data, isLoading, isError } = useGetCurrentUserQuery()
@@ -40,9 +41,14 @@ export function useLogin() {
   const navigate = useNavigate()
 
   const handleLogin = async (values: LoginRequest) => {
-    const result = await login(values)
-    if ('data' in result && result.data.success) {
-      const payload = result.data.data
+    try {
+      const res = await login(values).unwrap()
+      if (!res.success) {
+        toast.error(res.message || 'Login failed. Please check your credentials.')
+        return
+      }
+
+      const payload = res.data
       if ('tempToken' in payload) {
         // MFA required — navigate to MFA page carrying temp token
         const challenge = payload as MfaChallengeResponse
@@ -66,7 +72,7 @@ export function useLogin() {
         toast.success('Login successful')
         navigate(getDashboardPath(meta.role))
       }
-    } else if ('error' in result) {
+    } catch {
       toast.error('Login failed. Please check your credentials.')
     }
   }
@@ -83,9 +89,13 @@ export function useMfaVerify() {
     values: MfaVerifyRequest,
     setError?: UseFormSetError<MfaVerifyRequest>,
   ) => {
-    const result = await verify(values)
-    if ('data' in result && result.data.success) {
-      const meta = result.data.data as { role?: string; userId?: number }
+    try {
+      const res = await verify(values).unwrap()
+      if (!res.success) {
+        throw new Error(res.message || 'Verification failed')
+      }
+
+      const meta = res.data as { role?: string; userId?: number }
       if (meta.role && meta.userId) {
         dispatch(setCurrentUser({
           userId: meta.userId,
@@ -98,7 +108,7 @@ export function useMfaVerify() {
       }
       toast.success('Verification successful')
       navigate(getDashboardPath(meta.role))
-    } else {
+    } catch {
       const message = 'Invalid or expired OTP. Please try again.'
       if (setError) {
         setError('mfaCode', { message })
@@ -110,9 +120,6 @@ export function useMfaVerify() {
 
   return { handleVerify, isLoading }
 }
-
-import { templeApi } from '@/features/temple/templeApi'
-import { resetFilters } from '@/features/temple/templeSlice'
 
 export function useLogout() {
   const [logout] = useLogoutMutation()
@@ -136,11 +143,15 @@ export function useRegister() {
   const navigate = useNavigate()
 
   const handleRegister = async (values: Parameters<typeof register>[0]) => {
-    const result = await register(values)
-    if ('data' in result && result.data.success) {
+    try {
+      const res = await register(values).unwrap()
+      if (!res.success) {
+        throw new Error(res.message || 'Registration failed')
+      }
+
       toast.success('Registration submitted. Your account is pending activation by the Super Admin.')
       navigate(ROUTE_PATHS.LOGIN)
-    } else {
+    } catch {
       toast.error('Registration failed. Please try again.')
     }
   }

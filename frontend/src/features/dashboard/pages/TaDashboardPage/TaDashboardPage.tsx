@@ -5,7 +5,6 @@ import {
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
-import { useGetTempleByIdQuery } from '@/features/temple/templeApi'
 import { useListDeclarationsQuery } from '@/features/declaration/declarationApi'
 import { useListNotificationsQuery } from '@/features/notification/notificationApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
@@ -19,6 +18,7 @@ import {
   MapPin, Bell, Pencil, BarChart3, Download,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useGetTempleByIdQuery } from '@/features/temple-profile/hooks/templeApi'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

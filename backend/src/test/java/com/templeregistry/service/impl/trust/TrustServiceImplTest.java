@@ -12,7 +12,9 @@ import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
+import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.util.PaginationUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,8 @@ class TrustServiceImplTest {
     @Mock TrustFinancialRepository financialRepository;
     @Mock OwnershipGuard ownershipGuard;
     @Mock PaginationUtil paginationUtil;
+    @Mock TempleRepository templeRepository;
+    @Mock JurisdictionGuard jurisdictionGuard;
 
     @InjectMocks TrustServiceImpl trustService;
 
@@ -50,6 +54,8 @@ class TrustServiceImplTest {
         activeMember = BoardMember.builder().trustId(1L).fullName("Govinda Rao").isCurrent(true).build();
 
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(any());
+        when(templeRepository.findById(anyLong())).thenReturn(Optional.of(mock(com.templeregistry.entity.temple.Temple.class)));
+        lenient().doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
     }
 
     /* ── VAL-014: Board member cessation date required ──────────────── */

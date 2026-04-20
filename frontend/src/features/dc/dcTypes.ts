@@ -8,6 +8,7 @@ export type DcRole = (typeof DC_ROLES)[number]
 export const DECLARATION_STATUSES = [
   'DRAFT',
   'SUBMITTED',
+  'RESUBMITTED',
   'PENDING_REVIEW',
   'APPROVED',
   'REJECTED',

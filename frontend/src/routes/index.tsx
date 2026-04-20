@@ -6,6 +6,9 @@ import { RoleRoute } from './RoleRoute'
 import { AppShell } from '@/layouts/AppShell/AppShell'
 import { USER_ROLES } from '@/constants/roles'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { TaTemplePage } from '@/features/temple-profile/pages/TaTemplePage/TaTemplePage'
+import { TaTempleEditPage } from '@/features/temple-profile/pages/TaTempleEditPage/TaTempleEditPage'
+import { TaTempleReviewPage } from '@/features/temple-profile/pages/TaTempleReviewPage/TaTempleReviewPage'
 
 // ── Lazy-loaded pages ─────────────────────────────────────────────────────────
 const LoginPage       = lazy(() => import('@/features/auth/pages/LoginPage/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -25,7 +28,6 @@ const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagem
 const AuditLogPage = lazy(() => import('@/features/admin/pages/AuditLogPage/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
 const AdminToolsPage = lazy(() => import('@/features/admin/pages/AdminToolsPage/AdminToolsPage').then(m => ({ default: m.AdminToolsPage })))
 const GeoManagementPage = lazy(() => import('@/features/admin/pages/GeoManagementPage/GeoManagementPage').then(m => ({ default: m.GeoManagementPage })))
-const TATempleProfilePage = lazy(() => import('@/features/temple/pages/TATempleProfilePage/TATempleProfilePage').then(m => ({ default: m.TATempleProfilePage })))
 const TaTrustPage = lazy(() => import('@/features/trust/pages/TaTrustPage/TaTrustPage').then(m => ({ default: m.TaTrustPage })))
 const TaEmployeesPage = lazy(() => import('@/features/employee/pages/TaEmployeesPage/TaEmployeesPage').then(m => ({ default: m.TaEmployeesPage })))
 const TaContractorsPage = lazy(() => import('@/features/contractor/pages/TaContractorsPage/TaContractorsPage').then(m => ({ default: m.TaContractorsPage })))
@@ -71,7 +73,9 @@ const router = createBrowserRouter([
             element: <RoleRoute allowedRoles={[USER_ROLES.TEMPLE_AUTHORITY]} />,
             children: [
               { path: ROUTE_PATHS.TA_DASHBOARD, element: <Suspense fallback={<PageLoader />}><TaDashboardPage /></Suspense> },
-              { path: ROUTE_PATHS.TA_TEMPLE, element: <Suspense fallback={<PageLoader />}><TATempleProfilePage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE, element: <Suspense fallback={<PageLoader />}><TaTemplePage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE_EDIT, element: <Suspense fallback={<PageLoader />}><TaTempleEditPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE_REVIEW, element: <Suspense fallback={<PageLoader />}><TaTempleReviewPage /></Suspense> },
               { path: ROUTE_PATHS.TA_TRUST, element: <Suspense fallback={<PageLoader />}><TaTrustPage /></Suspense> },
               { path: ROUTE_PATHS.TA_EMPLOYEES, element: <Suspense fallback={<PageLoader />}><TaEmployeesPage /></Suspense> },
               { path: ROUTE_PATHS.TA_CONTRACTORS, element: <Suspense fallback={<PageLoader />}><TaContractorsPage /></Suspense> },

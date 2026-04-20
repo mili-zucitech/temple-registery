@@ -4,20 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import { useGetTaluksQuery, useGetHoblisQuery } from '@/features/geo/geoApi'
-import {
-  useGetTempleByIdQuery,
-  useGetActiveStagingQuery,
-  useGetTempleCurrentProfileQuery,
-  useCreateOrUpdateDraftMutation,
-  useSubmitForReviewMutation,
-  useGetStagingHistoryQuery,
-} from './templeApi'
-import {
-  taProfileStagingSchema,
-  submitTempleProfileSchema,
-  type TaProfileStagingRequest,
-  type TaProfileStatus,
-} from './templeTypes'
+import { submitTempleProfileSchema, TaProfileStagingFormValues, TaProfileStagingRequest, taProfileStagingSchema, TaProfileStatus } from '@/features/temple-profile/hooks/templeTypes'
+import { useCreateOrUpdateDraftMutation, useGetActiveStagingQuery, useGetStagingHistoryQuery, useGetTempleByIdQuery, useGetTempleCurrentProfileQuery, useSubmitForReviewMutation } from '@/features/temple-profile/hooks/templeApi'
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,7 +26,59 @@ function deriveProfileStatus(
   return 'NOT_STARTED'
 }
 
-const EMPTY_FORM: TaProfileStagingRequest = {
+function normalizeTagList(value?: string | string[] | null): string {
+  if (!value) return ''
+  if (Array.isArray(value)) return value.join(', ')
+  if (value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).join(', ')
+      }
+    } catch {
+      return value
+    }
+  }
+  return value
+}
+
+function normalizeTagArray(value?: string | string[] | null): string[] | undefined {
+  if (!value) return undefined
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+    } catch {
+      // fall through
+    }
+  }
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function cleanOptional(value?: string | null): string | undefined {
+  if (value == null) return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function serializeTagList(value?: string | null): string | undefined {
+  const cleaned = cleanOptional(value)
+  if (!cleaned) return undefined
+  const tokens = cleaned.split(',').map((s) => s.trim()).filter(Boolean)
+  return tokens.length > 0 ? JSON.stringify(tokens) : undefined
+}
+
+function extractApiMessage(err: any, fallback: string): string {
+  const validationMessage = err?.data?.errors?.[0]
+  if (typeof validationMessage === 'string') return validationMessage
+  return err?.data?.message || err?.message || fallback
+}
+
+const EMPTY_FORM: TaProfileStagingFormValues = {
   phone: '',
   email: '',
   website: '',
@@ -95,9 +136,10 @@ export function useTempleProfile() {
 
   const isEditable = profileStatus === 'DRAFT' || profileStatus === 'REJECTED'
 
-  const form = useForm<TaProfileStagingRequest>({
+  const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
     defaultValues: EMPTY_FORM,
+    mode: 'onChange',
   })
 
   // Prefill logic: staging (preferred) → current → registration contact → empty
@@ -105,29 +147,45 @@ export function useTempleProfile() {
     if (isLoading) return
     let source = stagingProfile ?? currentProfile
     if (source) {
+      const parsedLinked = normalizeTagList(source.linkedInstitutions)
+      const parsedLanguages = normalizeTagList(source.languagesOfWorship)
+
       form.reset({
         phone: source.phone ?? '',
         email: source.email ?? '',
         website: source.website ?? '',
         contactPersonName: source.contactPersonName ?? '',
         contactPersonDesignation: source.contactPersonDesignation ?? '',
-        languagesOfWorship: source.languagesOfWorship ?? '',
-        linkedInstitutions: source.linkedInstitutions ?? '',
+        languagesOfWorship: parsedLanguages,
+        linkedInstitutions: parsedLinked,
         description: source.description ?? '',
         annualFestivals: source.annualFestivals ?? '',
+        landmark: (source as any).landmark ?? '',
+        historicalSignificance: (source as any).historicalSignificance ?? '',
+        bankName: (source as any).bankName ?? '',
+        bankIfsc: (source as any).bankIfsc ?? '',
+        photoFilePath: (source as any).photoFilePath ?? (source as any).photoUrl ?? '',
+        bankAccountNumber: '',
       })
     } else if (temple) {
-      // Use registration contact details if no profile exists
+      const parsedLanguages = normalizeTagList(temple.languagesOfWorship)
+
       form.reset({
         phone: temple.contactMobile ?? '',
         email: temple.contactEmail ?? '',
         website: '',
         contactPersonName: temple.contactName ?? '',
         contactPersonDesignation: temple.contactDesignation ?? '',
-        languagesOfWorship: temple.languagesOfWorship ?? '',
+        languagesOfWorship: parsedLanguages,
         linkedInstitutions: '',
         description: '',
         annualFestivals: '',
+        landmark: temple.landmark ?? '',
+        historicalSignificance: '',
+        bankName: '',
+        bankIfsc: '',
+        photoFilePath: temple.photoUrl ?? '',
+        bankAccountNumber: '',
       })
     }
     // Only run when loading transitions to complete
@@ -136,14 +194,35 @@ export function useTempleProfile() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const handleSave = async (data: TaProfileStagingRequest) => {
+  const handleSave = async (data: TaProfileStagingFormValues) => {
     if (!templeId) return
     try {
-      await createOrUpdateDraft({ templeId, body: data }).unwrap()
-      form.reset(data) // reset isDirty after successful save
+      // Backend expects string fields; strip empty values so optional validation
+      // does not fail on empty-string payloads.
+      const body: TaProfileStagingRequest = {
+        phone: cleanOptional(data.phone),
+        email: cleanOptional(data.email),
+        website: cleanOptional(data.website),
+        contactPersonName: cleanOptional(data.contactPersonName),
+        contactPersonDesignation: cleanOptional(data.contactPersonDesignation),
+        photoFilePath: cleanOptional(data.photoFilePath),
+        bankAccountNumber: cleanOptional(data.bankAccountNumber),
+        bankName: cleanOptional(data.bankName),
+        bankIfsc: cleanOptional(data.bankIfsc)?.toUpperCase(),
+        languagesOfWorship: serializeTagList(data.languagesOfWorship),
+        linkedInstitutions: serializeTagList(data.linkedInstitutions),
+        description: cleanOptional(data.description),
+        annualFestivals: cleanOptional(data.annualFestivals),
+        landmark: cleanOptional(data.landmark),
+        historicalSignificance: cleanOptional(data.historicalSignificance),
+      }
+
+      await createOrUpdateDraft({ templeId, body }).unwrap()
+      form.reset(data)
       toast.success('Draft saved successfully.')
-    } catch {
-      toast.error('Failed to save draft. Please try again.')
+    } catch (err: any) {
+      const message = extractApiMessage(err, 'Failed to save draft. Please try again.')
+      toast.error(message)
     }
   }
 
@@ -165,8 +244,9 @@ export function useTempleProfile() {
     try {
       await submitForReview(templeId).unwrap()
       toast.success('Profile submitted for DC review.')
-    } catch {
-      toast.error('Failed to submit profile. Please try again.')
+    } catch (err: any) {
+      const message = extractApiMessage(err, 'Failed to submit profile. Please try again.')
+      toast.error(message)
     }
   }
 
@@ -180,20 +260,20 @@ export function useTempleProfile() {
     if (!templeId) return
     try {
       const prefill: TaProfileStagingRequest = {
-        phone: currentProfile?.phone ?? '',
-        email: currentProfile?.email ?? '',
-        website: currentProfile?.website ?? '',
-        contactPersonName: currentProfile?.contactPersonName ?? '',
-        contactPersonDesignation: currentProfile?.contactPersonDesignation ?? '',
-        languagesOfWorship: currentProfile?.languagesOfWorship ?? '',
-        linkedInstitutions: currentProfile?.linkedInstitutions ?? '',
-        description: currentProfile?.description ?? '',
-        annualFestivals: currentProfile?.annualFestivals ?? '',
+        phone: cleanOptional(currentProfile?.phone),
+        email: cleanOptional(currentProfile?.email),
+        website: cleanOptional(currentProfile?.website),
+        contactPersonName: cleanOptional(currentProfile?.contactPersonName),
+        contactPersonDesignation: cleanOptional(currentProfile?.contactPersonDesignation),
+        languagesOfWorship: serializeTagList(normalizeTagArray(currentProfile?.languagesOfWorship)?.join(', ')),
+        linkedInstitutions: serializeTagList(normalizeTagArray(currentProfile?.linkedInstitutions)?.join(', ')),
+        description: cleanOptional(currentProfile?.description),
+        annualFestivals: cleanOptional(currentProfile?.annualFestivals),
       }
       await createOrUpdateDraft({ templeId, body: prefill }).unwrap()
       toast.success('Edit mode activated. A new draft has been created.')
-    } catch {
-      toast.error('Failed to start edit. Please try again.')
+    } catch (err: any) {
+      toast.error(extractApiMessage(err, 'Failed to start edit. Please try again.'))
     }
   }
 
