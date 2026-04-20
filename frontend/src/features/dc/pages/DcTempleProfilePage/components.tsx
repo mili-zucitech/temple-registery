@@ -12,9 +12,10 @@ interface KpiCardProps {
   icon: React.ReactNode
   variant?: 'danger' | 'warning' | 'success' | 'neutral'
   note?: string
+  className?: string
 }
 
-export function KpiCard({ label, value, icon, variant = 'neutral', note }: KpiCardProps) {
+export function KpiCard({ label, value, icon, variant = 'neutral', note, className }: KpiCardProps) {
   const outerCls = {
     danger:  'bg-red-50/50 border-red-100 dark:bg-red-950/10 dark:border-red-900/20',
     warning: 'bg-amber-50/50 border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/20',
@@ -30,7 +31,8 @@ export function KpiCard({ label, value, icon, variant = 'neutral', note }: KpiCa
   return (
     <div className={cn(
       'relative overflow-hidden rounded-xl border p-5 flex items-center gap-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 shadow-sm',
-      outerCls[variant]
+      outerCls[variant],
+      className,
     )}>
       <div className={cn('size-11 rounded-xl flex items-center justify-center shrink-0', iconCls[variant])}>
         {icon}

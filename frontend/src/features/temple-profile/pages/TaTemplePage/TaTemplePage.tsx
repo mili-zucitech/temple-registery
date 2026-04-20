@@ -13,13 +13,11 @@ import { InfoRow } from '../../components/InfoRow'
 import { TagDisplay } from '../../components/TagDisplay'
 import { VersionDetailView } from '../../components/VersionDetailView'
 import { ImageGallery } from '../../components/ImageGallery'
-import { 
-  useTempleProfile, 
-  useProfileHistory,
-} from '@/features/temple/taProfileHooks'
-import { useGetTemplePhotosQuery } from '@/features/temple/templeApi'
-import type { TempleProfileStagingResponse } from '@/features/temple/templeTypes'
+
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { useProfileHistory, useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
+import { useGetTemplePhotosQuery } from '../../hooks/templeApi'
+import { TempleProfileStagingResponse } from '../../hooks/templeTypes'
 
 function fmt(iso?: string | null) {
   if (!iso) return '—'
@@ -200,6 +198,8 @@ function HistoryTab() {
   const { data, isLoading } = useProfileHistory(true)
   const [selected, setSelected] = useState<TempleProfileStagingResponse | null>(null)
   const history = data?.data?.content ?? []
+  const approvedCount = history.filter((item) => item.statusLabel === 'APPROVED').length
+  const rejectedCount = history.filter((item) => item.statusLabel === 'REJECTED').length
 
   if (isLoading) return <CardSkeleton />
 
@@ -215,6 +215,20 @@ function HistoryTab() {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Total Versions</p>
+          <p className="text-xl font-semibold text-foreground">{history.length}</p>
+        </div>
+        <div className="rounded-xl border border-success/30 bg-success/5 px-4 py-3">
+          <p className="text-xs text-success/80">Approved</p>
+          <p className="text-xl font-semibold text-success">{approvedCount}</p>
+        </div>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <p className="text-xs text-destructive/80">Rejected</p>
+          <p className="text-xl font-semibold text-destructive">{rejectedCount}</p>
+        </div>
+      </div>
       <div className="rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 border-b border-border">

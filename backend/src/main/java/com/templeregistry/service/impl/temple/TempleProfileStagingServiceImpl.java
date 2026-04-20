@@ -222,22 +222,28 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     }
 
     private void applyFields(TempleProfileStaging staging, CreateTempleProfileStagingRequest rq) {
-        if (rq.getPhone() != null)                    staging.setPhone(rq.getPhone());
-        if (rq.getEmail() != null)                    staging.setEmail(rq.getEmail());
-        if (rq.getWebsite() != null)                  staging.setWebsite(rq.getWebsite());
-        if (rq.getContactPersonName() != null)        staging.setContactPersonName(rq.getContactPersonName());
-        if (rq.getContactPersonDesignation() != null) staging.setContactPersonDesignation(rq.getContactPersonDesignation());
-        if (rq.getPhotoFilePath() != null)            staging.setPhotoFilePath(rq.getPhotoFilePath());
+        if (normalized(rq.getPhone()) != null)                    staging.setPhone(normalized(rq.getPhone()));
+        if (normalized(rq.getEmail()) != null)                    staging.setEmail(normalized(rq.getEmail()));
+        if (normalized(rq.getWebsite()) != null)                  staging.setWebsite(normalized(rq.getWebsite()));
+        if (normalized(rq.getContactPersonName()) != null)        staging.setContactPersonName(normalized(rq.getContactPersonName()));
+        if (normalized(rq.getContactPersonDesignation()) != null) staging.setContactPersonDesignation(normalized(rq.getContactPersonDesignation()));
+        if (normalized(rq.getPhotoFilePath()) != null)            staging.setPhotoFilePath(normalized(rq.getPhotoFilePath()));
         // Plain text; AesEncryptionConverter transparently encrypts on JPA save (AES-256-GCM)
-        if (rq.getBankAccountNumber() != null)        staging.setBankAccountNumberEncrypted(rq.getBankAccountNumber());
-        if (rq.getBankName() != null)                 staging.setBankName(rq.getBankName());
-        if (rq.getBankIfsc() != null)                 staging.setBankIfsc(rq.getBankIfsc());
-        if (rq.getLanguagesOfWorship() != null)       staging.setLanguagesOfWorship(rq.getLanguagesOfWorship());
-        if (rq.getLinkedInstitutions() != null)       staging.setLinkedInstitutions(rq.getLinkedInstitutions());
-        if (rq.getDescription() != null)              staging.setDescription(rq.getDescription());
-        if (rq.getAnnualFestivals() != null)          staging.setAnnualFestivals(rq.getAnnualFestivals());
-        if (rq.getLandmark() != null)                 staging.setLandmark(rq.getLandmark());
-        if (rq.getHistoricalSignificance() != null)   staging.setHistoricalSignificance(rq.getHistoricalSignificance());
+        if (normalized(rq.getBankAccountNumber()) != null)        staging.setBankAccountNumberEncrypted(normalized(rq.getBankAccountNumber()));
+        if (normalized(rq.getBankName()) != null)                 staging.setBankName(normalized(rq.getBankName()));
+        if (normalized(rq.getBankIfsc()) != null)                 staging.setBankIfsc(normalized(rq.getBankIfsc()).toUpperCase());
+        if (normalized(rq.getLanguagesOfWorship()) != null)       staging.setLanguagesOfWorship(normalized(rq.getLanguagesOfWorship()));
+        if (normalized(rq.getLinkedInstitutions()) != null)       staging.setLinkedInstitutions(normalized(rq.getLinkedInstitutions()));
+        if (normalized(rq.getDescription()) != null)              staging.setDescription(normalized(rq.getDescription()));
+        if (normalized(rq.getAnnualFestivals()) != null)          staging.setAnnualFestivals(normalized(rq.getAnnualFestivals()));
+        if (normalized(rq.getLandmark()) != null)                 staging.setLandmark(normalized(rq.getLandmark()));
+        if (normalized(rq.getHistoricalSignificance()) != null)   staging.setHistoricalSignificance(normalized(rq.getHistoricalSignificance()));
+    }
+
+    private String normalized(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void promoteToTemple(Temple temple, TempleProfileStaging staging) {

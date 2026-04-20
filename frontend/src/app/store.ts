@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux'
 import { rootReducer } from './rootReducer'
 import { authApi } from '@/features/auth/authApi'
 import { geoApi } from '@/features/geo/geoApi'
-import { templeApi } from '@/features/temple/templeApi'
 import { trustApi } from '@/features/trust/trustApi'
 import { employeeApi } from '@/features/employee/employeeApi'
 import { contractorApi } from '@/features/contractor/contractorApi'
@@ -13,6 +12,7 @@ import { notificationApi } from '@/features/notification/notificationApi'
 import { exportApi } from '@/features/export/exportApi'
 import { adminApi } from '@/features/admin/adminApi'
 import { dcApi } from '@/features/dc/dcApi'
+import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 
 /** Global RTK Query error logger middleware */
 const rtkQueryErrorLogger =

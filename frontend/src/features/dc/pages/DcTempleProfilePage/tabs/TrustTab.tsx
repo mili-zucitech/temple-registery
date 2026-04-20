@@ -2,12 +2,12 @@ import { AlertTriangle, Shield, Users, TrendingUp } from 'lucide-react'
 import { SectionCard, DetailItem, BoardMemberCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { formatCurrency } from '../utils'
-import type { BoardMemberSummary, TrustFinancialResponse } from '@/features/dc/dcTypes'
+import type { BoardMemberSummary, TrustFinancialSummary } from '@/features/dc/dcTypes'
 
 interface TrustTabProps {
   trust: any | null
   boardMembers: BoardMemberSummary[]
-  trustFinancials: TrustFinancialResponse[]
+  trustFinancials: TrustFinancialSummary[]
   canAct: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onFlagTrust: (id: number, reason: string) => Promise<void>

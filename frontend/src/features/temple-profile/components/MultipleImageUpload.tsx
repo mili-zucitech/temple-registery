@@ -3,7 +3,7 @@ import { UploadCloud, X, AlertCircle, RefreshCcw, CheckCircle2, Image as ImageIc
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useUploadTemplePhotosMutation } from '@/features/temple/templeApi'
+import { useUploadTemplePhotosMutation } from '../hooks/templeApi'
 
 interface FileUploadState {
   id: string
@@ -22,7 +22,13 @@ interface MultipleImageUploadProps {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_FILES = 20
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_TYPES = ['image/jpeg', 'image/png']
+
+function extractUploadErrorMessage(err: any): string {
+  const validationMessage = err?.data?.errors?.[0]
+  if (typeof validationMessage === 'string') return validationMessage
+  return err?.data?.message || err?.message || 'Failed to upload images'
+}
 
 export const MultipleImageUpload: React.FC<MultipleImageUploadProps> = ({
   templeId,
@@ -142,7 +148,7 @@ export const MultipleImageUpload: React.FC<MultipleImageUploadProps> = ({
             : f
         )
       )
-      toast.error(err.message || 'Failed to upload images')
+      toast.error(extractUploadErrorMessage(err))
       if (onUploadError) onUploadError(err)
     }
   }
@@ -186,7 +192,7 @@ export const MultipleImageUpload: React.FC<MultipleImageUploadProps> = ({
             <span className="text-primary font-bold">Click to upload</span> or drag and drop
           </p>
           <p className="text-xs text-muted-foreground">
-            JPEG, PNG or WebP (MAX. 5MB per image)
+            JPEG or PNG (MAX. 5MB per image)
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             The first image in the selection will be designated as the <span className="text-primary font-medium">Primary Photo</span>.

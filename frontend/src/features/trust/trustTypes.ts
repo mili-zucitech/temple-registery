@@ -79,10 +79,15 @@ export interface BoardMemberResponse {
   trustId: number
   fullName: string
   aadhaarMasked?: string
+  /** Some endpoints use `maskedAadhaar` instead of `aadhaarMasked`. */
+  maskedAadhaar?: string
   designation?: string
   appointmentDate?: string
   tenureEndDate?: string
   contactNumber?: string
+  address?: string
+  isVerifiedByDc?: boolean
+  dcFlagReason?: string
   isCurrent: boolean
 }
 

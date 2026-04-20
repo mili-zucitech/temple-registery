@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { TempleSearchFilterRequest } from './templeTypes'
+import { TempleSearchFilterRequest } from './templeTypes'
 
 interface TempleState {
   activeFilters: TempleSearchFilterRequest

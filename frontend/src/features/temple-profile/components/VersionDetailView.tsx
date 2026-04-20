@@ -2,7 +2,7 @@ import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { SectionCard } from './SectionCard'
 import { InfoRow } from './InfoRow'
 import { TagDisplay } from './TagDisplay'
-import type { TempleProfileStagingResponse } from '@/features/temple/templeTypes'
+import type { TempleProfileStagingResponse } from '@/features/temple-profile/hooks/templeTypes'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -38,9 +38,7 @@ export function VersionDetailView({ version, onClose }: VersionDetailViewProps) 
           <InfoRow label="Version" value={version.versionNumber} />
           <InfoRow label="Status" value={version.statusLabel} />
           <InfoRow label="Submitted" value={fmt(version.submittedAt)} />
-          {version.submittedBy != null && <InfoRow label="Submitted By (ID)" value={version.submittedBy} />}
           <InfoRow label="Reviewed" value={fmt(version.reviewedAt)} />
-          {version.reviewedBy != null && <InfoRow label="Reviewed By (ID)" value={version.reviewedBy} />}
           {version.reviewComment && (
             <div className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
               <p className="text-xs font-semibold text-destructive mb-1">DC Comment</p>
@@ -48,9 +46,7 @@ export function VersionDetailView({ version, onClose }: VersionDetailViewProps) 
             </div>
           )}
           <InfoRow label="Created" value={fmt(version.createdAt)} />
-          {version.createdBy != null && <InfoRow label="Created By (ID)" value={version.createdBy} />}
           <InfoRow label="Last Updated" value={fmt(version.updatedAt)} />
-          {version.updatedBy != null && <InfoRow label="Updated By (ID)" value={version.updatedBy} />}
         </SectionCard>
 
         {/* Description */}

@@ -280,11 +280,12 @@ export function DcDeclarationDetailPage() {
 
 type DialogKind = 'approve' | 'reject' | 'clarify' | 'flag-physical'
 type DialogFormPayload = WorkflowApproveRequest | WorkflowRejectRequest | DcClarifyRequest
+type FieldKey = 'notes' | 'reason'
 
 const DIALOG_META: Record<DialogKind, {
   title: string
   description: string
-  field: string
+  field: FieldKey
   label: string
   placeholder: string
   required: boolean
@@ -320,17 +321,16 @@ interface WorkflowDialogProps {
   open: boolean
   kind: DialogKind
   onClose: () => void
-  onSubmit: (payload: DialogFormPayload) => Promise<void>
+  onSubmit: (payload: any) => Promise<void>
   isSubmitting: boolean
 }
 
 function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: WorkflowDialogProps) {
   const meta = DIALOG_META[kind]
-  type FieldKey = 'notes' | 'reason'
 
   const form = useForm<{ [key in FieldKey]?: string }>({
     resolver: zodResolver(meta.schema),
-    defaultValues: { [meta.field]: '' },
+    defaultValues: { [meta.field]: '' } as { [key in FieldKey]?: string },
   })
 
   const handleSubmit = form.handleSubmit(async (values) => {

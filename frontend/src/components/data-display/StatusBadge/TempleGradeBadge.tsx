@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { TempleGrade } from '@/features/temple/templeTypes'
+import type { TempleGrade } from '@/features/temple-profile/hooks/templeTypes'
 
 const GRADE_CLASSES: Record<TempleGrade, string> = {
   A: 'bg-temple-gold/10 text-temple-gold border-temple-gold/30',

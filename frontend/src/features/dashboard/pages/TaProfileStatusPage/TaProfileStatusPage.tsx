@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
-import { useGetStagingHistoryQuery } from '@/features/temple/templeApi'
-import type { TempleProfileStagingResponse } from '@/features/temple/templeTypes'
+import { useGetStagingHistoryQuery } from '@/features/temple-profile/hooks/templeApi'
+import type { TempleProfileStagingResponse } from '@/features/temple-profile/hooks/templeTypes'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
@@ -175,7 +175,7 @@ export function TaProfileStatusPage() {
   )
 
   const isLoading = userLoading || historyLoading
-  const records = historyData?.data?.content ?? []
+  const records: TempleProfileStagingResponse[] = historyData?.data?.content ?? []
 
   return (
     <motion.div

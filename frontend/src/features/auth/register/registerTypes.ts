@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TEMPLE_GRADES, RELIGIOUS_TRADITIONS } from '@/features/temple/templeTypes'
+import type { TEMPLE_GRADES, RELIGIOUS_TRADITIONS } from '@/features/temple-profile/hooks/templeTypes'
 
 // ── Step 1 — Mobile + Aadhaar ─────────────────────────────────────────────────
 

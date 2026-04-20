@@ -23,9 +23,10 @@ import {
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import type { TemplePhotoDto } from '@/features/temple/templeTypes'
-import { useDeleteTemplePhotoMutation } from '@/features/temple/templeApi'
+
 import { toast } from 'sonner'
+import { TemplePhotoDto } from '../hooks/templeTypes'
+import { useDeleteTemplePhotoMutation } from '../hooks/templeApi'
 
 interface ImageGalleryProps {
   templeId: number

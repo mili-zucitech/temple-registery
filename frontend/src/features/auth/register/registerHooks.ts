@@ -28,22 +28,26 @@ export function useAadhaarOtpRequest(): UseAadhaarOtpRequestResult {
 
   const sendOtp = useCallback(
     async (aadhaarNumber: string, mobile: string): Promise<string | null> => {
-      // Backend field is `aadhaar` (not `aadhaarNumber`); mobile is also required
-      const result = await registerInit({ aadhaar: aadhaarNumber, mobile })
-      if ('data' in result && result.data.success) {
-        const devOtp = result.data.data?.devOtp
+      try {
+        // Backend field is `aadhaar` (not `aadhaarNumber`); mobile is also required
+        const res = await registerInit({ aadhaar: aadhaarNumber, mobile }).unwrap()
+        if (!res.success) {
+          toast.error(res.message || 'Failed to send OTP. Please try again.')
+          return null
+        }
+
+        const devOtp = res.data?.devOtp
         if (devOtp) {
           toast.info(`[Dev] OTP: ${devOtp}`, { duration: 10000 })
         } else {
           toast.success('OTP sent to the mobile number linked to your Aadhaar.')
         }
-        return result.data.data.tempToken
+        return res.data.tempToken
+      } catch (err: any) {
+        const errorMsg = err?.data?.message || err?.message || 'Failed to send OTP. Please try again.'
+        toast.error(errorMsg)
+        return null
       }
-      const errorMsg =
-        ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
-        'Failed to send OTP. Please try again.'
-      toast.error(errorMsg)
-      return null
     },
     [registerInit],
   )
@@ -65,18 +69,22 @@ export function useAadhaarOtpVerify(): UseAadhaarOtpVerifyResult {
 
   const verifyOtp = useCallback(
     async (aadhaarNumber: string, otp: string, initToken: string): Promise<string | null> => {
-      // Backend field is `aadhaar`; also requires the initToken as `tempToken`
-      const result = await verifyAadhaar({ aadhaar: aadhaarNumber, otp, tempToken: initToken })
-      if ('data' in result && result.data.success) {
+      try {
+        // Backend field is `aadhaar`; also requires the initToken as `tempToken`
+        const res = await verifyAadhaar({ aadhaar: aadhaarNumber, otp, tempToken: initToken }).unwrap()
+        if (!res.success) {
+          toast.error(res.message || 'Invalid or expired OTP. Please try again.')
+          return null
+        }
+
         toast.success('Aadhaar verified successfully.')
         // Backend returns `verificationToken` (not `tempToken`) from /register/verify-aadhaar
-        return result.data.data.verificationToken
+        return res.data.verificationToken
+      } catch (err: any) {
+        const errorMsg = err?.data?.message || err?.message || 'Invalid or expired OTP. Please try again.'
+        toast.error(errorMsg)
+        return null
       }
-      const errorMsg =
-        ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
-        'Invalid or expired OTP. Please try again.'
-      toast.error(errorMsg)
-      return null
     },
     [verifyAadhaar],
   )
@@ -128,16 +136,18 @@ export function useSubmitRegistration(): UseSubmitRegistrationResult {
         },
       }
 
-      const result = await registerCreate(payload)
-      if ('data' in result && result.data.success) {
-        return result.data.data.userId
+      try {
+        const res = await registerCreate(payload).unwrap()
+        if (!res.success) {
+          toast.error(res.message || 'Registration failed. Please check your details and try again.')
+          return null
+        }
+        return res.data.userId
+      } catch (err: any) {
+        const errorMsg = err?.data?.message || err?.message || 'Registration failed. Please check your details and try again.'
+        toast.error(errorMsg)
+        return null
       }
-
-      const errorMsg =
-        ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
-        'Registration failed. Please check your details and try again.'
-      toast.error(errorMsg)
-      return null
     },
     [registerCreate],
   )
@@ -168,32 +178,38 @@ export function useMfaSetupFlow(): UseMfaSetupFlowResult {
         toast.error('Maximum resend attempts reached. Please restart the registration.')
         return false
       }
-      const result = await mfaSetup({ userId, phone })
-      if ('data' in result && result.data.success) {
+      try {
+        const res = await mfaSetup({ userId, phone }).unwrap()
+        if (!res.success) {
+          toast.error(res.message || 'Failed to send OTP. Please try again.')
+          return false
+        }
         resendCountRef.current += 1
         toast.success('OTP sent to your mobile number.')
         return true
+      } catch (err: any) {
+        const errorMsg = err?.data?.message || err?.message || 'Failed to send OTP. Please try again.'
+        toast.error(errorMsg)
+        return false
       }
-      const errorMsg =
-        ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
-        'Failed to send OTP. Please try again.'
-      toast.error(errorMsg)
-      return false
     },
     [mfaSetup],
   )
 
   const verifySetupOtp = useCallback(
     async (userId: number, otp: string): Promise<string[] | null> => {
-      const result = await mfaSetupVerify({ userId, otp })
-      if ('data' in result && result.data.success) {
-        return result.data.data.recoveryCodes
+      try {
+        const res = await mfaSetupVerify({ userId, otp }).unwrap()
+        if (!res.success) {
+          toast.error(res.message || 'Invalid OTP. Please try again.')
+          return null
+        }
+        return res.data.recoveryCodes
+      } catch (err: any) {
+        const errorMsg = err?.data?.message || err?.message || 'Invalid OTP. Please try again.'
+        toast.error(errorMsg)
+        return null
       }
-      const errorMsg =
-        ('error' in result && (result.error as { data?: { message?: string } })?.data?.message) ||
-        'Invalid OTP. Please try again.'
-      toast.error(errorMsg)
-      return null
     },
     [mfaSetupVerify],
   )

@@ -45,7 +45,11 @@ export function MfaPrompt() {
                   maxLength={6}
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  {...field}
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
                 />
               </FormControl>
               <FormMessage />

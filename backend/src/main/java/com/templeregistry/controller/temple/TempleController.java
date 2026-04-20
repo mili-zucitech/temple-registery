@@ -11,8 +11,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/temples")
@@ -50,6 +54,39 @@ public class TempleController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateTempleRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Temple updated.", templeService.update(id, request)));
+    }
+
+    @PostMapping(value = "/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload a single primary temple photo")
+    public ResponseEntity<ApiResponse<String>> uploadTemplePhoto(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Temple photo uploaded.", templeService.uploadPrimaryPhoto(id, file)));
+    }
+
+    @PostMapping(value = "/{id}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload one or more temple gallery photos")
+    public ResponseEntity<ApiResponse<List<String>>> uploadTemplePhotos(
+            @PathVariable Long id,
+            @RequestPart("files") List<MultipartFile> files) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Temple photos uploaded.", templeService.uploadTemplePhotos(id, files)));
+    }
+
+    @GetMapping("/{id}/photos")
+    @Operation(summary = "Get ordered temple gallery photos")
+    public ResponseEntity<ApiResponse<List<TemplePhotoDto>>> getTemplePhotos(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Temple photos retrieved.", templeService.getTemplePhotos(id)));
+    }
+
+    @DeleteMapping("/{templeId}/photos/{photoId}")
+    @Operation(summary = "Delete a temple gallery photo")
+    public ResponseEntity<ApiResponse<Void>> deleteTemplePhoto(
+            @PathVariable Long templeId,
+            @PathVariable Long photoId) {
+        templeService.deleteTemplePhoto(templeId, photoId);
+        return ResponseEntity.ok(ApiResponse.success("Temple photo deleted.", null));
     }
 
     /* â”€â”€ Temple Profile Staging Workflow (TA â†’ DC approval) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
