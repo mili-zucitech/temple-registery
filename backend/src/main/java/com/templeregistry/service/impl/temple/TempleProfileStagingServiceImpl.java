@@ -17,6 +17,7 @@ import com.templeregistry.service.notification.NotificationService;
 import com.templeregistry.service.temple.TempleProfileStagingService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.PaginationUtil;
+import com.templeregistry.service.document.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -87,24 +88,29 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         assertNotSuspended(temple);
 
         TempleProfileStaging staging = stagingRepository
-                .findFirstByTempleIdAndStatus(templeId, TempleProfileStagingStatus.DRAFT)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "No DRAFT temple profile staging found for temple [" + templeId + "]",
-                        "TEMPLE_PROFILE_STAGING_DRAFT_NOT_FOUND"));
+            .findFirstByTempleIdAndStatus(templeId, TempleProfileStagingStatus.DRAFT)
+            .orElseThrow(() -> new EntityNotFoundException(
+                "No DRAFT temple profile staging found for temple [" + templeId + "]",
+                "TEMPLE_PROFILE_STAGING_DRAFT_NOT_FOUND"));
 
-        staging.setStatus(TempleProfileStagingStatus.PENDING_REVIEW);
+        // Promote staging fields to the Temple entity (main table) on submit
+        promoteToTemple(temple, staging);
+        templeRepository.save(temple);
+        summaryService.refresh(templeId);
+
+        staging.setStatus(TempleProfileStagingStatus.PENDING_REVIEW); // Optionally keep for audit/history
         staging.setSubmittedAt(LocalDateTime.now());
         staging.setSubmittedBy(currentUserId());
         TempleProfileStaging saved = stagingRepository.save(staging);
 
         // Notification trigger #3: DC notified
         notificationService.notify(
-                null, // DC notification — placeholder; real impl looks up DC user for this temple's district
-                "Temple Profile Submitted for Review",
-                "Temple [" + templeId + "] has submitted a profile update for your review.",
-                "TEMPLE_PROFILE_STAGING", saved.getId());
+            null, // DC notification — placeholder; real impl looks up DC user for this temple's district
+            "Temple Profile Submitted for Review",
+            "Temple [" + templeId + "] has submitted a profile update for your review.",
+            "TEMPLE_PROFILE_STAGING", saved.getId());
 
-        log.info("Temple profile staging submitted: stagingId=[{}] templeId=[{}]", saved.getId(), templeId);
+        log.info("Temple profile promoted to main table and submitted: stagingId=[{}] templeId=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
 
@@ -255,7 +261,31 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
             temple.setLanguagesOfWorship(staging.getLanguagesOfWorship());
         if (staging.getPhotoFilePath() != null)
             temple.setPhotoUrl(staging.getPhotoFilePath());
+        if (staging.getPhone() != null)
+            temple.setContactMobile(staging.getPhone());
+        if (staging.getEmail() != null)
+            temple.setContactEmail(staging.getEmail());
+        if (staging.getWebsite() != null)
+            temple.setWebsite(staging.getWebsite());
+        if (staging.getDescription() != null)
+            temple.setHistory(staging.getDescription());
+        else if (staging.getHistoricalSignificance() != null)
+            temple.setHistory(staging.getHistoricalSignificance());
+        if (staging.getAnnualFestivals() != null)
+            temple.setAnnualFestivals(staging.getAnnualFestivals());
+        if (staging.getLandmark() != null)
+            temple.setLandmark(staging.getLandmark());
+        if (staging.getHistoricalSignificance() != null)
+            temple.setHistoricalSignificance(staging.getHistoricalSignificance());
+        if (staging.getBankName() != null)
+            temple.setBankName(staging.getBankName());
+        if (staging.getBankIfsc() != null)
+            temple.setBankIfsc(staging.getBankIfsc());
+        if (staging.getLinkedInstitutions() != null)
+            temple.setLinkedInstitutions(staging.getLinkedInstitutions());
     }
+
+    private final FileStorageService fileStorageService;
 
     private TempleProfileStagingResponse toResponse(TempleProfileStaging s) {
         // VAL-008: bank account — show last 4 digits only (never echo full number)
@@ -271,6 +301,11 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
             default -> s.getStatus().name();
         };
 
+        String photoUrl = null;
+        if (s.getPhotoFilePath() != null && !s.getPhotoFilePath().isBlank()) {
+            photoUrl = fileStorageService.presignedUrl(s.getPhotoFilePath());
+        }
+
         return TempleProfileStagingResponse.builder()
                 .id(s.getId())
                 .templeId(s.getTempleId())
@@ -281,7 +316,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .website(s.getWebsite())
                 .contactPersonName(s.getContactPersonName())
                 .contactPersonDesignation(s.getContactPersonDesignation())
-                .photoFilePath(s.getPhotoFilePath())
+                .photoUrl(photoUrl)
                 .bankAccountMasked(masked)
                 .bankName(s.getBankName())
                 .bankIfsc(s.getBankIfsc())

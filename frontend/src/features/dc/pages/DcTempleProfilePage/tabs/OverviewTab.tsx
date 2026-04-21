@@ -1,9 +1,10 @@
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock } from 'lucide-react'
+import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock, Image } from 'lucide-react'
 import { useMemo } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, formatList } from '../utils'
+import { formatList } from '../utils'
 import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
 
 interface OverviewTabProps {
@@ -173,8 +174,7 @@ export function OverviewTab({
                 <DetailItem label="History" value={temple.history || '—'} />
                 <DetailItem label="Linked Institutions" value={formatList(profile.currentProfile?.linkedInstitutions)} />
                 <DetailItem label="Door Number" value={temple.doorNumber || '—'} />
-                <DetailItem label="Street" value={temple.street || '—'} />
-                <DetailItem label="Village/Town" value={temple.villageTown || '—'} />
+
                 <DetailItem label="PIN Code" value={temple.pinCode || '—'} />
                 <DetailItem label="Latitude" value={temple.latitude ?? '—'} />
                 <DetailItem label="Longitude" value={temple.longitude ?? '—'} />
@@ -183,6 +183,17 @@ export function OverviewTab({
                 <DetailItem label="Contact Mobile" value={temple.contactMobile || '—'} />
                 <DetailItem label="Contact Email" value={temple.contactEmail || '—'} />
               </div>
+            </div>
+          </div>
+
+          {/* Temple Photo Gallery */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <Image size={18} className="text-slate-500" />
+              <h2 className="text-xs font-medium text-slate-900 uppercase tracking-label">Temple Photo Gallery</h2>
+            </div>
+            <div className="p-6">
+              <DcTempleImageGallery templeId={temple.id} />
             </div>
           </div>
 

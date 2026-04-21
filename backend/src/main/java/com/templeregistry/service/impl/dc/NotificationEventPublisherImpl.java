@@ -41,4 +41,40 @@ public class NotificationEventPublisherImpl implements NotificationEventPublishe
         log.debug("NotificationEvent persisted: recipientId={} eventType={} ref={}:{}",
                 recipientId, eventType, referenceType, referenceId);
     }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void publishTempleVerified(Long templeId, String templeName, Long dcUserId, String remarks) {
+        // TODO: Lookup Temple Authority user ID for this temple and send notification
+        // For now, logging the event
+        log.info("Temple verified notification: templeId={} templeName={} dcUserId={} remarks={}",
+                templeId, templeName, dcUserId, remarks);
+        
+        // When TA user lookup is implemented, call:
+        // publish(taUserId, "TEMPLE_PROFILE_VERIFIED", templeId, "TEMPLE_PROFILE");
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void publishTempleFlagged(Long templeId, String templeName, Long dcUserId, String reason) {
+        // TODO: Lookup Temple Authority user ID for this temple and send notification
+        // For now, logging the event
+        log.info("Temple flagged notification: templeId={} templeName={} dcUserId={} reason={}",
+                templeId, templeName, dcUserId, reason);
+        
+        // When TA user lookup is implemented, call:
+        // publish(taUserId, "TEMPLE_PROFILE_FLAGGED", templeId, "TEMPLE_PROFILE");
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void publishTempleUnflagged(Long templeId, String templeName, Long dcUserId, String remarks) {
+        // TODO: Lookup Temple Authority user ID for this temple and send notification
+        // For now, logging the event
+        log.info("Temple unflagged notification: templeId={} templeName={} dcUserId={} remarks={}",
+                templeId, templeName, dcUserId, remarks);
+        
+        // When TA user lookup is implemented, call:
+        // publish(taUserId, "TEMPLE_PROFILE_UNFLAGGED", templeId, "TEMPLE_PROFILE");
+    }
 }
