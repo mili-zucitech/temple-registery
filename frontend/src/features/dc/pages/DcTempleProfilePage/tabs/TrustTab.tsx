@@ -7,15 +7,11 @@ import type { BoardMemberSummary, TrustFinancialSummary } from '@/features/dc/dc
 
 interface TrustTabProps {
   trust: any | null
-<<<<<<< HEAD
-  boardMembers: BoardMemberSummary[]
-=======
   boardMembers: {
     current: BoardMemberSummary[]
     past: BoardMemberSummary[]
     validationIssues: string[]
   }
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
   trustFinancials: TrustFinancialSummary[]
   canAct: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
