@@ -67,6 +67,9 @@ public class JurisdictionGuard {
         // SUPER_ADMIN is never jurisdiction-scoped
         if (RoleConstants.SUPER_ADMIN.equals(role)) return;
 
+        // TEMPLE_AUTHORITY is scoped by OwnershipGuard (temple ownership), not district
+        if (RoleConstants.TEMPLE_AUTHORITY.equals(role)) return;
+
         // R4 — null districtId on non-SA is always a programming error or corrupted JWT
         Long principalDistrictId = claims.districtId();
         if (principalDistrictId == null) {

@@ -45,7 +45,8 @@ describe('TaTrustPage', () => {
     await user.type(screen.getByLabelText(/Registering Authority \*/i), 'Govt')
     await user.type(screen.getByLabelText(/PAN Number \*/i), 'ABCDE1234F')
     await user.type(screen.getByLabelText(/Bank Account Number \*/i), '123456789012')
-    await user.type(screen.getByLabelText(/Bank Name and Branch \*/i), 'SBI Main')
+    await user.type(screen.getByLabelText(/Bank Name \*/i), 'SBI')
+    await user.type(screen.getByLabelText(/Bank Branch \*/i), 'Main Branch')
 
     // Submit the form
     await user.click(screen.getAllByRole('button', { name: /Register Trust/i })[1])

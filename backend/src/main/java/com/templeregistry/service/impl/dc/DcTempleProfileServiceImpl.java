@@ -5,7 +5,6 @@ import com.templeregistry.dto.response.dc.*;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.dto.response.temple.TempleResponse;
-import com.templeregistry.dto.response.trust.BoardMemberResponse;
 import com.templeregistry.entity.contractor.Contractor;
 import com.templeregistry.entity.dc.TempleProfileCurrent;
 import com.templeregistry.entity.declaration.AssetDeclaration;
@@ -36,6 +35,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleProfileService;
+import com.templeregistry.service.trust.TrustValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -44,6 +44,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -71,6 +73,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final DeclMovEquipmentRepository equipmentRepository;
         private final CityRepository cityRepository;
         private final JurisdictionGuard jurisdictionGuard;
+        private final TrustValidationService trustValidationService;
 
         @Override
         @Transactional(readOnly = true)
@@ -124,13 +127,23 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 Trust primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
 
                 TempleFullProfileResponse.DcTrustSummary trustSummary = null;
-                List<BoardMemberResponse> boardMembers = List.of();
+                TempleFullProfileResponse.BoardMemberSection boardMembers = TempleFullProfileResponse.BoardMemberSection.builder()
+                                .current(List.of())
+                                .past(List.of())
+                                .validationIssues(List.of())
+                                .build();
                 List<TempleFullProfileResponse.TrustFinancialSummary> financials = List.of();
 
                 if (primaryTrust != null) {
                         trustSummary = toTrustSummary(primaryTrust, claims);
-                        boardMembers = boardMemberRepository.findAllByTrustIdAndIsCurrent(primaryTrust.getId(), true)
+                        List<TempleFullProfileResponse.BoardMemberSummary> allMembers = boardMemberRepository
+                                        .findAllByTrustIdOrderByAppointmentDateDescIdDesc(primaryTrust.getId())
                                         .stream().map(this::toBoardMemberResponse).toList();
+                        boardMembers = TempleFullProfileResponse.BoardMemberSection.builder()
+                                        .current(allMembers.stream().filter(TempleFullProfileResponse.BoardMemberSummary::isCurrent).toList())
+                                        .past(allMembers.stream().filter(member -> !member.isCurrent()).toList())
+                                        .validationIssues(buildBoardMemberValidationIssues(allMembers))
+                                        .build();
                         financials = trustFinancialRepository
                                         .findAllByTrustIdOrderByFinancialYearDesc(primaryTrust.getId())
                                         .stream().map(this::toFinancialSummary).toList();
@@ -326,10 +339,13 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .languagesOfWorship(t.getLanguagesOfWorship())
                                 .trustRegistered(t.isTrustRegistered())
                                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
+                                .verificationStatus(t.getVerificationStatus() != null ? t.getVerificationStatus().name() : "UNVERIFIED")
                                 .build();
         }
 
         private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims) {
+                String[] bankParts = splitBankNameAndBranch(t.getBankNameAndBranch());
+                List<TrustFinancial> financials = trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(t.getId());
                 return TempleFullProfileResponse.DcTrustSummary.builder()
                                 .id(t.getId())
                                 .trustName(t.getTrustName())
@@ -339,8 +355,14 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .dateOfRegistration(t.getDateOfRegistration())
                                 .panNumberMasked(maskPan(t.getTrustPANNumber(), claims.role()))
                                 .bankAccountMasked(maskBankAccount(t.getBankAccountNumber()))
-                                .bankName(t.getBankNameAndBranch()) // Mapping to bankName for now
+                                .bankName(bankParts[0])
+                                .bankBranch(bankParts[1])
                                 .annualIncome(t.getAnnualIncome())
+                                .isVerifiedByDc(t.isVerifiedByDc())
+                                .dcFlagReason(t.getDcFlagReason())
+                                .reviewStatus(t.isVerifiedByDc() ? "APPROVED" : (t.getDcFlagReason() != null ? "FLAGGED" : "PENDING"))
+                                .validationIssues(buildTrustValidationIssues(t))
+                                .financialStatus(financials.isEmpty() ? "MISSING" : "SUBMITTED")
                                 .build();
         }
 
@@ -361,29 +383,30 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         /**
          * Bank account masking: always **XXXXX{last4} for all roles.
+         * Robust against null/empty/whitespace.
          */
         private String maskBankAccount(String account) {
-                if (account == null)
+                if (account == null || account.trim().isBlank())
                         return null;
-                if (account.length() <= 4)
+                String trimmed = account.trim();
+                if (trimmed.length() <= 4)
                         return "****";
-                return "**XXXXX" + account.substring(account.length() - 4);
+                return "**XXXXX" + trimmed.substring(trimmed.length() - 4);
         }
 
-        private BoardMemberResponse toBoardMemberResponse(BoardMember m) {
-                String maskedAadhaar = m.getAadhaarEncrypted() != null && m.getAadhaarEncrypted().length() >= 4
-                                ? "XXXX-XXXX-" + m.getAadhaarEncrypted().substring(m.getAadhaarEncrypted().length() - 4)
-                                : null;
-                return BoardMemberResponse.builder()
+        private TempleFullProfileResponse.BoardMemberSummary toBoardMemberResponse(BoardMember m) {
+                return TempleFullProfileResponse.BoardMemberSummary.builder()
                                 .id(m.getId())
-                                .trustId(m.getTrustId())
                                 .fullName(m.getFullName())
-                                .maskedAadhaar(maskedAadhaar)
+                                .maskedAadhaar(m.getMaskedAadhaar())
                                 .designation(m.getDesignation())
                                 .appointmentDate(m.getAppointmentDate())
                                 .tenureEndDate(m.getTenureEndDate())
                                 .contactNumber(m.getContactNumber())
-                                .isCurrent(m.isCurrent())
+                                .address(m.getAddress())
+                                .isCurrent(trustValidationService.isCurrentMember(m.getTenureEndDate()))
+                                .isVerifiedByDc(m.isVerifiedByDc())
+                                .dcFlagReason(m.getDcFlagReason())
                                 .build();
         }
 
@@ -456,11 +479,18 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         private TempleFullProfileResponse.ProfileCurrentResponse toProfileCurrentResponse(TempleProfileCurrent p) {
                 return TempleFullProfileResponse.ProfileCurrentResponse.builder()
+                                .phone(p.getPhone())
+                                .email(p.getEmail())
+                                .website(p.getWebsite())
                                 .contactPersonName(p.getContactPersonName())
                                 .contactPersonDesignation(p.getContactPersonDesignation())
                                 .photoFilePath(p.getPhotoFilePath())
+                                .bankName(p.getBankName())
+                                .bankAccountMasked(maskBankAccount(p.getBankAccountNumberEncrypted()))
+                                .bankIfsc(p.getBankIfsc())
                                 .languagesOfWorship(p.getLanguagesOfWorship())
                                 .linkedInstitutions(p.getLinkedInstitutions())
+                                .description(p.getDescription())
                                 .annualFestivals(p.getAnnualFestivals())
                                 .landmark(p.getLandmark())
                                 .historicalSignificance(p.getHistoricalSignificance())
@@ -502,5 +532,40 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .submittedAt(s.getSubmittedAt())
                                 .submittedBy(s.getSubmittedBy())
                                 .build();
+        }
+
+        private List<String> buildTrustValidationIssues(Trust trust) {
+                return Stream.of(
+                                trust.getDateOfRegistration() != null && trust.getDateOfRegistration().isAfter(java.time.LocalDate.now())
+                                                ? "Registration date is in the future" : null,
+                                isBlank(trust.getRegisteringAuthority()) ? "Registering authority is missing" : null,
+                                isBlank(trust.getTrustPANNumber()) ? "PAN is missing" : null,
+                                isBlank(trust.getBankAccountNumber()) ? "Bank account number is missing" : null,
+                                isBlank(splitBankNameAndBranch(trust.getBankNameAndBranch())[1]) ? "Bank branch is missing" : null)
+                                .filter(Objects::nonNull)
+                                .toList();
+        }
+
+        private List<String> buildBoardMemberValidationIssues(List<TempleFullProfileResponse.BoardMemberSummary> members) {
+                long missingAddress = members.stream().filter(member -> isBlank(member.getAddress())).count();
+                if (missingAddress == 0) {
+                        return List.of();
+                }
+                return List.of(missingAddress + " board member record(s) are missing address details.");
+        }
+
+        private String[] splitBankNameAndBranch(String bankNameAndBranch) {
+                if (bankNameAndBranch == null || bankNameAndBranch.isBlank()) {
+                        return new String[] {null, null};
+                }
+                String[] parts = bankNameAndBranch.split("\\|\\|", 2);
+                if (parts.length == 2) {
+                        return parts;
+                }
+                return new String[] {bankNameAndBranch, null};
+        }
+
+        private boolean isBlank(String value) {
+                return value == null || value.trim().isBlank();
         }
 }

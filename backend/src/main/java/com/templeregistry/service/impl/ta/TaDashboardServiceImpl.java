@@ -11,12 +11,14 @@ import com.templeregistry.dto.response.ta.TaDocumentResponse;
 import com.templeregistry.dto.response.ta.TaProfileStatusResponse;
 import com.templeregistry.dto.response.temple.TempleProfileStagingResponse;
 import com.templeregistry.dto.response.temple.TempleResponse;
+import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.dc.TempleProfileCurrent;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
@@ -24,6 +26,7 @@ import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.ta.TaDashboardService;
 import com.templeregistry.service.temple.TempleProfileStagingService;
@@ -50,6 +53,8 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     private final AuditService auditService;
     private final OwnershipGuard ownershipGuard;
     private final TempleMapper templeMapper;
+    private final NotificationEventPublisher notificationPublisher;
+    private final UserRepository userRepository;
 
     // ─── Dashboard aggregation ───────────────────────────────────────────────
 
@@ -135,10 +140,23 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public TempleProfileStagingResponse submitProfile(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
+        Temple temple = findTempleOrThrow(claims.templeId());
+
         TempleProfileStagingResponse response = stagingService.submitForReview(claims.templeId());
+
         auditService.logDataEvent(claims.userId(), claims.role(),
                 "UPDATE", "TEMPLE_PROFILE_STAGING", response.getId(),
                 "TA submitted profile for DC review: temple=" + claims.templeId());
+
+        // Notify all DCs and DC Staff in the temple's district
+        userRepository.findAllByRoleAndDistrictId(UserRole.DISTRICT_COLLECTOR, temple.getDistrictId())
+                .forEach(dc -> notificationPublisher.publish(dc.getId(), "PROFILE_SUBMITTED",
+                        temple.getId(), "TEMPLE_PROFILE"));
+
+        userRepository.findAllByRoleAndDistrictId(UserRole.DC_STAFF, temple.getDistrictId())
+                .forEach(staff -> notificationPublisher.publish(staff.getId(), "PROFILE_SUBMITTED",
+                        temple.getId(), "TEMPLE_PROFILE"));
+
         log.info("TA profile submitted for review: stagingId=[{}] userId=[{}] templeId=[{}]",
                 response.getId(), claims.userId(), claims.templeId());
         return response;

@@ -255,6 +255,26 @@ export const dcApi = createApi({
       invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
     }),
 
+    /** Verify the entire Staff module for a temple — ONE call, no loops. */
+    verifyStaffModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcVerifyRequest }>({
+      query: ({ templeId, body }) => ({
+        url: `/dc/compliance/staff/${templeId}/verify`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    /** Flag the entire Staff module for a temple — ONE call. */
+    flagStaffModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcFlagRequest }>({
+      query: ({ templeId, body }) => ({
+        url: `/dc/compliance/staff/${templeId}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
     verifyContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
       query: ({ id, body }) => ({
         url: `/dc/compliance/contractors/${id}/verify`,
@@ -267,6 +287,26 @@ export const dcApi = createApi({
     flagContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
       query: ({ id, body }) => ({
         url: `/dc/compliance/contractors/${id}/flag`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    /** Verify the entire Contractors module for a temple — ONE call, no loops. */
+    verifyContractorsModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcVerifyRequest }>({
+      query: ({ templeId, body }) => ({
+        url: `/dc/compliance/contractors-module/${templeId}/verify`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
+    }),
+
+    /** Flag the entire Contractors module for a temple — ONE call. */
+    flagContractorsModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcFlagRequest }>({
+      query: ({ templeId, body }) => ({
+        url: `/dc/compliance/contractors-module/${templeId}/flag`,
         method: 'POST',
         body,
       }),
@@ -364,6 +404,10 @@ export const {
   useFlagTrustMutation,
   useVerifyEmployeeMutation,
   useFlagEmployeeMutation,
+  useVerifyStaffModuleMutation,
+  useFlagStaffModuleMutation,
   useVerifyContractorMutation,
   useFlagContractorMutation,
+  useVerifyContractorsModuleMutation,
+  useFlagContractorsModuleMutation,
 } = dcApi

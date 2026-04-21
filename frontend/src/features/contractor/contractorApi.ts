@@ -1,5 +1,5 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
-import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
+import { baseQueryWithReauth } from '../../services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type { ContractorResponse, CreateContractorRequest, UpdateContractorRequest } from './contractorTypes'
 

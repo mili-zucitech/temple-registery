@@ -88,6 +88,12 @@ public class ContractorServiceImpl implements ContractorService {
         c.setName(rq.getName()); c.setGstNumber(rq.getGstNumber());
         c.setServiceType(rq.getServiceType()); c.setContractValue(rq.getContractValue());
         c.setPaymentStatus(rq.getPaymentStatus());
+        // Auto-reset: TA edit after DC verification resets status to PENDING
+        if (c.isVerifiedByDc()) {
+            c.setVerifiedByDc(false);
+            c.setDcFlagReason(null);
+            log.info("Contractor [{}] verification reset to PENDING after TA update", id);
+        }
         return toResponse(contractorRepository.save(c));
     }
 

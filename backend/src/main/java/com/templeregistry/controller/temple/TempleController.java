@@ -4,6 +4,7 @@ import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.temple.*;
 import com.templeregistry.dto.response.temple.*;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.temple.TempleProfileStagingService;
 import com.templeregistry.service.temple.TempleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -32,6 +34,7 @@ public class TempleController {
 
     @PostMapping
     @Operation(summary = "Create a new temple (SUPER_ADMIN only)")
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
     public ResponseEntity<ApiResponse<TempleResponse>> create(
             @Valid @RequestBody CreateTempleRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -40,22 +43,25 @@ public class TempleController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get temple detail by ID")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<TempleResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Temple retrieved.", templeService.getById(id)));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Direct-update temple core fields (SUPER_ADMIN only). TAs use /profile/staging.")
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
     public ResponseEntity<ApiResponse<TempleResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateTempleRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Temple updated.", templeService.update(id, request)));
     }
 
-    /* â”€â”€ Temple Profile Staging Workflow (TA â†’ DC approval) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Temple Profile Staging Workflow (TA → DC approval) ───────── */
 
     @PostMapping("/{templeId}/profile/staging")
     @Operation(summary = "Create or update a DRAFT profile staging record (TA/SA)")
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> createOrUpdateDraft(
             @PathVariable Long templeId,
             @Valid @RequestBody CreateTempleProfileStagingRequest request) {
@@ -66,6 +72,7 @@ public class TempleController {
 
     @PostMapping("/{templeId}/profile/submit")
     @Operation(summary = "Submit the current DRAFT profile for DC review (TA)")
+    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> submitForReview(
             @PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Profile submitted for review.",
@@ -74,6 +81,7 @@ public class TempleController {
 
     @PostMapping("/{templeId}/profile/approve/{stagingId}")
     @Operation(summary = "Approve a SUBMITTED profile staging record (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_APPROVE)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> approve(
             @PathVariable Long templeId, @PathVariable Long stagingId) {
         return ResponseEntity.ok(ApiResponse.success("Profile approved.",
@@ -82,6 +90,7 @@ public class TempleController {
 
     @PostMapping("/{templeId}/profile/reject/{stagingId}")
     @Operation(summary = "Reject a SUBMITTED profile staging record with a comment (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_APPROVE)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> reject(
             @PathVariable Long templeId,
             @PathVariable Long stagingId,
@@ -92,6 +101,7 @@ public class TempleController {
 
     @GetMapping("/{templeId}/profile/staging/active")
     @Operation(summary = "Get the active (DRAFT or SUBMITTED) staging record, or null if none")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> getActiveStaging(
             @PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Active staging retrieved.",
@@ -100,6 +110,7 @@ public class TempleController {
 
     @GetMapping("/{templeId}/profile/history")
     @Operation(summary = "Paginated history of all profile staging versions (most recent first)")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<PaginatedResponse<TempleProfileStagingResponse>>> getHistory(
             @PathVariable Long templeId,
             @RequestParam(defaultValue = "0") int page,
@@ -107,14 +118,16 @@ public class TempleController {
         return ResponseEntity.ok(ApiResponse.success("Profile history retrieved.",
                 stagingService.getHistory(templeId, page, size)));
     }
-        /**
-         * Returns the current approved temple profile (main table, not staging).
-         */
-        @GetMapping("/{templeId}/profile/current")
-        @Operation(summary = "Get the current approved temple profile (registration contact details)")
-        public ResponseEntity<ApiResponse<TempleResponse>> getCurrentProfile(@PathVariable Long templeId) {
-                TempleResponse response = templeService.getCurrentProfile(templeId);
-                return ResponseEntity.ok(ApiResponse.success("Current temple profile retrieved.", response));
-        }
+
+    /**
+     * Returns the current approved temple profile (main table, not staging).
+     */
+    @GetMapping("/{templeId}/profile/current")
+    @Operation(summary = "Get the current approved temple profile (registration contact details)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<TempleResponse>> getCurrentProfile(@PathVariable Long templeId) {
+        TempleResponse response = templeService.getCurrentProfile(templeId);
+        return ResponseEntity.ok(ApiResponse.success("Current temple profile retrieved.", response));
+    }
 }
 

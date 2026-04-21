@@ -17,4 +17,6 @@ public class BoardMemberResponse {
     private String contactNumber;
     private String address;
     private boolean isCurrent;
+    private boolean isVerifiedByDc;
+    private String dcFlagReason;
 }

@@ -4,13 +4,17 @@ import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.document.DocumentResponse;
 import com.templeregistry.dto.response.document.DocumentUrlResponse;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.document.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,12 +22,14 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
 @Tag(name = "Documents", description = "Upload and retrieve supporting documents stored in S3")
+@PreAuthorize("isAuthenticated()")
 public class DocumentController {
 
     private final DocumentService documentService;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload a document (PDF/JPG/PNG, max 5 MB)")
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public ResponseEntity<ApiResponse<DocumentResponse>> upload(
             @RequestParam String ownerType,
             @RequestParam Long ownerId,
@@ -47,6 +53,35 @@ public class DocumentController {
         return ResponseEntity.ok(ApiResponse.success("URL generated.", documentService.getPresignedUrl(id)));
     }
 
+    @GetMapping("/{id}/download")
+    @Operation(summary = "Directly download a document by its ID (DISTRICT_COLLECTOR and SUPER_ADMIN only).")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public ResponseEntity<Resource> download(@PathVariable Long id) {
+        Resource resource = documentService.download(id);
+        DocumentResponse doc = documentService.getById(id);
+        return buildDownloadResponse(resource, doc.getOriginalFilename(), doc.getMimeType());
+    }
+
+    @GetMapping("/download")
+    @Operation(summary = "Download a document using its internal storage key (legacy support for generated URLs).")
+    public ResponseEntity<Resource> downloadByKey(@RequestParam String key) {
+        Resource resource = documentService.downloadByKey(key);
+        // Note: We don't have the original filename easily available from just the key without a DB lookup.
+        // downloadByKey handles the DB lookup and security check internally.
+        // We'll just use a generic name or find the document again.
+        // Actually, documentService.downloadByKey can be improved to return a wrapper.
+        // For now, let's just use the key's last part.
+        String filename = key.substring(key.lastIndexOf("/") + 1);
+        return buildDownloadResponse(resource, filename, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+    }
+
+    private ResponseEntity<Resource> buildDownloadResponse(Resource resource, String filename, String mimeType) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(resource);
+    }
+
     @GetMapping
     @Operation(summary = "List documents for an owner entity (paginated)")
     public ResponseEntity<ApiResponse<PaginatedResponse<DocumentResponse>>> listByOwner(
@@ -60,6 +95,7 @@ public class DocumentController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Soft-delete a document record (S3 object retained for audit)")
+    @PreAuthorize(RoleConstants.ADMIN_ONLY + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         documentService.softDelete(id);
         return ResponseEntity.noContent().build();

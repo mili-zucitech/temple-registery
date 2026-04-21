@@ -17,9 +17,11 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.dc.TempleProfileWorkflowService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
+import com.templeregistry.util.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,7 +41,8 @@ import java.time.LocalDateTime;
  *  5. Sets staging status = APPROVED
  *  6. Publishes in-transaction NotificationEvent
  *  7. Fires async audit log
- *  8. Calls TempleSearchSummaryService.refresh() in same transaction
+ *  8. Logs governance action history
+ *  9. Calls TempleSearchSummaryService.refresh() in same transaction
  *
  * On REJECT:
  *  1. Validates staging status is PENDING_REVIEW
@@ -47,7 +50,8 @@ import java.time.LocalDateTime;
  *  3. Sets staging status = REJECTED, stores reviewComment
  *  4. Publishes in-transaction NotificationEvent
  *  5. Fires async audit log
- *  6. Calls TempleSearchSummaryService.refresh() in same transaction
+ *  6. Logs governance action history
+ *  7. Calls TempleSearchSummaryService.refresh() in same transaction
  *
  * dc_e2e Section 4.4, 2.6, 2.8.
  */
@@ -64,6 +68,8 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private final NotificationEventPublisher notificationPublisher;
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
+    private final GovernanceAuditService governanceAuditService;
+    private final StatusTransitionValidator transitionValidator;
 
     @Override
     @Transactional
@@ -73,6 +79,8 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         TempleProfileStaging staging = loadStaging(stagingId);
         assertPendingReview(staging);
 
+        transitionValidator.validateProfileStagingTransition(staging.getStatus().name(), TempleProfileStagingStatus.APPROVED.name());
+
         Temple temple = loadTempleWithGeo(staging.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
@@ -81,12 +89,18 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
             TempleProfileHistory history = TempleProfileHistory.builder()
                     .templeId(existing.getTempleId())
                     .version(staging.getVersionNumber() - 1)
+                    .phone(existing.getPhone())
+                    .email(existing.getEmail())
+                    .website(existing.getWebsite())
                     .contactPersonName(existing.getContactPersonName())
                     .contactPersonDesignation(existing.getContactPersonDesignation())
                     .photoFilePath(existing.getPhotoFilePath())
+                    .bankName(existing.getBankName())
                     .bankAccountNumberEncrypted(existing.getBankAccountNumberEncrypted())
+                    .bankIfsc(existing.getBankIfsc())
                     .languagesOfWorship(existing.getLanguagesOfWorship())
                     .linkedInstitutions(existing.getLinkedInstitutions())
+                    .description(existing.getDescription())
                     .annualFestivals(existing.getAnnualFestivals())
                     .landmark(existing.getLandmark())
                     .historicalSignificance(existing.getHistoricalSignificance())
@@ -99,16 +113,23 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         // Promote staging content to current
         TempleProfileCurrent newCurrent = TempleProfileCurrent.builder()
                 .templeId(staging.getTempleId())
+                .phone(staging.getPhone())
+                .email(staging.getEmail())
+                .website(staging.getWebsite())
                 .contactPersonName(staging.getContactPersonName())
                 .contactPersonDesignation(staging.getContactPersonDesignation())
                 .photoFilePath(staging.getPhotoFilePath())
+                .bankName(staging.getBankName())
                 .bankAccountNumberEncrypted(staging.getBankAccountNumberEncrypted())
+                .bankIfsc(staging.getBankIfsc())
                 .languagesOfWorship(staging.getLanguagesOfWorship())
                 .linkedInstitutions(staging.getLinkedInstitutions())
+                .description(staging.getDescription())
                 .annualFestivals(staging.getAnnualFestivals())
                 .landmark(staging.getLandmark())
                 .historicalSignificance(staging.getHistoricalSignificance())
                 .publishedAt(LocalDateTime.now())
+                .publishedBy(claims.userId())
                 .build();
         currentRepository.save(newCurrent);
 
@@ -122,6 +143,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         stagingRepository.findFirstByTempleIdAndStatus(staging.getTempleId(), TempleProfileStagingStatus.APPROVED)
                 .ifPresent(prev -> {
                     if (!prev.getId().equals(staging.getId())) {
+                        transitionValidator.validateProfileStagingTransition(prev.getStatus().name(), TempleProfileStagingStatus.SUPERSEDED.name());
                         prev.setStatus(TempleProfileStagingStatus.SUPERSEDED);
                         stagingRepository.save(prev);
                     }
@@ -130,6 +152,10 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_APPROVED", staging.getTempleId(), "TEMPLE_PROFILE");
         auditService.logDataEvent(claims.userId(), claims.role(), "APPROVE", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Approved version " + staging.getVersionNumber());
+        
+        governanceAuditService.logAction(staging.getTempleId(), "TEMPLE_PROFILE", claims.userId(), "APPROVE", 
+                "Approved version " + staging.getVersionNumber() + ". Remarks: " + request.getRemarks());
+
         summaryService.refresh(staging.getTempleId());
 
         return WorkflowActionResponse.builder()
@@ -147,6 +173,8 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         TempleProfileStaging staging = loadStaging(stagingId);
         assertPendingReview(staging);
 
+        transitionValidator.validateProfileStagingTransition(staging.getStatus().name(), TempleProfileStagingStatus.REJECTED.name());
+
         Temple temple = loadTempleWithGeo(staging.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
@@ -159,6 +187,11 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_REJECTED", staging.getTempleId(), "TEMPLE_PROFILE");
         auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Rejected version " + staging.getVersionNumber() + ": " + request.getRemarks());
+        
+        governanceAuditService.logAction(staging.getTempleId(), "TEMPLE_PROFILE", claims.userId(), "REJECT", 
+                "Rejected version " + staging.getVersionNumber() + ". Remarks: " + request.getRemarks());
+
+        summaryService.refresh(staging.getTempleId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(staging.getId())

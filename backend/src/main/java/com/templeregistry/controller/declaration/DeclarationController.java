@@ -62,6 +62,7 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/declarations/{id}/approve")
     @Operation(summary = "Approve declaration (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<ApiResponse<Void>> approve(@PathVariable Long id) {
         declarationService.approve(id);
         return ResponseEntity.ok(ApiResponse.success("Declaration approved."));
@@ -69,6 +70,7 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/declarations/{id}/reject")
     @Operation(summary = "Reject declaration (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<ApiResponse<Void>> reject(
             @PathVariable Long id, @Valid @RequestBody ClarificationRequest reason) {
         declarationService.reject(id, reason);
@@ -77,6 +79,7 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/declarations/{id}/clarification")
     @Operation(summary = "Request clarification from temple (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<ApiResponse<Void>> requestClarification(
             @PathVariable Long id, @Valid @RequestBody ClarificationRequest rq) {
         declarationService.requestClarification(id, rq);
@@ -85,6 +88,7 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/declarations/{id}/flag-physical-verification")
     @Operation(summary = "Flag for physical verification (DC/SA)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<ApiResponse<Void>> flagPhysical(
             @PathVariable Long id, @Valid @RequestBody FlagPhysicalVerificationRequest rq) {
         declarationService.flagPhysicalVerification(id, rq);
@@ -93,6 +97,7 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/declarations/{id}/resubmit")
     @Operation(summary = "Resubmit after clarification (TA)")
+    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<Void>> resubmit(
             @PathVariable Long id, @Valid @RequestBody ResubmitDeclarationRequest rq) {
         declarationService.resubmit(id, rq);

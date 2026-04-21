@@ -15,6 +15,7 @@ backend/hs_err_pid*
 # Frontend (Node / Vite / React)
 # ──────────────────────────────────────────────
 frontend/node_modules/
+/node_modules
 frontend/dist/
 frontend/.vite/
 frontend/coverage/

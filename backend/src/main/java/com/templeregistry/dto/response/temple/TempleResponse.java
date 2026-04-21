@@ -36,4 +36,6 @@ public class TempleResponse {
     private String languagesOfWorship;
     private boolean trustRegistered;
     private String assetDeclarationStatus;
+    /** UNVERIFIED | UNDER_REVIEW | VERIFIED | FLAGGED */
+    private String verificationStatus;
 }

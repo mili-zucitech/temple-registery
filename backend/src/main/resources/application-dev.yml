@@ -38,6 +38,8 @@ app:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:
     key: "TempleRegistryDevelopmentKey2024"
+  hmac:
+    key: "TempleRegistryHmacKey2024!!CHANGE"
   storage:
     base-dir: ./uploads
 
