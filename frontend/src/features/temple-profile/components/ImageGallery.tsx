@@ -103,7 +103,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
             onClick={() => openLightbox(index)}
           >
             <img
-              src={photo.url}
+              src={`${import.meta.env.VITE_BASE_URL}${photo.url}`}
               alt={photo.fileName || 'Temple photo'}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-1"
@@ -113,7 +113,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
                 <Maximize2 className="text-white w-5 h-5" />
               </div>
             </div>
-            {photo.isPrimary && (
+            {(photo.isPrimary || photo.primary) && (
               <div className="absolute top-3 left-3 bg-primary/90 text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-lg backdrop-blur-sm tracking-wider">
                 PRIMARY
               </div>

@@ -24,4 +24,22 @@ public interface NotificationEventPublisher {
      * @param referenceType entity type label (e.g. "ASSET_DECLARATION")
      */
     void publish(Long recipientId, String eventType, Long referenceId, String referenceType);
+
+    /**
+     * Publish notification when DC verifies a temple profile.
+     * Notifies the Temple Authority that their profile has been verified.
+     */
+    void publishTempleVerified(Long templeId, String templeName, Long dcUserId, String remarks);
+
+    /**
+     * Publish notification when DC flags a temple profile.
+     * Notifies the Temple Authority that their profile has been flagged with a reason.
+     */
+    void publishTempleFlagged(Long templeId, String templeName, Long dcUserId, String reason);
+
+    /**
+     * Publish notification when DC removes flag from a temple profile.
+     * Notifies the Temple Authority that the flag has been removed.
+     */
+    void publishTempleUnflagged(Long templeId, String templeName, Long dcUserId, String remarks);
 }

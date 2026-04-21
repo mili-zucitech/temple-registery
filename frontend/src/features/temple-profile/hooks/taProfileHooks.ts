@@ -4,23 +4,37 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import { useGetTaluksQuery, useGetHoblisQuery } from '@/features/geo/geoApi'
-import { submitTempleProfileSchema, TaProfileStagingFormValues, TaProfileStagingRequest, taProfileStagingSchema, TaProfileStatus } from '@/features/temple-profile/hooks/templeTypes'
-import { useCreateOrUpdateDraftMutation, useGetActiveStagingQuery, useGetStagingHistoryQuery, useGetTempleByIdQuery, useGetTempleCurrentProfileQuery, useSubmitForReviewMutation } from '@/features/temple-profile/hooks/templeApi'
+import { submitTempleProfileSchema, TaProfileStagingFormValues, TaProfileStagingRequest, taProfileStagingSchema, TaProfileStatus, TempleProfileStagingResponse } from '@/features/temple-profile/hooks/templeTypes'
+import { useCreateOrUpdateDraftMutation, useGetActiveStagingQuery, useGetStagingHistoryQuery, useGetTempleByIdQuery, useSubmitForReviewMutation } from '@/features/temple-profile/hooks/templeApi'
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function deriveProfileStatus(
   stagingStatus: string | undefined | null,
+  latestVersionStatus: string | undefined | null,
   checklistStatus: string | null | undefined,
   hasStagingProfile: boolean,
 ): TaProfileStatus {
-  if (hasStagingProfile) {
-    if (stagingStatus === 'DRAFT') return 'DRAFT'
+  const mapStatus = (status?: string | null): TaProfileStatus | null => {
+    if (!status) return null
+    if (status === 'DRAFT') return 'DRAFT'
     // Backend labels PENDING_REVIEW as SUBMITTED in response (DECISION-01)
-    if (stagingStatus === 'PENDING_REVIEW' || stagingStatus === 'SUBMITTED') return 'SUBMITTED'
-    if (stagingStatus === 'REJECTED') return 'REJECTED'
+    if (status === 'PENDING_REVIEW' || status === 'SUBMITTED') return 'SUBMITTED'
+    if (status === 'REJECTED') return 'REJECTED'
+    if (status === 'APPROVED') return 'APPROVED'
+    return null
   }
+
+  if (hasStagingProfile) {
+    const mappedStagingStatus = mapStatus(stagingStatus)
+    if (mappedStagingStatus) return mappedStagingStatus
+  }
+
+  // If no active staging exists, derive from the latest version in history.
+  const mappedLatestVersionStatus = mapStatus(latestVersionStatus)
+  if (mappedLatestVersionStatus) return mappedLatestVersionStatus
+
   if (checklistStatus === 'APPROVED') return 'APPROVED'
   if (checklistStatus === 'SUBMITTED' || checklistStatus === 'PENDING_REVIEW') return 'SUBMITTED'
   return 'NOT_STARTED'
@@ -78,6 +92,14 @@ function extractApiMessage(err: any, fallback: string): string {
   return err?.data?.message || err?.message || fallback
 }
 
+function readProfileField(source: any, primary: string, fallback?: string): string | undefined {
+  const primaryValue = source?.[primary]
+  if (typeof primaryValue === 'string' && primaryValue.trim().length > 0) return primaryValue
+  const fallbackValue = fallback ? source?.[fallback] : undefined
+  if (typeof fallbackValue === 'string' && fallbackValue.trim().length > 0) return fallbackValue
+  return undefined
+}
+
 const EMPTY_FORM: TaProfileStagingFormValues = {
   phone: '',
   email: '',
@@ -106,11 +128,15 @@ export function useTempleProfile() {
     templeId!, { skip: !templeId },
   )
   const stagingProfile = stagingData?.data ?? null
-
-  const { data: currentData, isLoading: currentLoading } = useGetTempleCurrentProfileQuery(
-    templeId!, { skip: !templeId },
+  const { data: historyData, isLoading: historyLoading } = useGetStagingHistoryQuery(
+    { templeId: templeId!, page: 0, size: 20 },
+    { skip: !templeId },
   )
-  const currentProfile = currentData?.data ?? null
+  const history = historyData?.data?.content ?? []
+  const latestVersion = history.reduce<TempleProfileStagingResponse | null>((latest, item) => {
+    if (!latest) return item
+    return item.versionNumber > latest.versionNumber ? item : latest
+  }, null)
 
   // ── Geo name resolution ────────────────────────────────────────────────────
   const { data: taluksData } = useGetTaluksQuery(
@@ -126,14 +152,20 @@ export function useTempleProfile() {
   const [createOrUpdateDraft, { isLoading: isSaving }] = useCreateOrUpdateDraftMutation()
   const [submitForReview, { isLoading: isSubmitting }] = useSubmitForReviewMutation()
 
-  const isLoading = userLoading || templeLoading || stagingLoading || currentLoading
+  const isLoading = userLoading || templeLoading || stagingLoading || historyLoading
 
   const profileStatus = deriveProfileStatus(
     stagingProfile?.statusLabel,
+    latestVersion?.statusLabel,
     user?.completionChecklist?.templeProfileStatus,
     stagingProfile !== null,
   )
+  const profileReviewComment =
+    profileStatus === 'REJECTED'
+      ? (stagingProfile?.reviewComment ?? latestVersion?.reviewComment ?? null)
+      : null
 
+  // Only allow editing if DRAFT or REJECTED (staging), otherwise edits go to main profile
   const isEditable = profileStatus === 'DRAFT' || profileStatus === 'REJECTED'
 
   const form = useForm<TaProfileStagingFormValues>({
@@ -142,20 +174,25 @@ export function useTempleProfile() {
     mode: 'onChange',
   })
 
-  // Prefill logic: staging (preferred) → current → registration contact → empty
+  // Prefill logic: DRAFT/REJECTED use staging; otherwise use temple (main table).
   useEffect(() => {
     if (isLoading) return
-    let source = stagingProfile ?? currentProfile
+    let source: any = null
+    if (profileStatus === 'DRAFT' || profileStatus === 'REJECTED') {
+      source = stagingProfile
+    } else {
+      source = temple ?? stagingProfile
+    }
     if (source) {
       const parsedLinked = normalizeTagList(source.linkedInstitutions)
       const parsedLanguages = normalizeTagList(source.languagesOfWorship)
 
       form.reset({
-        phone: source.phone ?? '',
-        email: source.email ?? '',
-        website: source.website ?? '',
-        contactPersonName: source.contactPersonName ?? '',
-        contactPersonDesignation: source.contactPersonDesignation ?? '',
+        phone: readProfileField(source, 'phone', 'contactMobile') ?? '',
+        email: readProfileField(source, 'email', 'contactEmail') ?? '',
+        website: readProfileField(source, 'website') ?? '',
+        contactPersonName: readProfileField(source, 'contactPersonName', 'contactName') ?? '',
+        contactPersonDesignation: readProfileField(source, 'contactPersonDesignation', 'contactDesignation') ?? '',
         languagesOfWorship: parsedLanguages,
         linkedInstitutions: parsedLinked,
         description: source.description ?? '',
@@ -260,15 +297,15 @@ export function useTempleProfile() {
     if (!templeId) return
     try {
       const prefill: TaProfileStagingRequest = {
-        phone: cleanOptional(currentProfile?.phone),
-        email: cleanOptional(currentProfile?.email),
-        website: cleanOptional(currentProfile?.website),
-        contactPersonName: cleanOptional(currentProfile?.contactPersonName),
-        contactPersonDesignation: cleanOptional(currentProfile?.contactPersonDesignation),
-        languagesOfWorship: serializeTagList(normalizeTagArray(currentProfile?.languagesOfWorship)?.join(', ')),
-        linkedInstitutions: serializeTagList(normalizeTagArray(currentProfile?.linkedInstitutions)?.join(', ')),
-        description: cleanOptional(currentProfile?.description),
-        annualFestivals: cleanOptional(currentProfile?.annualFestivals),
+        phone: cleanOptional(readProfileField(temple, 'phone', 'contactMobile')),
+        email: cleanOptional(readProfileField(temple, 'email', 'contactEmail')),
+        website: cleanOptional(readProfileField(temple, 'website')),
+        contactPersonName: cleanOptional(readProfileField(temple, 'contactPersonName', 'contactName')),
+        contactPersonDesignation: cleanOptional(readProfileField(temple, 'contactPersonDesignation', 'contactDesignation')),
+        languagesOfWorship: serializeTagList(normalizeTagArray(temple?.languagesOfWorship)?.join(', ')),
+        linkedInstitutions: serializeTagList(normalizeTagArray((temple as any)?.linkedInstitutions)?.join(', ')),
+        description: cleanOptional((temple as any)?.description ?? temple?.history),
+        annualFestivals: cleanOptional((temple as any)?.annualFestivals),
       }
       await createOrUpdateDraft({ templeId, body: prefill }).unwrap()
       toast.success('Edit mode activated. A new draft has been created.')
@@ -279,10 +316,10 @@ export function useTempleProfile() {
 
   return {
     profileStatus,
+    profileReviewComment,
     temple,
     talukName,
     hobliName,
-    currentProfile,
     stagingProfile,
     isLoading,
     isError,

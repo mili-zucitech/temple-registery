@@ -103,8 +103,29 @@ public class Temple extends BaseEntity {
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 
+    @Column(name = "website", length = 500)
+    private String website;
+
     @Column(name = "languages_of_worship", length = 255)
     private String languagesOfWorship;
+
+    @Column(name = "linked_institutions", columnDefinition = "JSON")
+    private String linkedInstitutions;
+
+    @Column(name = "annual_festivals", columnDefinition = "TEXT")
+    private String annualFestivals;
+
+    @Column(name = "landmark", length = 500)
+    private String landmark;
+
+    @Column(name = "historical_significance", columnDefinition = "TEXT")
+    private String historicalSignificance;
+
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_ifsc", length = 11)
+    private String bankIfsc;
 
     @Builder.Default
     @Column(name = "trust_registered", nullable = false)
@@ -122,4 +143,28 @@ public class Temple extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 20)
     private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
+
+    // DC Verification Fields
+    @Builder.Default
+    @Column(name = "is_verified_by_dc", nullable = false)
+    private boolean isVerifiedByDc = false;
+
+    @Column(name = "verified_by_dc_at")
+    private java.time.LocalDateTime verifiedByDcAt;
+
+    @Column(name = "verified_by_dc_user_id")
+    private Long verifiedByDcUserId;
+
+    @Builder.Default
+    @Column(name = "is_flagged_by_dc", nullable = false)
+    private boolean isFlaggedByDc = false;
+
+    @Column(name = "flagged_by_dc_at")
+    private java.time.LocalDateTime flaggedByDcAt;
+
+    @Column(name = "flagged_by_dc_user_id")
+    private Long flaggedByDcUserId;
+
+    @Column(name = "dc_rejection_reason", columnDefinition = "TEXT")
+    private String dcRejectionReason;
 }

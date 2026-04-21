@@ -86,11 +86,11 @@ public class TempleFullProfileResponse {
     public static class ProfileCurrentResponse {
         private String contactPersonName;
         private String contactPersonDesignation;
-        private String photoFilePath;
         private String languagesOfWorship;
         private String linkedInstitutions;
         private String annualFestivals;
         private String landmark;
         private String historicalSignificance;
+        private String photoUrl;
     }
 }

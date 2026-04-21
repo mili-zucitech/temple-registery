@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { TaProfileStatus } from '@/features/temple-profile/hooks/templeTypes'
+import { Button } from '@/components/ui/button'
 import type { LucideIcon } from 'lucide-react'
 import {
   CheckCircle2, Clock, FileEdit, XCircle,
@@ -86,6 +87,7 @@ export function StatusBanner({ status, reviewComment, className }: StatusBannerP
             <p className="text-sm text-foreground">{reviewComment}</p>
           </div>
         )}
+        
       </div>
     </div>
   )

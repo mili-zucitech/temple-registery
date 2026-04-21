@@ -109,6 +109,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                 .landmark(staging.getLandmark())
                 .historicalSignificance(staging.getHistoricalSignificance())
                 .publishedAt(LocalDateTime.now())
+                .publishedBy(claims.userId())
                 .build();
         currentRepository.save(newCurrent);
 
@@ -153,12 +154,12 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         staging.setStatus(TempleProfileStagingStatus.REJECTED);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
-        staging.setReviewComment(request.getRemarks());
+        staging.setReviewComment(request.getReason());
         stagingRepository.save(staging);
 
         notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_REJECTED", staging.getTempleId(), "TEMPLE_PROFILE");
         auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
-                "Rejected version " + staging.getVersionNumber() + ": " + request.getRemarks());
+                "Rejected version " + staging.getVersionNumber() + ": " + request.getReason());
 
         return WorkflowActionResponse.builder()
                 .declarationId(staging.getId())

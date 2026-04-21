@@ -26,7 +26,7 @@ public class TempleProfileStagingResponse {
     private String website;
     private String contactPersonName;
     private String contactPersonDesignation;
-    private String photoFilePath;
+    private String photoUrl;
 
     /** Bank account: last 4 digits only (VAL-008). Never echoes full number. */
     private String bankAccountMasked;

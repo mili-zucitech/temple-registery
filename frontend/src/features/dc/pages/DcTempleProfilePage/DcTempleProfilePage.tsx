@@ -248,32 +248,7 @@ export function DcTempleProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                {canAct && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2 h-9 text-xs font-medium border-white/10 bg-white/5 hover:bg-white/10 text-white backdrop-blur-sm transition-all tracking-button"
-                      onClick={() => {
-                        const reason = window.prompt('Reason for flagging this temple?')
-                        if (reason) flagTemple({ id, body: { reason } })
-                      }}
-                    >
-                      <AlertTriangle size={14} />Flag Issue
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="gap-2 h-9 text-xs font-medium shadow-lg bg-gradient-gold hover:scale-105 transition-transform tracking-button"
-                      onClick={() => {
-                        if (window.confirm('Verify this temple identity?')) {
-                          verifyTemple({ id, body: { notes: 'Verified via DC Dashboard' } })
-                        }
-                      }}
-                    >
-                      <Check size={14} />Verify Record
-                    </Button>
-                  </>
-                )}
+                {/* Removed Verify Record and Flag Issue buttons as per new workflow. */}
               </div>
             </div>
           </div>
