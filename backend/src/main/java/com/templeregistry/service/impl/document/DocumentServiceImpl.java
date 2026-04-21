@@ -3,23 +3,32 @@ package com.templeregistry.service.impl.document;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.document.DocumentResponse;
 import com.templeregistry.dto.response.document.DocumentUrlResponse;
+import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.document.Document;
 import com.templeregistry.entity.document.DocumentAccessLog;
+import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.FileValidationException;
 import com.templeregistry.exception.ImmutableResourceException;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.document.DocumentAccessLogRepository;
 import com.templeregistry.repository.document.DocumentRepository;
+import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.repository.trust.TrustRepository;
+import com.templeregistry.security.JurisdictionGuard;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +51,9 @@ public class DocumentServiceImpl implements DocumentService {
     private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
     private final DeclarationRepository declarationRepository;
+    private final TempleRepository templeRepository;
+    private final TrustRepository trustRepository;
+    private final JurisdictionGuard jurisdictionGuard;
 
     @Override
     @Transactional
@@ -70,11 +82,81 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional
     public DocumentUrlResponse getPresignedUrl(Long id) {
         Document doc = findOrThrow(id);
-        String url = fileStorageService.presignedUrl(doc.getS3Key());
-        recordAccess(id, "DOWNLOAD");
+        assertAccess(doc);
+        // Instead of using fileStorageService.presignedUrl which returns a /download?key= URL,
+        // we'll return the spec-compliant /{id}/download URL.
+        String url = "/api/v1/documents/" + id + "/download";
+        recordAccess(id, "DOWNLOAD_URL_GEN");
         return DocumentUrlResponse.builder()
                 .documentId(id).url(url).expiresIn("15 minutes")
                 .generatedAt(LocalDateTime.now()).build();
+    }
+
+    @Override
+    @Transactional
+    public Resource download(Long id) {
+        Document doc = findOrThrow(id);
+        assertAccess(doc);
+        recordAccess(id, "DOWNLOAD");
+        return fileStorageService.loadAsResource(doc.getS3Key());
+    }
+
+    @Override
+    @Transactional
+    public Resource downloadByKey(String key) {
+        Document doc = documentRepository.findByS3Key(key)
+                .orElseThrow(() -> new EntityNotFoundException("Document not found for key", "DOC_NOT_FOUND"));
+        assertAccess(doc);
+        recordAccess(doc.getId(), "DOWNLOAD");
+        return fileStorageService.loadAsResource(doc.getS3Key());
+    }
+
+    private void assertAccess(Document doc) {
+        ScopeHelper.Claims claims = currentClaims();
+        String role = claims.role();
+
+        // SUPER_ADMIN has full access
+        if (RoleConstants.SUPER_ADMIN.equals(role)) return;
+
+        // TEMPLE_AUTHORITY can only access their own temple's documents
+        if (RoleConstants.TEMPLE_AUTHORITY.equals(role)) {
+            Long templeId = resolveTempleId(doc);
+            if (!claims.templeId().equals(templeId)) {
+                throw new AccessDeniedException("Access denied to this document.");
+            }
+            return;
+        }
+
+        // DC/DC_STAFF must be in the same district
+        if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
+            // R11/R16.5 — DC_STAFF receives 403 for download
+            if (RoleConstants.DC_STAFF.equals(role)) {
+                throw new AccessDeniedException("DC Staff are not authorized to download documents.");
+            }
+            
+            Long templeId = resolveTempleId(doc);
+            Temple temple = templeRepository.findWithGeoById(templeId)
+                    .orElseThrow(() -> new EntityNotFoundException("Temple linked to document not found", "TEMPLE_NOT_FOUND"));
+            jurisdictionGuard.assertDistrictScope(temple, claims);
+            return;
+        }
+
+        // Default: deny
+        throw new AccessDeniedException("Unauthorized access.");
+    }
+
+    private Long resolveTempleId(Document doc) {
+        String type = doc.getOwnerType().toUpperCase();
+        return switch (type) {
+            case "TEMPLE" -> doc.getOwnerId();
+            case "DECLARATION" -> declarationRepository.findById(doc.getOwnerId())
+                    .map(AssetDeclaration::getTempleId)
+                    .orElseThrow(() -> new EntityNotFoundException("Declaration linked to document not found", "DECLARATION_NOT_FOUND"));
+            case "TRUST" -> trustRepository.findById(doc.getOwnerId())
+                    .map(Trust::getTempleId)
+                    .orElseThrow(() -> new EntityNotFoundException("Trust linked to document not found", "TRUST_NOT_FOUND"));
+            default -> doc.getOwnerId();
+        };
     }
 
     @Override

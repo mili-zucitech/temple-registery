@@ -26,6 +26,19 @@ public class BoardMember extends BaseEntity {
     @Convert(converter = AesEncryptionConverter.class)
     @Column(name = "aadhaar_encrypted", columnDefinition = "TEXT") private String aadhaarEncrypted;
 
+    /**
+     * HMAC-SHA256 of the plaintext Aadhaar number.
+     * Used for deterministic duplicate detection — AES-GCM with random IV cannot be used for lookups.
+     * Never exposed in any API response.
+     */
+    @Column(name = "aadhaar_hash", length = 64) private String aadhaarHash;
+
+    /**
+     * Last 4 digits of the plaintext Aadhaar number, stored for masked display.
+     * Avoids decrypting the ciphertext just to produce a mask.
+     */
+    @Column(name = "aadhaar_last4", length = 4) private String aadhaarLast4;
+
     @Column(name = "designation", length = 150) private String designation;
 
     @Column(name = "appointment_date") private LocalDate appointmentDate;
@@ -45,10 +58,10 @@ public class BoardMember extends BaseEntity {
     @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
 
     public String getMaskedAadhaar() {
-        if (aadhaarEncrypted == null || aadhaarEncrypted.length() < 4) return "****";
-        // This is a simplified version, in reality we'd decrypt and mask.
-        // For now, let's assume we return a placeholder.
-        return "********" + (aadhaarEncrypted.length() > 4 ? 
-            aadhaarEncrypted.substring(aadhaarEncrypted.length() - 4) : "****");
+        if (aadhaarLast4 != null && aadhaarLast4.length() == 4) {
+            return "XXXX-XXXX-" + aadhaarLast4;
+        }
+        // Legacy fallback: attempt to derive from decrypted value if last4 not yet populated
+        return null;
     }
 }

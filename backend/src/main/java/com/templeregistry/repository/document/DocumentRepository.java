@@ -12,4 +12,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     Page<Document> findAllByOwnerTypeAndOwnerId(String ownerType, Long ownerId, Pageable pageable);
 
     List<Document> findAllByReferenceId(Long referenceId);
+
+    java.util.Optional<Document> findByS3Key(String s3Key);
 }

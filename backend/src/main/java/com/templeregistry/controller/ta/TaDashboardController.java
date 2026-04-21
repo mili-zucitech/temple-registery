@@ -10,6 +10,7 @@ import com.templeregistry.dto.response.ta.TaDocumentResponse;
 import com.templeregistry.dto.response.ta.TaProfileStatusResponse;
 import com.templeregistry.dto.response.temple.TempleProfileStagingResponse;
 import com.templeregistry.dto.response.temple.TempleResponse;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.ta.TaDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/ta")
 @RequiredArgsConstructor
 @Tag(name = "Temple Authority Dashboard", description = "Self-service APIs for Temple Authority users")
+@PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
 public class TaDashboardController {
 
     private final TaDashboardService taDashboardService;

@@ -247,11 +247,11 @@ public class DcExportServiceImpl implements DcExportService {
     private ExportJobResponse submitAsyncTempleExport(String jobId, Long districtId,
                                                        long rowCount, ScopeHelper.Claims claims, String format) {
         try {
-            asyncExportBean.exportTemplesAsync(jobId, districtId, claims.userId());
+            asyncExportBean.exportTemplesAsync(jobId, districtId, claims.userId(), format);
         } catch (RejectedExecutionException e) {
             throw new ExportQueueFullException();
         }
-        log.info("Async temple export queued: jobId={} rows={}", jobId, rowCount);
+        log.info("Async temple export queued: jobId={} rows={} format={}", jobId, rowCount, format);
         return ExportJobResponse.builder()
                 .jobId(jobId).format(format != null ? format : "CSV").status("ASYNC_ACCEPTED")
                 .downloadUrl(null).recordCount((int) rowCount)
@@ -261,11 +261,11 @@ public class DcExportServiceImpl implements DcExportService {
     private ExportJobResponse submitAsyncDeclarationExport(String jobId, Long districtId,
                                                             long rowCount, ScopeHelper.Claims claims, String format) {
         try {
-            asyncExportBean.exportDeclarationsAsync(jobId, districtId, claims.userId());
+            asyncExportBean.exportDeclarationsAsync(jobId, districtId, claims.userId(), format);
         } catch (RejectedExecutionException e) {
             throw new ExportQueueFullException();
         }
-        log.info("Async declaration export queued: jobId={} rows={}", jobId, rowCount);
+        log.info("Async declaration export queued: jobId={} rows={} format={}", jobId, rowCount, format);
         return ExportJobResponse.builder()
                 .jobId(jobId).format(format != null ? format : "CSV").status("ASYNC_ACCEPTED")
                 .downloadUrl(null).recordCount((int) rowCount)

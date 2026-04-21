@@ -6,15 +6,18 @@ import com.templeregistry.dto.response.dc.ClarificationItemResponse;
 import com.templeregistry.dto.response.declaration.*;
 import com.templeregistry.entity.declaration.*;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.JurisdictionAccessDeniedException;
 import com.templeregistry.repository.declaration.*;
 import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
@@ -54,6 +57,8 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final NotificationEventPublisher notificationPublisher;
     private final PaginationUtil paginationUtil;
     private final AuditService auditService;
+    private final GovernanceAuditService governanceAuditService;
+    private final UserRepository userRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Override
@@ -260,6 +265,19 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
 
         saveClarification(id, rq.getCorrectionNotes(), ClarificationDirection.TEMPLE_TO_DC);
+
+        // Notify all DCs and DC Staff in the temple's district
+        userRepository.findAllByRoleAndDistrictId(UserRole.DISTRICT_COLLECTOR, d.getDistrictId())
+                .forEach(dc -> notificationPublisher.publish(dc.getId(), "DECLARATION_RESUBMITTED", 
+                        d.getId(), "ASSET_DECLARATION"));
+        
+        userRepository.findAllByRoleAndDistrictId(UserRole.DC_STAFF, d.getDistrictId())
+                .forEach(staff -> notificationPublisher.publish(staff.getId(), "DECLARATION_RESUBMITTED", 
+                        d.getId(), "ASSET_DECLARATION"));
+
+        governanceAuditService.logAction(id, "DECLARATION", currentUserId(), "RESUBMIT", 
+                "Temple authority resubmitted declaration version " + d.getVersionNumber());
+
         log.info("Declaration [{}] resubmitted. New version: {}", id, d.getVersionNumber());
     }
 

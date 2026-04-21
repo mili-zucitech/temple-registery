@@ -3,9 +3,9 @@ import { configureStore } from '@reduxjs/toolkit'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement, ReactNode } from 'react'
-import { rootReducer } from '@/app/rootReducer'
-import { authApi } from '@/features/auth/authApi'
-import { declarationApi } from '@/features/declaration/declarationApi'
+import { rootReducer } from '../../app/rootReducer'
+import { authApi } from '../../features/auth/authApi'
+import { declarationApi } from '../../features/declaration/declarationApi'
 
 function buildTestStore(preloadedState?: Parameters<typeof configureStore>[0]['preloadedState']) {
   return configureStore({

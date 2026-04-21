@@ -24,6 +24,18 @@ public interface DocumentService {
      */
     DocumentUrlResponse getPresignedUrl(Long id);
 
+    /**
+     * Load the document as a resource for download.
+     * Enforces security checks and records access.
+     */
+    org.springframework.core.io.Resource download(Long id);
+
+    /**
+     * Load the document as a resource for download using the s3Key.
+     * Enforces security checks and records access.
+     */
+    org.springframework.core.io.Resource downloadByKey(String key);
+
     PaginatedResponse<DocumentResponse> listByOwner(String ownerType, Long ownerId, int page, int size);
 
     /** Soft-deletes the DB record; does NOT delete the S3 object (retain for audit). */

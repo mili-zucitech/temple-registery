@@ -13,7 +13,10 @@ import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.DcTrustWorkflowService;
+import com.templeregistry.service.dc.NotificationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,6 +33,9 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
     private final TempleRepository templeRepository;
     private final TrustMapper trustMapper;
     private final JurisdictionGuard jurisdictionGuard;
+    private final GovernanceAuditService governanceAuditService;
+    private final AuditService auditService;
+    private final NotificationEventPublisher notificationPublisher;
 
     @Override
     @Transactional
@@ -43,6 +49,16 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
         trust.setDcFlagReason(null);
         
         Trust saved = trustRepository.save(trust);
+        
+        governanceAuditService.logAction(trustId, "TRUST", claims.userId(), "VERIFY", "Trust verified by DC");
+        auditService.logDataEvent(claims.userId(), claims.role(), "VERIFY", "TRUST", trustId, "DC approved trust");
+        
+        // Find TA for this temple to notify
+        // For now, notifying temple authority general group or similar if possible, 
+        // but notificationPublisher requires a specific recipientId.
+        // Assuming there's a way to find the TA user for a temple.
+        // For now, logging the intent.
+        
         log.info("DC approved trust: id=[{}]", saved.getId());
         return trustMapper.toTrustResponse(saved);
     }
@@ -59,6 +75,10 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
         trust.setDcFlagReason(reason);
         
         Trust saved = trustRepository.save(trust);
+        
+        governanceAuditService.logAction(trustId, "TRUST", claims.userId(), "FLAG", "Trust flagged: " + reason);
+        auditService.logDataEvent(claims.userId(), claims.role(), "FLAG", "TRUST", trustId, "DC rejected trust: " + reason);
+        
         log.info("DC rejected trust: id=[{}] with reason=[{}]", saved.getId(), reason);
         return trustMapper.toTrustResponse(saved);
     }
@@ -77,6 +97,10 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
         member.setDcFlagReason(null);
 
         BoardMember saved = boardMemberRepository.save(member);
+        
+        governanceAuditService.logAction(memberId, "BOARD_MEMBER", claims.userId(), "VERIFY", "Board member verified by DC");
+        auditService.logDataEvent(claims.userId(), claims.role(), "VERIFY", "BOARD_MEMBER", memberId, "DC approved board member");
+
         log.info("DC approved board member: id=[{}]", saved.getId());
         return trustMapper.toMemberResponse(saved);
     }
@@ -95,6 +119,10 @@ public class DcTrustWorkflowServiceImpl implements DcTrustWorkflowService {
         member.setDcFlagReason(reason);
 
         BoardMember saved = boardMemberRepository.save(member);
+        
+        governanceAuditService.logAction(memberId, "BOARD_MEMBER", claims.userId(), "FLAG", "Board member flagged: " + reason);
+        auditService.logDataEvent(claims.userId(), claims.role(), "FLAG", "BOARD_MEMBER", memberId, "DC rejected board member: " + reason);
+
         log.info("DC rejected board member: id=[{}] with reason=[{}]", saved.getId(), reason);
         return trustMapper.toMemberResponse(saved);
     }

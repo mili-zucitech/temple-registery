@@ -1,8 +1,8 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
-import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
+import { baseQueryWithReauth } from '../../services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
-  TrustResponse, BoardMemberResponse, TrustFinancialResponse, BoardMeetingResponse,
+  TrustResponse, BoardMemberResponse, TrustFinancialResponse, BoardMeetingResponse, BoardMemberGroupResponse,
   CreateTrustRequest, CreateBoardMemberRequest, UpdateBoardMemberRequest,
   SubmitTrustFinancialRequest, CreateBoardMeetingRequest,
 } from './trustTypes'
@@ -12,7 +12,7 @@ export const trustApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Trust', 'BoardMember', 'TrustFinancial', 'BoardMeeting'],
   endpoints: (builder) => ({
-    getTrustByTemple: builder.query<ApiResponse<TrustResponse>, number>({
+    getTrustByTemple: builder.query<ApiResponse<TrustResponse[]>, number>({
       query: (templeId) => `/temples/${templeId}/trusts`,
       providesTags: (_r, _e, templeId) => [{ type: 'Trust', id: templeId }],
     }),
@@ -27,8 +27,8 @@ export const trustApi = createApi({
 
     // ── Board Members ─────────────────────────────────────────────────────────
 
-    getBoardMembers: builder.query<ApiResponse<PaginatedResponse<BoardMemberResponse>>, { trustId: number; page?: number; size?: number }>({
-      query: ({ trustId, page = 0, size = 10 }) => ({ url: `/trusts/${trustId}/board-members`, params: { page, size } }),
+    getBoardMembers: builder.query<ApiResponse<BoardMemberGroupResponse>, { trustId: number; current?: boolean }>({
+      query: ({ trustId, current }) => ({ url: `/trusts/${trustId}/board-members`, params: current === undefined ? undefined : { current } }),
       providesTags: (_r, _e, { trustId }) => [{ type: 'BoardMember', id: trustId }],
     }),
     addBoardMember: builder.mutation<ApiResponse<BoardMemberResponse>, { trustId: number; body: CreateBoardMemberRequest }>({
@@ -36,14 +36,18 @@ export const trustApi = createApi({
       invalidatesTags: (_r, _e, { trustId }) => [{ type: 'BoardMember', id: trustId }],
     }),
     updateBoardMember: builder.mutation<ApiResponse<BoardMemberResponse>, { memberId: number; trustId: number; body: UpdateBoardMemberRequest }>({
-      query: ({ memberId, body }) => ({ url: `/trusts/board-members/${memberId}`, method: 'PUT', body }),
+      query: ({ memberId, trustId, body }) => ({ url: `/trusts/${trustId}/board-members/${memberId}`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, { trustId }) => [{ type: 'BoardMember', id: trustId }],
+    }),
+    deleteBoardMember: builder.mutation<ApiResponse<void>, { memberId: number; trustId: number }>({
+      query: ({ memberId, trustId }) => ({ url: `/trusts/${trustId}/board-members/${memberId}`, method: 'DELETE' }),
       invalidatesTags: (_r, _e, { trustId }) => [{ type: 'BoardMember', id: trustId }],
     }),
 
     // ── Trust Financials ──────────────────────────────────────────────────────
 
-    listFinancials: builder.query<ApiResponse<PaginatedResponse<TrustFinancialResponse>>, { trustId: number; page?: number; size?: number }>({
-      query: ({ trustId, page = 0, size = 10 }) => ({ url: `/trusts/${trustId}/financials`, params: { page, size } }),
+    listFinancials: builder.query<ApiResponse<TrustFinancialResponse[]>, { trustId: number }>({
+      query: ({ trustId }) => ({ url: `/trusts/${trustId}/financials` }),
       providesTags: (_r, _e, { trustId }) => [{ type: 'TrustFinancial', id: trustId }],
     }),
     submitFinancial: builder.mutation<ApiResponse<TrustFinancialResponse>, { trustId: number; body: SubmitTrustFinancialRequest }>({
@@ -54,15 +58,19 @@ export const trustApi = createApi({
     // ── Board Meetings ────────────────────────────────────────────────────────
 
     listBoardMeetings: builder.query<ApiResponse<PaginatedResponse<BoardMeetingResponse>>, { trustId: number; page?: number; size?: number }>({
-      query: ({ trustId, page = 0, size = 10 }) => ({ url: `/trusts/${trustId}/board-meetings`, params: { page, size } }),
+      query: ({ trustId, page = 0, size = 10 }) => ({ url: `/trusts/${trustId}/meetings`, params: { page, size } }),
       providesTags: (_r, _e, { trustId }) => [{ type: 'BoardMeeting', id: trustId }],
     }),
-    getBoardMeeting: builder.query<ApiResponse<BoardMeetingResponse>, number>({
-      query: (meetingId) => `/trusts/board-meetings/${meetingId}`,
-      providesTags: (_r, _e, id) => [{ type: 'BoardMeeting', id }],
+    getBoardMeeting: builder.query<ApiResponse<BoardMeetingResponse>, { trustId: number; meetingId: number }>({
+      query: ({ trustId, meetingId }) => `/trusts/${trustId}/meetings/${meetingId}`,
+      providesTags: (_r, _e, { meetingId }) => [{ type: 'BoardMeeting', id: meetingId }],
     }),
     createBoardMeeting: builder.mutation<ApiResponse<BoardMeetingResponse>, { trustId: number; body: CreateBoardMeetingRequest }>({
-      query: ({ trustId, body }) => ({ url: `/trusts/${trustId}/board-meetings`, method: 'POST', body }),
+      query: ({ trustId, body }) => ({ url: `/trusts/${trustId}/meetings`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, { trustId }) => [{ type: 'BoardMeeting', id: trustId }],
+    }),
+    uploadMeetingMinutes: builder.mutation<ApiResponse<BoardMeetingResponse>, { trustId: number; meetingId: number; body: FormData }>({
+      query: ({ trustId, meetingId, body }) => ({ url: `/trusts/${trustId}/meetings/${meetingId}/minutes`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { trustId }) => [{ type: 'BoardMeeting', id: trustId }],
     }),
   }),
@@ -70,7 +78,7 @@ export const trustApi = createApi({
 
 export const {
   useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation,
-  useGetBoardMembersQuery, useAddBoardMemberMutation, useUpdateBoardMemberMutation,
+  useGetBoardMembersQuery, useAddBoardMemberMutation, useUpdateBoardMemberMutation, useDeleteBoardMemberMutation,
   useListFinancialsQuery, useSubmitFinancialMutation,
-  useListBoardMeetingsQuery, useGetBoardMeetingQuery, useCreateBoardMeetingMutation,
+  useListBoardMeetingsQuery, useGetBoardMeetingQuery, useCreateBoardMeetingMutation, useUploadMeetingMinutesMutation,
 } = trustApi

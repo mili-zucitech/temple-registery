@@ -1,7 +1,8 @@
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock } from 'lucide-react'
+import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock, CheckCircle2, Flag } from 'lucide-react'
 import { useMemo } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { ModuleStatusBadge, deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatList } from '../utils'
 import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
@@ -234,17 +235,63 @@ export function OverviewTab({
             </SectionCard>
           </div>
 
-          {/* Governance Panel */}
-          <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
-            <GovernanceActionPanel
-              entityName="Temple Oversight"
-              isVerified={temple.verificationStatus === 'VERIFIED'}
-              flagReason={temple.verificationStatus === 'FLAGGED' ? 'Flagged' : null}
-              canAct={canAct}
-              onVerify={onVerifyTemple}
-              onFlag={onFlagTemple}
-            />
-          </div>
+          {/* Temple Oversight — same PENDING/VERIFIED/FLAGGED pattern as all other modules */}
+          {(() => {
+            const templeStatus = deriveModuleStatus(
+              temple.verificationStatus === 'VERIFIED',
+              temple.verificationStatus === 'FLAGGED' ? (temple.dcFlagReason ?? 'Flagged by DC') : null
+            )
+            return (
+              <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+                {templeStatus === 'PENDING' ? (
+                  <GovernanceActionPanel
+                    entityName="Temple Oversight"
+                    isVerified={false}
+                    flagReason={null}
+                    canAct={canAct}
+                    onVerify={onVerifyTemple}
+                    onFlag={onFlagTemple}
+                  />
+                ) : templeStatus === 'VERIFIED' ? (
+                  <div className="flex items-center gap-3 px-5 py-4">
+                    <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-800">Temple verified by District Collector</p>
+                      <p className="text-xs text-emerald-700/70 mt-0.5">Identity and registration records have been audited.</p>
+                    </div>
+                    {canAct && (
+                      <button
+                        className="ml-auto text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+                        onClick={() => onFlagTemple('')}
+                      >
+                        Flag issue
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="px-5 py-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Flag size={16} className="text-red-600 shrink-0" />
+                      <p className="text-sm font-semibold text-red-800">Temple flagged by District Collector</p>
+                    </div>
+                    {temple.dcFlagReason && (
+                      <p className="text-xs text-red-700 pl-7">{temple.dcFlagReason}</p>
+                    )}
+                    {canAct && (
+                      <div className="pl-7">
+                        <button
+                          className="text-xs text-red-700 underline underline-offset-2 hover:text-red-900"
+                          onClick={() => onVerifyTemple('')}
+                        >
+                          Mark as verified
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Sidebar (Right) */}

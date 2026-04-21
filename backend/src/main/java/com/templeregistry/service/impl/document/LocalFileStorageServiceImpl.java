@@ -4,6 +4,8 @@ import com.templeregistry.exception.FileValidationException;
 import com.templeregistry.service.document.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,6 +46,24 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
     @Override
     public String presignedUrl(String filePath) {
         return "/api/v1/documents/download?key=" + filePath;
+    }
+
+    @Override
+    public Resource loadAsResource(String filePath) {
+        Path base = Path.of(baseDir).toAbsolutePath().normalize();
+        Path target = base.resolve(filePath).normalize();
+
+        if (!target.startsWith(base)) {
+            log.warn("Path traversal attempt blocked on load: [{}]", filePath);
+            throw new FileValidationException("Invalid file path");
+        }
+
+        Resource resource = new FileSystemResource(target);
+        if (!resource.exists()) {
+            log.warn("File not found: [{}]", target);
+            throw new FileValidationException("File not found");
+        }
+        return resource;
     }
 
     @Override

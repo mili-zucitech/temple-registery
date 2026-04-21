@@ -1,6 +1,6 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
-import { setAccessToken, clearCurrentUser } from '@/features/auth/authSlice'
+import { setAccessToken, clearCurrentUser } from '../features/auth/authSlice'
 
 // Inline type to avoid store → authApi → baseQueryWithReauth → store circular dep
 type StateWithAuth = { auth: { accessToken: string | null } }

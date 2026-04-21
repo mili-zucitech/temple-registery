@@ -10,4 +10,7 @@ import java.util.Optional;
 public interface TrustRepository extends JpaRepository<Trust, Long> {
     List<Trust> findAllByTempleId(Long templeId);
     Optional<Trust> findByIdAndTempleId(Long id, Long templeId);
+    Optional<Trust> findByTrustRegistrationNumberIgnoreCase(String registrationNumber);
+    Optional<Trust> findByTrustPANNumberIgnoreCase(String trustPANNumber);
+    boolean existsByTempleIdAndIsDeletedFalse(Long templeId);
 }

@@ -3,12 +3,14 @@ package com.templeregistry.controller.dc;
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.notification.NotificationResponse;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.NotificationQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/notifications")
 @RequiredArgsConstructor
 @Tag(name = "DC Notifications", description = "DC portal in-app notification inbox")
+@PreAuthorize(RoleConstants.CAN_READ_ALL)
 public class DcNotificationController {
 
     private final NotificationQueryService notificationQueryService;

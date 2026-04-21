@@ -1,25 +1,63 @@
-import { Clock, Users, Phone, MapPin, Hash, CheckCircle2 } from 'lucide-react'
+import { Users, CheckCircle2, Flag, Clock, Hash, Phone, MapPin } from 'lucide-react'
+import { useMemo } from 'react'
 import { SectionCard } from '../components'
-import { Button } from '@/components/ui/button'
+import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { ModuleStatusBadge, deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { cn } from '@/lib/utils'
 import type { EmployeeSummary } from '@/features/dc/dcTypes'
 
 interface StaffTabProps {
   employees: EmployeeSummary[]
   canAct: boolean
-  onVerifyEmployee: (id: number) => void
+  templeId: number
+  /** Called once for the whole module — NOT per employee. */
+  onVerifyStaff: (notes: string) => Promise<void>
+  /** Called once for the whole module — NOT per employee. */
+  onFlagStaff: (reason: string) => Promise<void>
 }
 
-export function StaffTab({ employees, canAct, onVerifyEmployee }: StaffTabProps) {
+/**
+ * Staff tab — module-level verification.
+ *
+ * ONE GovernanceActionPanel for the entire Staff module.
+ * No per-employee verify/flag buttons.
+ * No API loops.
+ *
+ * Module status rules:
+ *   - Any employee flagged → FLAGGED
+ *   - All employees verified → VERIFIED
+ *   - Otherwise → PENDING
+ *
+ * Oversight block is shown ONLY when status === PENDING.
+ * After TA edits any employee (backend resets isVerifiedByDc), status returns to PENDING
+ * and the oversight block reappears automatically on next profile load.
+ */
+export function StaffTab({ employees, canAct, onVerifyStaff, onFlagStaff }: StaffTabProps) {
+  const moduleStatus: ModuleVerificationStatus = useMemo(() => {
+    if (employees.length === 0) return 'PENDING'
+    if (employees.some(e => e.dcFlagReason)) return 'FLAGGED'
+    if (employees.every(e => e.isVerifiedByDc)) return 'VERIFIED'
+    return 'PENDING'
+  }, [employees])
+
+  const moduleFlagReason = useMemo(
+    () => employees.find(e => e.dcFlagReason)?.dcFlagReason ?? null,
+    [employees]
+  )
+
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500 space-y-4">
       <SectionCard
         title="Temple Workforce"
         icon={<Users size={18} />}
         action={
-          <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-            {employees.length} Members
-          </span>
+          employees.length > 0
+            ? <ModuleStatusBadge status={moduleStatus} />
+            : (
+              <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
+                0 Members
+              </span>
+            )
         }
       >
         {employees.length === 0 ? (
@@ -28,90 +66,113 @@ export function StaffTab({ employees, canAct, onVerifyEmployee }: StaffTabProps)
               <Users size={32} className="text-slate-300" />
             </div>
             <p className="text-sm font-semibold text-slate-900 mb-2">No workforce records</p>
-            <p className="text-xs font-regular text-slate-500 max-w-[280px]">Employee details have not been registered for this temple.</p>
+            <p className="text-xs text-slate-500 max-w-[280px]">Employee details have not been registered for this temple.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-5 -mb-5">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Employee</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden sm:table-cell">Designation & Type</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden md:table-cell">Contact & Address</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden lg:table-cell">Salary & Heritage</th>
-                  <th className="px-5 py-4 text-right text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Status & Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {employees.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-sm text-slate-900 group-hover:text-primary transition-colors">{e.fullName || '—'}</div>
-                      <div className="mt-2 space-y-1">
-                        <div className="text-xs text-slate-500 font-regular flex items-center gap-1.5">
-                          <Hash size={10} className="text-slate-400" /> {e.employeeRef || 'No Ref ID'}
-                        </div>
-                        <div className="text-xs text-slate-500 font-regular flex items-center gap-1.5">
-                          <Clock size={10} className="text-slate-400" /> Joined {e.dateOfJoining ? new Date(e.dateOfJoining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Unknown'}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 hidden sm:table-cell">
-                      <div className="text-sm text-slate-700 font-semibold">{e.designation || '—'}</div>
-                      <div className="mt-2">
-                        <span className="text-xs font-medium uppercase tracking-label px-2.5 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          {e.employeeType || '—'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 hidden md:table-cell">
-                      <div className="space-y-1.5">
-                        {e.mobile && (
-                          <div className="text-xs text-slate-600 font-regular flex items-center gap-1.5">
-                            <Phone size={11} className="text-slate-400" /> {e.mobile}
-                          </div>
-                        )}
-                        {e.address && (
-                          <div className="text-xs text-slate-500 flex items-start gap-1.5 max-w-[200px] leading-tight font-regular">
-                            <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" /> {e.address}
-                          </div>
-                        )}
-                        {!e.mobile && !e.address && <span className="text-xs text-slate-400 italic font-regular">No contact details</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 hidden lg:table-cell">
-                      <div className="text-sm text-slate-600 font-semibold">Grade: {e.salaryGrade || '—'}</div>
-                      <div className="text-xs text-slate-500 mt-1.5 font-regular">
-                        Hereditary: <span className={cn("font-semibold", e.isHereditary ? "text-primary" : "text-slate-700")}>{e.isHereditary ? 'Yes' : 'No'}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex flex-col items-end gap-2">
-                        <span className={cn(
-                          "text-xs font-medium uppercase tracking-label px-3 py-1.5 rounded border",
-                          e.status === 'ACTIVE'
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                            : "bg-slate-100 text-slate-600 border-slate-200"
-                        )}>
-                          {e.status || '—'}
-                        </span>
-                        {canAct && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs font-medium uppercase tracking-button px-3 hover:bg-emerald-50 hover:text-emerald-700 border border-transparent hover:border-emerald-200 transition-all rounded-lg"
-                            onClick={() => onVerifyEmployee(e.id)}
-                          >
-                            <CheckCircle2 size={12} className="mr-1" /> VERIFY
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+          <>
+            {/* Employee list — read-only display, no action buttons per row */}
+            <div className="overflow-x-auto -mx-5 -mt-1">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Employee</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden sm:table-cell">Designation</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden md:table-cell">Contact</th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {employees.map((e) => {
+                    const itemStatus = deriveModuleStatus(e.isVerifiedByDc, e.dcFlagReason)
+                    return (
+                      <tr key={e.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-4">
+                          <div className="font-semibold text-sm text-slate-900">{e.fullName}</div>
+                          <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                            <Hash size={10} className="text-slate-400" /> {e.employeeRef || 'No Ref'}
+                          </div>
+                          {e.dateOfJoining && (
+                            <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <Clock size={10} /> Joined {new Date(e.dateOfJoining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                            </div>
+                          )}
+                          {e.dcFlagReason && (
+                            <div className="text-xs text-red-600 mt-1">⚑ {e.dcFlagReason}</div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 hidden sm:table-cell">
+                          <div className="text-sm text-slate-700 font-semibold">{e.designation || '—'}</div>
+                          <span className="text-xs font-medium uppercase tracking-label px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 mt-1 inline-block">
+                            {e.employeeType || '—'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 hidden md:table-cell">
+                          {e.mobile && (
+                            <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                              <Phone size={10} className="text-slate-400" /> {e.mobile}
+                            </div>
+                          )}
+                          {e.address && (
+                            <div className="text-xs text-slate-500 flex items-start gap-1.5 max-w-[180px] leading-tight mt-1">
+                              <MapPin size={10} className="text-slate-400 mt-0.5 shrink-0" /> {e.address}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className={cn(
+                              'text-xs font-medium uppercase tracking-label px-2.5 py-1 rounded border',
+                              e.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            )}>
+                              {e.status}
+                            </span>
+                            <ModuleStatusBadge status={itemStatus} className="text-[10px] py-0.5 px-2" />
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Module-level oversight block ─────────────────────────────── */}
+            {/* ONE block for the whole Staff module. Shown ONLY when PENDING. */}
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              {moduleStatus === 'PENDING' && (
+                <GovernanceActionPanel
+                  entityName="Staff Module"
+                  isVerified={false}
+                  flagReason={null}
+                  canAct={canAct}
+                  onVerify={onVerifyStaff}
+                  onFlag={onFlagStaff}
+                />
+              )}
+              {moduleStatus === 'VERIFIED' && (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800">Staff module verified</p>
+                    <p className="text-xs text-emerald-700/70 mt-0.5">All employee records have been audited and approved.</p>
+                  </div>
+                </div>
+              )}
+              {moduleStatus === 'FLAGGED' && (
+                <div className="rounded-xl border border-red-100 bg-red-50/40 px-5 py-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <Flag size={16} className="text-red-600 shrink-0" />
+                    <p className="text-sm font-semibold text-red-800">Staff module flagged</p>
+                  </div>
+                  {moduleFlagReason && (
+                    <p className="text-xs text-red-700 pl-7">{moduleFlagReason}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </SectionCard>
     </div>

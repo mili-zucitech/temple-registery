@@ -4,7 +4,6 @@ import com.templeregistry.dto.response.contractor.ContractorResponse;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.dto.response.temple.TempleResponse;
-import com.templeregistry.dto.response.trust.BoardMemberResponse;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -35,8 +34,8 @@ public class TempleFullProfileResponse {
     // Trust details (null if not registered)
     private DcTrustSummary trust;
 
-    // Board members (current)
-    private List<BoardMemberResponse> boardMembers;
+    // Board members, separated by derived current/past status
+    private BoardMemberSection boardMembers;
 
     // Financial summaries (most recent year first)
     private List<TrustFinancialSummary> trustFinancials;
@@ -71,6 +70,35 @@ public class TempleFullProfileResponse {
         private String bankName;
         private String bankBranch;
         private BigDecimal annualIncome;
+        private boolean isVerifiedByDc;
+        private String dcFlagReason;
+        private String reviewStatus;
+        private List<String> validationIssues;
+        private String financialStatus;
+    }
+
+    @Getter
+    @Builder
+    public static class BoardMemberSection {
+        private List<BoardMemberSummary> current;
+        private List<BoardMemberSummary> past;
+        private List<String> validationIssues;
+    }
+
+    @Getter
+    @Builder
+    public static class BoardMemberSummary {
+        private Long id;
+        private String fullName;
+        private String designation;
+        private String contactNumber;
+        private String maskedAadhaar;
+        private LocalDate appointmentDate;
+        private LocalDate tenureEndDate;
+        private String address;
+        private boolean isCurrent;
+        private boolean isVerifiedByDc;
+        private String dcFlagReason;
     }
 
     @Getter
@@ -84,11 +112,18 @@ public class TempleFullProfileResponse {
     @Getter
     @Builder
     public static class ProfileCurrentResponse {
+        private String phone;
+        private String email;
+        private String website;
         private String contactPersonName;
         private String contactPersonDesignation;
         private String photoFilePath;
+        private String bankName;
+        private String bankAccountMasked;
+        private String bankIfsc;
         private String languagesOfWorship;
         private String linkedInstitutions;
+        private String description;
         private String annualFestivals;
         private String landmark;
         private String historicalSignificance;
