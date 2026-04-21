@@ -1,5 +1,4 @@
 import { combineReducers } from '@reduxjs/toolkit'
-<<<<<<< HEAD
 import { authApi } from '@/features/auth/authApi'
 import { geoApi } from '@/features/geo/geoApi'
 import { trustApi } from '@/features/trust/trustApi'
@@ -16,24 +15,6 @@ import templeReducer from '@/features/temple-profile/hooks/templeSlice'
 import declarationReducer from '@/features/declaration/declarationSlice'
 import notificationReducer from '@/features/notification/notificationSlice'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
-=======
-import { authApi } from '../features/auth/authApi'
-import { geoApi } from '../features/geo/geoApi'
-import { templeApi } from '../features/temple/templeApi'
-import { trustApi } from '../features/trust/trustApi'
-import { employeeApi } from '../features/employee/employeeApi'
-import { contractorApi } from '../features/contractor/contractorApi'
-import { declarationApi } from '../features/declaration/declarationApi'
-import { documentApi } from '../features/document/documentApi'
-import { notificationApi } from '../features/notification/notificationApi'
-import { exportApi } from '../features/export/exportApi'
-import { adminApi } from '../features/admin/adminApi'
-import { dcApi } from '../features/dc/dcApi'
-import authReducer from '../features/auth/authSlice'
-import templeReducer from '../features/temple/templeSlice'
-import declarationReducer from '../features/declaration/declarationSlice'
-import notificationReducer from '../features/notification/notificationSlice'
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
 
 export const rootReducer = combineReducers({
   // RTK Query caches
