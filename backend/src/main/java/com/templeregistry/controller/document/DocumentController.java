@@ -88,19 +88,7 @@ public class DocumentController {
         return buildDownloadResponse(resource, doc.getOriginalFilename(), doc.getMimeType());
     }
 
-    @GetMapping("/download")
-    @Operation(summary = "Download a document using its internal storage key (legacy support for generated URLs).")
-    public ResponseEntity<Resource> downloadByKey(@RequestParam String key) {
-        Resource resource = documentService.downloadByKey(key);
-        // Note: We don't have the original filename easily available from just the key without a DB lookup.
-        // downloadByKey handles the DB lookup and security check internally.
-        // We'll just use a generic name or find the document again.
-        // Actually, documentService.downloadByKey can be improved to return a wrapper.
-        // For now, let's just use the key's last part.
-        String filename = key.substring(key.lastIndexOf("/") + 1);
-        return buildDownloadResponse(resource, filename, MediaType.APPLICATION_OCTET_STREAM_VALUE);
-    }
-
+   
     private ResponseEntity<Resource> buildDownloadResponse(Resource resource, String filename, String mimeType) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mimeType))

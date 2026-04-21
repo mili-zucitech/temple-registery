@@ -1,19 +1,12 @@
-<<<<<<< HEAD
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock, Image } from 'lucide-react'
-import { useMemo } from 'react'
-import { SectionCard, DetailItem, KpiCard } from '../components'
-import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
-import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
-=======
 import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, AlertCircle, Check, X, Clock, CheckCircle2, Flag } from 'lucide-react'
 import { useMemo } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ModuleStatusBadge, deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
 import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
+import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
@@ -197,7 +190,6 @@ export function OverviewTab({
           {/* Temple Photo Gallery */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-              <Image size={18} className="text-slate-500" />
               <h2 className="text-xs font-medium text-slate-900 uppercase tracking-label">Temple Photo Gallery</h2>
             </div>
             <div className="p-6">
