@@ -33,7 +33,25 @@ public class TempleResponse {
     private String contactMobile;
     private String contactEmail;
     private String photoUrl;
+    private String website;
     private String languagesOfWorship;
+    private String linkedInstitutions;
+    private String annualFestivals;
+    private String landmark;
+    private String historicalSignificance;
+    private String bankName;
+    private String bankIfsc;
     private boolean trustRegistered;
     private String assetDeclarationStatus;
+    private String status;
+    private String verificationStatus;
+    
+    // DC Verification Fields
+    private boolean isVerifiedByDc;
+    private java.time.LocalDateTime verifiedByDcAt;
+    private Long verifiedByDcUserId;
+    private boolean isFlaggedByDc;
+    private java.time.LocalDateTime flaggedByDcAt;
+    private Long flaggedByDcUserId;
+    private String dcRejectionReason;
 }

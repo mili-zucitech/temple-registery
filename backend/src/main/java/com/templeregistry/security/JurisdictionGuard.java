@@ -53,6 +53,7 @@ public class JurisdictionGuard {
      * so the error is surfaced as a data integrity alert, not an uncaught NPE.
      *
      * For SUPER_ADMIN principals: returns immediately without any restriction.
+     * For TEMPLE_AUTHORITY principals: returns immediately (ownership is checked separately).
      * For DISTRICT_COLLECTOR and DC_STAFF: if districtId is null, throws
      * IllegalStateException (corrupted JWT per R4 — never a valid bypass).
      *
@@ -64,10 +65,13 @@ public class JurisdictionGuard {
     public void assertDistrictScope(Temple temple, ScopeHelper.Claims claims) {
         String role = claims.role();
 
-        // SUPER_ADMIN is never jurisdiction-scoped
-        if (RoleConstants.SUPER_ADMIN.equals(role)) return;
+        // SUPER_ADMIN and TEMPLE_AUTHORITY are never jurisdiction-scoped
+        // TEMPLE_AUTHORITY ownership is checked separately via OwnershipGuard
+        if (RoleConstants.SUPER_ADMIN.equals(role) || RoleConstants.TEMPLE_AUTHORITY.equals(role)) {
+            return;
+        }
 
-        // R4 — null districtId on non-SA is always a programming error or corrupted JWT
+        // R4 — null districtId on non-SA/non-TA is always a programming error or corrupted JWT
         Long principalDistrictId = claims.districtId();
         if (principalDistrictId == null) {
             throw new IllegalStateException(

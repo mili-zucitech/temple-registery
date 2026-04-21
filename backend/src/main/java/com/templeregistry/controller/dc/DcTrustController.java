@@ -34,7 +34,7 @@ public class DcTrustController {
     public ResponseEntity<ApiResponse<TrustResponse>> rejectTrust(
             @PathVariable Long trustId,
             @Valid @RequestBody RejectProfileRequest request) {
-        TrustResponse result = dcTrustWorkflowService.rejectTrust(trustId, request.getRemarks(), currentClaims());
+        TrustResponse result = dcTrustWorkflowService.rejectTrust(trustId, request.getReason(), currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Trust rejected.", result));
     }
 
@@ -50,7 +50,7 @@ public class DcTrustController {
     public ResponseEntity<ApiResponse<BoardMemberResponse>> rejectBoardMember(
             @PathVariable Long memberId,
             @Valid @RequestBody RejectProfileRequest request) {
-        BoardMemberResponse result = dcTrustWorkflowService.rejectBoardMember(memberId, request.getRemarks(), currentClaims());
+        BoardMemberResponse result = dcTrustWorkflowService.rejectBoardMember(memberId, request.getReason(), currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Board member rejected.", result));
     }
 

@@ -23,7 +23,7 @@ public class ProfileStagingResponse {
     private String contactPersonDesignation;
     private String phone;
     private String email;
-    private String photoFilePath;
+    private String photoUrl;
     private String bankName;
     private String bankAccountNumberMasked;
     private String bankIfsc;

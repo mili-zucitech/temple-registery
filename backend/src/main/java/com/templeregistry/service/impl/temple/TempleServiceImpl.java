@@ -5,11 +5,14 @@ import com.templeregistry.dto.request.temple.*;
 import com.templeregistry.dto.response.temple.*;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TemplePhoto;
+import com.templeregistry.entity.temple.TempleProfileStaging;
+import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
 import com.templeregistry.repository.temple.TemplePhotoRepository;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.JurisdictionGuard;
@@ -44,6 +47,7 @@ public class TempleServiceImpl implements TempleService {
     private final TempleSearchSummaryRepository summaryRepository;
     private final TempleMapper templeMapper;
     private final TemplePhotoRepository templePhotoRepository;
+    private final TempleProfileStagingRepository stagingRepository;
     private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
     private final JurisdictionGuard jurisdictionGuard;
@@ -61,9 +65,26 @@ public class TempleServiceImpl implements TempleService {
 
         Sort sort = Sort.by(Sort.Direction.ASC, "name");
         Page<TempleSearchSummary> page = summaryRepository.findAll(
-                spec, PageRequest.of(filter.getPage(), size, sort));
+            spec, PageRequest.of(filter.getPage(), size, sort));
 
-        Page<TempleSearchResultResponse> mapped = page.map(templeMapper::toSearchResult);
+        Page<TempleSearchResultResponse> mapped = page.map(summary -> {
+            TempleSearchResultResponse dto = templeMapper.toSearchResult(summary);
+            if (dto.getPhotoUrl() != null && !dto.getPhotoUrl().isBlank()) {
+            dto = TempleSearchResultResponse.builder()
+                .id(dto.getId())
+                .registrationNumber(dto.getRegistrationNumber())
+                .name(dto.getName())
+                .grade(dto.getGrade())
+                .primaryDeity(dto.getPrimaryDeity())
+                .tradition(dto.getTradition())
+                .districtId(dto.getDistrictId())
+                .trustRegistered(dto.isTrustRegistered())
+                .assetDeclarationStatus(dto.getAssetDeclarationStatus())
+                .photoUrl(fileStorageService.presignedUrl(dto.getPhotoUrl()))
+                .build();
+            }
+            return dto;
+        });
         return PaginatedResponse.of(mapped);
     }
 
@@ -89,7 +110,54 @@ public class TempleServiceImpl implements TempleService {
         Temple temple = findOrThrow(id);
         jurisdictionGuard.assertSameDistrict(temple.getDistrictId());
         ownershipGuard.assertOwnsTemple(id);
-        return templeMapper.toTempleResponse(temple);
+        TempleResponse dto = templeMapper.toTempleResponse(temple);
+        if (dto.getPhotoUrl() != null && !dto.getPhotoUrl().isBlank()) {
+            dto = TempleResponse.builder()
+                .id(dto.getId())
+                .registrationNumber(dto.getRegistrationNumber())
+                .name(dto.getName())
+                .aliasName(dto.getAliasName())
+                .grade(dto.getGrade())
+                .primaryDeity(dto.getPrimaryDeity())
+                .tradition(dto.getTradition())
+                .yearEstablished(dto.getYearEstablished())
+                .history(dto.getHistory())
+                .doorNumber(dto.getDoorNumber())
+                .street(dto.getStreet())
+                .villageTown(dto.getVillageTown())
+                .pinCode(dto.getPinCode())
+                .hobliId(dto.getHobliId())
+                .talukId(dto.getTalukId())
+                .districtId(dto.getDistrictId())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
+                .contactName(dto.getContactName())
+                .contactDesignation(dto.getContactDesignation())
+                .contactMobile(dto.getContactMobile())
+                .contactEmail(dto.getContactEmail())
+                .photoUrl(fileStorageService.presignedUrl(dto.getPhotoUrl()))
+                .website(dto.getWebsite())
+                .languagesOfWorship(dto.getLanguagesOfWorship())
+                .linkedInstitutions(dto.getLinkedInstitutions())
+                .annualFestivals(dto.getAnnualFestivals())
+                .landmark(dto.getLandmark())
+                .historicalSignificance(dto.getHistoricalSignificance())
+                .bankName(dto.getBankName())
+                .bankIfsc(dto.getBankIfsc())
+                .trustRegistered(dto.isTrustRegistered())
+                .assetDeclarationStatus(dto.getAssetDeclarationStatus())
+                .status(dto.getStatus())
+                .verificationStatus(dto.getVerificationStatus())
+                .isVerifiedByDc(dto.isVerifiedByDc())
+                .verifiedByDcAt(dto.getVerifiedByDcAt())
+                .verifiedByDcUserId(dto.getVerifiedByDcUserId())
+                .isFlaggedByDc(dto.isFlaggedByDc())
+                .flaggedByDcAt(dto.getFlaggedByDcAt())
+                .flaggedByDcUserId(dto.getFlaggedByDcUserId())
+                .dcRejectionReason(dto.getDcRejectionReason())
+                .build();
+        }
+        return dto;
     }
 
     @Override
@@ -157,9 +225,38 @@ public class TempleServiceImpl implements TempleService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public TempleResponse getCurrentProfile(Long templeId) {
-        Temple temple = templeRepository.findById(templeId)
-            .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
-        return templeMapper.toTempleResponse(temple);
+        Temple temple = templeRepository.findById(templeId).orElse(null);
+        if (temple != null) {
+            jurisdictionGuard.assertSameDistrict(temple.getDistrictId());
+            ownershipGuard.assertOwnsTemple(templeId);
+            return templeMapper.toTempleResponse(temple);
+        }
+
+        TempleProfileStaging staging = stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                        templeId,
+                        List.of(
+                                TempleProfileStagingStatus.DRAFT,
+                                TempleProfileStagingStatus.PENDING_REVIEW,
+                                TempleProfileStagingStatus.APPROVED))
+                .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
+
+        return TempleResponse.builder()
+                .id(templeId)
+                .contactName(staging.getContactPersonName())
+                .contactDesignation(staging.getContactPersonDesignation())
+                .contactMobile(staging.getPhone())
+                .contactEmail(staging.getEmail())
+                .photoUrl(staging.getPhotoFilePath())
+                .website(staging.getWebsite())
+                .languagesOfWorship(staging.getLanguagesOfWorship())
+                .linkedInstitutions(staging.getLinkedInstitutions())
+                .annualFestivals(staging.getAnnualFestivals())
+                .landmark(staging.getLandmark())
+                .historicalSignificance(staging.getHistoricalSignificance())
+                .history(staging.getDescription() != null ? staging.getDescription() : staging.getHistoricalSignificance())
+                .bankName(staging.getBankName())
+                .bankIfsc(staging.getBankIfsc())
+                .build();
     }
 
     @Override

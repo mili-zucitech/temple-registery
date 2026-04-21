@@ -1,7 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
-import { CreateTempleRequest, TaCurrentProfileResponse, TaProfileStagingRequest, TemplePhotoDto, TempleProfileStagingResponse, TempleResponse, TempleSearchFilterRequest, TempleSearchResultResponse } from './templeTypes';
+import { CreateTempleRequest, TaProfileStagingRequest, TemplePhotoDto, TempleProfileStagingResponse, TempleResponse, TempleSearchFilterRequest, TempleSearchResultResponse } from './templeTypes';
 
 
 export const templeApi = createApi({
@@ -61,7 +61,11 @@ export const templeApi = createApi({
         url: `/temples/${templeId}/profile/submit`,
         method: 'POST',
       }),
-      invalidatesTags: (_r, _e, templeId) => [{ type: 'TempleStaging', id: `active-${templeId}` }],
+      invalidatesTags: (_r, _e, templeId) => [
+        { type: 'TempleStaging', id: `active-${templeId}` },
+        { type: 'TempleCurrentProfile', id: templeId },
+        { type: 'Temple', id: templeId },
+      ],
     }),
 
     getStagingHistory: builder.query<
@@ -75,7 +79,7 @@ export const templeApi = createApi({
       providesTags: (_r, _e, { templeId }) => [{ type: 'TempleStaging', id: `history-${templeId}` }],
     }),
 
-    getTempleCurrentProfile: builder.query<ApiResponse<TaCurrentProfileResponse | null>, number>({
+    getTempleCurrentProfile: builder.query<ApiResponse<TempleResponse | null>, number>({
       query: (templeId) => `/temples/${templeId}/profile/current`,
       providesTags: (_r, _e, templeId) => [{ type: 'TempleCurrentProfile', id: templeId }],
     }),
