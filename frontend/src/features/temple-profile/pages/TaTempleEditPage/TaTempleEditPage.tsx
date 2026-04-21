@@ -119,7 +119,7 @@ export function TaTempleEditPage() {
         languagesOfWorship: normalizeToCommaString((source as any).languagesOfWorship),
         linkedInstitutions: normalizeToCommaString((source as any).linkedInstitutions),
 
-        description: (source as any).description ?? '',
+        description: (source as any).description ?? (source as any).history ?? '',
         annualFestivals: (source as any).annualFestivals ?? '',
         landmark: (source as any).landmark ?? '',
         historicalSignificance: (source as any).historicalSignificance ?? '',
@@ -425,7 +425,11 @@ export function TaTempleEditPage() {
                   <FormControl>
                     <Input {...field} placeholder="Account Number" type="password" />
                   </FormControl>
-                  <p className="text-xs text-muted-foreground mt-1">Leave empty if you don't wish to change the currently saved account details.</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {(stagingProfile as any)?.bankAccountMasked
+                      ? `Current account on record: ${(stagingProfile as any).bankAccountMasked}. Leave empty if you do not want to change it.`
+                      : "Leave empty if you don't wish to change the currently saved account details."}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )} />

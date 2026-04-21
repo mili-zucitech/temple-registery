@@ -49,6 +49,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class DcTempleProfileServiceImpl implements DcTempleProfileService {
+        private final com.templeregistry.service.document.FileStorageService fileStorageService;
 
         private final TempleRepository templeRepository;
         private final TempleSearchSummaryRepository summaryRepository;
@@ -322,10 +323,20 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contactDesignation(t.getContactDesignation())
                                 .contactMobile(t.getContactMobile())
                                 .contactEmail(t.getContactEmail())
-                                .photoUrl(t.getPhotoUrl())
+                                .photoUrl(fileStorageService.presignedUrl(t.getPhotoUrl()))
                                 .languagesOfWorship(t.getLanguagesOfWorship())
+                                .linkedInstitutions(t.getLinkedInstitutions())
                                 .trustRegistered(t.isTrustRegistered())
                                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
+                                .status(t.getStatus() != null ? t.getStatus().name() : null)
+                                .verificationStatus(t.getVerificationStatus() != null ? t.getVerificationStatus().name() : null)
+                                .isVerifiedByDc(t.isVerifiedByDc())
+                                .verifiedByDcAt(t.getVerifiedByDcAt())
+                                .verifiedByDcUserId(t.getVerifiedByDcUserId())
+                                .isFlaggedByDc(t.isFlaggedByDc())
+                                .flaggedByDcAt(t.getFlaggedByDcAt())
+                                .flaggedByDcUserId(t.getFlaggedByDcUserId())
+                                .dcRejectionReason(t.getDcRejectionReason())
                                 .build();
         }
 
@@ -456,14 +467,14 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         private TempleFullProfileResponse.ProfileCurrentResponse toProfileCurrentResponse(TempleProfileCurrent p) {
                 return TempleFullProfileResponse.ProfileCurrentResponse.builder()
-                                .contactPersonName(p.getContactPersonName())
-                                .contactPersonDesignation(p.getContactPersonDesignation())
-                                .photoFilePath(p.getPhotoFilePath())
-                                .languagesOfWorship(p.getLanguagesOfWorship())
-                                .linkedInstitutions(p.getLinkedInstitutions())
-                                .annualFestivals(p.getAnnualFestivals())
-                                .landmark(p.getLandmark())
-                                .historicalSignificance(p.getHistoricalSignificance())
+                                        .contactPersonName(p.getContactPersonName())
+                                        .contactPersonDesignation(p.getContactPersonDesignation())
+                                        .photoUrl(fileStorageService.presignedUrl(p.getPhotoFilePath()))
+                                        .languagesOfWorship(p.getLanguagesOfWorship())
+                                        .linkedInstitutions(p.getLinkedInstitutions())
+                                        .annualFestivals(p.getAnnualFestivals())
+                                        .landmark(p.getLandmark())
+                                        .historicalSignificance(p.getHistoricalSignificance())
                                 .build();
         }
 
@@ -489,7 +500,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contactPersonDesignation(s.getContactPersonDesignation())
                                 .phone(s.getPhone())
                                 .email(s.getEmail())
-                                .photoFilePath(s.getPhotoFilePath())
+                                .photoUrl(fileStorageService.presignedUrl(s.getPhotoFilePath()))
                                 .bankName(s.getBankName())
                                 .bankAccountNumberMasked(maskBankAccount(s.getBankAccountNumberEncrypted()))
                                 .bankIfsc(s.getBankIfsc())

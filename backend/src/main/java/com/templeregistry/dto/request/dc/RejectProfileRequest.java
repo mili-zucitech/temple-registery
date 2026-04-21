@@ -16,5 +16,9 @@ public class RejectProfileRequest {
 
     @NotBlank(message = "Rejection remarks are required.")
     @Size(min = 10, max = 2000, message = "Remarks must be between 10 and 2000 characters.")
-    private String remarks;
+    private String reason;
+
+    public String getReason() {
+        return reason;
+    }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Phone, Mail, Globe, MapPin, BookOpen, Star, Link2, Image } from 'lucide-react'
+import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -27,7 +27,7 @@ function fmt(iso?: string | null) {
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const { temple, currentProfile, stagingProfile, profileStatus, talukName, hobliName } = useTempleProfile()
+  const { temple, stagingProfile, profileStatus, profileReviewComment, talukName, hobliName } = useTempleProfile()
   const navigate = useNavigate()
 
   const { data: photosData, isLoading: photosLoading } = useGetTemplePhotosQuery(temple?.id!, {
@@ -36,10 +36,8 @@ function OverviewTab() {
 
   const photos = photosData?.data ?? []
 
-  const effective = stagingProfile ?? currentProfile
-
-  const reviewComment =
-    stagingProfile?.statusLabel === 'REJECTED' ? stagingProfile.reviewComment : null
+  const effective = stagingProfile ?? temple
+  const effectiveAny = effective as any
 
   const handleEdit = () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
 
@@ -50,10 +48,8 @@ function OverviewTab() {
   const district = temple ? `District ID: ${temple.districtId}` : undefined
   const locationParts = [temple?.landmark, talukName, hobliName, district].filter(Boolean)
 
-  const photoPath = (effective as any)?.photoFilePath || (effective as any)?.photoUrl || temple?.photoUrl
-  const photoUrl = photoPath
-    ? (photoPath.startsWith('http') ? photoPath : `${import.meta.env.VITE_API_BASE_URL ?? ''}/uploads/${photoPath}`)
-    : null
+  const photoPath = (effective as any)?.photoFilePath
+  const photoUrl = photoPath ? `${import.meta.env.VITE_BASE_URL ?? ''}${photoPath}` : undefined
 
   let parsedLinked = effective?.linkedInstitutions
   if (typeof parsedLinked === 'string' && parsedLinked.startsWith('[')) {
@@ -62,13 +58,12 @@ function OverviewTab() {
     } catch {}
   }
 
-  const hasProfileData = effective && Object.values(effective).some(v => v != null && v !== '')
-
   return (
     <div className="space-y-5">
       <StatusBanner
         status={profileStatus}
-        reviewComment={reviewComment}
+        reviewComment={profileReviewComment}
+        
       />
 
       <div className="flex items-center justify-end">
@@ -93,8 +88,8 @@ function OverviewTab() {
             {temple?.yearEstablished && (
               <InfoRow label="Year Established" value={temple.yearEstablished} />
             )}
-            {effective?.description && (
-              <InfoRow label="Description" value={effective.description} multiline />
+            {((effective as any)?.description ?? temple?.history) && (
+              <InfoRow label="Description" value={(effective as any)?.description ?? temple?.history} multiline />
             )}
             {effective?.historicalSignificance && (
               <InfoRow label="Historical Significance" value={effective.historicalSignificance} multiline />
@@ -158,22 +153,22 @@ function OverviewTab() {
 
       <SectionCard title="Contact Information" icon={<Phone size={16} />}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
-          <InfoRow label="Contact Person" value={effective?.contactPersonName ?? temple?.contactName} />
-          <InfoRow label="Designation" value={effective?.contactPersonDesignation ?? temple?.contactDesignation} />
-          <InfoRow label="Phone" value={effective?.phone ?? temple?.contactMobile} />
-          <InfoRow label="Email" value={effective?.email ?? temple?.contactEmail} />
-          {effective?.website && (
-            <InfoRow label="Website" value={effective.website} className="sm:col-span-2" />
+          <InfoRow label="Contact Person" value={effectiveAny?.contactPersonName ?? temple?.contactName} />
+          <InfoRow label="Designation" value={effectiveAny?.contactPersonDesignation ?? temple?.contactDesignation} />
+          <InfoRow label="Phone" value={effectiveAny?.phone ?? temple?.contactMobile} />
+          <InfoRow label="Email" value={effectiveAny?.email ?? temple?.contactEmail} />
+          {effectiveAny?.website && (
+            <InfoRow label="Website" value={effectiveAny.website} className="sm:col-span-2" />
           )}
         </div>
       </SectionCard>
 
-      {(effective?.bankName || effective?.bankAccountMasked || effective?.bankIfsc) && (
+      {(effectiveAny?.bankName || effectiveAny?.bankAccountMasked || effectiveAny?.bankIfsc) && (
         <SectionCard title="Bank Details (Hundi/Donation)" icon={<Link2 size={16} />}>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-3">
-            <InfoRow label="Bank Name" value={effective.bankName} />
-            <InfoRow label="Bank IFSC" value={effective.bankIfsc} />
-            <InfoRow label="Account No." value={effective.bankAccountMasked} />
+            <InfoRow label="Bank Name" value={effectiveAny.bankName} />
+            <InfoRow label="Bank IFSC" value={effectiveAny.bankIfsc} />
+            <InfoRow label="Account No." value={effectiveAny.bankAccountMasked} />
           </div>
         </SectionCard>
       )}
@@ -273,6 +268,7 @@ function HistoryTab() {
 
 export function TaTemplePage() {
   const { temple, isLoading, isError } = useTempleProfile()
+  const [activeTab, setActiveTab] = useState('overview')
 
   if (isLoading) return (
     <div className="space-y-4">
@@ -326,14 +322,14 @@ export function TaTemplePage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/50 border border-border p-1 rounded-xl">
           <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">Overview</TabsTrigger>
           <TabsTrigger value="history" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-5">
-          <OverviewTab />
+          <OverviewTab  />
         </TabsContent>
 
         <TabsContent value="history" className="mt-5">

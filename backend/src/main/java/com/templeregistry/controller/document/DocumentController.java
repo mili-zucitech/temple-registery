@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/v1/documents")
@@ -33,6 +34,31 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Document uploaded.",
                         documentService.upload(ownerType, ownerId, referenceId, label, file)));
+    }
+
+    @Value("${app.storage.base-dir:./uploads}")
+    private String baseDir;
+
+    @GetMapping("/download")
+    @Operation(summary = "Download a file by its storage key")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadByKey(@RequestParam String key) {
+        java.nio.file.Path base = java.nio.file.Paths.get(baseDir).toAbsolutePath().normalize();
+        java.nio.file.Path target = base.resolve(key).normalize();
+
+        if (!target.startsWith(base) || !java.nio.file.Files.exists(target)) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(target);
+        
+        String mimeType = "application/octet-stream";
+        try {
+            mimeType = java.nio.file.Files.probeContentType(target);
+        } catch (java.io.IOException e) {}
+
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(mimeType != null ? mimeType : "application/octet-stream"))
+                .body(resource);
     }
 
     @GetMapping("/{id}")

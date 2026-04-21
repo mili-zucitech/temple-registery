@@ -87,7 +87,13 @@ export interface TempleResponse {
   contactMobile?: string        // maps to backend `contactMobile`
   contactEmail?: string
   photoUrl?: string
+  website?: string
   languagesOfWorship?: string[]
+  linkedInstitutions?: string | string[]
+  annualFestivals?: string
+  historicalSignificance?: string
+  bankName?: string
+  bankIfsc?: string
 
   trustRegistered: boolean
   assetDeclarationStatus?: string
@@ -99,7 +105,8 @@ export interface TempleResponse {
 export interface TemplePhotoDto {
   id: number
   url: string
-  isPrimary: boolean
+  primary?: boolean
+  isPrimary?: boolean
   fileName?: string
   uploadDate?: string
   width?: number

@@ -67,18 +67,23 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         String profileStatus = deriveProfileStatus(latestStaging, currentRepository.existsByTempleId(templeId));
         List<String> pendingActions = computePendingActions(latestStaging, currentRepository.existsByTempleId(templeId));
 
+        // Only show 'Profile Published' if latest staging is APPROVED or SUPERSEDED
+        boolean isProfilePublished = latestStaging.isPresent() &&
+            (latestStaging.get().getStatus() == TempleProfileStagingStatus.APPROVED ||
+             latestStaging.get().getStatus() == TempleProfileStagingStatus.SUPERSEDED);
+
         return TaDashboardResponse.builder()
-                .temple(TaDashboardResponse.TempleBasicInfo.builder()
-                        .id(temple.getId())
-                        .name(temple.getName())
-                        .registrationNumber(temple.getRegistrationNumber())
-                        .grade(temple.getGrade() != null ? temple.getGrade().name() : null)
-                        .status(temple.getStatus() != null ? temple.getStatus().name() : null)
-                        .build())
-                .profileStatus(profileStatus)
-                .lastUpdated(latestStaging.map(s -> s.getUpdatedAt()).orElse(null))
-                .pendingActions(pendingActions)
-                .build();
+            .temple(TaDashboardResponse.TempleBasicInfo.builder()
+                .id(temple.getId())
+                .name(temple.getName())
+                .registrationNumber(temple.getRegistrationNumber())
+                .grade(temple.getGrade() != null ? temple.getGrade().name() : null)
+                .status(temple.getStatus() != null ? temple.getStatus().name() : null)
+                .build())
+            .profileStatus(profileStatus)
+            .lastUpdated(latestStaging.map(s -> s.getUpdatedAt()).orElse(null))
+            .pendingActions(pendingActions)
+            .build();
     }
 
     // ─── Temple master ────────────────────────────────────────────────────────
