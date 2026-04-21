@@ -39,7 +39,7 @@ public class DcDashboardServiceImpl implements DcDashboardService {
         List<GradeDistributionItem> gradeDistribution = raw.stream()
                 .map(row -> GradeDistributionItem.builder()
                         .grade(row[0] != null ? row[0].toString() : "UNGRADED")
-                        .count(((Number) row[1]).longValue())
+                        .count(row[1] != null ? ((Number) row[1]).longValue() : 0L)
                         .build())
                 .toList();
 
@@ -51,7 +51,7 @@ public class DcDashboardServiceImpl implements DcDashboardService {
                     .limit(12)
                     .map(row -> AreaDistributionItem.builder()
                             .areaId(((Number) row[0]).longValue())
-                            .count(((Number) row[1]).longValue())
+                            .count(row[1] != null ? ((Number) row[1]).longValue() : 0L)
                             .build())
                     .toList();
         } else {
@@ -60,7 +60,7 @@ public class DcDashboardServiceImpl implements DcDashboardService {
                     .limit(12)
                     .map(row -> AreaDistributionItem.builder()
                             .areaId(((Number) row[0]).longValue())
-                            .count(((Number) row[1]).longValue())
+                            .count(row[1] != null ? ((Number) row[1]).longValue() : 0L)
                             .build())
                     .toList();
         }

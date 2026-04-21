@@ -119,6 +119,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (rq.getDateOfLeaving() != null) emp.setDateOfLeaving(rq.getDateOfLeaving());
         }
 
+        // Auto-reset: TA edit after DC verification resets status to PENDING
+        if (emp.isVerifiedByDc()) {
+            emp.setVerifiedByDc(false);
+            emp.setDcFlagReason(null);
+            log.info("Employee [{}] verification reset to PENDING after TA update", id);
+        }
+
         log.info("Employee updated: id=[{}] newStatus=[{}]", id, emp.getStatus());
         return toResponse(employeeRepository.save(emp));
     }

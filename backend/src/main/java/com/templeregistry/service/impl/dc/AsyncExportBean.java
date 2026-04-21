@@ -56,13 +56,18 @@ public class AsyncExportBean {
      */
     @Async("exportExecutor")
     @Transactional(readOnly = true)
-    public void exportTemplesAsync(String jobId, Long districtId, Long recipientUserId) {
-        Path outputPath = resolveOutputPath(jobId, "csv");
-        log.info("Async temple export started: jobId={} districtId={}", jobId, districtId);
+    public void exportTemplesAsync(String jobId, Long districtId, Long recipientUserId, String format) {
+        String extension = "PDF".equalsIgnoreCase(format) ? "pdf" : "csv";
+        Path outputPath = resolveOutputPath(jobId, extension);
+        log.info("Async temple export started: jobId={} districtId={} format={}", jobId, districtId, format);
 
         try {
             ensureExportDirectory();
-            writeTemplesCsv(outputPath, districtId);
+            if ("PDF".equalsIgnoreCase(format)) {
+                writeTemplesPdf(outputPath, districtId);
+            } else {
+                writeTemplesCsv(outputPath, districtId);
+            }
 
             notificationPublisher.publish(
                     recipientUserId, "EXPORT_READY", districtId, "EXPORT_JOB");
@@ -71,23 +76,26 @@ public class AsyncExportBean {
 
         } catch (Exception e) {
             log.error("Async temple export failed: jobId={} error={}", jobId, e.getMessage(), e);
-            // Do not rethrow — the calling HTTP thread has already returned 202.
-            // Failure is visible only in logs; a retry mechanism is out of DC module scope.
         }
     }
 
     /**
-     * Async declaration export: writes CSV to filesystem and notifies DC on completion.
+     * Async declaration export: writes CSV or PDF to filesystem and notifies DC on completion.
      */
     @Async("exportExecutor")
     @Transactional(readOnly = true)
-    public void exportDeclarationsAsync(String jobId, Long districtId, Long recipientUserId) {
-        Path outputPath = resolveOutputPath(jobId, "csv");
-        log.info("Async declaration export started: jobId={} districtId={}", jobId, districtId);
+    public void exportDeclarationsAsync(String jobId, Long districtId, Long recipientUserId, String format) {
+        String extension = "PDF".equalsIgnoreCase(format) ? "pdf" : "csv";
+        Path outputPath = resolveOutputPath(jobId, extension);
+        log.info("Async declaration export started: jobId={} districtId={} format={}", jobId, districtId, format);
 
         try {
             ensureExportDirectory();
-            writeDeclarationsCsv(outputPath, districtId);
+            if ("PDF".equalsIgnoreCase(format)) {
+                writeDeclarationsPdf(outputPath, districtId);
+            } else {
+                writeDeclarationsCsv(outputPath, districtId);
+            }
 
             notificationPublisher.publish(
                     recipientUserId, "EXPORT_READY", districtId, "EXPORT_JOB");
@@ -123,7 +131,7 @@ public class AsyncExportBean {
                             s.getGrade(), s.getPrimaryDeity(),
                             s.getTradition(), str(s.getDistrictId()),
                             s.getTempleStatus(),
-                            String.valueOf(s.isTrustRegistered()),
+                            String.valueOf(Boolean.TRUE.equals(s.getTrustRegistered())),
                             str(s.getPendingDeclarations()),
                             str(s.getOverdueDeclarations())
                     });
@@ -155,7 +163,7 @@ public class AsyncExportBean {
                             str(s.getTempleId()), s.getName(), str(s.getDistrictId()),
                             str(s.getPendingDeclarations()),
                             str(s.getOverdueDeclarations()),
-                            String.valueOf(s.isHasApprovedDeclaration())
+                            String.valueOf(Boolean.TRUE.equals(s.getHasApprovedDeclaration()))
                     });
                 }
                 page++;
@@ -186,7 +194,7 @@ public class AsyncExportBean {
                         s.getGrade(), s.getPrimaryDeity(),
                         s.getTradition(), str(s.getDistrictId()),
                         s.getTempleStatus(),
-                        String.valueOf(s.isTrustRegistered()),
+                        String.valueOf(Boolean.TRUE.equals(s.getTrustRegistered())),
                         str(s.getPendingDeclarations()),
                         str(s.getOverdueDeclarations())
                 });
@@ -218,7 +226,7 @@ public class AsyncExportBean {
                         str(s.getTempleId()), s.getName(), str(s.getDistrictId()),
                         str(s.getPendingDeclarations()),
                         str(s.getOverdueDeclarations()),
-                        String.valueOf(s.isHasApprovedDeclaration())
+                        String.valueOf(Boolean.TRUE.equals(s.getHasApprovedDeclaration()))
                 });
             }
             page++;

@@ -288,14 +288,17 @@ export interface DcTrustSummary {
   bankName: string | null
   bankBranch: string | null
   annualIncome: number | null
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
+  isVerifiedByDc: boolean
+  dcFlagReason: string | null
+  reviewStatus: 'APPROVED' | 'PENDING' | 'FLAGGED'
+  validationIssues: string[]
+  financialStatus: 'SUBMITTED' | 'MISSING'
 }
 
 export interface TrustFinancialSummary {
   financialYear: string
   annualIncome: number | null
-  expenditure: number | null
+  annualExpenditure: number | null
 }
 
 export interface ProfileCurrentResponse {
@@ -339,13 +342,19 @@ export interface TempleFullProfileResponse {
     trustRegistered: boolean
     assetDeclarationStatus: string | null
     verificationStatus?: 'UNVERIFIED' | 'UNDER_REVIEW' | 'VERIFIED' | 'FLAGGED'
+    /** Reason provided when DC flagged the temple. Null when not flagged. */
+    dcFlagReason?: string | null
   }
   hobliName: string | null
   talukName: string | null
   districtName: string | null
   cityName: string | null
   trust: DcTrustSummary | null
-  boardMembers: BoardMemberSummary[]
+  boardMembers: {
+    current: BoardMemberSummary[]
+    past: BoardMemberSummary[]
+    validationIssues: string[]
+  }
   trustFinancials: TrustFinancialSummary[]
   employees: EmployeeSummary[]
   contractors: ContractorResponse[]
@@ -358,10 +367,13 @@ export interface BoardMemberSummary {
   fullName: string
   designation: string
   contactNumber: string | null
-  email: string | null
-  aadhaarMasked: string | null
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
+  maskedAadhaar: string | null
+  appointmentDate: string | null
+  tenureEndDate: string | null
+  address: string | null
+  isCurrent: boolean
+  isVerifiedByDc: boolean
+  dcFlagReason: string | null
 }
 
 export interface EmployeeSummary {

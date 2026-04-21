@@ -28,8 +28,19 @@ public class StatusTransitionValidator {
             "OVERDUE",                         Set.of("RESUBMITTED", "PENDING_REVIEW")
     );
 
+    // Temple Profile Staging state machine
+    private static final Map<String, Set<String>> PROFILE_STAGING_TRANSITIONS = Map.of(
+            "DRAFT",          Set.of("PENDING_REVIEW"),
+            "PENDING_REVIEW", Set.of("APPROVED", "REJECTED", "SUPERSEDED"),
+            "APPROVED",       Set.of("SUPERSEDED")
+    );
+
     public void validateDeclarationTransition(String from, String to) {
         validate("Declaration", DECLARATION_TRANSITIONS, from, to);
+    }
+
+    public void validateProfileStagingTransition(String from, String to) {
+        validate("ProfileStaging", PROFILE_STAGING_TRANSITIONS, from, to);
     }
 
     private void validate(String context,

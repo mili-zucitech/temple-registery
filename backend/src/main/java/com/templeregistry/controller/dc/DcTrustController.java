@@ -4,6 +4,7 @@ import com.templeregistry.common.ApiResponse;
 import com.templeregistry.dto.request.dc.RejectProfileRequest;
 import com.templeregistry.dto.response.trust.BoardMemberResponse;
 import com.templeregistry.dto.response.trust.TrustResponse;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTrustWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/trusts")
 @RequiredArgsConstructor
 @Tag(name = "DC Trust Workflow", description = "Trust and Board Member approval/rejection for the DC portal")
+@PreAuthorize(RoleConstants.CAN_ACT_DC)
 public class DcTrustController {
 
     private final DcTrustWorkflowService dcTrustWorkflowService;

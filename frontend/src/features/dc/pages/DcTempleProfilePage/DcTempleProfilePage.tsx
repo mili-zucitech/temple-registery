@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  ChevronLeft, Check, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
+  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -44,8 +44,10 @@ import {
   useFlagTempleMutation,
   useVerifyTrustMutation,
   useFlagTrustMutation,
-  useVerifyContractorMutation,
-  useVerifyEmployeeMutation,
+  useVerifyStaffModuleMutation,
+  useFlagStaffModuleMutation,
+  useVerifyContractorsModuleMutation,
+  useFlagContractorsModuleMutation,
 } from '@/features/dc/dcApi'
 import {
   workflowApproveSchema,
@@ -108,8 +110,10 @@ export function DcTempleProfilePage() {
   const [flagTemple] = useFlagTempleMutation()
   const [verifyTrust] = useVerifyTrustMutation()
   const [flagTrust] = useFlagTrustMutation()
-  const [verifyContractor] = useVerifyContractorMutation()
-  const [verifyEmployee] = useVerifyEmployeeMutation()
+  const [verifyStaffModule] = useVerifyStaffModuleMutation()
+  const [flagStaffModule] = useFlagStaffModuleMutation()
+  const [verifyContractorsModule] = useVerifyContractorsModuleMutation()
+  const [flagContractorsModule] = useFlagContractorsModuleMutation()
 
   const overdueDecls = useMemo(() =>
     profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
@@ -138,6 +142,8 @@ export function DcTempleProfilePage() {
     }
     return { label: 'Verified', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' }
   }, [profile, isOverdue, needsReview])
+
+  // Module-level status summary removed — status is shown inside each tab, not in the header
 
   if (isLoading) {
     return (
@@ -170,6 +176,7 @@ export function DcTempleProfilePage() {
   }
 
   const { temple, declarations, boardMembers, employees, contractors, trust } = profile
+  const boardMemberCount = (boardMembers?.current?.length ?? 0) + (boardMembers?.past?.length ?? 0)
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -248,7 +255,11 @@ export function DcTempleProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
+<<<<<<< HEAD
                 {/* Removed Verify Record and Flag Issue buttons as per new workflow. */}
+=======
+                {/* Temple verify/flag actions are in the Overview tab — not duplicated here */}
+>>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
               </div>
             </div>
           </div>
@@ -261,10 +272,10 @@ export function DcTempleProfilePage() {
             {(
               [
                 { v: 'overview',     label: 'Overview',      icon: <Info size={15} />, count: null },
-                { v: 'declarations', label: 'Declarations',  icon: <FileText size={15} />, count: declarations.length },
-                { v: 'trust',        label: 'Trust & Board', icon: <Shield size={15} />,   count: boardMembers.length },
-                { v: 'staff',        label: 'Staff',         icon: <Users size={15} />,    count: employees.length },
-                { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={15} />,count: contractors.length },
+                { v: 'declarations', label: 'Declarations',  icon: <FileText size={15} />, count: declarations?.length ?? 0 },
+                { v: 'trust',        label: 'Trust & Board', icon: <Shield size={15} />,   count: boardMemberCount },
+                { v: 'staff',        label: 'Staff',         icon: <Users size={15} />,    count: employees?.length ?? 0 },
+                { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={15} />,count: contractors?.length ?? 0 },
                 { v: 'documents',    label: 'Documents',     icon: <FileText size={15} />, count: null },
               ] as const
             ).map((tab) => (
@@ -304,12 +315,17 @@ export function DcTempleProfilePage() {
               profile={profile}
               pendingStaging={pendingStaging}
               canAct={canAct}
+<<<<<<< HEAD
               onVerifyTemple={async (notes) => {
                 await verifyTemple({ id, body: { notes } }).unwrap()
               }}
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
               }}
+=======
+              onVerifyTemple={async (notes) => { await verifyTemple({ id, body: { notes } }).unwrap() }}
+              onFlagTemple={async (reason) => { await flagTemple({ id, body: { reason } }).unwrap() }}
+>>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
               onApproveProfile={(stagingId) => {
                 if (window.confirm('Approve this profile update?')) {
                   submitApproveProfile(stagingId, id, { notes: 'Approved via DC Portal' })
@@ -344,12 +360,17 @@ export function DcTempleProfilePage() {
               boardMembers={boardMembers}
               trustFinancials={profile.trustFinancials}
               canAct={canAct}
+<<<<<<< HEAD
               onVerifyTrust={async (trustId, notes) => {
                 await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
               }}
               onFlagTrust={async (trustId, reason) => {
                 await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
               }}
+=======
+              onVerifyTrust={async (trustId, notes) => { await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap() }}
+              onFlagTrust={async (trustId, reason) => { await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap() }}
+>>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
             />
           </TabsContent>
 
@@ -357,10 +378,12 @@ export function DcTempleProfilePage() {
             <StaffTab
               employees={employees}
               canAct={canAct}
-              onVerifyEmployee={(employeeId) => {
-                if (window.confirm('Verify this employee?')) {
-                  verifyEmployee({ id: employeeId, templeId: id, body: { notes: 'Verified by DC' } })
-                }
+              templeId={id}
+              onVerifyStaff={async (notes) => {
+                await verifyStaffModule({ templeId: id, body: { notes } }).unwrap()
+              }}
+              onFlagStaff={async (reason) => {
+                await flagStaffModule({ templeId: id, body: { reason } }).unwrap()
               }}
             />
           </TabsContent>
@@ -369,10 +392,12 @@ export function DcTempleProfilePage() {
             <ContractorsTab
               contractors={contractors}
               canAct={canAct}
-              onVerifyContractor={(contractorId) => {
-                if (window.confirm('Verify this contractor engagement?')) {
-                  verifyContractor({ id: contractorId, templeId: id, body: { notes: 'Verified by DC' } })
-                }
+              templeId={id}
+              onVerifyContractors={async (notes) => {
+                await verifyContractorsModule({ templeId: id, body: { notes } }).unwrap()
+              }}
+              onFlagContractors={async (reason) => {
+                await flagContractorsModule({ templeId: id, body: { reason } }).unwrap()
               }}
             />
           </TabsContent>
