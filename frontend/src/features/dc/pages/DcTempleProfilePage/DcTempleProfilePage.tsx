@@ -255,11 +255,7 @@ export function DcTempleProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-<<<<<<< HEAD
                 {/* Removed Verify Record and Flag Issue buttons as per new workflow. */}
-=======
-                {/* Temple verify/flag actions are in the Overview tab — not duplicated here */}
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
               </div>
             </div>
           </div>
@@ -315,17 +311,12 @@ export function DcTempleProfilePage() {
               profile={profile}
               pendingStaging={pendingStaging}
               canAct={canAct}
-<<<<<<< HEAD
               onVerifyTemple={async (notes) => {
                 await verifyTemple({ id, body: { notes } }).unwrap()
               }}
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
               }}
-=======
-              onVerifyTemple={async (notes) => { await verifyTemple({ id, body: { notes } }).unwrap() }}
-              onFlagTemple={async (reason) => { await flagTemple({ id, body: { reason } }).unwrap() }}
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
               onApproveProfile={(stagingId) => {
                 if (window.confirm('Approve this profile update?')) {
                   submitApproveProfile(stagingId, id, { notes: 'Approved via DC Portal' })
@@ -360,17 +351,12 @@ export function DcTempleProfilePage() {
               boardMembers={boardMembers}
               trustFinancials={profile.trustFinancials}
               canAct={canAct}
-<<<<<<< HEAD
               onVerifyTrust={async (trustId, notes) => {
                 await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
               }}
               onFlagTrust={async (trustId, reason) => {
                 await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
               }}
-=======
-              onVerifyTrust={async (trustId, notes) => { await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap() }}
-              onFlagTrust={async (trustId, reason) => { await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap() }}
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
             />
           </TabsContent>
 
