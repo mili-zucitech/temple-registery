@@ -22,6 +22,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.DeclarationWorkflowService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
@@ -66,6 +67,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
     private final NotificationEventPublisher notificationPublisher;
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
+    private final GovernanceAuditService governanceAuditService;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
 
@@ -101,6 +103,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_APPROVED",
                 "AssetDeclaration", declarationId,
                 "ack=" + ackNumber);
+
+        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "APPROVE",
+                "Approved with acknowledgement: " + ackNumber + ". Remarks: " + request.getRemarks());
 
         summaryService.refresh(d.getTempleId());
 
@@ -139,6 +144,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_REJECTED",
                 "AssetDeclaration", declarationId, "status=REJECTED");
+
+        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "REJECT",
+                "Rejected with remarks: " + request.getRemarks());
 
         summaryService.refresh(d.getTempleId());
 
@@ -183,6 +191,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                 "AssetDeclaration", declarationId,
                 "round=" + d.getClarificationRound());
 
+        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "QUERY",
+                "Clarification requested (round " + d.getClarificationRound() + "): " + request.getMessage());
+
         if (d.getClarificationRound() == 2) {
             userRepository.findAllByRole(UserRole.SUPER_ADMIN).forEach(sa ->
                     notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION", declarationId, "ASSET_DECLARATION"));
@@ -222,7 +233,10 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                 d.getSubmittedBy(), "PHYSICAL_VERIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
 
         auditService.logDataEvent(claims.userId(), claims.role(), "PHYSICAL_VERIFICATION_REQUESTED",
-                "AssetDeclaration", declarationId, null);
+                "AssetDeclaration", declarationId, "flagged=true");
+
+        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "FLAG",
+                "Flagged for physical verification: " + request.getMessage());
 
         summaryService.refresh(d.getTempleId());
 
@@ -231,8 +245,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
                 .newStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name())
-                .acknowledgementNumber(null)
-                .message("Physical verification requested.")
+                .message("Declaration flagged for physical verification.")
                 .build();
     }
 
@@ -253,12 +266,15 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_UNDER_REVIEW",
                 "AssetDeclaration", declarationId, "userId=" + claims.userId());
 
+        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "UNDER_REVIEW",
+                "Marked as under review by DC");
+
         log.info("Declaration [{}] marked UNDER_REVIEW by userId={}", declarationId, claims.userId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
                 .newStatus(DeclarationStatus.UNDER_REVIEW.name())
-                .message("Declaration is now under review.")
+                .message("Declaration marked as under review.")
                 .build();
     }
 

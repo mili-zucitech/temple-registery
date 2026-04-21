@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface TrustFinancialRepository extends JpaRepository<TrustFinancial, Long> {
     List<TrustFinancial> findAllByTrustIdOrderByFinancialYearDesc(Long trustId);
+    boolean existsByTrustIdAndFinancialYear(Long trustId, String financialYear);
 }

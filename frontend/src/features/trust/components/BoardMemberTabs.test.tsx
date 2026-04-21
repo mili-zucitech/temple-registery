@@ -11,7 +11,7 @@ describe('BoardMemberTabs', () => {
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
 
-  const baseMember = {
+  const baseMember: BoardMemberResponse = {
     id: 1,
     trustId: 1,
     fullName: 'Test User',
@@ -22,44 +22,48 @@ describe('BoardMemberTabs', () => {
     address: 'Test Address',
     isCurrent: true,
     isVerifiedByDc: false,
-  } as BoardMemberResponse;
+  };
 
-  it('shows new members as current', () => {
+  it('shows new members as current and past tab is empty', async () => {
     render(<BoardMemberTabs members={[baseMember]} />);
-    expect(screen.getByText(/Current Members/i)).toBeInTheDocument();
+    // Current tab is active by default
     expect(screen.getByText('Test User')).toBeInTheDocument();
+    // Switch to past tab and verify empty
+    await userEvent.click(screen.getByRole('tab', { name: /Past Members/i }));
     expect(screen.getByText(/No past members/i)).toBeInTheDocument();
   });
 
-  it('moves member to past when tenureEndDate is in the past', () => {
+  it('moves member to past when tenureEndDate is in the past', async () => {
     const member = { ...baseMember, tenureEndDate: yesterday.toISOString().slice(0, 10) };
     render(<BoardMemberTabs members={[member]} />);
-    expect(screen.getByText(/Past Members/i)).toBeInTheDocument();
-    expect(screen.getByText('Test User')).toBeInTheDocument();
+    // Current tab should be empty
     expect(screen.getByText(/No current members/i)).toBeInTheDocument();
+    // Switch to past tab
+    await userEvent.click(screen.getByRole('tab', { name: /Past Members/i }));
+    expect(screen.getByText('Test User')).toBeInTheDocument();
   });
 
-  it('keeps member as current when tenureEndDate is today (same-day)', () => {
+  it('keeps member as current when tenureEndDate is today (same-day)', async () => {
     const member = { ...baseMember, tenureEndDate: now.toISOString().slice(0, 10) };
     render(<BoardMemberTabs members={[member]} />);
-    expect(screen.getByText(/Current Members/i)).toBeInTheDocument();
     expect(screen.getByText('Test User')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Past Members/i }));
     expect(screen.getByText(/No past members/i)).toBeInTheDocument();
   });
 
-  it('keeps member as current when tenureEndDate is null', () => {
+  it('keeps member as current when tenureEndDate is null', async () => {
     const member = { ...baseMember, tenureEndDate: undefined };
     render(<BoardMemberTabs members={[member]} />);
-    expect(screen.getByText(/Current Members/i)).toBeInTheDocument();
     expect(screen.getByText('Test User')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Past Members/i }));
     expect(screen.getByText(/No past members/i)).toBeInTheDocument();
   });
 
-  it('shows member as current if tenureEndDate is in the future', () => {
+  it('shows member as current if tenureEndDate is in the future', async () => {
     const member = { ...baseMember, tenureEndDate: tomorrow.toISOString().slice(0, 10) };
     render(<BoardMemberTabs members={[member]} />);
-    expect(screen.getByText(/Current Members/i)).toBeInTheDocument();
     expect(screen.getByText('Test User')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Past Members/i }));
     expect(screen.getByText(/No past members/i)).toBeInTheDocument();
   });
 

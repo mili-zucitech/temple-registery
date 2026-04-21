@@ -1,6 +1,7 @@
 package com.templeregistry.entity.trust;
 
 import com.templeregistry.entity.base.BaseEntity;
+import com.templeregistry.util.AesEncryptionConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -40,10 +41,12 @@ public class Trust extends BaseEntity {
     @Column(name = "trust_type", nullable = false, length = 20)
     private TrustType trustType;
 
-    @Column(name = "trust_pan_number", nullable = false, length = 10)
+    @Convert(converter = AesEncryptionConverter.class)
+    @Column(name = "trust_pan_number", nullable = false, length = 255)
     private String trustPANNumber;
 
-    @Column(name = "bank_account_number", nullable = false, length = 50)
+    @Convert(converter = AesEncryptionConverter.class)
+    @Column(name = "bank_account_number", nullable = false, length = 255)
     private String bankAccountNumber;
 
     @Column(name = "bank_name_and_branch", nullable = false, length = 255)

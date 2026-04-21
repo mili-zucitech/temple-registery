@@ -75,7 +75,7 @@ export function BoardMemberCard({ member }: { member: BoardMemberSummary }) {
           </span>
         )}
       </div>
-      {(member.contactNumber || member.aadhaarMasked) && (
+      {(member.contactNumber || member.maskedAadhaar) && (
         <div className="pt-3 border-t border-border/50 space-y-2">
           {member.contactNumber && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-regular">
@@ -83,10 +83,10 @@ export function BoardMemberCard({ member }: { member: BoardMemberSummary }) {
               <span>{member.contactNumber}</span>
             </div>
           )}
-          {member.aadhaarMasked && (
+          {member.maskedAadhaar && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono font-regular">
               <Shield size={12} className="text-primary/70" />
-              <span>{member.aadhaarMasked}</span>
+              <span>{member.maskedAadhaar}</span>
             </div>
           )}
         </div>

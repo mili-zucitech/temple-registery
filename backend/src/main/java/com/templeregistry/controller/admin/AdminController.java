@@ -8,7 +8,9 @@ import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.repository.audit.AuditAuthEventRepository;
 import com.templeregistry.repository.audit.AuditDataEventRepository;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.admin.AdminService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.PaginationUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -33,8 +36,9 @@ public class AdminController {
     private final AuditDataEventRepository dataEventRepo;
     private final AuditAuthEventRepository authEventRepo;
     private final PaginationUtil paginationUtil;
+    private final GovernanceAuditService governanceAuditService;
 
-    /* â”€â”€â”€â”€â”€ Users â”€â”€â”€â”€â”€ */
+    /* ───── Users ───── */
 
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PaginatedResponse<UserAdminResponse>>> listUsers(
@@ -72,7 +76,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("User activated."));
     }
 
-    /* â”€â”€â”€â”€â”€ Audit logs â”€â”€â”€â”€â”€ */
+    /* ───── Audit logs ───── */
 
     @GetMapping("/audit-events")
     @Operation(summary = "Paginated data mutation audit log (SA only)")
@@ -92,7 +96,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Auth events retrieved.", PaginatedResponse.of(result)));
     }
 
-    /* â”€â”€â”€â”€â”€ Search summary â”€â”€â”€â”€â”€ */
+    /* ───── Search summary ───── */
 
     @PostMapping("/search-summary/rebuild")
     @Operation(summary = "Trigger async rebuild of temple_search_summary table")
@@ -101,12 +105,13 @@ public class AdminController {
         return ResponseEntity.accepted().body(ApiResponse.success("Search summary rebuild queued."));
     }
 
-    /* â”€â”€â”€â”€â”€ Declaration admin actions â”€â”€â”€â”€â”€ */
+    /* ───── Declaration admin actions ───── */
 
     @PatchMapping("/declarations/{id}/force-draft")
-    @Operation(summary = "Force a SUBMITTED declaration back to DRAFT (SA only â€” for data correction)")
+    @Operation(summary = "Force a SUBMITTED declaration back to DRAFT (SA only — for data correction)")
     public ResponseEntity<ApiResponse<Void>> forceDeclarationDraft(@PathVariable Long id) {
         declarationService.forceDraft(id);
+        governanceAuditService.logAction(id, "DECLARATION", currentUserId(), "FORCE_DRAFT", "Admin forced declaration back to DRAFT");
         return ResponseEntity.ok(ApiResponse.success("Declaration forced back to DRAFT."));
     }
 
@@ -117,5 +122,10 @@ public class AdminController {
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(ApiResponse.success("Physical verification pending list retrieved.",
                 declarationService.getPhysicalVerificationPending(page, size)));
+    }
+
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return principal instanceof ScopeHelper.Claims c ? c.userId() : 0L;
     }
 }

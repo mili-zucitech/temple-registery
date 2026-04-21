@@ -52,15 +52,15 @@ public class TempleSearchSummary {
     private Long districtId;
 
     /** Denormalized city id from district's city — populated by refresh(). */
-    @Column(name = "city_id", nullable = false)
+    @Column(name = "city_id")
     private Long cityId;
 
     /** Temple lifecycle status (ACTIVE | INACTIVE | SUSPENDED). */
-    @Column(name = "temple_status", nullable = false, length = 20)
+    @Column(name = "temple_status", length = 20)
     private String templeStatus;
 
     @Column(name = "trust_registered")
-    private boolean trustRegistered;
+    private Boolean trustRegistered;
 
     /** DC-facing declaration lifecycle status (mirrors temple.assetDeclarationStatus). */
     @Column(name = "asset_declaration_status", length = 30)
@@ -75,20 +75,20 @@ public class TempleSearchSummary {
     // ---- DC module dashboard / search counters ----
 
     /** Count of PENDING_REVIEW + CLARIFICATION_REQUESTED + PHYSICAL_VERIFICATION_REQUESTED declarations. */
-    @Column(name = "pending_declarations", nullable = false)
-    private int pendingDeclarations;
+    @Column(name = "pending_declarations")
+    private Integer pendingDeclarations;
 
-    @Column(name = "overdue_declarations", nullable = false)
-    private int overdueDeclarations;
+    @Column(name = "overdue_declarations")
+    private Integer overdueDeclarations;
 
-    @Column(name = "pending_profile_review", nullable = false)
-    private int pendingProfileReview;
+    @Column(name = "pending_profile_review")
+    private Integer pendingProfileReview;
 
-    @Column(name = "has_active_trust", nullable = false)
-    private boolean hasActiveTrust;
+    @Column(name = "has_active_trust")
+    private Boolean hasActiveTrust;
 
-    @Column(name = "has_approved_declaration", nullable = false)
-    private boolean hasApprovedDeclaration;
+    @Column(name = "has_approved_declaration")
+    private Boolean hasApprovedDeclaration;
 
     @Column(name = "last_declaration_at")
     private LocalDateTime lastDeclarationAt;

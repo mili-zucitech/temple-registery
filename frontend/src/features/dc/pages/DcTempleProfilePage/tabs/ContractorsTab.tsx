@@ -1,25 +1,61 @@
-import { Briefcase, Calendar, Receipt, Hash, CreditCard } from 'lucide-react'
+import { Briefcase, Calendar, Receipt, Hash, CreditCard, CheckCircle2, Flag } from 'lucide-react'
+import { useMemo } from 'react'
 import { SectionCard } from '../components'
-import { Button } from '@/components/ui/button'
+import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { ModuleStatusBadge, deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
 import type { ContractorResponse } from '@/features/dc/dcTypes'
 
 interface ContractorsTabProps {
   contractors: ContractorResponse[]
   canAct: boolean
-  onVerifyContractor: (id: number) => void
+  templeId: number
+  /** Called once for the whole module — NOT per contractor. */
+  onVerifyContractors: (notes: string) => Promise<void>
+  /** Called once for the whole module — NOT per contractor. */
+  onFlagContractors: (reason: string) => Promise<void>
 }
 
-export function ContractorsTab({ contractors, canAct, onVerifyContractor }: ContractorsTabProps) {
+/**
+ * Contractors tab — module-level verification.
+ *
+ * ONE GovernanceActionPanel for the entire Contractors module.
+ * No per-contractor verify/flag buttons.
+ * No API loops.
+ *
+ * Module status rules:
+ *   - Any contractor flagged → FLAGGED
+ *   - All contractors verified → VERIFIED
+ *   - Otherwise → PENDING
+ *
+ * Oversight block shown ONLY when status === PENDING.
+ */
+export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFlagContractors }: ContractorsTabProps) {
+  const moduleStatus: ModuleVerificationStatus = useMemo(() => {
+    if (contractors.length === 0) return 'PENDING'
+    if (contractors.some(c => c.dcFlagReason)) return 'FLAGGED'
+    if (contractors.every(c => c.isVerifiedByDc)) return 'VERIFIED'
+    return 'PENDING'
+  }, [contractors])
+
+  const moduleFlagReason = useMemo(
+    () => contractors.find(c => c.dcFlagReason)?.dcFlagReason ?? null,
+    [contractors]
+  )
+
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500 space-y-4">
       <SectionCard
         title="Service Partners"
         icon={<Briefcase size={18} />}
         action={
-          <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-            {contractors.length} Active
-          </span>
+          contractors.length > 0
+            ? <ModuleStatusBadge status={moduleStatus} />
+            : (
+              <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
+                0 Active
+              </span>
+            )
         }
       >
         {contractors.length === 0 ? (
@@ -28,85 +64,112 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractor }: Cont
               <Briefcase size={32} className="text-slate-300" />
             </div>
             <p className="text-sm font-semibold text-slate-900 mb-2">No active contracts</p>
-            <p className="text-xs font-regular text-slate-500 max-w-[280px]">No third-party service provider details are registered.</p>
+            <p className="text-xs text-slate-500 max-w-[280px]">No third-party service provider details are registered.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-5 -mb-5">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Partner Entity</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Provision Type</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden sm:table-cell">Engagement Period</th>
-                  <th className="px-5 py-4 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden md:table-cell">Details</th>
-                  <th className="px-5 py-4 text-right text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Value & Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {contractors.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-sm text-slate-900 group-hover:text-primary transition-colors">{c.name}</div>
-                      {c.gstNumber && (
-                        <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5 font-regular">
-                          <Receipt size={11} className="text-slate-400" /> GST: <span className="text-slate-600">{c.gstNumber}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="text-sm text-slate-700 font-semibold">{c.serviceType}</div>
-                    </td>
-                    <td className="px-5 py-4 hidden sm:table-cell">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-regular">
-                          <Calendar size={11} className="text-slate-400" />
-                          {c.contractStartDate
-                            ? `${new Date(c.contractStartDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} → ${c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Unending'}`
-                            : '—'}
-                        </div>
-                        {c.workOrderDate && (
-                          <div className="text-xs text-slate-500/80 font-regular ml-4">
-                            Work Order: {new Date(c.workOrderDate).toLocaleDateString('en-IN')}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 hidden md:table-cell">
-                      <div className="flex flex-col gap-1.5">
-                        {c.contractReference && (
-                          <div className="text-xs text-slate-500 font-regular flex items-center gap-1.5">
-                            <Hash size={11} className="text-slate-400" /> {c.contractReference}
-                          </div>
-                        )}
-                        {c.paymentStatus && (
-                          <div className="text-xs text-slate-500 font-regular flex items-center gap-1.5">
-                            <CreditCard size={11} className="text-slate-400" /> {c.paymentStatus}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="font-semibold text-sm text-slate-900">
-                          {formatCurrency(c.contractValue as any)}
-                        </div>
-                        {canAct && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs font-medium uppercase tracking-button px-3 border-slate-200 text-slate-600 hover:bg-primary hover:text-white hover:border-primary transition-all rounded-lg"
-                            onClick={() => onVerifyContractor(c.id)}
-                          >
-                            ACTION
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+          <>
+            {/* Contractor list — read-only display, no action buttons per row */}
+            <div className="overflow-x-auto -mx-5 -mt-1">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Partner</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Service</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden sm:table-cell">Period</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100 hidden md:table-cell">Details</th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase text-slate-500 tracking-label border-b border-slate-100">Value / Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {contractors.map((c) => {
+                    const itemStatus = deriveModuleStatus(c.isVerifiedByDc, c.dcFlagReason)
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-4">
+                          <div className="font-semibold text-sm text-slate-900">{c.name}</div>
+                          {c.gstNumber && (
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                              <Receipt size={10} className="text-slate-400" /> GST: {c.gstNumber}
+                            </div>
+                          )}
+                          {c.dcFlagReason && (
+                            <div className="text-xs text-red-600 mt-1">⚑ {c.dcFlagReason}</div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="text-sm text-slate-700 font-semibold">{c.serviceType}</div>
+                        </td>
+                        <td className="px-5 py-4 hidden sm:table-cell">
+                          {c.contractStartDate ? (
+                            <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                              <Calendar size={10} className="text-slate-400" />
+                              {new Date(c.contractStartDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                              {c.contractEndDate && ` → ${new Date(c.contractEndDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`}
+                            </div>
+                          ) : '—'}
+                        </td>
+                        <td className="px-5 py-4 hidden md:table-cell">
+                          {c.contractReference && (
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                              <Hash size={10} className="text-slate-400" /> {c.contractReference}
+                            </div>
+                          )}
+                          {c.paymentStatus && (
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                              <CreditCard size={10} className="text-slate-400" /> {c.paymentStatus}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex flex-col items-end gap-1.5">
+                            <div className="font-semibold text-sm text-slate-900">
+                              {formatCurrency(c.contractValue as any)}
+                            </div>
+                            <ModuleStatusBadge status={itemStatus} className="text-[10px] py-0.5 px-2" />
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Module-level oversight block ─────────────────────────────── */}
+            {/* ONE block for the whole Contractors module. Shown ONLY when PENDING. */}
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              {moduleStatus === 'PENDING' && (
+                <GovernanceActionPanel
+                  entityName="Contractors Module"
+                  isVerified={false}
+                  flagReason={null}
+                  canAct={canAct}
+                  onVerify={onVerifyContractors}
+                  onFlag={onFlagContractors}
+                />
+              )}
+              {moduleStatus === 'VERIFIED' && (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800">Contractors module verified</p>
+                    <p className="text-xs text-emerald-700/70 mt-0.5">All contractor engagements have been audited and approved.</p>
+                  </div>
+                </div>
+              )}
+              {moduleStatus === 'FLAGGED' && (
+                <div className="rounded-xl border border-red-100 bg-red-50/40 px-5 py-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <Flag size={16} className="text-red-600 shrink-0" />
+                    <p className="text-sm font-semibold text-red-800">Contractors module flagged</p>
+                  </div>
+                  {moduleFlagReason && (
+                    <p className="text-xs text-red-700 pl-7">{moduleFlagReason}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </SectionCard>
     </div>

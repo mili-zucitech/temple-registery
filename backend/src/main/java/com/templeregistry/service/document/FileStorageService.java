@@ -24,6 +24,13 @@ public interface FileStorageService {
     String presignedUrl(String filePath);
 
     /**
+     * Loads the file as a Spring Resource for streaming to the client.
+     * @param filePath  relative path to the file
+     * @return          Resource object
+     */
+    org.springframework.core.io.Resource loadAsResource(String filePath);
+
+    /**
      * Permanently delete a stored file.
      * Only called when the {@link com.templeregistry.entity.document.Document} record is hard-deleted.
      */
