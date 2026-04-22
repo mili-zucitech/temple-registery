@@ -179,64 +179,99 @@ export interface WorkflowActionResponse {
 export interface ClarificationItemResponse {
   id: number
   direction: string
+  message?: string
   notes: string
+  sectionName?: string | null
+  fieldNamesJson?: string | null
   respondedAt: string | null
   createdAt: string
 }
 
 export interface DeclImmovAgriLandResponse {
   id: number
-  surveyNumber: string
-  villageName: string
-  areaAcres: number
-  estimatedValueInr: number
+  surveyNumber: string | null
+  village: string | null
+  areaAcres: number | null
+  ownerOfRecord: string | null
+  pattaStatus: string | null
+  villageName?: string | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclImmovBuildingResponse {
   id: number
-  buildingName: string
-  totalSqft: number
-  estimatedValueInr: number
+  location: string | null
+  totalAreaSqft: number | null
+  yearBuilt: number | null
+  structureType: string | null
+  valuationInr: number | null
+  buildingName?: string | null
+  totalSqft?: number | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclImmovLeasedResponse {
   id: number
-  lesseeOrLandlordName: string
-  monthlyRent: number
+  propertyAddress: string | null
+  lesseeName: string | null
+  leaseStartDate: string | null
+  leaseEndDate: string | null
+  monthlyRent: number | null
+  agreementDocumentId: number | null
+  lesseeOrLandlordName?: string | null
+  annualRent?: number | null
 }
 
 export interface DeclImmovOtherResponse {
   id: number
-  description: string
-  estimatedValueInr: number
+  location: string | null
+  area: number | null
+  usageType: string | null
+  revenueDepartmentReference: string | null
+  description?: string | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclMovArtifactResponse {
   id: number
-  artifactName: string
-  material: string
-  estimatedValueInr: number
+  itemDescription: string | null
+  material: string | null
+  ageOrPeriod: string | null
+  provenance: string | null
+  museumGradeClassification: string | null
+  approximateValueInr: number | null
+  artifactName?: string | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclMovEquipmentResponse {
   id: number
-  equipmentName: string
-  quantity: number
-  estimatedValueInr: number
+  itemName: string | null
+  serialNumber: string | null
+  approximateValueInr: number | null
+  equipmentName?: string | null
+  quantity?: number | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclMovPreciousMetalResponse {
   id: number
-  metalType: string
-  weightGrams: number
-  estimatedValueInr: number
+  itemDescription: string | null
+  metalType: string | null
+  weightGrams: number | null
+  purity: string | null
+  approximateValueInr: number | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclMovVehicleResponse {
   id: number
-  vehicleType: string
-  registrationNumber: string
-  estimatedValueInr: number
+  registrationNumber: string | null
+  makeModel: string | null
+  year: number | null
+  purpose: string | null
+  vehicleType?: string | null
+  estimatedValueInr?: number | null
 }
 
 export interface DeclarationDetailResponse {
@@ -266,10 +301,12 @@ export interface DeclarationDetailResponse {
   clarificationRound: number
   overdue: boolean
   clarifications: ClarificationItemResponse[]
-  agricultureLands: DeclImmovAgriLandResponse[]
+  agriculturalLands: DeclImmovAgriLandResponse[]
+  agricultureLands?: DeclImmovAgriLandResponse[]
   buildings: DeclImmovBuildingResponse[]
   leasedProperties: DeclImmovLeasedResponse[]
   otherLands: DeclImmovOtherResponse[]
+  otherImmovables?: DeclImmovOtherResponse[]
   artifacts: DeclMovArtifactResponse[]
   equipment: DeclMovEquipmentResponse[]
   preciousMetals: DeclMovPreciousMetalResponse[]
@@ -398,13 +435,14 @@ export interface ContractorResponse {
   templeId: number
   name: string
   gstNumber: string | null
-  serviceType: string
+  serviceType: 'CIVIL_WORKS' | 'ELECTRICAL' | 'SECURITY' | 'CATERING' | 'EVENTS' | 'OTHER'
   contractReference: string | null
   workOrderDate: string | null
   contractStartDate: string | null
   contractEndDate: string | null
   contractValue: number | null
-  paymentStatus: string | null
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'DISPUTED'
+  documentIds?: number[]
   isVerifiedByDc?: boolean
   dcFlagReason?: string | null
 }

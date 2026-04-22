@@ -35,6 +35,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleProfileService;
+import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.trust.TrustValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +52,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 @Slf4j
 public class DcTempleProfileServiceImpl implements DcTempleProfileService {
-        private final com.templeregistry.service.document.FileStorageService fileStorageService;
+        private final FileStorageService fileStorageService;
 
         private final TempleRepository templeRepository;
         private final TempleSearchSummaryRepository summaryRepository;
@@ -449,7 +450,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 return ContractorResponse.builder()
                                 .id(c.getId())
                                 .templeId(c.getTempleId())
-                                .name(c.getName())
+                                .companyName(c.getCompanyName())
                                 .gstNumber(c.getGstNumber())
                                 .serviceType(c.getServiceType())
                                 .contractReference(c.getContractReference())
@@ -458,6 +459,9 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contractEndDate(c.getContractEndDate())
                                 .contractValue(c.getContractValue())
                                 .paymentStatus(c.getPaymentStatus())
+                                .documentIds(c.getDocumentIdList())
+                                .isVerifiedByDc(c.isVerifiedByDc())
+                                .dcFlagReason(c.getDcFlagReason())
                                 .build();
         }
 

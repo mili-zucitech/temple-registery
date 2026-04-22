@@ -76,4 +76,10 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
     long countActivePendingByDistrict(Long districtId);
 
     boolean existsByTempleIdAndStatusIn(Long templeId, List<DeclarationStatus> statuses);
+
+    Optional<AssetDeclaration> findTopByTempleIdAndFinancialYearOrderByVersionNumberDesc(Long templeId, String financialYear);
+
+    Optional<AssetDeclaration> findByTempleIdAndFinancialYearAndVersionNumber(Long templeId, String financialYear, int versionNumber);
+
+    List<AssetDeclaration> findAllByTempleIdAndFinancialYearOrderByVersionNumberDesc(Long templeId, String financialYear);
 }

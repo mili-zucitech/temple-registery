@@ -155,6 +155,8 @@ public class DocumentServiceImpl implements DocumentService {
             case "TRUST" -> trustRepository.findById(doc.getOwnerId())
                     .map(Trust::getTempleId)
                     .orElseThrow(() -> new EntityNotFoundException("Trust linked to document not found", "TRUST_NOT_FOUND"));
+            case "CONTRACTOR" -> doc.getOwnerId(); // For contractors, ownerId is the templeId
+            case "EMPLOYEE" -> doc.getOwnerId(); // For employees, ownerId is the templeId
             default -> doc.getOwnerId();
         };
     }

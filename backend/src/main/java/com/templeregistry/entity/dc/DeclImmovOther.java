@@ -26,11 +26,25 @@ public class DeclImmovOther {
     @Column(name = "declaration_id", nullable = false)
     private Long declarationId;
 
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
+    // User-specified fields
+    @Column(name = "location", length = 500)
+    private String location;
 
     @Column(name = "area", precision = 12, scale = 4)
     private BigDecimal area;
+
+    @Column(name = "land_type", length = 100) // Usage type
+    private String landType;
+
+    @Column(name = "document_reference", length = 200) // Revenue Department reference
+    private String documentReference;
+
+    // Additional fields from V38 migration
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "ownership_type", length = 50)
+    private String ownershipType;
 
     @Column(name = "valuation", precision = 15, scale = 2)
     private BigDecimal valuation;

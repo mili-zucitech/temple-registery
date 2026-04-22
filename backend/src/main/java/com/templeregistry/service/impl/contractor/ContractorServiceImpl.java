@@ -56,11 +56,14 @@ public class ContractorServiceImpl implements ContractorService {
         ownershipGuard.assertOwnsTemple(templeId);
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         Contractor c = Contractor.builder()
-                .templeId(templeId).name(rq.getName()).gstNumber(rq.getGstNumber())
+                .templeId(templeId).companyName(rq.getCompanyName()).gstNumber(rq.getGstNumber())
                 .serviceType(rq.getServiceType()).contractReference(rq.getContractReference())
                 .workOrderDate(rq.getWorkOrderDate()).contractStartDate(rq.getContractStartDate())
                 .contractEndDate(rq.getContractEndDate()).contractValue(rq.getContractValue())
-                .paymentStatus(rq.getPaymentStatus()).documentId(rq.getDocumentId()).build();
+                .paymentStatus(rq.getPaymentStatus()).build();
+        if (rq.getDocumentIds() != null) {
+            c.setDocumentIdList(rq.getDocumentIds());
+        }
         return toResponse(contractorRepository.save(c));
     }
 
@@ -85,9 +88,14 @@ public class ContractorServiceImpl implements ContractorService {
                 .orElseThrow(() -> new EntityNotFoundException("Temple", c.getTempleId()));
         ownershipGuard.assertOwnsTemple(c.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
-        c.setName(rq.getName()); c.setGstNumber(rq.getGstNumber());
-        c.setServiceType(rq.getServiceType()); c.setContractValue(rq.getContractValue());
+        c.setCompanyName(rq.getCompanyName()); c.setGstNumber(rq.getGstNumber());
+        c.setServiceType(rq.getServiceType()); c.setContractReference(rq.getContractReference());
+        c.setWorkOrderDate(rq.getWorkOrderDate()); c.setContractStartDate(rq.getContractStartDate());
+        c.setContractEndDate(rq.getContractEndDate()); c.setContractValue(rq.getContractValue());
         c.setPaymentStatus(rq.getPaymentStatus());
+        if (rq.getDocumentIds() != null) {
+            c.setDocumentIdList(rq.getDocumentIds());
+        }
         // Auto-reset: TA edit after DC verification resets status to PENDING
         if (c.isVerifiedByDc()) {
             c.setVerifiedByDc(false);
@@ -121,10 +129,12 @@ public class ContractorServiceImpl implements ContractorService {
 
     private ContractorResponse toResponse(Contractor c) {
         return ContractorResponse.builder()
-                .id(c.getId()).templeId(c.getTempleId()).name(c.getName())
+                .id(c.getId()).templeId(c.getTempleId()).companyName(c.getCompanyName())
                 .gstNumber(c.getGstNumber()).serviceType(c.getServiceType())
                 .contractReference(c.getContractReference()).workOrderDate(c.getWorkOrderDate())
                 .contractStartDate(c.getContractStartDate()).contractEndDate(c.getContractEndDate())
-                .contractValue(c.getContractValue()).paymentStatus(c.getPaymentStatus()).build();
+                .contractValue(c.getContractValue()).paymentStatus(c.getPaymentStatus())
+                .documentIds(c.getDocumentIdList())
+                .isVerifiedByDc(c.isVerifiedByDc()).dcFlagReason(c.getDcFlagReason()).build();
     }
 }
