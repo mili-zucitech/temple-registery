@@ -1,6 +1,8 @@
 package com.templeregistry.dto.response.declaration;
 
 import com.templeregistry.entity.declaration.DeclarationStatus;
+import com.templeregistry.entity.governance.DcDecisionStatus;
+import com.templeregistry.entity.governance.SubmissionStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -8,6 +10,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Declaration response DTO.
+ * Governance fields included: submissionStatus, dcDecisionStatus, sendBackReason.
+ * systemVerificationStatus is EXCLUDED — never returned to any caller via this DTO.
+ * physicalVerificationStatus is EXCLUDED — DC-only, returned only via DcGovernanceStatusResponse.
+ */
 @Getter
 @Builder
 public class DeclarationResponse {
@@ -38,4 +46,10 @@ public class DeclarationResponse {
     private LocalDate dueDate;
     private Boolean overdue;
     private String remarks;
+
+    // ─── 3-Layer Governance Status (TA-safe) ─────────────────────────────────
+    private SubmissionStatus submissionStatus;
+    private DcDecisionStatus dcDecisionStatus;
+    /** Free-text reason from DC when status is SENT_BACK. Null otherwise. */
+    private String sendBackReason;
 }

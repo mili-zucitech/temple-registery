@@ -7,13 +7,13 @@ export type DcRole = (typeof DC_ROLES)[number]
 
 export const DECLARATION_STATUSES = [
   'DRAFT',
-  'SUBMITTED',
-  'RESUBMITTED',
   'PENDING_REVIEW',
-  'APPROVED',
-  'REJECTED',
+  'UNDER_REVIEW',
+  'RESUBMITTED',
   'CLARIFICATION_REQUESTED',
   'PHYSICAL_VERIFICATION_REQUESTED',
+  'APPROVED',
+  'REJECTED',
   'OVERDUE',
 ] as const
 export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
@@ -426,8 +426,6 @@ export interface EmployeeSummary {
   address: string | null
   status: string
   isHereditary: boolean
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
 }
 
 export interface ContractorResponse {

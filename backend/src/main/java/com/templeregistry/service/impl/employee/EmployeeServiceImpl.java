@@ -19,6 +19,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.employee.EmployeeService;
 import com.templeregistry.service.notification.NotificationService;
 import com.templeregistry.util.PaginationUtil;
@@ -47,6 +48,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final JurisdictionGuard jurisdictionGuard;
     private final PaginationUtil paginationUtil;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,6 +80,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .submissionStatus(SubmissionStatus.DRAFT) // New employees start as DRAFT
                 .build();
         Employee saved = employeeRepository.save(emp);
+        auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "Employee", saved.getId(),
+                "Employee created for templeId=" + templeId);
         log.info("Employee created: id=[{}] temple=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
@@ -160,12 +164,26 @@ public class EmployeeServiceImpl implements EmployeeService {
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         employeeRepository.deleteById(id); // @SQLDelete intercepts to UPDATE
+        auditService.logDataEvent(currentUserId(), currentRole(), "DELETE", "Employee", id,
+                "Employee soft-deleted");
         log.info("Employee soft-deleted: id=[{}]", id);
     }
 
     private ScopeHelper.Claims currentClaims() {
         return (ScopeHelper.Claims) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
+    }
+
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        return 0L;
+    }
+
+    private String currentRole() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.role();
+        return "UNKNOWN";
     }
 
     private Employee findOrThrow(Long id) {

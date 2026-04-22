@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.dc;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.templeregistry.dto.response.contractor.ContractorResponse;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
@@ -70,6 +71,7 @@ public class TempleFullProfileResponse {
         private String bankName;
         private String bankBranch;
         private BigDecimal annualIncome;
+        @JsonProperty("isVerifiedByDc")
         private boolean isVerifiedByDc;
         private String dcFlagReason;
         private String reviewStatus;
@@ -96,7 +98,9 @@ public class TempleFullProfileResponse {
         private LocalDate appointmentDate;
         private LocalDate tenureEndDate;
         private String address;
+        @JsonProperty("isCurrent")
         private boolean isCurrent;
+        @JsonProperty("isVerifiedByDc")
         private boolean isVerifiedByDc;
         private String dcFlagReason;
     }

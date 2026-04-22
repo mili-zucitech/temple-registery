@@ -12,12 +12,6 @@ import type { EmployeeSummary } from '@/features/dc/dcTypes'
 
 interface StaffTabProps {
   employees: EmployeeSummary[]
-  canAct: boolean
-  templeId: number
-  /** Called once for the whole module — NOT per employee. */
-  onVerifyStaff: (notes: string) => Promise<void>
-  /** Called once for the whole module — NOT per employee. */
-  onFlagStaff: (reason: string) => Promise<void>
 }
 
 const ITEMS_PER_PAGE = 10

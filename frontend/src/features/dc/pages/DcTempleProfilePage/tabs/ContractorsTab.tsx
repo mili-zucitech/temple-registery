@@ -1,8 +1,6 @@
 import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '../components'
-import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
-import { ModuleStatusBadge, deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,12 +15,6 @@ import type { ContractorResponse } from '@/features/dc/dcTypes'
 
 interface ContractorsTabProps {
   contractors: ContractorResponse[]
-  canAct: boolean
-  templeId: number
-  /** Called once for the whole module — NOT per contractor. */
-  onVerifyContractors: (notes: string) => Promise<void>
-  /** Called once for the whole module — NOT per contractor. */
-  onFlagContractors: (reason: string) => Promise<void>
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -56,18 +48,15 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
 }
 
 /**
- * Contractors tab — module-level verification.
+ * Contractors tab — read-only data view for DC portal.
  *
- * ONE GovernanceActionPanel for the entire Contractors module.
- * No per-contractor verify/flag buttons.
- * No API loops.
+ * NO approval workflow applies to Contractors.
+ * NO verify/flag buttons.
+ * NO oversight status block.
+ * NO ModuleStatusBadge.
  *
- * Module status rules:
- *   - Any contractor flagged → FLAGGED
- *   - All contractors verified → VERIFIED
- *   - Otherwise → PENDING
- *
- * Oversight block shown ONLY when status === PENDING.
+ * Contractor changes are effective immediately on TA save.
+ * DC views this as a read-only reference panel.
  */
 export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFlagContractors }: ContractorsTabProps) {
   const [page, setPage] = useState(0)
@@ -123,13 +112,9 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFla
         title="Service Partners"
         icon={<Briefcase size={18} />}
         action={
-          contractors.length > 0
-            ? <ModuleStatusBadge status={moduleStatus} />
-            : (
-              <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-                0 Active
-              </span>
-            )
+          <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
+            {contractors.length} {contractors.length === 1 ? 'Active' : 'Active'}
+          </span>
         }
       >
         {contractors.length === 0 ? (

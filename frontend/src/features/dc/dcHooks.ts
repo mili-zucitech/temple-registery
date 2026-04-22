@@ -11,11 +11,6 @@ import {
   useGetDcTempleProfileQuery,
   useGetDcPendingProfileStagingQuery,
   useGetDcDeclarationDetailQuery,
-  useApproveDeclarationMutation,
-  useRejectDeclarationMutation,
-  useClarifyDeclarationMutation,
-  useFlagPhysicalVerificationMutation,
-  useMarkUnderReviewDeclarationMutation,
   useApproveProfileMutation,
   useRejectProfileMutation,
   useGetDcNotificationsQuery,
@@ -24,14 +19,23 @@ import {
   useMarkAllNotificationsReadMutation,
   useGetDcContextQuery,
 } from './dcApi'
+import {
+  useApproveDeclarationMutation,
+  useRejectDeclarationMutation,
+  useClarifyDeclarationMutation,
+  useFlagPhysicalVerificationMutation,
+  useMarkUnderReviewDeclarationMutation,
+} from '@/features/governance/governanceApi'
 import type {
   DcTempleSearchFilterRequest,
-  WorkflowApproveRequest,
-  WorkflowRejectRequest,
-  DcClarifyRequest,
   ApproveProfileRequest,
   RejectProfileRequest,
 } from './dcTypes'
+import type {
+  WorkflowApproveRequest,
+  WorkflowRejectRequest,
+  DcClarifyRequest,
+} from '@/features/governance/governanceTypes'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -344,6 +348,7 @@ export function useDcTempleProfile(templeId: number) {
     data: profileData,
     isLoading: profileLoading,
     isError: profileError,
+    refetch,
   } = useGetDcTempleProfileQuery(templeId, { skip: !templeId })
 
   return {
@@ -351,6 +356,7 @@ export function useDcTempleProfile(templeId: number) {
     isLoading: profileLoading,
     isError: profileError,
     profileLoading,
+    refetch,
   }
 }
 
@@ -394,6 +400,7 @@ interface WorkflowDialogState {
   open: boolean
   kind: ActionKind
   declarationId: number | null
+  templeId: number | null
 }
 
 // ─── useWorkflowActions ───────────────────────────────────────────────────────
@@ -408,14 +415,18 @@ interface WorkflowDialogState {
  *    isSubmitting,
  *  } = useWorkflowActions()
  *
- * Confirmation is two-step: call `openDialog(kind, id)` to show the dialog,
+ * Confirmation is two-step: call `openDialog(kind, id, templeId)` to show the dialog,
  * then call the `confirm*` handler with the form payload.
+ *
+ * templeId is required so that after a workflow action the correct DcTempleProfile
+ * cache entry is invalidated and the UI reflects the new status immediately.
  */
 export function useWorkflowActions() {
   const [dialog, setDialog] = useState<WorkflowDialogState>({
     open: false,
     kind: null,
     declarationId: null,
+    templeId: null,
   })
 
   const [approveDeclaration, { isLoading: approving }] = useApproveDeclarationMutation()
@@ -426,12 +437,12 @@ export function useWorkflowActions() {
 
   const isSubmitting = approving || rejecting || clarifying || flagging
 
-  const openDialog = useCallback((kind: ActionKind, declarationId: number) => {
-    setDialog({ open: true, kind, declarationId })
+  const openDialog = useCallback((kind: ActionKind, declarationId: number, templeId?: number) => {
+    setDialog({ open: true, kind, declarationId, templeId: templeId ?? null })
   }, [])
 
   const closeDialog = useCallback(() => {
-    setDialog({ open: false, kind: null, declarationId: null })
+    setDialog({ open: false, kind: null, declarationId: null, templeId: null })
   }, [])
 
   const confirmApprove = useCallback(
@@ -440,6 +451,7 @@ export function useWorkflowActions() {
       try {
         const result = await approveDeclaration({
           id: dialog.declarationId,
+          templeId: dialog.templeId ?? 0,
           body,
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
@@ -461,7 +473,7 @@ export function useWorkflowActions() {
         toast.error('Failed to approve declaration. Please try again.')
       }
     },
-    [dialog.declarationId, approveDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, approveDeclaration, closeDialog],
   )
 
   const confirmReject = useCallback(
@@ -470,6 +482,7 @@ export function useWorkflowActions() {
       try {
         const result = await rejectDeclaration({
           id: dialog.declarationId,
+          templeId: dialog.templeId ?? 0,
           body,
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
@@ -479,7 +492,7 @@ export function useWorkflowActions() {
         toast.error('Failed to reject declaration. Please try again.')
       }
     },
-    [dialog.declarationId, rejectDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, rejectDeclaration, closeDialog],
   )
 
   const confirmClarify = useCallback(
@@ -488,6 +501,7 @@ export function useWorkflowActions() {
       try {
         const result = await clarifyDeclaration({
           id: dialog.declarationId,
+          templeId: dialog.templeId ?? 0,
           body,
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
@@ -497,7 +511,7 @@ export function useWorkflowActions() {
         toast.error('Failed to request clarification. Please try again.')
       }
     },
-    [dialog.declarationId, clarifyDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, clarifyDeclaration, closeDialog],
   )
 
   const confirmFlagPhysical = useCallback(
@@ -506,6 +520,7 @@ export function useWorkflowActions() {
       try {
         const result = await flagPhysical({
           id: dialog.declarationId,
+          templeId: dialog.templeId ?? 0,
           body,
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
@@ -515,7 +530,7 @@ export function useWorkflowActions() {
         toast.error('Failed to flag for physical verification. Please try again.')
       }
     },
-    [dialog.declarationId, flagPhysical, closeDialog],
+    [dialog.declarationId, dialog.templeId, flagPhysical, closeDialog],
   )
 
   const confirmMarkUnderReview = useCallback(
