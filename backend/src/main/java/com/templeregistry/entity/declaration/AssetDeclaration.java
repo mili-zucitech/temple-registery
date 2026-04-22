@@ -69,6 +69,7 @@ public class AssetDeclaration extends BaseEntity {
     @Column(name = "submitted_by")  private Long submittedBy;
     @Column(name = "reviewed_at")   private LocalDateTime reviewedAt;
     @Column(name = "reviewed_by")   private Long reviewedBy;
+    @Column(name = "review_comment", columnDefinition = "TEXT") private String reviewComment;
     @Column(name = "acknowledged_at") private LocalDateTime acknowledgedAt;
 
     // Workflow counters and flags
@@ -92,6 +93,15 @@ public class AssetDeclaration extends BaseEntity {
 
     @Column(name = "due_date") private java.time.LocalDate dueDate;
 
+    // Annual Income and Expenditure
+    @Column(name = "annual_income", precision = 18, scale = 2)
+    private BigDecimal annualIncome;
+
+    @Column(name = "annual_expenditure", precision = 18, scale = 2)
+    private BigDecimal annualExpenditure;
+
+    // Note: Asset sub-table relationships are managed via repositories in the dc package
+    // to avoid circular dependencies. Use repositories to fetch related assets.
     // ─── 3-Layer Governance Status Model ─────────────────────────────────────
 
     /** Layer 1: Visible to all roles. Drives TA workflow. */

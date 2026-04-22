@@ -24,6 +24,7 @@ public class DeclarationResponse {
     private String templeName;
     private Long districtId;
     private String financialYear;
+    private Integer versionNumber;
     private DeclarationStatus status;
     private BigDecimal agriculturalLandAcres;
     private BigDecimal agriculturalLandValue;
@@ -40,8 +41,11 @@ public class DeclarationResponse {
     private BigDecimal otherMovableValue;
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
+    private Long reviewedBy;
     private String acknowledgementNumber;
     private LocalDate dueDate;
+    private Boolean overdue;
+    private String remarks;
 
     // ─── 3-Layer Governance Status (TA-safe) ─────────────────────────────────
     private SubmissionStatus submissionStatus;

@@ -46,6 +46,7 @@ public class RateRequestLog {
     @Column(name = "window_start", nullable = false)
     private LocalDateTime windowStart;
 
+    @Builder.Default
     @Column(name = "request_count", nullable = false)
     private int requestCount = 1;
 

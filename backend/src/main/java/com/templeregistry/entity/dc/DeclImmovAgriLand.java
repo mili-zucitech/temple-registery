@@ -27,17 +27,28 @@ public class DeclImmovAgriLand {
     @Column(name = "declaration_id", nullable = false)
     private Long declarationId;
 
+    // User-specified fields
     @Column(name = "survey_number", length = 100)
     private String surveyNumber;
+
+    @Column(name = "location", length = 500) // Village
+    private String location;
 
     @Column(name = "area_acres", precision = 10, scale = 4)
     private BigDecimal areaAcres;
 
-    @Column(name = "location", length = 500)
-    private String location;
-
-    @Column(name = "encumbrance", columnDefinition = "TEXT")
+    @Column(name = "encumbrance", columnDefinition = "TEXT") // Owner of Record
     private String encumbrance;
+
+    // Additional fields from V38 migration
+    @Column(name = "market_value", precision = 18, scale = 2)
+    private BigDecimal marketValue;
+
+    @Column(name = "ownership_type", length = 50) // Patta Status
+    private String ownershipType;
+
+    @Column(name = "document_reference", length = 200)
+    private String documentReference;
 
     @Column(name = "annual_lease_income", precision = 15, scale = 2)
     private BigDecimal annualLeaseIncome;

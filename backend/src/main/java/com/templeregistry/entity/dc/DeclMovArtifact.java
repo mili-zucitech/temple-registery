@@ -26,6 +26,32 @@ public class DeclMovArtifact {
     @Column(name = "declaration_id", nullable = false)
     private Long declarationId;
 
+    // User-specified fields
+    @Column(name = "artifact_type", length = 100) // Material
+    private String artifactType;
+
+    @Column(name = "material", length = 100)
+    private String material;
+
+    @Column(name = "age_years")
+    private Integer ageYears; // Age/Period
+
+    @Column(name = "age_or_period", length = 100)
+    private String ageOrPeriod;
+
+    @Column(name = "historical_significance", columnDefinition = "TEXT") // Known Provenance
+    private String historicalSignificance;
+
+    @Column(name = "provenance", columnDefinition = "TEXT")
+    private String provenance;
+
+    @Column(name = "condition_text", length = 100) // Museum-grade classification
+    private String conditionText;
+
+    @Column(name = "museum_grade_classification", length = 100)
+    private String museumGradeClassification;
+
+    // Additional fields from V38 migration
     @Column(name = "name", length = 255)
     private String name;
 
@@ -37,4 +63,7 @@ public class DeclMovArtifact {
 
     @Column(name = "storage_location", length = 255)
     private String storageLocation;
+
+    @Column(name = "document_reference", length = 200)
+    private String documentReference;
 }

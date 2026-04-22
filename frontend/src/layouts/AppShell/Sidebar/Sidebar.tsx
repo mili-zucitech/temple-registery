@@ -106,7 +106,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       </div>
 
       {/* Navigation Section */}
-      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-4 px-4 space-y-1.5 custom-scrollbar">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -143,7 +143,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
       {/* User Info & Actions Section */}
       <div className="mt-auto border-t border-sidebar-border/50 p-4 bg-sidebar-accent/30">
-        {currentUser && (
+        {/* {currentUser && (
           <div className="mb-4 px-3 flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-sidebar-primary font-bold text-xs ring-2 ring-sidebar-primary/10">
               {currentUser.fullName.charAt(0).toUpperCase()}
@@ -153,7 +153,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               <p className="text-[10px] text-sidebar-foreground/40 font-medium truncate uppercase tracking-tighter mt-0.5">{currentUser.role.replace(/_/g, ' ')}</p>
             </div>
           </div>
-        )}
+        )} */}
         <Button
           variant="ghost"
           size="sm"

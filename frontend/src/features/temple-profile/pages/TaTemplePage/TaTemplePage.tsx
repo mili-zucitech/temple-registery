@@ -39,6 +39,7 @@ function OverviewTab() {
   const effective = stagingProfile ?? temple
   const effectiveAny = effective as any
 
+
   const handleEdit = () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
 
   const editLabel =
@@ -48,8 +49,6 @@ function OverviewTab() {
   const district = temple ? `District ID: ${temple.districtId}` : undefined
   const locationParts = [temple?.landmark, talukName, hobliName, district].filter(Boolean)
 
-  const photoPath = (effective as any)?.photoFilePath
-  const photoUrl = photoPath ? `${import.meta.env.VITE_BASE_URL ?? ''}${photoPath}` : undefined
 
   let parsedLinked = effective?.linkedInstitutions
   if (typeof parsedLinked === 'string' && parsedLinked.startsWith('[')) {
@@ -58,122 +57,179 @@ function OverviewTab() {
     } catch {}
   }
 
+  let parsedLanguages = effective?.languagesOfWorship
+  if (typeof parsedLanguages === 'string' && parsedLanguages.startsWith('[')) {
+    try {
+      parsedLanguages = JSON.parse(parsedLanguages).join(', ')
+    } catch {}
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <StatusBanner
         status={profileStatus}
         reviewComment={profileReviewComment}
-        
       />
 
       <div className="flex items-center justify-end">
         <Button
           onClick={handleEdit}
           disabled={profileStatus === 'SUBMITTED'}
-          className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200"
+          className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium"
           title={profileStatus === 'SUBMITTED' ? 'Editing locked while under DC review' : undefined}
         >
-          <span className="mr-1.5">✎</span>
+          <span className="mr-2">✎</span>
           {editLabel}
         </Button>
       </div>
 
-      <SectionCard title="About Temple" icon={<Building2 size={16} />}>
+      {/* About Temple Section */}
+      <SectionCard title="About Temple" icon={<Building2 size={18} />}>
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 space-y-4">
-            <InfoRow label="Temple Name" value={temple?.name} />
-            <InfoRow label="Registration No." value={temple?.registrationNumber} />
-            <InfoRow label="Primary Deity" value={temple?.primaryDeity} />
-            <InfoRow label="Tradition" value={temple?.tradition} />
-            {temple?.yearEstablished && (
-              <InfoRow label="Year Established" value={temple.yearEstablished} />
-            )}
+          {/* Main Info */}
+          <div className="flex-1 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <InfoRow label="Temple Name" value={temple?.name} />
+              <InfoRow label="Registration No." value={temple?.registrationNumber} />
+              <InfoRow label="Primary Deity" value={temple?.primaryDeity} />
+              <InfoRow label="Tradition" value={temple?.tradition} />
+              {temple?.yearEstablished && (
+                <InfoRow label="Year Established" value={temple.yearEstablished} />
+              )}
+            </div>
+            
             {((effective as any)?.description ?? temple?.history) && (
-              <InfoRow label="Description" value={(effective as any)?.description ?? temple?.history} multiline />
+              <div className="pt-3 border-t border-border/50">
+                <InfoRow label="Description" value={(effective as any)?.description ?? temple?.history} multiline />
+              </div>
             )}
+            
             {effective?.historicalSignificance && (
-              <InfoRow label="Historical Significance" value={effective.historicalSignificance} multiline />
+              <div className="pt-3 border-t border-border/50">
+                <InfoRow label="Historical Significance" value={effective.historicalSignificance} multiline />
+              </div>
             )}
           </div>
 
-          {photoUrl && (
-            <div className="w-full lg:w-72 shrink-0">
-              <div className="relative overflow-hidden rounded-xl border border-border bg-muted aspect-[4/3] shadow-inner">
+          {/* Profile Photo (always show right side, fallback if missing) */}
+          <div className="w-full lg:w-80 shrink-0 flex flex-col items-center">
+            <div className="relative overflow-hidden rounded-lg border-2 border-border/50 bg-muted aspect-[4/3] shadow-lg group sticky top-6 flex items-center justify-center">
+              {effective?.photoUrl ? (
                 <img
-                  src={photoUrl}
+                  src={`${import.meta.env.VITE_BASE_URL}${effective.photoUrl}`}
                   alt={`${temple?.name ?? 'Temple'} profile`}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
+              ) : (
+                <div className="flex flex-col items-center justify-center w-full h-full">
+                  <Building2 size={56} className="text-muted-foreground/30" />
+                  <span className="text-xs text-muted-foreground mt-2">No Photo</span>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <p className="text-white text-xs font-medium">Primary Temple Photo</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Cultural Details */}
+      <SectionCard title="Cultural & Religious Details" icon={<BookOpen size={18} />} className="bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-card dark:from-amber-950/20 dark:via-orange-950/10 dark:to-card">
+        <div className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6">
+            <span className="text-sm font-semibold text-amber-900 dark:text-amber-100 sm:w-48 shrink-0">Languages of Worship</span>
+            <div className="flex-1">
+              <TagDisplay value={parsedLanguages} />
+            </div>
+          </div>
+          
+          {effective?.annualFestivals && (
+            <div className="pt-3 border-t border-amber-200/50 dark:border-amber-800/30">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6">
+                <span className="text-sm font-semibold text-amber-900 dark:text-amber-100 sm:w-48 shrink-0">Annual Festivals</span>
+                <p className="flex-1 text-sm text-foreground whitespace-pre-wrap leading-relaxed">{effective.annualFestivals}</p>
               </div>
             </div>
           )}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Cultural Details" icon={<BookOpen size={16} />} className="bg-gradient-to-br from-primary/5 via-accent/5 to-card">
-        <div className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <span className="text-sm font-semibold text-primary sm:w-44 shrink-0">Languages of Worship</span>
-            <TagDisplay value={effective?.languagesOfWorship ?? temple?.languagesOfWorship} />
-          </div>
-          {effective?.annualFestivals && (
-            <InfoRow label="Annual Festivals" value={effective.annualFestivals} multiline />
-          )}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <span className="text-sm font-semibold text-accent sm:w-44 shrink-0">Linked Institutions</span>
-            <TagDisplay value={parsedLinked} emptyLabel="None listed" />
+          
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6 pt-3 border-t border-amber-200/50 dark:border-amber-800/30">
+            <span className="text-sm font-semibold text-amber-900 dark:text-amber-100 sm:w-48 shrink-0">Linked Institutions</span>
+            <div className="flex-1">
+              <TagDisplay value={parsedLinked} emptyLabel="None listed" />
+            </div>
           </div>
         </div>
       </SectionCard>
 
-      <SectionCard title="Location" icon={<MapPin size={16} />}> 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-          {temple?.doorNumber && <InfoRow label="Door No." value={temple.doorNumber} />}
-          {temple?.street && <InfoRow label="Street" value={temple.street} />}
-          {temple?.villageTown && <InfoRow label="Village / Town" value={temple.villageTown} />}
-          {temple?.landmark && <InfoRow label="Landmark" value={temple.landmark} />}
-          {locationParts.length > 0 && <InfoRow label="Location" value={locationParts.join(' · ')} className="sm:col-span-2" />}
-          {temple?.pinCode && <InfoRow label="PIN Code" value={temple.pinCode} />}
-        </div>
-        {temple?.latitude != null && temple.longitude != null && (
-          <div className="mt-3 overflow-hidden rounded-lg border border-border shadow-sm max-w-full" style={{height: '180px'}}>
-            <iframe
-              title="Temple Location on Google Maps"
-              width="100%"
-              height="100%"
-              style={{ border: 0, minHeight: 120, maxHeight: 180 }}
-              loading="lazy"
-              allowFullScreen
-              className="rounded-lg"
-              src={`https://www.google.com/maps?q=${temple.latitude},${temple.longitude}&hl=en&z=14&output=embed`}
-            />
+      {/* Location & Contact Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Location Card */}
+        <SectionCard title="Location & Address" icon={<MapPin size={18} />}> 
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-y-3">
+              {temple?.doorNumber && <InfoRow label="Door No." value={temple.doorNumber} />}
+              {temple?.street && <InfoRow label="Street" value={temple.street} />}
+              {temple?.villageTown && <InfoRow label="Village / Town" value={temple.villageTown} />}
+              {temple?.landmark && <InfoRow label="Landmark" value={temple.landmark} />}
+              {temple?.pinCode && <InfoRow label="PIN Code" value={temple.pinCode} />}
+              {locationParts.length > 0 && (
+                <div className="pt-2 border-t border-border/50">
+                  <InfoRow label="Full Location" value={locationParts.join(' · ')} />
+                </div>
+              )}
+            </div>
+            
+            {temple?.latitude != null && temple.longitude != null && (
+              <div className="pt-3 border-t border-border/50">
+                <div className="overflow-hidden rounded-lg border-2 border-border/50 shadow-md" style={{height: '200px'}}>
+                  <iframe
+                    title="Temple Location on Google Maps"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    allowFullScreen
+                    src={`https://www.google.com/maps?q=${temple.latitude},${temple.longitude}&hl=en&z=14&output=embed`}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </SectionCard>
+        </SectionCard>
 
-      <SectionCard title="Contact Information" icon={<Phone size={16} />}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
-          <InfoRow label="Contact Person" value={effectiveAny?.contactPersonName ?? temple?.contactName} />
-          <InfoRow label="Designation" value={effectiveAny?.contactPersonDesignation ?? temple?.contactDesignation} />
-          <InfoRow label="Phone" value={effectiveAny?.phone ?? temple?.contactMobile} />
-          <InfoRow label="Email" value={effectiveAny?.email ?? temple?.contactEmail} />
-          {effectiveAny?.website && (
-            <InfoRow label="Website" value={effectiveAny.website} className="sm:col-span-2" />
-          )}
-        </div>
-      </SectionCard>
+        {/* Contact Information Card */}
+        <SectionCard title="Contact Information" icon={<Phone size={18} />}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-y-3">
+              <InfoRow label="Contact Person" value={effectiveAny?.contactPersonName ?? temple?.contactName} />
+              <InfoRow label="Designation" value={effectiveAny?.contactPersonDesignation ?? temple?.contactDesignation} />
+              <InfoRow label="Phone" value={effectiveAny?.phone ?? temple?.contactMobile} />
+              <InfoRow label="Email" value={effectiveAny?.email ?? temple?.contactEmail} />
+              {effectiveAny?.website && (
+                <div className="pt-2 border-t border-border/50">
+                  <InfoRow label="Website" value={effectiveAny.website} />
+                </div>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      </div>
 
+      {/* Bank Details */}
       {(effectiveAny?.bankName || effectiveAny?.bankAccountMasked || effectiveAny?.bankIfsc) && (
-        <SectionCard title="Bank Details (Hundi/Donation)" icon={<Link2 size={16} />}>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-3">
+        <SectionCard title="Bank Details (Hundi/Donation)" icon={<Link2 size={18} />} className="bg-gradient-to-br from-blue-50/50 via-indigo-50/30 to-card dark:from-blue-950/20 dark:via-indigo-950/10 dark:to-card">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
             <InfoRow label="Bank Name" value={effectiveAny.bankName} />
-            <InfoRow label="Bank IFSC" value={effectiveAny.bankIfsc} />
-            <InfoRow label="Account No." value={effectiveAny.bankAccountMasked} />
+            <InfoRow label="IFSC Code" value={effectiveAny.bankIfsc} />
+            <InfoRow label="Account Number" value={effectiveAny.bankAccountMasked} />
           </div>
         </SectionCard>
       )}
 
-      <SectionCard title="Temple Photo Gallery" icon={<Image size={16} />}>
+      {/* Photo Gallery */}
+      <SectionCard title="Temple Photo Gallery" icon={<Image size={18} />}>
         {temple?.id && (
           <ImageGallery
             templeId={temple.id}

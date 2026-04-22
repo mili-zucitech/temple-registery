@@ -35,6 +35,10 @@ public class GovernanceActionHistory {
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
+    @Column(name = "governance_version", nullable = false)
+    @Builder.Default
+    private Integer governanceVersion = 1;
+
     @CreationTimestamp
     @Column(name = "timestamp", nullable = false, updatable = false)
     private LocalDateTime timestamp;

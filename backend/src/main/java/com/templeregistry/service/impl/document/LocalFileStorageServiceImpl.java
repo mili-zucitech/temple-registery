@@ -44,10 +44,48 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public String presignedUrl(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            return null;
+    public String uploadBytes(String folder, String filename, byte[] content) {
+        String sanitized = sanitize(filename);
+        String relativePath = folder + "/" + UUID.randomUUID() + "_" + sanitized;
+        Path base = Path.of(baseDir).toAbsolutePath().normalize();
+        Path target = base.resolve(relativePath).normalize();
+
+        if (!target.startsWith(base)) {
+            throw new FileValidationException("Invalid file path detected");
         }
+
+        try {
+            Files.createDirectories(target.getParent());
+            Files.write(target, content);
+            log.info("Saved generated file locally: path=[{}]", relativePath);
+            return relativePath;
+        } catch (IOException e) {
+            throw new FileValidationException("Failed to store generated file: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String presignedUrl(String filePath) {
+        // Return null/empty as-is
+        if (filePath == null || filePath.isBlank()) {
+            return filePath;
+        }
+        
+        // If already a presigned URL, extract the key and rebuild (handles recursive wrapping)
+        if (filePath.startsWith("/api/v1/documents/download?key=")) {
+            // Extract the key parameter value
+            String key = filePath.substring("/api/v1/documents/download?key=".length());
+            
+            // If the key itself contains the presigned URL pattern (recursive wrapping), extract again
+            while (key.startsWith("/api/v1/documents/download?key=")) {
+                key = key.substring("/api/v1/documents/download?key=".length());
+            }
+            
+            // Return properly formatted presigned URL with clean key
+            return "/api/v1/documents/download?key=" + key;
+        }
+        
+        // Otherwise, convert raw file path to presigned URL
         return "/api/v1/documents/download?key=" + filePath;
     }
 

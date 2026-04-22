@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -17,18 +18,24 @@ import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
+import { Eye, Plus, Pencil, Trash2, Users } from 'lucide-react'
 
 type FormMode = 'create' | 'edit' | null
 
 export function TaEmployeesPage() {
+  const navigate = useNavigate()
   const [page, setPage] = useState(0)
   const [mode, setMode] = useState<FormMode>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeResponse | null>(null)
@@ -47,6 +54,7 @@ export function TaEmployeesPage() {
 
   const employees = data?.data?.content ?? []
   const totalPages = data?.data?.totalPages ?? 0
+  const totalElements = data?.data?.totalElements ?? 0
 
   const createForm = useForm<CreateEmployeeRequest>({
     resolver: zodResolver(createEmployeeSchema),
@@ -64,6 +72,8 @@ export function TaEmployeesPage() {
       employeeType: emp.employeeType,
       designation: emp.designation ?? '',
       salaryGrade: emp.salaryGrade ?? '',
+      mobile: emp.mobile ?? '',
+      address: emp.address ?? '',
       status: emp.status,
     })
     setMode('edit')
@@ -91,7 +101,7 @@ export function TaEmployeesPage() {
     if (!selectedEmployee) return
     try {
       await updateEmployee({ id: selectedEmployee.id, body: values }).unwrap()
-      toast.success('Employee updated')
+      toast.success('Employee updated successfully')
       closeForm()
     } catch {
       toast.error('Failed to update employee')
@@ -101,13 +111,24 @@ export function TaEmployeesPage() {
   const onDelete = async (id: number) => {
     try {
       await deleteEmployee(id).unwrap()
-      toast.success('Employee removed')
+      toast.success('Employee removed successfully')
     } catch {
       toast.error('Failed to remove employee')
     }
   }
 
   const watchedStatus = updateForm.watch('status')
+
+  const getEmployeeTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      PRIEST: 'Priest (Archaka)',
+      ADMINISTRATIVE: 'Administrative',
+      MAINTENANCE: 'Maintenance',
+      SECURITY: 'Security',
+      OTHER: 'Other',
+    }
+    return labels[type] || type
+  }
 
   if (isError) {
     return (
@@ -121,171 +142,373 @@ export function TaEmployeesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Employees</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage temple employee records.</p>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Users className="size-7 text-primary" />
+            Employees
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage temple employee records • {totalElements} total
+          </p>
         </div>
-        {mode === null && (
-          <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
-            + Add Employee
-          </Button>
-        )}
+        <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
+          <Plus className="size-4 mr-2" />
+          Add Employee
+        </Button>
       </div>
 
-      {/* Create Form */}
-      {mode === 'create' && (
-        <Form {...createForm}>
-          <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="rounded-lg border border-border bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-foreground">New Employee</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField control={createForm.control} name="fullName" render={({ field }) => (
-                <FormItem><FormLabel>Full Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="employeeType" render={({ field }) => (
-                <FormItem><FormLabel>Employee Type *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {EMPLOYEE_TYPES.map(t => <SelectItem key={t} value={t}>{t.replace('_', ' ')}</SelectItem>)}
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="designation" render={({ field }) => (
-                <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="salaryGrade" render={({ field }) => (
-                <FormItem><FormLabel>Salary Grade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="dateOfJoining" render={({ field }) => (
-                <FormItem><FormLabel>Date of Joining</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="mobile" render={({ field }) => (
-                <FormItem><FormLabel>Mobile</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={createForm.control} name="isHereditary" render={({ field }) => (
-                <FormItem className="flex items-center gap-3"><FormLabel>Hereditary Role</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  <FormMessage /></FormItem>
-              )} />
-            </div>
-            <div className="flex gap-3">
-              <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating}>{creating ? 'Adding…' : 'Add Employee'}</Button>
-              <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
-            </div>
-          </form>
-        </Form>
-      )}
-
-      {/* Edit Form */}
-      {mode === 'edit' && selectedEmployee && (
-        <Form {...updateForm}>
-          <form onSubmit={updateForm.handleSubmit(onUpdateSubmit)} className="rounded-lg border border-border bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-foreground">Edit Employee — {selectedEmployee.fullName}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField control={updateForm.control} name="fullName" render={({ field }) => (
-                <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={updateForm.control} name="employeeType" render={({ field }) => (
-                <FormItem><FormLabel>Employee Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {EMPLOYEE_TYPES.map(t => <SelectItem key={t} value={t}>{t.replace('_', ' ')}</SelectItem>)}
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
-              )} />
-              <FormField control={updateForm.control} name="designation" render={({ field }) => (
-                <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={updateForm.control} name="salaryGrade" render={({ field }) => (
-                <FormItem><FormLabel>Salary Grade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={updateForm.control} name="status" render={({ field }) => (
-                <FormItem><FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {EMPLOYEE_STATUSES.map(s => <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>)}
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
-              )} />
-              {watchedStatus && TERMINAL_EMPLOYEE_STATUSES.includes(watchedStatus as typeof TERMINAL_EMPLOYEE_STATUSES[number]) && (
-                <FormField control={updateForm.control} name="dateOfLeaving" render={({ field }) => (
-                  <FormItem><FormLabel>Date of Leaving *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+      {/* Create Dialog */}
+      <Dialog open={mode === 'create'} onOpenChange={(open) => !open && closeForm()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Employee</DialogTitle>
+            <DialogDescription>
+              Fill in the employee details. Employee ID will be auto-generated.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={createForm.control} name="fullName" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Full Name *</FormLabel>
+                    <FormControl><Input {...field} placeholder="Enter full legal name" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )} />
-              )}
-            </div>
-            <div className="flex gap-3">
-              <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={updating}>{updating ? 'Saving…' : 'Save Changes'}</Button>
-              <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
-            </div>
-          </form>
-        </Form>
-      )}
+                
+                <FormField control={createForm.control} name="employeeType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Employee Type *</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="PRIEST">Priest (Archaka)</SelectItem>
+                        <SelectItem value="ADMINISTRATIVE">Administrative Staff</SelectItem>
+                        <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                        <SelectItem value="SECURITY">Security</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="designation" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Designation</FormLabel>
+                    <FormControl><Input {...field} placeholder="Role title" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="dateOfJoining" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date of Joining</FormLabel>
+                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="salaryGrade" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Salary Grade</FormLabel>
+                    <FormControl><Input {...field} placeholder="Pay grade classification" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="mobile" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mobile</FormLabel>
+                    <FormControl><Input {...field} placeholder="Contact number" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="address" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Address</FormLabel>
+                    <FormControl><Textarea {...field} placeholder="Residential address" rows={2} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={createForm.control} name="isHereditary" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4 sm:col-span-2">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Hereditary Role</FormLabel>
+                      <p className="text-sm text-muted-foreground">Mark if this is a hereditary position</p>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating}>
+                  {creating ? 'Adding…' : 'Add Employee'}
+                </Button>
+                <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={mode === 'edit'} onOpenChange={(open) => !open && closeForm()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update employee information for {selectedEmployee?.fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...updateForm}>
+            <form onSubmit={updateForm.handleSubmit(onUpdateSubmit)} className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={updateForm.control} name="fullName" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl><Input {...field} placeholder="Enter full legal name" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                
+                <FormField control={updateForm.control} name="employeeType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Employee Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="PRIEST">Priest (Archaka)</SelectItem>
+                        <SelectItem value="ADMINISTRATIVE">Administrative Staff</SelectItem>
+                        <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                        <SelectItem value="SECURITY">Security</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={updateForm.control} name="designation" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Designation</FormLabel>
+                    <FormControl><Input {...field} placeholder="Role title" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={updateForm.control} name="salaryGrade" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Salary Grade</FormLabel>
+                    <FormControl><Input {...field} placeholder="Pay grade classification" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={updateForm.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="ON_LEAVE">On Leave</SelectItem>
+                        <SelectItem value="RETIRED">Retired</SelectItem>
+                        <SelectItem value="RESIGNED">Resigned</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {watchedStatus && TERMINAL_EMPLOYEE_STATUSES.includes(watchedStatus as typeof TERMINAL_EMPLOYEE_STATUSES[number]) && (
+                  <FormField control={updateForm.control} name="dateOfLeaving" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Leaving *</FormLabel>
+                      <FormControl><Input type="date" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                )}
+
+                <FormField control={updateForm.control} name="mobile" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mobile</FormLabel>
+                    <FormControl><Input {...field} placeholder="Contact number" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={updateForm.control} name="address" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Address</FormLabel>
+                    <FormControl><Textarea {...field} placeholder="Residential address" rows={2} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={updating}>
+                  {updating ? 'Saving…' : 'Save Changes'}
+                </Button>
+                <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       {isLoading ? (
         <div className="space-y-3"><CardSkeleton /><CardSkeleton /></div>
-      ) : employees.length === 0 && mode === null ? (
+      ) : employees.length === 0 ? (
         <EmptyState
           title="No employees yet"
-          description="Add your first employee record."
+          description="Add your first employee record to get started."
           action={{ label: '+ Add Employee', onClick: () => setMode('create') }}
         />
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b border-border">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Type</th>
-                <th className="px-4 py-3 text-left font-semibold">Designation</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Joined</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {employees.map((emp) => (
-                <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-medium">
-                    {emp.fullName}
-                    {emp.isHereditary && <span className="ml-1 text-xs text-muted-foreground">(Hereditary)</span>}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{emp.employeeType.replace('_', ' ')}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{emp.designation ?? '—'}</td>
-                  <td className="px-4 py-3"><StatusBadge status={emp.status} /></td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{emp.dateOfJoining ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(emp)}>Edit</Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">Remove</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove {emp.fullName}?</AlertDialogTitle>
-                            <AlertDialogDescription>This action marks the employee record as deleted. It cannot be undone.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => onDelete(emp.id)} disabled={deleting}>Remove</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </td>
+        <div className="rounded-lg border border-border overflow-hidden bg-card shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b border-border">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Employee ID</th>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Name</th>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Type</th>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Designation</th>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Mobile</th>
+                  <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {employees.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">
+                        {emp.employeeRef ?? `EMP-${emp.id}`}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{emp.fullName}</div>
+                      {emp.isHereditary && (
+                        <span className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                          Hereditary
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {getEmployeeTypeLabel(emp.employeeType)}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{emp.designation ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{emp.mobile ?? '—'}</td>
+                    <td className="px-4 py-3"><StatusBadge status={emp.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => navigate(`/employees/${emp.id}`)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="size-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => openEdit(emp)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove {emp.fullName}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action marks the employee record as deleted. It cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90" 
+                                onClick={() => onDelete(emp.id)} 
+                                disabled={deleting}
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <span className="text-xs text-muted-foreground">Page {page + 1} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</Button>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/20">
+              <div className="text-sm text-muted-foreground">
+                Showing {page * DEFAULT_PAGE_SIZE + 1} to {Math.min((page + 1) * DEFAULT_PAGE_SIZE, totalElements)} of {totalElements} employees
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={page === 0} 
+                  onClick={() => setPage(p => p - 1)}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = page < 3 ? i : page - 2 + i
+                    if (pageNum >= totalPages) return null
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum + 1}
+                      </Button>
+                    )
+                  })}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={page >= totalPages - 1} 
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </div>

@@ -1,65 +1,61 @@
 package com.templeregistry.dto.request.declaration;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
-@Getter @NoArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
 public class CreateDeclarationRequest {
-    @NotNull(message = "Agricultural land acres must not be null")
-    @PositiveOrZero(message = "Acres cannot be negative")
-    private BigDecimal agriculturalLandAcres;
 
-    @NotNull(message = "Agricultural land value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal agriculturalLandValue;
+    @NotBlank(message = "Financial year is required")
+    @Pattern(regexp = "\\d{4}-\\d{2}", message = "Financial year must be in YYYY-YY format")
+    private String financialYear;
 
-    @NotNull(message = "Buildings square footage must not be null")
-    @PositiveOrZero(message = "Square footage cannot be negative")
-    private BigDecimal buildingsSqft;
+    @NotNull(message = "Due date is required")
+    private LocalDate dueDate;
 
-    @NotNull(message = "Buildings value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal buildingsValue;
+    @DecimalMin(value = "0.0", inclusive = true, message = "Annual income must be non-negative")
+    private BigDecimal annualIncome;
 
-    @NotNull(message = "Leased properties count must not be null")
-    @PositiveOrZero(message = "Count cannot be negative")
-    private Integer leasedPropertiesCount;
+    @DecimalMin(value = "0.0", inclusive = true, message = "Annual expenditure must be non-negative")
+    private BigDecimal annualExpenditure;
 
-    @NotNull(message = "Leased properties value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal leasedPropertiesValue;
+    @Valid
+    private List<AgriLandItemRequest> agriculturalLands = new ArrayList<>();
 
-    @NotNull(message = "Other land value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal otherLandValue;
+    @Valid
+    private List<BuildingItemRequest> buildings = new ArrayList<>();
 
-    @NotNull(message = "Gold grams must not be null")
-    @PositiveOrZero(message = "Grams cannot be negative")
-    private BigDecimal goldGrams;
+    @Valid
+    private List<LeasedPropertyItemRequest> leasedProperties = new ArrayList<>();
 
-    @NotNull(message = "Silver grams must not be null")
-    @PositiveOrZero(message = "Grams cannot be negative")
-    private BigDecimal silverGrams;
+    @Valid
+    private List<OtherLandItemRequest> otherLands = new ArrayList<>();
 
-    @NotNull(message = "Idols count must not be null")
-    @PositiveOrZero(message = "Count cannot be negative")
-    private Integer idolsCount;
+    @Valid
+    private List<PreciousMetalItemRequest> preciousMetals = new ArrayList<>();
 
-    @NotNull(message = "Vehicles count must not be null")
-    @PositiveOrZero(message = "Count cannot be negative")
-    private Integer vehiclesCount;
+    @Valid
+    private List<ArtifactItemRequest> artifacts = new ArrayList<>();
 
-    @NotNull(message = "Financial assets value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal financialAssetsValue;
+    @Valid
+    private List<VehicleItemRequest> vehicles = new ArrayList<>();
 
-    @NotNull(message = "Other movable value must not be null")
-    @PositiveOrZero(message = "Value cannot be negative")
-    private BigDecimal otherMovableValue;
+    @Valid
+    private List<EquipmentItemRequest> equipment = new ArrayList<>();
 
-    @NotNull(message = "Due date must not be null")
-    private java.time.LocalDate dueDate;
+    @Valid
+    private List<FinancialAssetItemRequest> financialAssets = new ArrayList<>();
 }
