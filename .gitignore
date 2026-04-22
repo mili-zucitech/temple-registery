@@ -11,6 +11,8 @@ backend/hs_err_pid*
 *.ear
 *.nar
 
+.kiro
+
 # ──────────────────────────────────────────────
 # Frontend (Node / Vite / React)
 # ──────────────────────────────────────────────
@@ -20,6 +22,7 @@ frontend/dist/
 frontend/.vite/
 frontend/coverage/
 *.local
+backend/exports
 
 # ──────────────────────────────────────────────
 # Environment & secrets

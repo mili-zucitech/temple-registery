@@ -99,8 +99,8 @@ export function GovernanceActionPanel({
         </div>
       ) : (
         <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-4">
-          <p className="text-xs font-semibold text-amber-800">Pending DC Verification</p>
-          <p className="text-xs text-amber-700/80 mt-1">This entity requires verification before final approval.</p>
+          <p className="text-xs font-semibold text-amber-800">Pending DC Compliance Check</p>
+          <p className="text-xs text-amber-700/80 mt-1">This entity has not yet been verified by the District Collector.</p>
         </div>
       )}
 
@@ -129,9 +129,9 @@ export function GovernanceActionPanel({
       <AlertDialog open={verifyOpen} onOpenChange={setVerifyOpen}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Approve {entityName}</AlertDialogTitle>
+            <AlertDialogTitle>Verify {entityName}</AlertDialogTitle>
             <AlertDialogDescription>
-              Confirming verification for {entityName}. This action will be recorded in the audit logs.
+              Confirming DC compliance verification for {entityName}. This action will be recorded in the audit logs.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4 space-y-2">

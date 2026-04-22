@@ -93,23 +93,12 @@ export interface BoardMemberResponse {
   id: number
   trustId: number
   fullName: string
-<<<<<<< HEAD
-  aadhaarMasked?: string
-  /** Some endpoints use `maskedAadhaar` instead of `aadhaarMasked`. */
-  maskedAadhaar?: string
-=======
   maskedAadhaar?: string | null
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
   designation?: string
   appointmentDate?: string
   tenureEndDate?: string | null
   contactNumber?: string
   address?: string
-<<<<<<< HEAD
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string
-=======
->>>>>>> e4d8708f17ccfe5f8e899887ac7d81198c24478b
   isCurrent: boolean
   isVerifiedByDc?: boolean
   dcFlagReason?: string | null

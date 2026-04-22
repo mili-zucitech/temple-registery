@@ -1,4 +1,4 @@
-package com.templeregistry.service.impl.dc;
+package com.templeregistry.service.impl.governance;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.dto.request.dc.DcClarifyRequest;
@@ -9,17 +9,23 @@ import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.DeclarationStatus;
+import com.templeregistry.entity.governance.PhysicalVerificationStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.ClarificationLimitExceededException;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
+import com.templeregistry.repository.governance.PhysicalVerificationHistoryRepository;
 import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
+import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
@@ -39,23 +45,34 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for GovernanceWorkflowServiceImpl — declaration workflow actions.
+ *
+ * Verifies that GovernanceWorkflowServiceImpl is the SINGLE SOURCE OF TRUTH
+ * for all declaration workflow transitions (approve, reject, clarify,
+ * flag-physical, under-review).
+ */
 @ExtendWith(MockitoExtension.class)
-class DeclarationWorkflowServiceImplTest {
+class GovernanceDeclarationWorkflowTest {
 
     @Mock DeclarationRepository declarationRepository;
     @Mock DeclarationClarificationRepository clarificationRepository;
     @Mock TempleRepository templeRepository;
+    @Mock TrustRepository trustRepository;
+    @Mock PhysicalVerificationHistoryRepository physicalVerificationHistoryRepository;
     @Mock JurisdictionGuard jurisdictionGuard;
+    @Mock OwnershipGuard ownershipGuard;
     @Mock StatusTransitionValidator transitionValidator;
     @Mock AcknowledgementNumberGenerator ackGenerator;
     @Mock NotificationEventPublisher notificationPublisher;
     @Mock TempleSearchSummaryService summaryService;
     @Mock AuditService auditService;
+    @Mock GovernanceAuditService governanceAuditService;
     @Mock ObjectMapper objectMapper;
     @Mock UserRepository userRepository;
 
     @InjectMocks
-    DeclarationWorkflowServiceImpl workflowService;
+    GovernanceWorkflowServiceImpl workflowService;
 
     private AssetDeclaration pendingDeclaration;
     private Temple temple;
@@ -91,7 +108,7 @@ class DeclarationWorkflowServiceImplTest {
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowApproveRequest request = new WorkflowApproveRequest();
-        WorkflowActionResponse result = workflowService.approve(42L, request, dcClaims);
+        WorkflowActionResponse result = workflowService.approveDeclaration(42L, request, dcClaims);
 
         assertThat(result.getNewStatus()).isEqualTo("APPROVED");
         assertThat(result.getAcknowledgementNumber()).isEqualTo("ACK-2024-0042");
@@ -102,22 +119,29 @@ class DeclarationWorkflowServiceImplTest {
     }
 
     @Test
-    void should_throwEntityNotFoundException_when_declarationDoesNotExist_onApprove() {
-        when(declarationRepository.findByIdWithLock(999L)).thenReturn(Optional.empty());
+    void should_blockApproval_when_physicalVerificationFailed() {
+        pendingDeclaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED);
+        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
 
-        assertThatThrownBy(() -> workflowService.approve(999L, new WorkflowApproveRequest(), dcClaims))
-                .isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
+                .isInstanceOf(IllegalStatusTransitionException.class)
+                .hasMessageContaining("physical verification has FAILED");
 
+        verify(declarationRepository, never()).save(any());
         verifyNoInteractions(summaryService, notificationPublisher);
     }
 
     @Test
-    void should_throwEntityNotFoundException_when_templeDoesNotExist_onApprove() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
-        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.empty());
+    void should_throwEntityNotFoundException_when_declarationDoesNotExist_onApprove() {
+        when(declarationRepository.findByIdWithLock(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> workflowService.approve(42L, new WorkflowApproveRequest(), dcClaims))
+        assertThatThrownBy(() -> workflowService.approveDeclaration(999L, new WorkflowApproveRequest(), dcClaims))
                 .isInstanceOf(EntityNotFoundException.class);
+
+        verifyNoInteractions(summaryService, notificationPublisher);
     }
 
     // ── Reject ────────────────────────────────────────────────────────────────
@@ -131,16 +155,9 @@ class DeclarationWorkflowServiceImplTest {
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowRejectRequest request = new WorkflowRejectRequest();
-        // WorkflowRejectRequest uses @Getter only; set the field via reflection for unit test
-        try {
-            java.lang.reflect.Field f = WorkflowRejectRequest.class.getDeclaredField("remarks");
-            f.setAccessible(true);
-            f.set(request, "Incomplete documentation.");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        setField(request, "remarks", "Incomplete documentation.");
 
-        WorkflowActionResponse result = workflowService.reject(42L, request, dcClaims);
+        WorkflowActionResponse result = workflowService.rejectDeclaration(42L, request, dcClaims);
 
         assertThat(result.getNewStatus()).isEqualTo("REJECTED");
         assertThat(result.getAcknowledgementNumber()).isNull();
@@ -162,7 +179,6 @@ class DeclarationWorkflowServiceImplTest {
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
-        // Use reflection to set private field (or use constructor if available)
         setField(request, "message", "Please provide survey deed for plot 42.");
         setField(request, "sectionName", "IMMOVABLE_LAND");
 
@@ -193,7 +209,7 @@ class DeclarationWorkflowServiceImplTest {
     }
 
     @Test
-    void should_notifySuperAdmins_when_roundReachesTwo() {
+    void should_notifySuperAdmins_when_clarificationRoundReachesTwo() {
         pendingDeclaration.setClarificationRound(1);
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
@@ -216,10 +232,26 @@ class DeclarationWorkflowServiceImplTest {
         verify(notificationPublisher).publish(eq(1001L), eq("CLARIFICATION_ESCALATION"), eq(42L), eq("ASSET_DECLARATION"));
     }
 
+    // ── Mark Under Review ─────────────────────────────────────────────────────
+
+    @Test
+    void should_markDeclarationUnderReview_when_statusIsPendingReview() {
+        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
+
+        WorkflowActionResponse result = workflowService.markUnderReview(42L, dcClaims);
+
+        assertThat(result.getNewStatus()).isEqualTo("UNDER_REVIEW");
+        assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.UNDER_REVIEW);
+    }
+
     // ── Flag Physical Verification ────────────────────────────────────────────
 
     @Test
-    void should_flagDeclaration_and_setPhysicalVerificationStatus_when_statusIsPendingReview() {
+    void should_flagDeclaration_for_physicalVerification_when_statusIsPendingReview() {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
@@ -248,7 +280,7 @@ class DeclarationWorkflowServiceImplTest {
         when(ackGenerator.generate()).thenReturn("ACK-X");
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
-        workflowService.approve(42L, new WorkflowApproveRequest(), dcClaims);
+        workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims);
 
         verify(jurisdictionGuard).assertDistrictScope(temple, dcClaims);
     }

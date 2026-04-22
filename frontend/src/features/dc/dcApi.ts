@@ -10,9 +10,6 @@ import type {
   DeclarationDetailResponse,
   ProfileStagingResponse,
   WorkflowActionResponse,
-  WorkflowApproveRequest,
-  WorkflowRejectRequest,
-  DcClarifyRequest,
   ApproveProfileRequest,
   RejectProfileRequest,
   NotificationResponse,
@@ -76,92 +73,13 @@ export const dcApi = createApi({
       providesTags: (_r, _e, templeId) => [{ type: 'DcProfileStaging', id: templeId }],
     }),
 
-    // ─── Declaration Detail ───────────────────────────────────────────────────
+    // ─── Declaration Detail (read-only) ───────────────────────────────────────
+    // Workflow actions (approve, reject, clarify, flag-physical, under-review, send-back)
+    // are in governanceApi — use useApproveDeclarationMutation etc. from there.
 
     getDcDeclarationDetail: builder.query<ApiResponse<DeclarationDetailResponse>, number>({
       query: (id) => `/dc/declarations/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'DcDeclaration', id }],
-    }),
-
-    // ─── Declaration Workflow Actions ─────────────────────────────────────────
-
-    approveDeclaration: builder.mutation<
-      ApiResponse<WorkflowActionResponse>,
-      { id: number; body: WorkflowApproveRequest; idempotencyKey?: string }
-    >({
-      query: ({ id, body, idempotencyKey }) => ({
-        url: `/dc/declarations/${id}/approve`,
-        method: 'POST',
-        body,
-        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
-      }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'DcDeclaration', id },
-        'DcTempleSearch',
-        'DcDashboard',
-        { type: 'DcTempleProfile', id },
-      ],
-    }),
-
-    rejectDeclaration: builder.mutation<
-      ApiResponse<WorkflowActionResponse>,
-      { id: number; body: WorkflowRejectRequest; idempotencyKey?: string }
-    >({
-      query: ({ id, body, idempotencyKey }) => ({
-        url: `/dc/declarations/${id}/reject`,
-        method: 'POST',
-        body,
-        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
-      }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'DcDeclaration', id },
-        'DcTempleSearch',
-        'DcDashboard',
-      ],
-    }),
-
-    clarifyDeclaration: builder.mutation<
-      ApiResponse<WorkflowActionResponse>,
-      { id: number; body: DcClarifyRequest; idempotencyKey?: string }
-    >({
-      query: ({ id, body, idempotencyKey }) => ({
-        url: `/dc/declarations/${id}/clarify`,
-        method: 'POST',
-        body,
-        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
-      }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'DcDeclaration', id },
-        'DcTempleSearch',
-      ],
-    }),
-
-    flagPhysicalVerification: builder.mutation<
-      ApiResponse<WorkflowActionResponse>,
-      { id: number; body: DcClarifyRequest; idempotencyKey?: string }
-    >({
-      query: ({ id, body, idempotencyKey }) => ({
-        url: `/dc/declarations/${id}/flag-physical`,
-        method: 'POST',
-        body,
-        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
-      }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'DcDeclaration', id },
-        'DcTempleSearch',
-      ],
-    }),
-    
-    markUnderReviewDeclaration: builder.mutation<ApiResponse<WorkflowActionResponse>, number>({
-      query: (id) => ({
-        url: `/dc/declarations/${id}/under-review`,
-        method: 'POST',
-      }),
-      invalidatesTags: (_r, _e, id) => [
-        { type: 'DcDeclaration', id },
-        'DcDashboard',
-        'DcTempleSearch',
-      ],
     }),
 
     // ─── Profile Workflow Actions ─────────────────────────────────────────────
@@ -200,12 +118,27 @@ export const dcApi = createApi({
     }),
 
     // ─── Compliance/Verification Actions ──────────────────────────────────────
+
     verifyTemple: builder.mutation<ApiResponse<void>, { id: number; body: DcVerifyRequest }>({
       query: ({ id, body }) => ({
         url: `/dc/compliance/temples/${id}/verify`,
         method: 'POST',
         body,
       }),
+      onQueryStarted: async ({ id: templeId }, { dispatch, queryFulfilled }) => {
+        const patchResult = dispatch(
+          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
+            if (draft?.data?.temple) {
+              draft.data.temple.verificationStatus = 'VERIFIED'
+            }
+          })
+        )
+        try {
+          await queryFulfilled
+        } catch {
+          patchResult.undo()
+        }
+      },
       invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
     }),
 
@@ -215,6 +148,20 @@ export const dcApi = createApi({
         method: 'POST',
         body,
       }),
+      onQueryStarted: async ({ id: templeId }, { dispatch, queryFulfilled }) => {
+        const patchResult = dispatch(
+          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
+            if (draft?.data?.temple) {
+              draft.data.temple.verificationStatus = 'FLAGGED'
+            }
+          })
+        )
+        try {
+          await queryFulfilled
+        } catch {
+          patchResult.undo()
+        }
+      },
       invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
     }),
 
@@ -224,7 +171,24 @@ export const dcApi = createApi({
         method: 'POST',
         body,
       }),
-      // Invalidates the profile that contains this trust
+      // Optimistically update the cache so the UI reflects the change immediately
+      // without waiting for a refetch (avoids TiDB read-after-write lag)
+      onQueryStarted: async ({ id: trustId, templeId }, { dispatch, queryFulfilled }) => {
+        const patchResult = dispatch(
+          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
+            if (draft?.data?.trust && draft.data.trust.id === trustId) {
+              draft.data.trust.isVerifiedByDc = true
+              draft.data.trust.dcFlagReason = null
+              draft.data.trust.reviewStatus = 'APPROVED'
+            }
+          })
+        )
+        try {
+          await queryFulfilled
+        } catch {
+          patchResult.undo()
+        }
+      },
       invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
     }),
 
@@ -234,85 +198,25 @@ export const dcApi = createApi({
         method: 'POST',
         body,
       }),
+      // Optimistically update the cache
+      onQueryStarted: async ({ id: trustId, templeId, body }, { dispatch, queryFulfilled }) => {
+        const patchResult = dispatch(
+          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
+            if (draft?.data?.trust && draft.data.trust.id === trustId) {
+              draft.data.trust.isVerifiedByDc = false
+              draft.data.trust.dcFlagReason = body.reason
+              draft.data.trust.reviewStatus = 'FLAGGED'
+            }
+          })
+        )
+        try {
+          await queryFulfilled
+        } catch {
+          patchResult.undo()
+        }
+      },
       invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
     }),
-
-    verifyEmployee: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/employees/${id}/verify`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    flagEmployee: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/employees/${id}/flag`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    /** Verify the entire Staff module for a temple — ONE call, no loops. */
-    verifyStaffModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcVerifyRequest }>({
-      query: ({ templeId, body }) => ({
-        url: `/dc/compliance/staff/${templeId}/verify`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    /** Flag the entire Staff module for a temple — ONE call. */
-    flagStaffModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcFlagRequest }>({
-      query: ({ templeId, body }) => ({
-        url: `/dc/compliance/staff/${templeId}/flag`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    verifyContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/contractors/${id}/verify`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    flagContractor: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/contractors/${id}/flag`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    /** Verify the entire Contractors module for a temple — ONE call, no loops. */
-    verifyContractorsModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcVerifyRequest }>({
-      query: ({ templeId, body }) => ({
-        url: `/dc/compliance/contractors-module/${templeId}/verify`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    /** Flag the entire Contractors module for a temple — ONE call. */
-    flagContractorsModule: builder.mutation<ApiResponse<void>, { templeId: number; body: DcFlagRequest }>({
-      query: ({ templeId, body }) => ({
-        url: `/dc/compliance/contractors-module/${templeId}/flag`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
 
     // ─── Notifications ────────────────────────────────────────────────────────
 
@@ -385,11 +289,6 @@ export const {
   useGetDcTempleProfileQuery,
   useGetDcPendingProfileStagingQuery,
   useGetDcDeclarationDetailQuery,
-  useApproveDeclarationMutation,
-  useRejectDeclarationMutation,
-  useClarifyDeclarationMutation,
-  useFlagPhysicalVerificationMutation,
-  useMarkUnderReviewDeclarationMutation,
   useApproveProfileMutation,
   useRejectProfileMutation,
   useGetDcNotificationsQuery,
@@ -402,12 +301,4 @@ export const {
   useFlagTempleMutation,
   useVerifyTrustMutation,
   useFlagTrustMutation,
-  useVerifyEmployeeMutation,
-  useFlagEmployeeMutation,
-  useVerifyStaffModuleMutation,
-  useFlagStaffModuleMutation,
-  useVerifyContractorMutation,
-  useFlagContractorMutation,
-  useVerifyContractorsModuleMutation,
-  useFlagContractorsModuleMutation,
 } = dcApi

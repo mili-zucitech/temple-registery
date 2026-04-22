@@ -7,6 +7,11 @@ import lombok.Getter;
 
 import java.time.LocalDate;
 
+/**
+ * Employee response DTO.
+ * No DC approval workflow applies to Staff — changes are effective immediately.
+ * No verification/compliance fields are exposed.
+ */
 @Getter @Builder
 public class EmployeeResponse {
     private Long id;
