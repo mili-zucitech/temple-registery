@@ -15,6 +15,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.employee.EmployeeService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
     private final PaginationUtil paginationUtil;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -69,6 +71,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .mobile(rq.getMobile()).address(rq.getAddress()).isHereditary(rq.isHereditary())
                 .status(EmployeeStatus.ACTIVE).build();
         Employee saved = employeeRepository.save(emp);
+        auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "Employee", saved.getId(),
+                "Employee created for templeId=" + templeId);
         log.info("Employee created: id=[{}] temple=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
@@ -119,15 +123,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (rq.getDateOfLeaving() != null) emp.setDateOfLeaving(rq.getDateOfLeaving());
         }
 
-        // Auto-reset: TA edit after DC verification resets status to PENDING
-        if (emp.isVerifiedByDc()) {
-            emp.setVerifiedByDc(false);
-            emp.setDcFlagReason(null);
-            log.info("Employee [{}] verification reset to PENDING after TA update", id);
-        }
-
-        log.info("Employee updated: id=[{}] newStatus=[{}]", id, emp.getStatus());
-        return toResponse(employeeRepository.save(emp));
+        Employee saved = employeeRepository.save(emp);
+        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "Employee", id,
+                "Employee updated: status=" + saved.getStatus());
+        log.info("Employee updated: id=[{}] newStatus=[{}]", id, saved.getStatus());
+        return toResponse(saved);
     }
 
     @Override
@@ -140,6 +140,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         employeeRepository.deleteById(id); // @SQLDelete intercepts to UPDATE
+        auditService.logDataEvent(currentUserId(), currentRole(), "DELETE", "Employee", id,
+                "Employee soft-deleted");
         log.info("Employee soft-deleted: id=[{}]", id);
     }
 
@@ -148,15 +150,29 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .getAuthentication().getPrincipal();
     }
 
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        return 0L;
+    }
+
+    private String currentRole() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.role();
+        return "UNKNOWN";
+    }
+
     private Employee findOrThrow(Long id) {
         return employeeRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Employee", id));
     }
 
     private EmployeeResponse toResponse(Employee e) {
         return EmployeeResponse.builder()
-            .id(e.getId()).templeId(e.getTempleId()).fullName(e.getFullName())
-            .employeeType(e.getEmployeeType()).designation(e.getDesignation())
-            .dateOfJoining(e.getDateOfJoining()).salaryGrade(e.getSalaryGrade())
-            .status(e.getStatus()).isHereditary(e.getIsHereditary()).build();
+            .id(e.getId()).templeId(e.getTempleId()).employeeRef(e.getEmployeeRef())
+            .fullName(e.getFullName()).employeeType(e.getEmployeeType())
+            .designation(e.getDesignation()).dateOfJoining(e.getDateOfJoining())
+            .salaryGrade(e.getSalaryGrade()).mobile(e.getMobile()).address(e.getAddress())
+            .status(e.getStatus()).isHereditary(e.getIsHereditary())
+            .build();
     }
 }

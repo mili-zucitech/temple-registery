@@ -38,9 +38,4 @@ public class Employee extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20) private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
     @Column(name = "date_of_leaving") private LocalDate dateOfLeaving;
-
-    // DC Governance Fields
-    @Builder.Default
-    @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
-    @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
 }

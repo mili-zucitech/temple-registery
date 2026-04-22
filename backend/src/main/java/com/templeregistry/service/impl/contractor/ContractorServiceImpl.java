@@ -12,6 +12,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.contractor.ContractorService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ContractorServiceImpl implements ContractorService {
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
     private final PaginationUtil paginationUtil;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -61,7 +63,10 @@ public class ContractorServiceImpl implements ContractorService {
                 .workOrderDate(rq.getWorkOrderDate()).contractStartDate(rq.getContractStartDate())
                 .contractEndDate(rq.getContractEndDate()).contractValue(rq.getContractValue())
                 .paymentStatus(rq.getPaymentStatus()).documentId(rq.getDocumentId()).build();
-        return toResponse(contractorRepository.save(c));
+        Contractor saved = contractorRepository.save(c);
+        auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "Contractor", saved.getId(),
+                "Contractor created for templeId=" + templeId);
+        return toResponse(saved);
     }
 
     @Override
@@ -85,16 +90,15 @@ public class ContractorServiceImpl implements ContractorService {
                 .orElseThrow(() -> new EntityNotFoundException("Temple", c.getTempleId()));
         ownershipGuard.assertOwnsTemple(c.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
-        c.setName(rq.getName()); c.setGstNumber(rq.getGstNumber());
-        c.setServiceType(rq.getServiceType()); c.setContractValue(rq.getContractValue());
+        c.setName(rq.getName());
+        c.setGstNumber(rq.getGstNumber());
+        c.setServiceType(rq.getServiceType());
+        c.setContractValue(rq.getContractValue());
         c.setPaymentStatus(rq.getPaymentStatus());
-        // Auto-reset: TA edit after DC verification resets status to PENDING
-        if (c.isVerifiedByDc()) {
-            c.setVerifiedByDc(false);
-            c.setDcFlagReason(null);
-            log.info("Contractor [{}] verification reset to PENDING after TA update", id);
-        }
-        return toResponse(contractorRepository.save(c));
+        Contractor saved = contractorRepository.save(c);
+        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "Contractor", id,
+                "Contractor updated: name=" + saved.getName());
+        return toResponse(saved);
     }
 
     @Override
@@ -107,12 +111,26 @@ public class ContractorServiceImpl implements ContractorService {
         ownershipGuard.assertOwnsTemple(c.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         contractorRepository.deleteById(id);
+        auditService.logDataEvent(currentUserId(), currentRole(), "DELETE", "Contractor", id,
+                "Contractor soft-deleted");
         log.info("Contractor soft-deleted: id=[{}]", id);
     }
 
     private ScopeHelper.Claims currentClaims() {
         return (ScopeHelper.Claims) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
+    }
+
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        return 0L;
+    }
+
+    private String currentRole() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.role();
+        return "UNKNOWN";
     }
 
     private Contractor findOrThrow(Long id) {
@@ -125,6 +143,6 @@ public class ContractorServiceImpl implements ContractorService {
                 .gstNumber(c.getGstNumber()).serviceType(c.getServiceType())
                 .contractReference(c.getContractReference()).workOrderDate(c.getWorkOrderDate())
                 .contractStartDate(c.getContractStartDate()).contractEndDate(c.getContractEndDate())
-                .contractValue(c.getContractValue()).paymentStatus(c.getPaymentStatus()).build();
-    }
-}
+                .contractValue(c.getContractValue()).paymentStatus(c.getPaymentStatus())
+                .build();
+    }}

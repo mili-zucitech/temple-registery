@@ -4,6 +4,8 @@ import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.trust.*;
 import com.templeregistry.dto.response.trust.*;
 import com.templeregistry.entity.document.Document;
+import com.templeregistry.entity.governance.DcDecisionStatus;
+import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.*;
 import com.templeregistry.exception.EntityNotFoundException;
@@ -15,7 +17,10 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.GovernanceAuditService;
+import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.document.DocumentService;
+import com.templeregistry.service.governance.GovernanceEditGuard;
 import com.templeregistry.service.trust.TrustService;
 import com.templeregistry.service.trust.TrustValidationService;
 import com.templeregistry.util.HmacUtil;
@@ -54,6 +59,9 @@ public class TrustServiceImpl implements TrustService {
     private final DocumentService documentService;
     private final DocumentRepository documentRepository;
     private final HmacUtil hmacUtil;
+    private final GovernanceEditGuard governanceEditGuard;
+    private final GovernanceAuditService governanceAuditService;
+    private final NotificationEventPublisher notificationPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -124,6 +132,14 @@ public class TrustServiceImpl implements TrustService {
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         trustValidationService.validateTrustRequest(rq, id);
+
+        // Capture status before edit to detect re-submission requirement
+        SubmissionStatus statusBeforeEdit = trust.getSubmissionStatus();
+
+        // Governance guard: assert TA can edit (blocks REJECTED and SUBMITTED)
+        // APPROVED is now allowed — triggers re-submission below
+        governanceEditGuard.assertCanEdit(statusBeforeEdit, "Trust", id);
+
         trust.setTrustName(rq.getTrustName());
         trust.setTrustType(rq.getTrustType());
         trust.setTrustRegistrationNumber(rq.getRegistrationNumber().trim());
@@ -133,12 +149,28 @@ public class TrustServiceImpl implements TrustService {
         trust.setBankAccountNumber(rq.getBankAccountNumber().trim());
         trust.setBankNameAndBranch(joinBankNameAndBranch(rq.getBankName(), rq.getBankBranch()));
         trust.setAnnualIncome(rq.getAnnualIncome());
-        // Auto-reset: TA edit after DC verification resets status to PENDING
+
+        // Re-submission: if trust was APPROVED and TA edits, reset to PENDING_REVIEW
+        if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
+            trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
+            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
+            trust.setSendBackReason(null);
+            trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
+
+            // Notify DC of re-submission
+            notificationPublisher.publish(0L, "TRUST_RESUBMITTED", trust.getId(), "TRUST");
+            governanceAuditService.logAction(id, "TRUST", currentUserId(), "RESUBMIT",
+                    "Trust re-submitted after TA edit of APPROVED record.");
+            log.info("Trust [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
+        }
+
+        // Legacy DC verification reset (isVerifiedByDc field on Trust entity)
         if (trust.isVerifiedByDc()) {
             trust.setVerifiedByDc(false);
             trust.setDcFlagReason(null);
-            log.info("Trust [{}] verification reset to PENDING after TA update", id);
+            log.info("Trust [{}] DC verification flag reset after TA update", id);
         }
+
         return toResponse(trustRepository.save(trust));
     }
 
@@ -324,6 +356,12 @@ public class TrustServiceImpl implements TrustService {
                 .getAuthentication().getPrincipal();
     }
 
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        return 0L;
+    }
+
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
@@ -414,6 +452,10 @@ public class TrustServiceImpl implements TrustService {
                 .dissolutionReason(t.getDissolutionReason())
                 .isVerifiedByDc(t.isVerifiedByDc())
                 .dcFlagReason(t.getDcFlagReason())
+                // 3-layer governance status (TA-safe: no systemVerificationStatus)
+                .submissionStatus(t.getSubmissionStatus())
+                .dcDecisionStatus(t.getDcDecisionStatus())
+                .sendBackReason(t.getSendBackReason())
                 .build();
     }
 

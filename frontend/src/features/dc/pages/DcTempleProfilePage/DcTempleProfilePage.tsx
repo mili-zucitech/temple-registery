@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import {
   ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
 } from 'lucide-react'
@@ -44,10 +45,6 @@ import {
   useFlagTempleMutation,
   useVerifyTrustMutation,
   useFlagTrustMutation,
-  useVerifyStaffModuleMutation,
-  useFlagStaffModuleMutation,
-  useVerifyContractorsModuleMutation,
-  useFlagContractorsModuleMutation,
 } from '@/features/dc/dcApi'
 import {
   workflowApproveSchema,
@@ -77,7 +74,7 @@ export function DcTempleProfilePage() {
   const canAct =
     role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
-  const { profile, isLoading, isError } = useDcTempleProfile(id)
+  const { profile, isLoading, isError, refetch: refetchProfile } = useDcTempleProfile(id)
   const { pendingStaging } = useDcPendingProfileStaging(id)
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
@@ -108,12 +105,8 @@ export function DcTempleProfilePage() {
 
   const [verifyTemple] = useVerifyTempleMutation()
   const [flagTemple] = useFlagTempleMutation()
-  const [verifyTrust] = useVerifyTrustMutation()
-  const [flagTrust] = useFlagTrustMutation()
-  const [verifyStaffModule] = useVerifyStaffModuleMutation()
-  const [flagStaffModule] = useFlagStaffModuleMutation()
-  const [verifyContractorsModule] = useVerifyContractorsModuleMutation()
-  const [flagContractorsModule] = useFlagContractorsModuleMutation()
+  const [verifyTrust, { isLoading: verifyingTrust }] = useVerifyTrustMutation()
+  const [flagTrust, { isLoading: flaggingTrust }] = useFlagTrustMutation()
 
   const overdueDecls = useMemo(() =>
     profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
@@ -338,10 +331,10 @@ export function DcTempleProfilePage() {
               selectedDeclarationId={selectedDeclarationId}
               selectedDeclarationDetail={selectedDeclarationDetail}
               onSelectDeclaration={setSelectedDeclarationId}
-              onApprove={(declarationId) => openDialog('approve', declarationId)}
-              onReject={(declarationId) => openDialog('reject', declarationId)}
-              onClarify={(declarationId) => openDialog('clarify', declarationId)}
-              onFlagPhysical={(declarationId) => openDialog('flag-physical', declarationId)}
+              onApprove={(declarationId) => openDialog('approve', declarationId, id)}
+              onReject={(declarationId) => openDialog('reject', declarationId, id)}
+              onClarify={(declarationId) => openDialog('clarify', declarationId, id)}
+              onFlagPhysical={(declarationId) => openDialog('flag-physical', declarationId, id)}
             />
           </TabsContent>
 
@@ -352,10 +345,20 @@ export function DcTempleProfilePage() {
               trustFinancials={profile.trustFinancials}
               canAct={canAct}
               onVerifyTrust={async (trustId, notes) => {
-                await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
+                try {
+                  await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
+                  toast.success('Trust marked as verified.')
+                } catch {
+                  toast.error('Failed to verify trust. Please try again.')
+                }
               }}
               onFlagTrust={async (trustId, reason) => {
-                await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
+                try {
+                  await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
+                  toast.success('Trust flagged for review.')
+                } catch {
+                  toast.error('Failed to flag trust. Please try again.')
+                }
               }}
             />
           </TabsContent>
@@ -363,28 +366,12 @@ export function DcTempleProfilePage() {
           <TabsContent value="staff" className="mt-0 focus-visible:outline-none">
             <StaffTab
               employees={employees}
-              canAct={canAct}
-              templeId={id}
-              onVerifyStaff={async (notes) => {
-                await verifyStaffModule({ templeId: id, body: { notes } }).unwrap()
-              }}
-              onFlagStaff={async (reason) => {
-                await flagStaffModule({ templeId: id, body: { reason } }).unwrap()
-              }}
             />
           </TabsContent>
 
           <TabsContent value="contractors" className="mt-0 focus-visible:outline-none">
             <ContractorsTab
               contractors={contractors}
-              canAct={canAct}
-              templeId={id}
-              onVerifyContractors={async (notes) => {
-                await verifyContractorsModule({ templeId: id, body: { notes } }).unwrap()
-              }}
-              onFlagContractors={async (reason) => {
-                await flagContractorsModule({ templeId: id, body: { reason } }).unwrap()
-              }}
             />
           </TabsContent>
 

@@ -9,13 +9,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   flyway:
-    enabled: false   # 🔴 TEMPORARY (enable later after DB works)
+    enabled: false   # Flyway disabled — ddl-auto: update manages schema
     validate-on-migrate: false
     repair-on-migrate: true
 
