@@ -1,4 +1,4 @@
-import { AlertTriangle, Shield, Users, TrendingUp, CheckCircle2, Flag } from 'lucide-react'
+import { AlertTriangle, Shield, Users, TrendingUp } from 'lucide-react'
 import { SectionCard, DetailItem, BoardMemberCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ModuleStatusBadge, deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
@@ -72,55 +72,16 @@ export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerif
             </div>
           )}
 
-          {/* Oversight block — shown only when PENDING */}
+          {/* Oversight block */}
           <div className="mt-6 pt-6 border-t border-slate-100">
-            {trustStatus === 'PENDING' ? (
-              <GovernanceActionPanel
-                entityName="Trust Registration"
-                isVerified={false}
-                flagReason={null}
-                canAct={canAct}
-                onVerify={(notes) => onVerifyTrust(trust.id, notes)}
-                onFlag={(reason) => onFlagTrust(trust.id, reason)}
-              />
-            ) : trustStatus === 'VERIFIED' ? (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
-                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-emerald-800">Verified by District Collector</p>
-                  <p className="text-xs text-emerald-700/70 mt-0.5">Trust registration records have been audited and approved.</p>
-                </div>
-                {canAct && (
-                  <button
-                    className="ml-auto text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
-                    onClick={() => onFlagTrust(trust.id, '')}
-                  >
-                    Flag issue
-                  </button>
-                )}
-              </div>
-            ) : (
-              /* FLAGGED */
-              <div className="rounded-xl border border-red-100 bg-red-50/40 px-5 py-4 space-y-2">
-                <div className="flex items-center gap-3">
-                  <Flag size={16} className="text-red-600 shrink-0" />
-                  <p className="text-sm font-semibold text-red-800">Flagged by District Collector</p>
-                </div>
-                {trust.dcFlagReason && (
-                  <p className="text-xs text-red-700 pl-7">{trust.dcFlagReason}</p>
-                )}
-                {canAct && (
-                  <div className="pl-7">
-                    <button
-                      className="text-xs text-red-700 underline underline-offset-2 hover:text-red-900"
-                      onClick={() => onVerifyTrust(trust.id, '')}
-                    >
-                      Mark as verified
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <GovernanceActionPanel
+              entityName="Trust Registration"
+              isVerified={trust.isVerifiedByDc}
+              flagReason={trust.dcFlagReason}
+              canAct={canAct}
+              onVerify={(notes) => onVerifyTrust(trust.id, notes)}
+              onFlag={(reason) => onFlagTrust(trust.id, reason)}
+            />
           </div>
         </SectionCard>
       ) : (

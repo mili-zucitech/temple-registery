@@ -133,16 +133,16 @@ export function DcDeclarationDetailPage() {
       {/* Workflow actions */}
       {canAct && actionable && (
         <div className="flex gap-2 flex-wrap">
-          <Button size="sm" onClick={() => openDialog('approve', declaration.id)} className="gap-1">
+          <Button size="sm" onClick={() => openDialog('approve', declaration.id, declaration.templeId)} className="gap-1">
             <Check size={14} /> Approve
           </Button>
-          <Button size="sm" variant="destructive" onClick={() => openDialog('reject', declaration.id)} className="gap-1">
+          <Button size="sm" variant="destructive" onClick={() => openDialog('reject', declaration.id, declaration.templeId)} className="gap-1">
             <X size={14} /> Reject
           </Button>
-          <Button size="sm" variant="outline" onClick={() => openDialog('clarify', declaration.id)} className="gap-1">
+          <Button size="sm" variant="outline" onClick={() => openDialog('clarify', declaration.id, declaration.templeId)} className="gap-1">
             <HelpCircle size={14} /> Request Clarification
           </Button>
-          <Button size="sm" variant="outline" onClick={() => openDialog('flag-physical', declaration.id)} className="gap-1">
+          <Button size="sm" variant="outline" onClick={() => openDialog('flag-physical', declaration.id, declaration.templeId)} className="gap-1">
             <Clipboard size={14} /> Flag Physical Verification
           </Button>
         </div>
