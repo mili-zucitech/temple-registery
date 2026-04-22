@@ -24,8 +24,6 @@ const mockMarkRead      = vi.fn()
 const mockMarkAllRead   = vi.fn()
 
 // ─── Mock dcApi module ────────────────────────────────────────────────────────
-// Avoids MSW/Node.js AbortSignal incompatibility that occurs when RTK Query's
-// fetchBaseQuery passes an AbortSignal constructed in jsdom to undici.
 
 vi.mock('@/features/dc/dcApi', () => ({
   dcApi: {
@@ -39,15 +37,32 @@ vi.mock('@/features/dc/dcApi', () => ({
   useGetDcUnreadCountQuery:            vi.fn(),
   useMarkNotificationReadMutation:     vi.fn(),
   useMarkAllNotificationsReadMutation: vi.fn(),
-  useApproveDeclarationMutation:       vi.fn(),
-  useRejectDeclarationMutation:        vi.fn(),
-  useClarifyDeclarationMutation:       vi.fn(),
-  useFlagPhysicalVerificationMutation: vi.fn(),
   useApproveProfileMutation:           vi.fn(),
   useRejectProfileMutation:            vi.fn(),
   useGetDcTempleProfileQuery:          vi.fn(),
   useGetDcPendingProfileStagingQuery:  vi.fn(),
   useGetDcDeclarationDetailQuery:      vi.fn(),
+  useGetDcContextQuery:                vi.fn().mockReturnValue({
+    data: { success: true, message: 'OK', data: { role: 'DISTRICT_COLLECTOR', districtId: null, cityId: null } },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}))
+
+// ─── Mock governanceApi module (workflow mutations) ───────────────────────────
+
+vi.mock('@/features/governance/governanceApi', () => ({
+  governanceApi: {
+    reducerPath: 'governanceApi',
+    reducer: (s = {}) => s,
+    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+  },
+  useApproveDeclarationMutation:        vi.fn(),
+  useRejectDeclarationMutation:         vi.fn(),
+  useClarifyDeclarationMutation:        vi.fn(),
+  useFlagPhysicalVerificationMutation:  vi.fn(),
+  useMarkUnderReviewDeclarationMutation: vi.fn(),
 }))
 
 // Import hooks AFTER vi.mock is hoisted
@@ -63,12 +78,15 @@ import {
   useGetDcUnreadCountQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useSearchDcTemplesQuery,
+} from '@/features/dc/dcApi'
+import {
   useApproveDeclarationMutation,
   useRejectDeclarationMutation,
   useClarifyDeclarationMutation,
   useFlagPhysicalVerificationMutation,
-  useSearchDcTemplesQuery,
-} from '@/features/dc/dcApi'
+  useMarkUnderReviewDeclarationMutation,
+} from '@/features/governance/governanceApi'
 
 // ─── Test wrappers ────────────────────────────────────────────────────────────
 
@@ -387,6 +405,9 @@ describe('useWorkflowActions', () => {
     )
     vi.mocked(useFlagPhysicalVerificationMutation).mockReturnValue(
       [mockFlagPhysical, { isLoading: false }] as ReturnType<typeof useFlagPhysicalVerificationMutation>
+    )
+    vi.mocked(useMarkUnderReviewDeclarationMutation).mockReturnValue(
+      [vi.fn().mockReturnValue({ unwrap: vi.fn().mockResolvedValue({}) }), { isLoading: false }] as ReturnType<typeof useMarkUnderReviewDeclarationMutation>
     )
   })
 

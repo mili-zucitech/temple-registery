@@ -19,6 +19,7 @@ import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.service.governance.GovernanceEditGuard;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
@@ -60,6 +61,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final GovernanceAuditService governanceAuditService;
     private final UserRepository userRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final GovernanceEditGuard governanceEditGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -140,10 +142,33 @@ public class DeclarationServiceImpl implements DeclarationService {
     public DeclarationResponse update(Long id, CreateDeclarationRequest rq) {
         AssetDeclaration d = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(d.getTempleId());
-        if (d.getStatus() != DeclarationStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT declarations can be updated.");
-        }
+
+        // Capture status before edit to detect re-submission requirement
+        com.templeregistry.entity.governance.SubmissionStatus statusBeforeEdit = d.getSubmissionStatus();
+
+        // Governance guard: assert TA can edit (blocks REJECTED and SUBMITTED; APPROVED now allowed)
+        governanceEditGuard.assertCanEdit(statusBeforeEdit, "AssetDeclaration", id);
+
+        // Handle physical verification reset if needed
+        governanceEditGuard.handleDeclarationEditPhysicalVerificationReset(d);
+
         applyFields(d, rq);
+
+        // Re-submission: if declaration was APPROVED and TA edits, reset to PENDING_REVIEW
+        if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
+            d.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
+            d.setDcDecisionStatus(com.templeregistry.entity.governance.DcDecisionStatus.PENDING_DC_APPROVAL);
+            d.setSendBackReason(null);
+            d.setGovernanceVersion(d.getGovernanceVersion() + 1);
+            d.setSubmittedAt(java.time.LocalDateTime.now());
+
+            // Notify DC of re-submission
+            notificationPublisher.publish(0L, "DECLARATION_RESUBMITTED", d.getId(), "ASSET_DECLARATION");
+            governanceAuditService.logAction(id, "DECLARATION", currentUserId(), "RESUBMIT",
+                    "Declaration re-submitted after TA edit of APPROVED record.");
+            log.info("Declaration [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
+        }
+
         return toResponse(declarationRepository.save(d));
     }
 
@@ -481,7 +506,12 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .idolsCount(d.getIdolsCount()).vehiclesCount(d.getVehiclesCount())
                 .financialAssetsValue(d.getFinancialAssetsValue()).otherMovableValue(d.getOtherMovableValue())
                 .submittedAt(d.getSubmittedAt()).reviewedAt(d.getReviewedAt())
-                .acknowledgementNumber(d.getAcknowledgementNumber()).dueDate(d.getDueDate()).build();
+                .acknowledgementNumber(d.getAcknowledgementNumber()).dueDate(d.getDueDate())
+                // 3-layer governance status (TA-safe: no systemVerificationStatus, no physicalVerificationStatus)
+                .submissionStatus(d.getSubmissionStatus())
+                .dcDecisionStatus(d.getDcDecisionStatus())
+                .sendBackReason(d.getSendBackReason())
+                .build();
     }
 
     private void compareField(List<DeclarationDiffResponse> diffs, String field,

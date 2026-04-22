@@ -45,6 +45,9 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String presignedUrl(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return null;
+        }
         return "/api/v1/documents/download?key=" + filePath;
     }
 

@@ -15,6 +15,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * DC compliance endpoints for governed modules: Temple and Trust only.
+ *
+ * Staff (Employee) and Contractor modules have NO DC approval or verification workflow.
+ * Any attempt to verify/flag Staff or Contractors will result in 404 (endpoint does not exist).
+ */
 @RestController
 @RequestMapping("/api/v1/dc/compliance")
 @RequiredArgsConstructor
@@ -52,70 +58,6 @@ public class DcComplianceController {
     public ResponseEntity<ApiResponse<Void>> flagTrust(@PathVariable Long id, @RequestBody @Valid DcFlagRequest req) {
         dcComplianceService.flagTrust(id, req, currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Trust flagged for review."));
-    }
-
-    @PostMapping("/employees/{id}/verify")
-    @Operation(summary = "Mark an Employee as VERIFIED (per-item)")
-    public ResponseEntity<ApiResponse<Void>> verifyEmployee(@PathVariable Long id,
-            @RequestBody @Valid DcVerifyRequest req) {
-        dcComplianceService.verifyEmployee(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Employee marked as verified."));
-    }
-
-    @PostMapping("/employees/{id}/flag")
-    @Operation(summary = "Mark an Employee as FLAGGED (per-item)")
-    public ResponseEntity<ApiResponse<Void>> flagEmployee(@PathVariable Long id,
-            @RequestBody @Valid DcFlagRequest req) {
-        dcComplianceService.flagEmployee(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Employee flagged for review."));
-    }
-
-    @PostMapping("/staff/{templeId}/verify")
-    @Operation(summary = "Verify the entire Staff module for a temple (all employees in one call)")
-    public ResponseEntity<ApiResponse<Void>> verifyStaffModule(@PathVariable Long templeId,
-            @RequestBody @Valid DcVerifyRequest req) {
-        dcComplianceService.verifyStaffModule(templeId, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Staff module verified."));
-    }
-
-    @PostMapping("/staff/{templeId}/flag")
-    @Operation(summary = "Flag the entire Staff module for a temple")
-    public ResponseEntity<ApiResponse<Void>> flagStaffModule(@PathVariable Long templeId,
-            @RequestBody @Valid DcFlagRequest req) {
-        dcComplianceService.flagStaffModule(templeId, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Staff module flagged."));
-    }
-
-    @PostMapping("/contractors/{id}/verify")
-    @Operation(summary = "Mark a Contractor as VERIFIED (per-item)")
-    public ResponseEntity<ApiResponse<Void>> verifyContractor(@PathVariable Long id,
-            @RequestBody @Valid DcVerifyRequest req) {
-        dcComplianceService.verifyContractor(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Contractor marked as verified."));
-    }
-
-    @PostMapping("/contractors/{id}/flag")
-    @Operation(summary = "Mark a Contractor as FLAGGED (per-item)")
-    public ResponseEntity<ApiResponse<Void>> flagContractor(@PathVariable Long id,
-            @RequestBody @Valid DcFlagRequest req) {
-        dcComplianceService.flagContractor(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Contractor flagged for review."));
-    }
-
-    @PostMapping("/contractors-module/{templeId}/verify")
-    @Operation(summary = "Verify the entire Contractors module for a temple (all contractors in one call)")
-    public ResponseEntity<ApiResponse<Void>> verifyContractorsModule(@PathVariable Long templeId,
-            @RequestBody @Valid DcVerifyRequest req) {
-        dcComplianceService.verifyContractorsModule(templeId, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Contractors module verified."));
-    }
-
-    @PostMapping("/contractors-module/{templeId}/flag")
-    @Operation(summary = "Flag the entire Contractors module for a temple")
-    public ResponseEntity<ApiResponse<Void>> flagContractorsModule(@PathVariable Long templeId,
-            @RequestBody @Valid DcFlagRequest req) {
-        dcComplianceService.flagContractorsModule(templeId, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Contractors module flagged."));
     }
 
     private ScopeHelper.Claims currentClaims() {

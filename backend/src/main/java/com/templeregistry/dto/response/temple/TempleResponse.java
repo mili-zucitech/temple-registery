@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.temple;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.templeregistry.entity.temple.ReligiousTradition;
 import com.templeregistry.entity.temple.TempleGrade;
 import lombok.Builder;
@@ -41,15 +42,18 @@ public class TempleResponse {
     private String historicalSignificance;
     private String bankName;
     private String bankIfsc;
+    @JsonProperty("trustRegistered")
     private boolean trustRegistered;
     private String assetDeclarationStatus;
     private String status;
     private String verificationStatus;
-    
+
     // DC Verification Fields
+    @JsonProperty("isVerifiedByDc")
     private boolean isVerifiedByDc;
     private java.time.LocalDateTime verifiedByDcAt;
     private Long verifiedByDcUserId;
+    @JsonProperty("isFlaggedByDc")
     private boolean isFlaggedByDc;
     private java.time.LocalDateTime flaggedByDcAt;
     private Long flaggedByDcUserId;
