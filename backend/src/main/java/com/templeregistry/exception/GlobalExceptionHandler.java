@@ -64,6 +64,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage(), "TRM-DECL-009"));
     }
 
+    @ExceptionHandler(DeclarationAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDeclarationAlreadyExists(DeclarationAlreadyExistsException ex) {
+        log.warn("Declaration already exists: FY={}, existingId={}", ex.getFinancialYear(), ex.getExistingDeclarationId());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage(), "DECLARATION_ALREADY_EXISTS"));
+    }
+
     @ExceptionHandler(ImmutableResourceException.class)
     public ResponseEntity<ApiResponse<Void>> handleImmutable(ImmutableResourceException ex) {
         log.warn("Immutable resource mutation blocked: {}", ex.getMessage());

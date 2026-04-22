@@ -80,12 +80,19 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/download")
-    @Operation(summary = "Directly download a document by its ID (DISTRICT_COLLECTOR and SUPER_ADMIN only).")
-    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    @Operation(summary = "Directly download a document by its ID. Access control enforced at service level.")
     public ResponseEntity<Resource> download(@PathVariable Long id) {
         Resource resource = documentService.download(id);
         DocumentResponse doc = documentService.getById(id);
         return buildDownloadResponse(resource, doc.getOriginalFilename(), doc.getMimeType());
+    }
+
+    @GetMapping("/{id}/preview")
+    @Operation(summary = "Preview a document by its ID (opens in browser instead of downloading). Access control enforced at service level.")
+    public ResponseEntity<Resource> preview(@PathVariable Long id) {
+        Resource resource = documentService.download(id);
+        DocumentResponse doc = documentService.getById(id);
+        return buildPreviewResponse(resource, doc.getOriginalFilename(), doc.getMimeType());
     }
 
    
@@ -93,6 +100,13 @@ public class DocumentController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mimeType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(resource);
+    }
+
+    private ResponseEntity<Resource> buildPreviewResponse(Resource resource, String filename, String mimeType) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .body(resource);
     }
 

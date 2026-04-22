@@ -34,6 +34,7 @@ app:
   jwt:
     private-key-path: classpath:keys/jwt-private.pem
     public-key-path: classpath:keys/jwt-public.pem
+    access-token-expiry-ms: 18000000  # 5 hours (5 * 60 * 60 * 1000 ms)
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:

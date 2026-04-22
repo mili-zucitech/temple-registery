@@ -35,20 +35,20 @@ public class DeclarationController {
 
     @PostMapping("/api/v1/temples/{templeId}/declarations")
     @Operation(summary = "Create a DRAFT declaration")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> create(
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> create(
             @PathVariable Long templeId, @Valid @RequestBody CreateDeclarationRequest rq) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Declaration created.", declarationService.create(templeId, rq)));
     }
 
     @GetMapping("/api/v1/declarations/{id}")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Declaration retrieved.", declarationService.getById(id)));
     }
 
     @PutMapping("/api/v1/declarations/{id}")
     @Operation(summary = "Update DRAFT declaration fields")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> update(
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> update(
             @PathVariable Long id, @Valid @RequestBody CreateDeclarationRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Declaration updated.", declarationService.update(id, rq)));
     }
@@ -98,10 +98,10 @@ public class DeclarationController {
     @PostMapping("/api/v1/declarations/{id}/resubmit")
     @Operation(summary = "Resubmit after clarification (TA)")
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
-    public ResponseEntity<ApiResponse<Void>> resubmit(
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> resubmit(
             @PathVariable Long id, @Valid @RequestBody ResubmitDeclarationRequest rq) {
-        declarationService.resubmit(id, rq);
-        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted."));
+        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted.",
+                declarationService.resubmit(id, rq)));
     }
 
     @GetMapping("/api/v1/declarations/{id}/acknowledgement")
@@ -113,13 +113,21 @@ public class DeclarationController {
 
     @GetMapping("/api/v1/declarations/{id}/diff")
     @Operation(summary = "Show field-level diff between current submitted values and last approved snapshot")
-    public ResponseEntity<ApiResponse<?>> getDiff(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Diff retrieved.", declarationService.getDiff(id)));
+    public ResponseEntity<ApiResponse<?>> getDiff(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer compareToVersion) {
+        return ResponseEntity.ok(ApiResponse.success("Diff retrieved.", declarationService.getDiff(id, compareToVersion)));
     }
 
     @GetMapping("/api/v1/declarations/{id}/clarifications")
     @Operation(summary = "Get clarification thread for a declaration (DC/TA)")
     public ResponseEntity<ApiResponse<?>> listClarifications(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Clarifications retrieved.", declarationService.listClarifications(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/versions")
+    @Operation(summary = "Get the submission version history for a declaration")
+    public ResponseEntity<ApiResponse<?>> listVersions(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Versions retrieved.", declarationService.listVersions(id)));
     }
 }

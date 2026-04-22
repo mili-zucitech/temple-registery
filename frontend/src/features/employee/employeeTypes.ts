@@ -15,7 +15,6 @@ export const TERMINAL_EMPLOYEE_STATUSES: EmployeeStatus[] = ['RETIRED', 'RESIGNE
 export const createEmployeeSchema = z.object({
   fullName: z.string().min(1, 'Name is required').max(200),
   employeeType: z.enum(EMPLOYEE_TYPES),
-  employeeRef: z.string().max(50).optional(),
   designation: z.string().max(150).optional(),
   dateOfJoining: z.string().optional(),
   salaryGrade: z.string().max(50).optional(),
@@ -29,6 +28,8 @@ export const updateEmployeeSchema = z.object({
   employeeType: z.enum(EMPLOYEE_TYPES).optional(),
   designation: z.string().max(150).optional(),
   salaryGrade: z.string().max(50).optional(),
+  mobile: z.string().max(15).optional(),
+  address: z.string().optional(),
   status: z.enum(EMPLOYEE_STATUSES).optional(),
   dateOfLeaving: z.string().optional(),
 })
@@ -41,11 +42,17 @@ export type UpdateEmployeeRequest = z.infer<typeof updateEmployeeSchema>
 export interface EmployeeResponse {
   id: number
   templeId: number
+  employeeRef?: string
   fullName: string
   employeeType: EmployeeType
   designation?: string
   dateOfJoining?: string
   salaryGrade?: string
+  mobile?: string
+  address?: string
   status: EmployeeStatus
   isHereditary: boolean
+  dateOfLeaving?: string
+  createdAt?: string
+  updatedAt?: string
 }

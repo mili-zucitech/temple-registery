@@ -26,15 +26,32 @@ public class DeclImmovBuilding {
     @Column(name = "declaration_id", nullable = false)
     private Long declarationId;
 
-    @Column(name = "structure_type", length = 100)
-    private String structureType;
+    // User-specified fields
+    @Column(name = "location", length = 500)
+    private String location;
 
     @Column(name = "area_sqft", precision = 12, scale = 2)
     private BigDecimal areaSqft;
 
-    @Column(name = "condition_text", length = 100)
-    private String conditionText;
+    @Column(name = "year_of_construction")
+    private Integer yearOfConstruction;
+
+    @Column(name = "structure_type", length = 100)
+    private String structureType;
 
     @Column(name = "valuation", precision = 15, scale = 2)
     private BigDecimal valuation;
+
+    // Additional fields from V38 migration
+    @Column(name = "building_name", length = 255)
+    private String buildingName;
+
+    @Column(name = "usage_purpose", length = 200)
+    private String usagePurpose;
+
+    @Column(name = "condition_text", length = 100)
+    private String conditionText;
+
+    @Column(name = "document_reference", length = 200)
+    private String documentReference;
 }

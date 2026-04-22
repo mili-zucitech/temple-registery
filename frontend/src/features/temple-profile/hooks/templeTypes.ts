@@ -159,7 +159,7 @@ export interface TempleProfileStagingResponse {
   website?: string
   contactPersonName?: string
   contactPersonDesignation?: string
-  photoFilePath?: string
+  photoUrl?: string
   bankAccountMasked?: string
   bankName?: string
   bankIfsc?: string
@@ -253,7 +253,7 @@ export interface TaCurrentProfileResponse {
   website?: string
   contactPersonName?: string
   contactPersonDesignation?: string
-  photoFilePath?: string
+  photoUrl?: string
   bankAccountMasked?: string
   bankName?: string
   bankIfsc?: string
@@ -287,7 +287,7 @@ export interface TaProfileHistoryItemResponse {
   phone?: string
   email?: string
   website?: string
-  photoFilePath?: string
+  photoUrl?: string
   bankName?: string
   bankIfsc?: string
   languagesOfWorship?: string | string[]

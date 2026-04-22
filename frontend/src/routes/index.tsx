@@ -30,7 +30,10 @@ const AdminToolsPage = lazy(() => import('@/features/admin/pages/AdminToolsPage/
 const GeoManagementPage = lazy(() => import('@/features/admin/pages/GeoManagementPage/GeoManagementPage').then(m => ({ default: m.GeoManagementPage })))
 const TaTrustPage = lazy(() => import('@/features/trust/pages/TaTrustPage/TaTrustPage').then(m => ({ default: m.TaTrustPage })))
 const TaEmployeesPage = lazy(() => import('@/features/employee/pages/TaEmployeesPage/TaEmployeesPage').then(m => ({ default: m.TaEmployeesPage })))
+const EmployeeDetailPage = lazy(() => import('@/features/employee/pages/EmployeeDetailPage/EmployeeDetailPage').then(m => ({ default: m.EmployeeDetailPage })))
 const TaContractorsPage = lazy(() => import('@/features/contractor/pages/TaContractorsPage/TaContractorsPage').then(m => ({ default: m.TaContractorsPage })))
+const ContractorFormPage = lazy(() => import('@/features/contractor/pages/ContractorFormPage/ContractorFormPage').then(m => ({ default: m.ContractorFormPage })))
+const ContractorDetailPage = lazy(() => import('@/features/contractor/pages/ContractorDetailPage/ContractorDetailPage').then(m => ({ default: m.ContractorDetailPage })))
 const TaDocumentsPage = lazy(() => import('@/features/document/pages/TaDocumentsPage/TaDocumentsPage').then(m => ({ default: m.TaDocumentsPage })))
 const TaDeclarationDetailPage = lazy(() => import('@/features/declaration/pages/TaDeclarationDetailPage/TaDeclarationDetailPage').then(m => ({ default: m.TaDeclarationDetailPage })))
 const TaProfileStatusPage = lazy(() => import('@/features/dashboard/pages/TaProfileStatusPage/TaProfileStatusPage').then(m => ({ default: m.TaProfileStatusPage })))
@@ -78,7 +81,11 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.TA_TEMPLE_REVIEW, element: <Suspense fallback={<PageLoader />}><TaTempleReviewPage /></Suspense> },
               { path: ROUTE_PATHS.TA_TRUST, element: <Suspense fallback={<PageLoader />}><TaTrustPage /></Suspense> },
               { path: ROUTE_PATHS.TA_EMPLOYEES, element: <Suspense fallback={<PageLoader />}><TaEmployeesPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_EMPLOYEE_DETAIL, element: <Suspense fallback={<PageLoader />}><EmployeeDetailPage /></Suspense> },
               { path: ROUTE_PATHS.TA_CONTRACTORS, element: <Suspense fallback={<PageLoader />}><TaContractorsPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_CONTRACTOR_NEW, element: <Suspense fallback={<PageLoader />}><ContractorFormPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_CONTRACTOR_EDIT, element: <Suspense fallback={<PageLoader />}><ContractorFormPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_CONTRACTOR_DETAIL, element: <Suspense fallback={<PageLoader />}><ContractorDetailPage /></Suspense> },
               { path: ROUTE_PATHS.TA_DOCUMENTS, element: <Suspense fallback={<PageLoader />}><TaDocumentsPage /></Suspense> },
               { path: ROUTE_PATHS.TA_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><TaDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.TA_DECLARATION_NEW, element: <Suspense fallback={<PageLoader />}><TaDeclarationCreatePage /></Suspense> },
