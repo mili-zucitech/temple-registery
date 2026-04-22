@@ -17,6 +17,11 @@ public interface FileStorageService {
     String upload(String folder, MultipartFile file);
 
     /**
+     * Store server-generated file content and return the relative file path.
+     */
+    String uploadBytes(String folder, String filename, byte[] content);
+
+    /**
      * Return the URL or path for accessing the stored file.
      * @param filePath  the relative path returned by {@link #upload}
      * @return          URL or path for client access

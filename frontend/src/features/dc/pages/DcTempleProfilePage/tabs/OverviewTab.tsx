@@ -147,7 +147,7 @@ export function OverviewTab({
                   <div className="size-40 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-200 shadow-inner group transition-all">
                     {temple.photoUrl ? (
                       <img
-                        src={temple.photoUrl}
+                        src={`${import.meta.env.VITE_BASE_URL}${temple.photoUrl}`}
                         alt={temple.name || 'Temple Photo'}
                         className="object-cover w-full h-full"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}

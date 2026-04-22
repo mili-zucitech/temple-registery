@@ -1,11 +1,13 @@
 package com.templeregistry.service.impl.dc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.dto.request.dc.DcClarifyRequest;
 import com.templeregistry.dto.request.dc.WorkflowApproveRequest;
 import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
+import com.templeregistry.dto.response.declaration.DeclarationVersionResponse;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.ClarificationDirection;
 import com.templeregistry.entity.declaration.DeclarationClarification;
@@ -15,6 +17,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.ClarificationLimitExceededException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.declaration.AssetDeclarationVersionRepository;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleRepository;
@@ -26,14 +29,20 @@ import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.DeclarationWorkflowService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
+import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.StatusTransitionValidator;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -60,6 +69,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
     private final DeclarationRepository declarationRepository;
     private final DeclarationClarificationRepository clarificationRepository;
+    private final AssetDeclarationVersionRepository versionRepository;
     private final TempleRepository templeRepository;
     private final JurisdictionGuard jurisdictionGuard;
     private final StatusTransitionValidator transitionValidator;
@@ -70,6 +80,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
     private final GovernanceAuditService governanceAuditService;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
 
     @Override
     @Transactional
@@ -90,6 +101,8 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         d.setReviewedBy(claims.userId());
         d.setAcknowledgementNumber(ackNumber);
         d.setAcknowledgedAt(LocalDateTime.now());
+        d.setReviewComment(request.getRemarks());
+        d.setAcknowledgementDocFilePath(generateAcknowledgementDocument(d, ackNumber, claims));
         declarationRepository.save(d);
 
         if (request.getRemarks() != null) {
@@ -278,7 +291,37 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public List<DeclarationVersionResponse> listVersions(Long declarationId) {
+        AssetDeclaration declaration = findOrThrow(declarationId);
+        Temple temple = loadTempleWithGeo(declaration.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
+
+        return versionRepository.findByDeclarationIdOrderByVersionNumberDesc(declarationId).stream()
+                .map(version -> {
+                    JsonNode snapshot = safeReadTree(version.getSnapshotJson());
+                    return DeclarationVersionResponse.builder()
+                            .id(version.getId())
+                            .versionNumber(version.getVersionNumber())
+                            .status(parseStatus(snapshot.path("status").asText(null)))
+                            .submittedAt(parseDateTime(snapshot.path("submittedAt").asText(null)))
+                            .reviewedAt(parseDateTime(snapshot.path("reviewedAt").asText(null)))
+                            .acknowledgementNumber(text(snapshot, "acknowledgementNumber"))
+                            .reviewedBy(snapshot.path("reviewedBy").isNull() ? null : snapshot.path("reviewedBy").asLong())
+                            .remarks(text(snapshot, "remarks"))
+                            .createdAt(version.getCreatedAt())
+                            .build();
+                })
+                .toList();
+    }
+
     // ─── Private helpers ───────────────────────────────────────────────────────
+
+    private AssetDeclaration findOrThrow(Long declarationId) {
+        return declarationRepository.findById(declarationId)
+                .orElseThrow(() -> new EntityNotFoundException("AssetDeclaration", declarationId));
+    }
 
     private AssetDeclaration loadWithLock(Long declarationId) {
         return declarationRepository.findByIdWithLock(declarationId)
@@ -312,5 +355,72 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                 .build();
 
         clarificationRepository.save(clarification);
+    }
+
+    private String generateAcknowledgementDocument(AssetDeclaration declaration, String acknowledgementNumber,
+                                                   ScopeHelper.Claims claims) {
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(output);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            document.add(new Paragraph("Temple Registry - Asset Declaration Acknowledgement"));
+            document.add(new Paragraph("Acknowledgement Number: " + acknowledgementNumber));
+            document.add(new Paragraph("Declaration ID: " + declaration.getId()));
+            document.add(new Paragraph("Temple ID: " + declaration.getTempleId()));
+            document.add(new Paragraph("Financial Year: " + declaration.getFinancialYear()));
+            document.add(new Paragraph("Status: " + declaration.getStatus()));
+            document.add(new Paragraph("Reviewed By: " + claims.userId()));
+            document.add(new Paragraph("Reviewed At: " + LocalDateTime.now()));
+            document.add(new Paragraph("Remarks: " + (declaration.getReviewComment() == null ? "" : declaration.getReviewComment())));
+            document.close();
+            String filename = "acknowledgement-" + acknowledgementNumber + ".pdf";
+            return fileStorageService.uploadBytes("declarations/acknowledgements", filename, output.toByteArray());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to generate acknowledgement document.", ex);
+        }
+    }
+
+    private JsonNode safeReadTree(String json) {
+        try {
+            return json == null ? objectMapper.getNodeFactory().nullNode() : objectMapper.readTree(json);
+        } catch (Exception ex) {
+            return objectMapper.getNodeFactory().nullNode();
+        }
+    }
+
+    private DeclarationStatus parseStatus(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return DeclarationStatus.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        if (value == null || value.isBlank() || "null".equalsIgnoreCase(value)) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String text(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        return value.isMissingNode() || value.isNull() ? null : value.asText();
+    }
+
+    private ScopeHelper.Claims currentClaims() {
+        Object principal = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims claims) {
+            return claims;
+        }
+        throw new IllegalStateException("No authenticated claims available.");
     }
 }

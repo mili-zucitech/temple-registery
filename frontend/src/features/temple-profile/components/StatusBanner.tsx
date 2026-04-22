@@ -24,41 +24,41 @@ interface BannerConfig {
 const CONFIG: Record<TaProfileStatus, BannerConfig> = {
   NOT_STARTED: {
     icon: FileEdit,
-    bg: 'bg-warning/5',
-    border: 'border-warning/30',
-    text: 'text-warning',
+    bg: 'bg-warning/10',
+    border: 'border-warning/40',
+    text: 'text-warning-foreground',
     heading: 'Temple Profile Incomplete',
     body: 'Complete and submit your temple profile for District Collector review to get it published.',
   },
   DRAFT: {
     icon: FileEdit,
-    bg: 'bg-info/5',
-    border: 'border-info/30',
-    text: 'text-info',
+    bg: 'bg-info/10',
+    border: 'border-info/40',
+    text: 'text-info-foreground',
     heading: 'Draft in Progress',
     body: 'You have an unsaved draft. Save it and submit for DC review when ready.',
   },
   SUBMITTED: {
     icon: Clock,
-    bg: 'bg-info/5',
-    border: 'border-info/30',
-    text: 'text-info',
+    bg: 'bg-info/10',
+    border: 'border-info/40',
+    text: 'text-info-foreground',
     heading: 'Pending DC Review',
     body: "Your profile update has been submitted and is awaiting the District Collector's review. Editing is locked until a decision is received.",
   },
   APPROVED: {
     icon: CheckCircle2,
-    bg: 'bg-success/5',
-    border: 'border-success/30',
-    text: 'text-success',
+    bg: 'bg-success/10',
+    border: 'border-success/40',
+    text: 'text-success-foreground',
     heading: 'Profile Published',
     body: 'Your temple profile has been approved by the District Collector and is now published.',
   },
   REJECTED: {
     icon: XCircle,
-    bg: 'bg-destructive/5',
-    border: 'border-destructive/30',
-    text: 'text-destructive',
+    bg: 'bg-destructive/10',
+    border: 'border-destructive/40',
+    text: 'text-destructive-foreground',
     heading: 'Profile Update Rejected',
     body: 'Your profile update was rejected by the District Collector. Review the comment below and create a new draft.',
   },
@@ -71,23 +71,24 @@ export function StatusBanner({ status, reviewComment, className }: StatusBannerP
   return (
     <div
       className={cn(
-        'flex items-start gap-3 rounded-lg border p-4',
+        'flex items-start gap-4 rounded-xl border-2 p-5 shadow-sm',
         cfg.bg,
         cfg.border,
         className,
       )}
     >
-      <Icon size={18} className={cn('mt-0.5 shrink-0', cfg.text)} />
-      <div className="space-y-0.5 min-w-0">
-        <p className={cn('text-sm font-semibold', cfg.text)}>{cfg.heading}</p>
-        <p className="text-sm text-muted-foreground">{cfg.body}</p>
+      <div className={cn('p-2 rounded-lg bg-background/50 shrink-0', cfg.text)}>
+        <Icon size={20} className="shrink-0" />
+      </div>
+      <div className="space-y-1 min-w-0 flex-1">
+        <p className={cn('text-base font-bold', cfg.text)}>{cfg.heading}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">{cfg.body}</p>
         {status === 'REJECTED' && reviewComment && (
-          <div className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
-            <p className="text-xs font-semibold text-destructive mb-1">DC Comment</p>
-            <p className="text-sm text-foreground">{reviewComment}</p>
+          <div className="mt-3 rounded-lg border-2 border-destructive/30 bg-destructive/5 px-4 py-3">
+            <p className="text-xs font-bold text-destructive uppercase tracking-wider mb-1.5">DC Comment</p>
+            <p className="text-sm text-foreground leading-relaxed">{reviewComment}</p>
           </div>
         )}
-        
       </div>
     </div>
   )

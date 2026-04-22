@@ -1,28 +1,47 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm, FormProvider } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
-  useGetDeclarationQuery, useGetDeclarationDiffQuery, useResubmitDeclarationMutation,
-} from '@/features/declaration/declarationApi'
+  useGetDeclarationDiffQuery,
+  useGetDeclarationQuery,
+  useGetDeclarationVersionsQuery,
+  useResubmitDeclarationMutation,
+} from '../../declarationApi'
 import {
-  resubmitDeclarationSchema, type ResubmitDeclarationRequest,
-} from '@/features/declaration/declarationTypes'
-import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+  resubmitDeclarationSchema,
+  type CompleteDeclarationResponse,
+  type ResubmitDeclarationRequest,
+} from '../../declarationTypes'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Form } from '@/components/ui/form'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { DeclarationHeader, ClarificationAlert } from './components'
 
-function DeclarationField({ label, value }: { label: string; value: React.ReactNode }) {
+// Lazy load tab components for code splitting
+const OverviewTab = lazy(() =>
+  import('./components/OverviewTab').then((module) => ({ default: module.OverviewTab }))
+)
+const AssetsTab = lazy(() =>
+  import('./components/AssetsTab').then((module) => ({ default: module.AssetsTab }))
+)
+const HistoryTab = lazy(() =>
+  import('./components/HistoryTab').then((module) => ({ default: module.HistoryTab }))
+)
+const DiffTab = lazy(() => import('./components/DiffTab').then((module) => ({ default: module.DiffTab })))
+const ResubmitTab = lazy(() =>
+  import('./components/ResubmitTab').then((module) => ({ default: module.ResubmitTab }))
+)
+
+// Loading fallback component
+function TabLoadingFallback() {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-      <span className="text-sm text-foreground">{value ?? '—'}</span>
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="h-32 animate-pulse rounded-2xl bg-muted" />
+      ))}
     </div>
   )
 }
@@ -31,252 +50,235 @@ export function TaDeclarationDetailPage() {
   const { id: rawId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const id = Number(rawId)
-  const isValid = !!rawId && !isNaN(id)
+  const isValid = Number.isFinite(id) && id > 0
 
-  const { data, isLoading, isError } = useGetDeclarationQuery(id, { skip: !isValid })
-  const { data: diffData, isLoading: diffLoading } = useGetDeclarationDiffQuery(id, { skip: !isValid })
+  const declarationQuery = useGetDeclarationQuery(id, { skip: !isValid })
+  const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
+  const declaration = declarationQuery.data?.data
+  const versions = versionsQuery.data?.data ?? []
+  const [compareVersion, setCompareVersion] = useState<number | undefined>(undefined)
+  const diffQuery = useGetDeclarationDiffQuery(
+    { id, compareToVersion: compareVersion },
+    { skip: !isValid || !compareVersion }
+  )
+  const diff = diffQuery.data?.data ?? []
   const [resubmit, { isLoading: resubmitting }] = useResubmitDeclarationMutation()
 
-  const declaration = data?.data
-  const diff = diffData?.data ?? []
-  const isClarificationPending = declaration?.status === 'CLARIFICATION_REQUESTED'
+  useEffect(() => {
+    if (!compareVersion && versions.length > 1) {
+      setCompareVersion(versions[1].versionNumber)
+    }
+  }, [compareVersion, versions])
 
   const form = useForm<ResubmitDeclarationRequest>({
     resolver: zodResolver(resubmitDeclarationSchema),
-    defaultValues: {
-      clarificationResponse: '',
-      agriculturalLandAcres: declaration?.agriculturalLandAcres,
-      agriculturalLandValue: declaration?.agriculturalLandValue,
-      buildingsSqft: declaration?.buildingsSqft,
-      buildingsValue: declaration?.buildingsValue,
-      goldGrams: declaration?.goldGrams,
-      silverGrams: declaration?.silverGrams,
-      idolsCount: declaration?.idolsCount,
-      vehiclesCount: declaration?.vehiclesCount,
-      financialAssetsValue: declaration?.financialAssetsValue,
-      otherMovableValue: declaration?.otherMovableValue,
-    },
+    defaultValues: emptyValues,
   })
 
+  useEffect(() => {
+    if (declaration) {
+      form.reset(mapDeclarationToRequest(declaration))
+    }
+  }, [declaration, form])
+
+  const isClarificationPending =
+    declaration?.status === 'CLARIFICATION_REQUESTED' || declaration?.status === 'REJECTED'
+  const activeVersion = useMemo(
+    () => versions.find((version) => version.versionNumber === compareVersion) ?? versions[0],
+    [versions, compareVersion]
+  )
+
   if (!isValid) {
-    return (
-      <EmptyState title="Invalid declaration" description="The declaration ID is not valid." />
-    )
+    return <EmptyState title="Invalid declaration" description="The declaration ID is not valid." />
   }
 
-  if (isLoading) {
-    return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>
-  }
-
-  if (isError || !declaration) {
+  if (declarationQuery.isError || !declaration) {
     return (
       <EmptyState
         title="Declaration not found"
-        description="Unable to load this declaration. It may have been removed."
-        action={{ label: 'Back to Declarations', onClick: () => navigate(ROUTE_PATHS.TA_DECLARATIONS) }}
+        description="We could not load this declaration."
+        action={{ label: 'Back to declarations', onClick: () => navigate(ROUTE_PATHS.TA_DECLARATIONS) }}
       />
     )
   }
 
-  const onResubmit = async (values: ResubmitDeclarationRequest) => {
+  const handleResubmit = form.handleSubmit(async (values) => {
     try {
-      await resubmit({ id, body: values }).unwrap()
-      toast.success('Declaration resubmitted successfully')
-      navigate(ROUTE_PATHS.TA_DECLARATIONS)
+      const result = await resubmit({ id, body: values }).unwrap()
+      const nextId = result.data?.id
+      toast.success('Declaration resubmitted successfully.')
+      if (nextId) {
+        navigate(ROUTE_PATHS.TA_DECLARATION_DETAIL.replace(':id', String(nextId)))
+      } else {
+        navigate(ROUTE_PATHS.TA_DECLARATIONS)
+      }
     } catch {
-      toast.error('Failed to resubmit declaration')
+      toast.error('Failed to resubmit declaration.')
     }
-  }
+  })
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Button variant="ghost" size="sm" onClick={() => navigate(ROUTE_PATHS.TA_DECLARATIONS)}
-              className="text-muted-foreground hover:text-foreground -ml-2">
-              ← Back
-            </Button>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Declaration #{declaration.id}</h1>
-          {declaration.acknowledgementNumber && (
-            <p className="text-xs text-muted-foreground mt-0.5">Ack: {declaration.acknowledgementNumber}</p>
-          )}
+    <FormProvider {...form}>
+      <Form {...form}>
+        <div className="space-y-6 pb-10">
+          <DeclarationHeader declaration={declaration} versions={versions} />
+          <ClarificationAlert status={declaration.status} />
+
+          <Tabs defaultValue="overview">
+            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-5">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="assets">Assets</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="diff">Diff</TabsTrigger>
+              <TabsTrigger value="resubmit" disabled={!isClarificationPending}>
+                Resubmit
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="mt-6">
+              <Suspense fallback={<TabLoadingFallback />}>
+                <OverviewTab
+                  declaration={declaration}
+                  versions={versions}
+                  activeVersion={activeVersion}
+                  onVersionSelect={setCompareVersion}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="assets" className="mt-6">
+              <Suspense fallback={<TabLoadingFallback />}>
+                <AssetsTab declaration={declaration} />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-6">
+              <Suspense fallback={<TabLoadingFallback />}>
+                <HistoryTab
+                  versions={versions}
+                  activeVersion={activeVersion}
+                  onVersionSelect={setCompareVersion}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="diff" className="mt-6">
+              <Suspense fallback={<TabLoadingFallback />}>
+                <DiffTab
+                  versions={versions}
+                  compareVersion={compareVersion}
+                  onCompareVersionChange={setCompareVersion}
+                  diff={diff}
+                  isLoading={diffQuery.isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="resubmit" className="mt-6">
+              <Suspense fallback={<TabLoadingFallback />}>
+                <ResubmitTab onResubmit={handleResubmit} isResubmitting={resubmitting} />
+              </Suspense>
+            </TabsContent>
+          </Tabs>
         </div>
-        <StatusBadge status={declaration.status} />
-      </div>
-
-      {/* Clarification Banner */}
-      {isClarificationPending && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
-          <p className="text-sm font-semibold text-warning">Clarification Requested</p>
-          <p className="text-sm text-foreground mt-1">
-            The DC has requested changes or clarification. Review the details below and resubmit.
-          </p>
-        </div>
-      )}
-
-      <Tabs defaultValue="details">
-        <TabsList>
-          <TabsTrigger value="details">Declaration Details</TabsTrigger>
-          {diff.length > 0 && <TabsTrigger value="diff">Changes</TabsTrigger>}
-          {isClarificationPending && <TabsTrigger value="resubmit">Resubmit</TabsTrigger>}
-        </TabsList>
-
-        {/* ── Details Tab ────────────────────────────────────────────────────── */}
-        <TabsContent value="details" className="mt-6">
-          <div className="rounded-lg border border-border bg-card p-6 space-y-6">
-            <div>
-              <h2 className="text-base font-semibold text-foreground mb-4">Immovable Assets</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <DeclarationField label="Agricultural Land (Acres)" value={declaration.agriculturalLandAcres} />
-                <DeclarationField label="Agricultural Land Value (₹)" value={declaration.agriculturalLandValue?.toLocaleString()} />
-                <DeclarationField label="Buildings (Sqft)" value={declaration.buildingsSqft} />
-                <DeclarationField label="Buildings Value (₹)" value={declaration.buildingsValue?.toLocaleString()} />
-              </div>
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-foreground mb-4">Movable Assets</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <DeclarationField label="Gold (Grams)" value={declaration.goldGrams} />
-                <DeclarationField label="Silver (Grams)" value={declaration.silverGrams} />
-                <DeclarationField label="Idols Count" value={declaration.idolsCount} />
-                <DeclarationField label="Vehicles Count" value={declaration.vehiclesCount} />
-                <DeclarationField label="Financial Assets (₹)" value={declaration.financialAssetsValue?.toLocaleString()} />
-                <DeclarationField label="Other Movable (₹)" value={declaration.otherMovableValue?.toLocaleString()} />
-              </div>
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-foreground mb-4">Timeline</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <DeclarationField label="Submitted At" value={declaration.submittedAt ? new Date(declaration.submittedAt).toLocaleDateString() : null} />
-                <DeclarationField label="Reviewed At" value={declaration.reviewedAt ? new Date(declaration.reviewedAt).toLocaleDateString() : null} />
-                <DeclarationField label="Due Date" value={declaration.dueDate ?? null} />
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* ── Diff Tab ───────────────────────────────────────────────────────── */}
-        {diff.length > 0 && (
-          <TabsContent value="diff" className="mt-6">
-            {diffLoading ? <CardSkeleton /> : (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 border-b border-border">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold">Field</th>
-                      <th className="px-4 py-3 text-left font-semibold">Previous Value</th>
-                      <th className="px-4 py-3 text-left font-semibold">New Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {diff.map((item, i) => (
-                      <tr key={i} className="hover:bg-muted/30">
-                        <td className="px-4 py-3 font-medium">{item.fieldName.replace(/_/g, ' ')}</td>
-                        <td className="px-4 py-3 text-destructive line-through">{item.oldValue ?? '—'}</td>
-                        <td className="px-4 py-3 text-success">{item.newValue ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </TabsContent>
-        )}
-
-        {/* ── Resubmit Tab ──────────────────────────────────────────────────── */}
-        {isClarificationPending && (
-          <TabsContent value="resubmit" className="mt-6">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onResubmit)} className="space-y-6">
-                <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-                  <h2 className="font-semibold text-foreground">Response to DC</h2>
-                  <FormField control={form.control} name="clarificationResponse" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Clarification Response *</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Explain the changes made or respond to the DC's clarification request..."
-                          rows={4}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
-
-                <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-                  <h2 className="font-semibold text-foreground">Updated Asset Values</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="agriculturalLandAcres" render={({ field }) => (
-                      <FormItem><FormLabel>Agricultural Land (Acres)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="agriculturalLandValue" render={({ field }) => (
-                      <FormItem><FormLabel>Agricultural Land Value (₹)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="buildingsSqft" render={({ field }) => (
-                      <FormItem><FormLabel>Buildings (Sqft)</FormLabel>
-                        <FormControl><Input type="number" min={0} {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="buildingsValue" render={({ field }) => (
-                      <FormItem><FormLabel>Buildings Value (₹)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="goldGrams" render={({ field }) => (
-                      <FormItem><FormLabel>Gold (Grams)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.001" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="silverGrams" render={({ field }) => (
-                      <FormItem><FormLabel>Silver (Grams)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.001" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="idolsCount" render={({ field }) => (
-                      <FormItem><FormLabel>Idols Count</FormLabel>
-                        <FormControl><Input type="number" min={0} {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="vehiclesCount" render={({ field }) => (
-                      <FormItem><FormLabel>Vehicles Count</FormLabel>
-                        <FormControl><Input type="number" min={0} {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="financialAssetsValue" render={({ field }) => (
-                      <FormItem><FormLabel>Financial Assets (₹)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="otherMovableValue" render={({ field }) => (
-                      <FormItem><FormLabel>Other Movable (₹)</FormLabel>
-                        <FormControl><Input type="number" min={0} step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value) || undefined)} /></FormControl>
-                        <FormMessage /></FormItem>
-                    )} />
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={resubmitting}>
-                    {resubmitting ? 'Resubmitting…' : 'Resubmit Declaration'}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => navigate(ROUTE_PATHS.TA_DECLARATIONS)}>
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </TabsContent>
-        )}
-      </Tabs>
-    </div>
+      </Form>
+    </FormProvider>
   )
+}
+
+const emptyValues: ResubmitDeclarationRequest = {
+  clarificationResponse: '',
+  financialYear: '',
+  dueDate: '',
+  annualIncome: undefined,
+  annualExpenditure: undefined,
+  agriculturalLands: [],
+  buildings: [],
+  leasedProperties: [],
+  otherLands: [],
+  preciousMetals: [],
+  artifacts: [],
+  vehicles: [],
+  equipment: [],
+  financialAssets: [],
+}
+
+function mapDeclarationToRequest(
+  declaration: CompleteDeclarationResponse
+): ResubmitDeclarationRequest {
+  return {
+    clarificationResponse: '',
+    financialYear: declaration.financialYear ?? '',
+    dueDate: declaration.dueDate ?? '',
+    annualIncome: declaration.annualIncome ?? undefined,
+    annualExpenditure: declaration.annualExpenditure ?? undefined,
+    agriculturalLands: declaration.agriculturalLands.map((item) => ({
+      id: item.id,
+      surveyNumber: item.surveyNumber ?? '',
+      village: item.village ?? '',
+      areaAcres: item.areaAcres ?? undefined,
+      ownerOfRecord: item.ownerOfRecord ?? '',
+      pattaStatus: item.pattaStatus ?? '',
+    })),
+    buildings: declaration.buildings.map((item) => ({
+      id: item.id,
+      location: item.location ?? '',
+      totalAreaSqft: item.totalAreaSqft ?? undefined,
+      yearBuilt: item.yearBuilt ?? undefined,
+      structureType: item.structureType ?? '',
+      valuationInr: item.valuationInr ?? undefined,
+    })),
+    leasedProperties: declaration.leasedProperties.map((item) => ({
+      id: item.id,
+      propertyAddress: item.propertyAddress ?? '',
+      lesseeName: item.lesseeName ?? '',
+      leaseStartDate: item.leaseStartDate ?? '',
+      leaseEndDate: item.leaseEndDate ?? '',
+      monthlyRent: item.monthlyRent ?? undefined,
+      agreementDocumentId: item.agreementDocumentId ?? undefined,
+    })),
+    otherLands: declaration.otherLands.map((item) => ({
+      id: item.id,
+      location: item.location ?? '',
+      area: item.area ?? undefined,
+      usageType: item.usageType ?? '',
+      revenueDepartmentReference: item.revenueDepartmentReference ?? '',
+    })),
+    preciousMetals: declaration.preciousMetals.map((item) => ({
+      id: item.id,
+      itemDescription: item.itemDescription ?? '',
+      metalType: item.metalType ?? '',
+      weightGrams: item.weightGrams ?? undefined,
+      purity: item.purity ?? '',
+      approximateValueInr: item.approximateValueInr ?? undefined,
+    })),
+    artifacts: declaration.artifacts.map((item) => ({
+      id: item.id,
+      itemDescription: item.itemDescription ?? '',
+      material: item.material ?? '',
+      ageOrPeriod: item.ageOrPeriod ?? '',
+      provenance: item.provenance ?? '',
+      museumGradeClassification: item.museumGradeClassification ?? '',
+    })),
+    vehicles: declaration.vehicles.map((item) => ({
+      id: item.id,
+      registrationNumber: item.registrationNumber ?? '',
+      makeModel: item.makeModel ?? '',
+      year: item.year ?? undefined,
+      purpose: item.purpose ?? '',
+    })),
+    equipment: declaration.equipment.map((item) => ({
+      id: item.id,
+      itemName: item.itemName ?? '',
+      serialNumber: item.serialNumber ?? '',
+      approximateValueInr: item.approximateValueInr ?? undefined,
+    })),
+    financialAssets: declaration.financialAssets.map((item) => ({
+      id: item.id,
+      assetSubtype: item.assetSubtype ?? '',
+      bankName: item.bankName ?? '',
+      amount: item.amount ?? undefined,
+      maturityDate: item.maturityDate ?? '',
+    })),
+  }
 }

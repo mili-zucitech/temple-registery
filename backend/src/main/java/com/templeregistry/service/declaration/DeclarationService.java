@@ -16,11 +16,11 @@ public interface DeclarationService {
      */
     PaginatedResponse<DeclarationResponse> listByDistrict(Long districtId, String status, String financialYear, int page, int size);
 
-    DeclarationResponse create(Long templeId, CreateDeclarationRequest request);
+    CompleteDeclarationResponse create(Long templeId, CreateDeclarationRequest request);
 
-    DeclarationResponse getById(Long id);
+    CompleteDeclarationResponse getById(Long id);
 
-    DeclarationResponse update(Long id, CreateDeclarationRequest request);
+    CompleteDeclarationResponse update(Long id, CreateDeclarationRequest request);
 
     void submit(Long id);
 
@@ -32,7 +32,7 @@ public interface DeclarationService {
 
     void flagPhysicalVerification(Long id, FlagPhysicalVerificationRequest request);
 
-    void resubmit(Long id, ResubmitDeclarationRequest request);
+    CompleteDeclarationResponse resubmit(Long id, ResubmitDeclarationRequest request);
 
     AcknowledgementResponse getAcknowledgement(Long id);
 
@@ -40,10 +40,13 @@ public interface DeclarationService {
      * Returns field-level diff between the last submission snapshot and current
      * state.
      */
-    List<DeclarationDiffResponse> getDiff(Long id);
+    List<DeclarationDiffResponse> getDiff(Long id, Integer compareToVersion);
 
     /** Clarification thread (visible to both DC and Temple Authority). */
     List<ClarificationItemResponse> listClarifications(Long declarationId);
+
+    /** Version history for a declaration, newest submission first. */
+    List<DeclarationVersionResponse> listVersions(Long declarationId);
 
     /**
      * SA-only: force a SUBMITTED declaration back to DRAFT — logged in audit trail.
