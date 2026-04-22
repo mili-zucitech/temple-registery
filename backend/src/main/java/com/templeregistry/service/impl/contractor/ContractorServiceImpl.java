@@ -12,6 +12,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.contractor.ContractorService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ContractorServiceImpl implements ContractorService {
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
     private final PaginationUtil paginationUtil;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -115,12 +117,26 @@ public class ContractorServiceImpl implements ContractorService {
         ownershipGuard.assertOwnsTemple(c.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         contractorRepository.deleteById(id);
+        auditService.logDataEvent(currentUserId(), currentRole(), "DELETE", "Contractor", id,
+                "Contractor soft-deleted");
         log.info("Contractor soft-deleted: id=[{}]", id);
     }
 
     private ScopeHelper.Claims currentClaims() {
         return (ScopeHelper.Claims) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
+    }
+
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.userId();
+        return 0L;
+    }
+
+    private String currentRole() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.role();
+        return "UNKNOWN";
     }
 
     private Contractor findOrThrow(Long id) {

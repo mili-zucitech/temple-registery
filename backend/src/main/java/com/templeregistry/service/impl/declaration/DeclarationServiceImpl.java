@@ -56,6 +56,7 @@ import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.service.governance.GovernanceEditGuard;
 import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
@@ -116,6 +117,8 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final DeclMovEquipmentRepository equipmentRepository;
     private final DeclMovFinancialRepository financialRepository;
     private final com.templeregistry.mapper.declaration.DeclarationAssetMapper assetMapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final GovernanceEditGuard governanceEditGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -249,6 +252,37 @@ public class DeclarationServiceImpl implements DeclarationService {
         governanceAuditService.logAction(saved.getId(), "DECLARATION", currentUserId(), "UPDATE_DRAFT",
                 "Updated declaration draft");
         return buildCompleteResponse(saved);
+    public DeclarationResponse update(Long id, CreateDeclarationRequest rq) {
+        AssetDeclaration d = findOrThrow(id);
+        ownershipGuard.assertOwnsTemple(d.getTempleId());
+
+        // Capture status before edit to detect re-submission requirement
+        com.templeregistry.entity.governance.SubmissionStatus statusBeforeEdit = d.getSubmissionStatus();
+
+        // Governance guard: assert TA can edit (blocks REJECTED and SUBMITTED; APPROVED now allowed)
+        governanceEditGuard.assertCanEdit(statusBeforeEdit, "AssetDeclaration", id);
+
+        // Handle physical verification reset if needed
+        governanceEditGuard.handleDeclarationEditPhysicalVerificationReset(d);
+
+        applyFields(d, rq);
+
+        // Re-submission: if declaration was APPROVED and TA edits, reset to PENDING_REVIEW
+        if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
+            d.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
+            d.setDcDecisionStatus(com.templeregistry.entity.governance.DcDecisionStatus.PENDING_DC_APPROVAL);
+            d.setSendBackReason(null);
+            d.setGovernanceVersion(d.getGovernanceVersion() + 1);
+            d.setSubmittedAt(java.time.LocalDateTime.now());
+
+            // Notify DC of re-submission
+            notificationPublisher.publish(0L, "DECLARATION_RESUBMITTED", d.getId(), "ASSET_DECLARATION");
+            governanceAuditService.logAction(id, "DECLARATION", currentUserId(), "RESUBMIT",
+                    "Declaration re-submitted after TA edit of APPROVED record.");
+            log.info("Declaration [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
+        }
+
+        return toResponse(declarationRepository.save(d));
     }
 
     @Override
@@ -762,6 +796,29 @@ public class DeclarationServiceImpl implements DeclarationService {
             return objectMapper.writeValueAsString(value);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialize declaration snapshot.", ex);
+                .id(d.getId()).templeId(d.getTempleId()).templeName(templeName)
+                .districtId(d.getDistrictId()).financialYear(d.getFinancialYear())
+                .status(d.getStatus()).agriculturalLandAcres(d.getAgriculturalLandAcres())
+                .agriculturalLandValue(d.getAgriculturalLandValue()).buildingsSqft(d.getBuildingsSqft())
+                .buildingsValue(d.getBuildingsValue()).goldGrams(d.getGoldGrams()).silverGrams(d.getSilverGrams())
+                .idolsCount(d.getIdolsCount()).vehiclesCount(d.getVehiclesCount())
+                .financialAssetsValue(d.getFinancialAssetsValue()).otherMovableValue(d.getOtherMovableValue())
+                .submittedAt(d.getSubmittedAt()).reviewedAt(d.getReviewedAt())
+                .acknowledgementNumber(d.getAcknowledgementNumber()).dueDate(d.getDueDate())
+                // 3-layer governance status (TA-safe: no systemVerificationStatus, no physicalVerificationStatus)
+                .submissionStatus(d.getSubmissionStatus())
+                .dcDecisionStatus(d.getDcDecisionStatus())
+                .sendBackReason(d.getSendBackReason())
+                .build();
+    }
+
+    private void compareField(List<DeclarationDiffResponse> diffs, String field,
+            java.util.Map<?, ?> snapshot, Object currentValue) {
+        Object snapshotValue = snapshot.get(field);
+        String snv = snapshotValue != null ? snapshotValue.toString() : null;
+        String curv = currentValue != null ? currentValue.toString() : null;
+        if (!java.util.Objects.equals(snv, curv)) {
+            diffs.add(DeclarationDiffResponse.builder().field(field).oldValue(snv).newValue(curv).build());
         }
     }
 

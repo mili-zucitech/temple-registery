@@ -9,6 +9,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Contractor response DTO.
+ * No DC approval workflow applies to Contractors — changes are effective immediately.
+ * No verification/compliance fields are exposed.
+ */
 @Getter @Builder
 public class ContractorResponse {
     private Long id;

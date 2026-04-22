@@ -86,4 +86,6 @@ public class Contractor extends BaseEntity {
         ids.remove(documentId);
         setDocumentIdList(ids);
     }
+    @Column(name = "payment_status", length = 50) private String paymentStatus;
+    @Column(name = "document_id") private Long documentId;
 }

@@ -1,6 +1,9 @@
 package com.templeregistry.entity.trust;
 
 import com.templeregistry.entity.base.BaseEntity;
+import com.templeregistry.entity.governance.DcDecisionStatus;
+import com.templeregistry.entity.governance.SubmissionStatus;
+import com.templeregistry.entity.governance.SystemVerificationStatus;
 import com.templeregistry.util.AesEncryptionConverter;
 import jakarta.persistence.*;
 import lombok.*;
@@ -71,4 +74,38 @@ public class Trust extends BaseEntity {
 
     @Column(name = "dc_flag_reason", columnDefinition = "MEDIUMTEXT")
     private String dcFlagReason;
+
+    // ─── 3-Layer Governance Status Model ─────────────────────────────────────
+
+    /** Layer 1: Visible to all roles. Drives TA workflow. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "submission_status", nullable = false, length = 20)
+    private SubmissionStatus submissionStatus = SubmissionStatus.DRAFT;
+
+    /**
+     * Layer 2: INTERNAL ONLY — must NEVER be returned to Temple Authority.
+     * Set by automated system checks.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "system_verification_status", length = 30)
+    private SystemVerificationStatus systemVerificationStatus;
+
+    /** Layer 3: DC decision outcome. Visible to all roles. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dc_decision_status", nullable = false, length = 30)
+    private DcDecisionStatus dcDecisionStatus = DcDecisionStatus.PENDING_DC_APPROVAL;
+
+    /**
+     * Free-text reason entered by DC on Send Back.
+     * Mandatory when DC sends back. Visible to Temple Authority.
+     */
+    @Column(name = "send_back_reason", columnDefinition = "TEXT")
+    private String sendBackReason;
+
+    /** Optimistic lock counter for governance state changes. */
+    @Builder.Default
+    @Column(name = "governance_version", nullable = false)
+    private Long governanceVersion = 1L;
 }
