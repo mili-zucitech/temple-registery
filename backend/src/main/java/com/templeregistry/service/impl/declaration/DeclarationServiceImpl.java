@@ -83,9 +83,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -117,7 +114,6 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final DeclMovEquipmentRepository equipmentRepository;
     private final DeclMovFinancialRepository financialRepository;
     private final com.templeregistry.mapper.declaration.DeclarationAssetMapper assetMapper;
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final GovernanceEditGuard governanceEditGuard;
 
     @Override
@@ -172,14 +168,11 @@ public class DeclarationServiceImpl implements DeclarationService {
         ownershipGuard.assertOwnsTemple(templeId);
         Temple temple = findTempleOrThrow(templeId);
 
-        // Check if a declaration already exists for this financial year
         Optional<AssetDeclaration> existingDeclaration = declarationRepository
                 .findTopByTempleIdAndFinancialYearOrderByVersionNumberDesc(templeId, request.getFinancialYear());
-        
+
         if (existingDeclaration.isPresent()) {
             AssetDeclaration existing = existingDeclaration.get();
-            
-            // If there's an active or approved declaration, prevent creating a new one
             if (Set.of(
                     DeclarationStatus.DRAFT,
                     DeclarationStatus.PENDING_REVIEW,
@@ -252,37 +245,6 @@ public class DeclarationServiceImpl implements DeclarationService {
         governanceAuditService.logAction(saved.getId(), "DECLARATION", currentUserId(), "UPDATE_DRAFT",
                 "Updated declaration draft");
         return buildCompleteResponse(saved);
-    public DeclarationResponse update(Long id, CreateDeclarationRequest rq) {
-        AssetDeclaration d = findOrThrow(id);
-        ownershipGuard.assertOwnsTemple(d.getTempleId());
-
-        // Capture status before edit to detect re-submission requirement
-        com.templeregistry.entity.governance.SubmissionStatus statusBeforeEdit = d.getSubmissionStatus();
-
-        // Governance guard: assert TA can edit (blocks REJECTED and SUBMITTED; APPROVED now allowed)
-        governanceEditGuard.assertCanEdit(statusBeforeEdit, "AssetDeclaration", id);
-
-        // Handle physical verification reset if needed
-        governanceEditGuard.handleDeclarationEditPhysicalVerificationReset(d);
-
-        applyFields(d, rq);
-
-        // Re-submission: if declaration was APPROVED and TA edits, reset to PENDING_REVIEW
-        if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
-            d.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
-            d.setDcDecisionStatus(com.templeregistry.entity.governance.DcDecisionStatus.PENDING_DC_APPROVAL);
-            d.setSendBackReason(null);
-            d.setGovernanceVersion(d.getGovernanceVersion() + 1);
-            d.setSubmittedAt(java.time.LocalDateTime.now());
-
-            // Notify DC of re-submission
-            notificationPublisher.publish(0L, "DECLARATION_RESUBMITTED", d.getId(), "ASSET_DECLARATION");
-            governanceAuditService.logAction(id, "DECLARATION", currentUserId(), "RESUBMIT",
-                    "Declaration re-submitted after TA edit of APPROVED record.");
-            log.info("Declaration [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
-        }
-
-        return toResponse(declarationRepository.save(d));
     }
 
     @Override
@@ -623,66 +585,49 @@ public class DeclarationServiceImpl implements DeclarationService {
         financialRepository.deleteByDeclarationId(declarationId);
 
         agriLandRepository.saveAll(request.getAgriculturalLands().stream()
-                .map(item -> assetMapper.toAgriLandEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toAgriLandEntity(item, declarationId)).toList());
         buildingRepository.saveAll(request.getBuildings().stream()
-                .map(item -> assetMapper.toBuildingEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toBuildingEntity(item, declarationId)).toList());
         leasedRepository.saveAll(request.getLeasedProperties().stream()
-                .map(item -> assetMapper.toLeasedPropertyEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toLeasedPropertyEntity(item, declarationId)).toList());
         otherLandRepository.saveAll(request.getOtherLands().stream()
-                .map(item -> assetMapper.toOtherLandEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toOtherLandEntity(item, declarationId)).toList());
         preciousMetalRepository.saveAll(request.getPreciousMetals().stream()
-                .map(item -> assetMapper.toPreciousMetalEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toPreciousMetalEntity(item, declarationId)).toList());
         artifactRepository.saveAll(request.getArtifacts().stream()
-                .map(item -> assetMapper.toArtifactEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toArtifactEntity(item, declarationId)).toList());
         vehicleRepository.saveAll(request.getVehicles().stream()
-                .map(item -> assetMapper.toVehicleEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toVehicleEntity(item, declarationId)).toList());
         equipmentRepository.saveAll(request.getEquipment().stream()
-                .map(item -> assetMapper.toEquipmentEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toEquipmentEntity(item, declarationId)).toList());
         financialRepository.saveAll(request.getFinancialAssets().stream()
-                .map(item -> assetMapper.toFinancialAssetEntity(item, declarationId))
-                .toList());
+                .map(item -> assetMapper.toFinancialAssetEntity(item, declarationId)).toList());
     }
 
     private void applySummaryFields(AssetDeclaration declaration, CreateDeclarationRequest request) {
         declaration.setAgriculturalLandAcres(sum(request.getAgriculturalLands().stream()
-                .map(item -> item.getAreaAcres())
-                .toList()));
+                .map(item -> item.getAreaAcres()).toList()));
         declaration.setAgriculturalLandValue(null);
         declaration.setBuildingsSqft(sum(request.getBuildings().stream()
-                .map(item -> item.getTotalAreaSqft())
-                .toList()));
+                .map(item -> item.getTotalAreaSqft()).toList()));
         declaration.setBuildingsValue(sum(request.getBuildings().stream()
-                .map(item -> item.getValuationInr())
-                .toList()));
+                .map(item -> item.getValuationInr()).toList()));
         declaration.setLeasedPropertiesCount(request.getLeasedProperties().size());
         declaration.setLeasedPropertiesValue(sum(request.getLeasedProperties().stream()
-                .map(item -> item.getMonthlyRent())
-                .toList()));
+                .map(item -> item.getMonthlyRent()).toList()));
         declaration.setOtherLandValue(null);
         declaration.setGoldGrams(sum(request.getPreciousMetals().stream()
                 .filter(item -> isMetalType(item, "GOLD"))
-                .map(PreciousMetalItemRequest::getWeightGrams)
-                .toList()));
+                .map(PreciousMetalItemRequest::getWeightGrams).toList()));
         declaration.setSilverGrams(sum(request.getPreciousMetals().stream()
                 .filter(item -> isMetalType(item, "SILVER"))
-                .map(PreciousMetalItemRequest::getWeightGrams)
-                .toList()));
+                .map(PreciousMetalItemRequest::getWeightGrams).toList()));
         declaration.setIdolsCount(request.getArtifacts().size());
         declaration.setVehiclesCount(request.getVehicles().size());
         declaration.setFinancialAssetsValue(sum(request.getFinancialAssets().stream()
-                .map(FinancialAssetItemRequest::getAmount)
-                .toList()));
+                .map(FinancialAssetItemRequest::getAmount).toList()));
         declaration.setOtherMovableValue(sum(request.getEquipment().stream()
-                .map(EquipmentItemRequest::getApproximateValueInr)
-                .toList()));
+                .map(EquipmentItemRequest::getApproximateValueInr).toList()));
     }
 
     private boolean isMetalType(PreciousMetalItemRequest item, String expectedType) {
@@ -690,14 +635,11 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private BigDecimal sum(List<BigDecimal> values) {
-        return values.stream()
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return values.stream().filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private CompleteDeclarationResponse buildCompleteResponse(AssetDeclaration declaration) {
         String templeName = templeRepository.findById(declaration.getTempleId()).map(Temple::getName).orElse(null);
-
         return CompleteDeclarationResponse.builder()
                 .id(declaration.getId())
                 .templeId(declaration.getTempleId())
@@ -759,7 +701,6 @@ public class DeclarationServiceImpl implements DeclarationService {
         String templeName = templeNames != null
                 ? templeNames.getOrDefault(declaration.getTempleId(), null)
                 : templeRepository.findById(declaration.getTempleId()).map(Temple::getName).orElse(null);
-
         return DeclarationResponse.builder()
                 .id(declaration.getId())
                 .templeId(declaration.getTempleId())
@@ -796,29 +737,6 @@ public class DeclarationServiceImpl implements DeclarationService {
             return objectMapper.writeValueAsString(value);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialize declaration snapshot.", ex);
-                .id(d.getId()).templeId(d.getTempleId()).templeName(templeName)
-                .districtId(d.getDistrictId()).financialYear(d.getFinancialYear())
-                .status(d.getStatus()).agriculturalLandAcres(d.getAgriculturalLandAcres())
-                .agriculturalLandValue(d.getAgriculturalLandValue()).buildingsSqft(d.getBuildingsSqft())
-                .buildingsValue(d.getBuildingsValue()).goldGrams(d.getGoldGrams()).silverGrams(d.getSilverGrams())
-                .idolsCount(d.getIdolsCount()).vehiclesCount(d.getVehiclesCount())
-                .financialAssetsValue(d.getFinancialAssetsValue()).otherMovableValue(d.getOtherMovableValue())
-                .submittedAt(d.getSubmittedAt()).reviewedAt(d.getReviewedAt())
-                .acknowledgementNumber(d.getAcknowledgementNumber()).dueDate(d.getDueDate())
-                // 3-layer governance status (TA-safe: no systemVerificationStatus, no physicalVerificationStatus)
-                .submissionStatus(d.getSubmissionStatus())
-                .dcDecisionStatus(d.getDcDecisionStatus())
-                .sendBackReason(d.getSendBackReason())
-                .build();
-    }
-
-    private void compareField(List<DeclarationDiffResponse> diffs, String field,
-            java.util.Map<?, ?> snapshot, Object currentValue) {
-        Object snapshotValue = snapshot.get(field);
-        String snv = snapshotValue != null ? snapshotValue.toString() : null;
-        String curv = currentValue != null ? currentValue.toString() : null;
-        if (!java.util.Objects.equals(snv, curv)) {
-            diffs.add(DeclarationDiffResponse.builder().field(field).oldValue(snv).newValue(curv).build());
         }
     }
 
@@ -827,9 +745,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private void collectDiffs(String path, JsonNode left, JsonNode right, List<DeclarationDiffResponse> diffs) {
-        if (Objects.equals(left, right)) {
-            return;
-        }
+        if (Objects.equals(left, right)) return;
 
         if (left == null || right == null || left.isValueNode() || right.isValueNode()) {
             diffs.add(DeclarationDiffResponse.builder()
@@ -841,11 +757,11 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
 
         if (left.isArray() || right.isArray()) {
-            int max = Math.max(left != null && left.isArray() ? left.size() : 0, right != null && right.isArray() ? right.size() : 0);
-            for (int index = 0; index < max; index++) {
-                JsonNode leftChild = left != null && left.isArray() && index < left.size() ? left.get(index) : null;
-                JsonNode rightChild = right != null && right.isArray() && index < right.size() ? right.get(index) : null;
-                collectDiffs(path + "[" + index + "]", leftChild, rightChild, diffs);
+            int max = Math.max(left.isArray() ? left.size() : 0, right.isArray() ? right.size() : 0);
+            for (int i = 0; i < max; i++) {
+                JsonNode l = left.isArray() && i < left.size() ? left.get(i) : null;
+                JsonNode r = right.isArray() && i < right.size() ? right.get(i) : null;
+                collectDiffs(path + "[" + i + "]", l, r, diffs);
             }
             return;
         }
@@ -860,9 +776,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private String stringify(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return null;
-        }
+        if (node == null || node.isNull()) return null;
         return node.isValueNode() ? node.asText() : node.toString();
     }
 
@@ -882,9 +796,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private DeclarationStatus parseStatus(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
+        if (value == null || value.isBlank()) return null;
         try {
             return DeclarationStatus.valueOf(value);
         } catch (IllegalArgumentException ex) {
@@ -893,9 +805,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     private LocalDateTime parseDateTime(String value) {
-        if (value == null || value.isBlank() || "null".equalsIgnoreCase(value)) {
-            return null;
-        }
+        if (value == null || value.isBlank() || "null".equalsIgnoreCase(value)) return null;
         try {
             return LocalDateTime.parse(value);
         } catch (Exception ex) {
@@ -910,17 +820,10 @@ public class DeclarationServiceImpl implements DeclarationService {
 
     private ScopeHelper.Claims currentClaims() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof ScopeHelper.Claims claims) {
-            return claims;
-        }
+        if (principal instanceof ScopeHelper.Claims claims) return claims;
         throw new IllegalStateException("No authenticated claims available.");
     }
 
-    private Long currentUserId() {
-        return currentClaims().userId();
-    }
-
-    private String currentRole() {
-        return currentClaims().role();
-    }
+    private Long currentUserId() { return currentClaims().userId(); }
+    private String currentRole() { return currentClaims().role(); }
 }
