@@ -130,10 +130,10 @@ export function DcDeclarationDetailPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:w-[360px]">
-              <MiniStat label="Immovable rows" value={declaration.agriculturalLands.length + declaration.buildings.length + declaration.leasedProperties.length + declaration.otherLands.length} />
-              <MiniStat label="Movable rows" value={declaration.preciousMetals.length + declaration.artifacts.length + declaration.vehicles.length + declaration.equipment.length + declaration.financialAssets.length} />
-              <MiniStat label="Clarifications" value={declaration.clarifications.length} />
-              <MiniStat label="PDF leases" value={declaration.leasedProperties.filter((item) => item.agreementDocumentId).length} />
+              <MiniStat label="Immovable rows" value={(declaration.agriculturalLands?.length ?? 0) + (declaration.buildings?.length ?? 0) + (declaration.leasedProperties?.length ?? 0) + (declaration.otherLands?.length ?? 0)} />
+              <MiniStat label="Movable rows" value={(declaration.preciousMetals?.length ?? 0) + (declaration.artifacts?.length ?? 0) + (declaration.vehicles?.length ?? 0) + (declaration.equipment?.length ?? 0)} />
+              <MiniStat label="Clarifications" value={declaration.clarifications?.length ?? 0} />
+              <MiniStat label="PDF leases" value={declaration.leasedProperties?.filter((item) => item.agreementDocumentId).length ?? 0} />
             </div>
           </div>
         </CardContent>
@@ -185,10 +185,10 @@ export function DcDeclarationDetailPage() {
                   <CardDescription>Chronological conversation between DC and temple authority.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {declaration.clarifications.length === 0 ? (
+                  {(declaration.clarifications?.length ?? 0) === 0 ? (
                     <EmptyState title="No clarifications" description="No clarification messages have been recorded yet." />
                   ) : (
-                    declaration.clarifications.map((item) => (
+                    (declaration.clarifications ?? []).map((item) => (
                       <ClarificationCard key={item.id} item={item} />
                     ))
                   )}
@@ -198,35 +198,32 @@ export function DcDeclarationDetailPage() {
 
             <TabsContent value="assets" className="mt-6 space-y-4">
               <AssetGroup title="Immovable Assets" icon={<FileText size={16} />}>
-                <AssetSection title="Agricultural Land" items={declaration.agriculturalLands} renderItem={(item) => (
+                <AssetSection title="Agricultural Land" items={declaration.agriculturalLands ?? []} renderItem={(item) => (
                   <AssetLine title={item.surveyNumber ?? 'Parcel'} subtitle={`${item.village ?? 'Village n/a'} · ${item.areaAcres ?? 0} acres`} value={`${item.ownerOfRecord ?? 'Owner n/a'} · ${item.pattaStatus ?? 'Patta n/a'}`} />
                 )} />
-                <AssetSection title="Buildings" items={declaration.buildings} renderItem={(item) => (
+                <AssetSection title="Buildings" items={declaration.buildings ?? []} renderItem={(item) => (
                   <AssetLine title={item.location ?? 'Building'} subtitle={`${item.totalAreaSqft ?? 0} sq ft · ${item.yearBuilt ?? 'Year n/a'}`} value={`${item.structureType ?? 'Structure n/a'} · ${formatCurrency(item.valuationInr ?? 0)}`} />
                 )} />
-                <AssetSection title="Leased Properties" items={declaration.leasedProperties} renderItem={(item) => (
+                <AssetSection title="Leased Properties" items={declaration.leasedProperties ?? []} renderItem={(item) => (
                   <AssetLine title={item.propertyAddress ?? 'Leased property'} subtitle={`${item.lesseeName ?? 'Lessee n/a'} · ${formatDate(item.leaseStartDate)} to ${formatDate(item.leaseEndDate)}`} value={item.agreementDocumentId ? `Doc #${item.agreementDocumentId}` : 'No PDF'} />
                 )} />
-                <AssetSection title="Other Land Holdings" items={declaration.otherLands} renderItem={(item) => (
+                <AssetSection title="Other Land Holdings" items={declaration.otherLands ?? []} renderItem={(item) => (
                   <AssetLine title={item.location ?? 'Other land'} subtitle={`${item.area ?? 0} units · ${item.usageType ?? 'Usage n/a'}`} value={item.revenueDepartmentReference ?? 'No reference'} />
                 )} />
               </AssetGroup>
 
               <AssetGroup title="Movable Assets" icon={<History size={16} />}>
-                <AssetSection title="Precious Metals" items={declaration.preciousMetals} renderItem={(item) => (
+                <AssetSection title="Precious Metals" items={declaration.preciousMetals ?? []} renderItem={(item) => (
                   <AssetLine title={item.itemDescription ?? 'Metal item'} subtitle={`${item.metalType ?? 'Type n/a'} · ${item.weightGrams ?? 0} g · ${item.purity ?? 'Purity n/a'}`} value={formatCurrency(item.approximateValueInr ?? 0)} />
                 )} />
-                <AssetSection title="Artifacts" items={declaration.artifacts} renderItem={(item) => (
+                <AssetSection title="Artifacts" items={declaration.artifacts ?? []} renderItem={(item) => (
                   <AssetLine title={item.itemDescription ?? 'Artifact'} subtitle={`${item.material ?? 'Material n/a'} · ${item.ageOrPeriod ?? 'Age n/a'}`} value={item.museumGradeClassification ?? item.provenance ?? 'No classification'} />
                 )} />
-                <AssetSection title="Vehicles" items={declaration.vehicles} renderItem={(item) => (
+                <AssetSection title="Vehicles" items={declaration.vehicles ?? []} renderItem={(item) => (
                   <AssetLine title={item.registrationNumber ?? 'Vehicle'} subtitle={`${item.makeModel ?? 'Model n/a'} · ${item.year ?? 'Year n/a'}`} value={item.purpose ?? 'Purpose n/a'} />
                 )} />
-                <AssetSection title="Equipment" items={declaration.equipment} renderItem={(item) => (
+                <AssetSection title="Equipment" items={declaration.equipment ?? []} renderItem={(item) => (
                   <AssetLine title={item.itemName ?? 'Equipment'} subtitle={item.serialNumber ?? 'Serial n/a'} value={formatCurrency(item.approximateValueInr ?? 0)} />
-                )} />
-                <AssetSection title="Financial Assets" items={declaration.financialAssets} renderItem={(item) => (
-                  <AssetLine title={item.assetSubtype ?? 'Financial asset'} subtitle={`${item.bankName ?? 'Bank n/a'} · ${item.investmentType ?? 'Investment n/a'}`} value={`${formatCurrency(item.amount ?? 0)}${item.maturityDate ? ` · ${formatDate(item.maturityDate)}` : ''}`} />
                 )} />
               </AssetGroup>
             </TabsContent>
@@ -631,20 +628,21 @@ function AssetSection<T>({
   renderItem,
 }: {
   title: string
-  items: T[]
+  items: T[] | null | undefined
   renderItem: (item: T) => React.ReactNode
 }) {
+  const safeItems = items ?? []
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        <span className="text-xs text-muted-foreground">{items.length} item(s)</span>
+        <span className="text-xs text-muted-foreground">{safeItems.length} item(s)</span>
       </div>
-      {items.length === 0 ? (
+      {safeItems.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">No entries recorded.</div>
       ) : (
         <div className="space-y-3">
-          {items.map((item, index) => (
+          {safeItems.map((item, index) => (
             <div key={index} className="rounded-2xl border border-border/60 bg-background/80 p-4">
               {renderItem(item)}
             </div>
