@@ -35,20 +35,15 @@ public class GovernanceActionHistory {
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
-    @Column(name = "governance_version", nullable = false)
-    @Builder.Default
-    private Integer governanceVersion = 1;
-
-    @CreationTimestamp
-    @Column(name = "timestamp", nullable = false, updatable = false)
-    private LocalDateTime timestamp;
-
     /**
      * Legacy column — present in DB from old schema, kept here so Hibernate
      * does not fail on insert. Not used by application logic.
-     * Will be dropped in a future migration once Flyway is re-enabled.
      */
     @Builder.Default
     @Column(name = "governance_version", nullable = false)
     private Long governanceVersion = 1L;
+
+    @CreationTimestamp
+    @Column(name = "timestamp", nullable = false, updatable = false)
+    private LocalDateTime timestamp;
 }

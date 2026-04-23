@@ -116,8 +116,8 @@ class StaffContractorNoApprovalTest {
 
         contractor = Contractor.builder()
                 .templeId(1L)
-                .name("Sri Constructions Pvt Ltd")
-                .serviceType("Renovation")
+                .companyName("Sri Constructions Pvt Ltd")
+                .serviceType(com.templeregistry.entity.contractor.ServiceType.CIVIL_WORKS)
                 .contractValue(BigDecimal.valueOf(500000))
                 .build();
         ReflectionTestUtils.setField(contractor, "id", 20L);
@@ -193,13 +193,13 @@ class StaffContractorNoApprovalTest {
             when(contractorRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             CreateContractorRequest rq = new CreateContractorRequest();
-            ReflectionTestUtils.setField(rq, "name", "Sri Constructions Pvt Ltd");
-            ReflectionTestUtils.setField(rq, "serviceType", "Renovation and Painting");
+            ReflectionTestUtils.setField(rq, "companyName", "Sri Constructions Pvt Ltd");
+            ReflectionTestUtils.setField(rq, "serviceType", com.templeregistry.entity.contractor.ServiceType.CIVIL_WORKS);
             ReflectionTestUtils.setField(rq, "contractValue", BigDecimal.valueOf(750000));
 
             ContractorResponse response = contractorService.update(20L, rq);
 
-            assertThat(response.getServiceType()).isEqualTo("Renovation and Painting");
+            assertThat(response.getServiceType()).isEqualTo(com.templeregistry.entity.contractor.ServiceType.CIVIL_WORKS);
             assertThat(response.getContractValue()).isEqualByComparingTo(BigDecimal.valueOf(750000));
             verify(contractorRepository).save(any());
         }
@@ -215,14 +215,14 @@ class StaffContractorNoApprovalTest {
             });
 
             CreateContractorRequest rq = new CreateContractorRequest();
-            ReflectionTestUtils.setField(rq, "name", "New Contractor Ltd");
-            ReflectionTestUtils.setField(rq, "serviceType", "Electrical");
+            ReflectionTestUtils.setField(rq, "companyName", "New Contractor Ltd");
+            ReflectionTestUtils.setField(rq, "serviceType", com.templeregistry.entity.contractor.ServiceType.ELECTRICAL);
             ReflectionTestUtils.setField(rq, "contractValue", BigDecimal.valueOf(100000));
 
             ContractorResponse response = contractorService.create(1L, rq);
 
             assertThat(response.getId()).isEqualTo(99L);
-            assertThat(response.getName()).isEqualTo("New Contractor Ltd");
+            assertThat(response.getCompanyName()).isEqualTo("New Contractor Ltd");
         }
     }
 
@@ -341,7 +341,7 @@ class StaffContractorNoApprovalTest {
             ContractorResponse response = contractorService.getById(20L);
 
             assertThat(response).isNotNull();
-            assertThat(response.getName()).isEqualTo("Sri Constructions Pvt Ltd");
+            assertThat(response.getCompanyName()).isEqualTo("Sri Constructions Pvt Ltd");
         }
     }
 
