@@ -5,7 +5,8 @@ import { useGetDeclarationQuery, useApproveDeclarationMutation, useRejectDeclara
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { clarificationSchema, type ClarificationRequest } from '../../declarationTypes'
-import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
+import { getAvailableActions } from '../../declarationPermissions'
+import { StatusBadge, DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -75,7 +76,8 @@ export function DeclarationReviewPage() {
   if (isLoading) return <CardSkeleton />
   if (isError || !declaration) return <EmptyState title="Declaration not found" />
 
-  const canReview = (declaration.status === 'SUBMITTED' || declaration.status === 'CLARIFICATION_REQUESTED') && canAct
+  const actions = getAvailableActions(declaration.status, role ?? '')
+  const canReview = (actions.canApprove || actions.canReject || actions.canRequestClarification) && canAct
 
   return (
     <div className="max-w-3xl w-full space-y-6 px-2 sm:px-0">
@@ -85,7 +87,7 @@ export function DeclarationReviewPage() {
           <h2 className="text-lg font-semibold">Declaration #{declaration.id}</h2>
           <p className="text-sm text-muted-foreground">Temple #{declaration.templeId}</p>
         </div>
-        <StatusBadge status={declaration.status} />
+        <DeclarationStatusBadge status={declaration.status} isOverdue={declaration.isOverdue} />
       </div>
 
       {/* Asset Details */}
@@ -120,7 +122,7 @@ export function DeclarationReviewPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button className="bg-gradient-gold shadow-gold" disabled={approving}>
+                <Button className="bg-gradient-gold shadow-gold" disabled={approving || !actions.canApprove}>
                   {approving ? 'Approving…' : 'Approve'}
                 </Button>
               </AlertDialogTrigger>
@@ -141,12 +143,14 @@ export function DeclarationReviewPage() {
 
             <Button
               variant="outline"
+              disabled={clarifying || !actions.canRequestClarification}
               onClick={() => setActiveAction(activeAction === 'clarification' ? null : 'clarification')}
             >
               Request Clarification
             </Button>
             <Button
               variant="destructive"
+              disabled={rejecting || !actions.canReject}
               onClick={() => setActiveAction(activeAction === 'reject' ? null : 'reject')}
             >
               Reject

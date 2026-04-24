@@ -460,8 +460,6 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contractValue(c.getContractValue())
                                 .paymentStatus(c.getPaymentStatus())
                                 .documentIds(c.getDocumentIdList())
-                                .isVerifiedByDc(c.isVerifiedByDc())
-                                .dcFlagReason(c.getDcFlagReason())
                                 .build();
         }
 

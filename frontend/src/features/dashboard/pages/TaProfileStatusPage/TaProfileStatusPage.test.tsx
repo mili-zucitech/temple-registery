@@ -15,7 +15,7 @@ vi.mock('@/features/auth/authApi', () => ({
   useGetCurrentUserQuery: vi.fn(),
 }))
 
-vi.mock('@/features/temple/templeApi', () => ({
+vi.mock('@/features/temple-profile/hooks/templeApi', () => ({
   templeApi: {
     reducerPath: 'templeApi',
     reducer: (s = {}) => s,
@@ -25,7 +25,7 @@ vi.mock('@/features/temple/templeApi', () => ({
 }))
 
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
-import { useGetStagingHistoryQuery } from '@/features/temple/templeApi'
+import { useGetStagingHistoryQuery } from '@/features/temple-profile/hooks/templeApi'
 
 const mockUser    = vi.mocked(useGetCurrentUserQuery)
 const mockHistory = vi.mocked(useGetStagingHistoryQuery)

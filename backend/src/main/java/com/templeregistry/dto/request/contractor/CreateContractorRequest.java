@@ -13,6 +13,8 @@ import java.util.List;
 @Getter @NoArgsConstructor
 public class CreateContractorRequest {
     @NotBlank @Size(max = 255) private String companyName;
+    /** Alias for companyName — accepted for backward compatibility */
+    @Size(max = 255) private String name;
     @Size(max = 30) private String gstNumber;
     private ServiceType serviceType;
     @Size(max = 100) private String contractReference;
@@ -22,4 +24,9 @@ public class CreateContractorRequest {
     private BigDecimal contractValue;
     private PaymentStatus paymentStatus;
     private List<Long> documentIds; // Support multiple documents
+
+    /** Returns companyName, falling back to name if companyName is null */
+    public String getCompanyName() {
+        return companyName != null ? companyName : name;
+    }
 }

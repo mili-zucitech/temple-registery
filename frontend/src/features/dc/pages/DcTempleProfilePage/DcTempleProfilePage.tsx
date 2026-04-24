@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -53,7 +53,7 @@ import {
   type WorkflowApproveRequest,
   type WorkflowRejectRequest,
   type DcClarifyRequest,
-} from '@/features/dc/dcTypes'
+} from '@/features/governance/governanceTypes'
 import type { TempleGrade } from '@/features/temple-profile/hooks/templeTypes'
 
 import {
@@ -90,18 +90,24 @@ export function DcTempleProfilePage() {
     confirmApprove,
     confirmReject,
     confirmClarify,
-    confirmFlagPhysical,
+    confirmScheduleSiteVisit,
     confirmMarkUnderReview,
     isSubmitting,
   } = useWorkflowActions()
 
+  const markedUnderReviewRef = useRef<Set<number>>(new Set())
+
   useEffect(() => {
     if (selectedDeclarationId && selectedDeclarationDetail) {
-      if (selectedDeclarationDetail.status === 'PENDING_REVIEW' || selectedDeclarationDetail.status === 'RESUBMITTED') {
+      if (
+        (selectedDeclarationDetail.status === 'SUBMITTED' || selectedDeclarationDetail.status === 'CLARIFICATION_RESPONDED') &&
+        !markedUnderReviewRef.current.has(selectedDeclarationId)
+      ) {
+        markedUnderReviewRef.current.add(selectedDeclarationId)
         confirmMarkUnderReview(selectedDeclarationId)
       }
     }
-  }, [selectedDeclarationId, selectedDeclarationDetail, confirmMarkUnderReview])
+  }, [selectedDeclarationId, selectedDeclarationDetail?.status])
 
   const [verifyTemple] = useVerifyTempleMutation()
   const [flagTemple] = useFlagTempleMutation()
@@ -113,7 +119,7 @@ export function DcTempleProfilePage() {
     [profile?.declarations]
   )
   const pendingReviewDecls = useMemo(() =>
-    profile?.declarations.filter((d) => ['PENDING_REVIEW', 'UNDER_REVIEW', 'RESUBMITTED'].includes(d.status)) ?? [],
+    profile?.declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)) ?? [],
     [profile?.declarations]
   )
   const isOverdue = overdueDecls.length > 0
@@ -334,7 +340,7 @@ export function DcTempleProfilePage() {
               onApprove={(declarationId) => openDialog('approve', declarationId, id)}
               onReject={(declarationId) => openDialog('reject', declarationId, id)}
               onClarify={(declarationId) => openDialog('clarify', declarationId, id)}
-              onFlagPhysical={(declarationId) => openDialog('flag-physical', declarationId, id)}
+              onFlagPhysical={(declarationId) => openDialog('schedule-site-visit', declarationId, id)}
             />
           </TabsContent>
 
@@ -404,17 +410,17 @@ export function DcTempleProfilePage() {
         isSubmitting={isSubmitting}
       />
       <WorkflowDialog
-        open={dialog.open && dialog.kind === 'flag-physical'}
-        kind="flag-physical"
+        open={dialog.open && dialog.kind === 'schedule-site-visit'}
+        kind="schedule-site-visit"
         onClose={closeDialog}
-        onSubmit={confirmFlagPhysical}
+        onSubmit={confirmScheduleSiteVisit}
         isSubmitting={isSubmitting}
       />
     </div>
   )
 }
 
-type DialogKind = 'approve' | 'reject' | 'clarify' | 'flag-physical'
+type DialogKind = 'approve' | 'reject' | 'clarify' | 'schedule-site-visit'
 type DialogFormPayload = WorkflowApproveRequest | WorkflowRejectRequest | DcClarifyRequest
 
 interface WorkflowDialogProps {
@@ -425,14 +431,14 @@ interface WorkflowDialogProps {
   isSubmitting: boolean
 }
 
-type DialogField = 'notes' | 'reason'
-type DialogValues = { notes: string; reason: string }
+type DialogField = 'remarks' | 'message' | 'notes'
+type DialogValues = { remarks: string; message: string; notes: string }
 
 const DIALOG_META: Record<DialogKind, { title: string; description: string; field: DialogField; label: string; placeholder: string; schema: any }> = {
   approve: {
     title: 'Approve Declaration',
     description: 'This will transition the declaration to APPROVED and generate an acknowledgement number.',
-    field: 'notes',
+    field: 'remarks',
     label: 'Notes (optional)',
     placeholder: 'Internal notes for this approval…',
     schema: workflowApproveSchema,
@@ -440,26 +446,26 @@ const DIALOG_META: Record<DialogKind, { title: string; description: string; fiel
   reject: {
     title: 'Reject Declaration',
     description: 'Rejection is irreversible. The declaration status will be permanently set to REJECTED.',
-    field: 'reason',
-    label: 'Rejection reason',
-    placeholder: 'Provide the reason for rejection…',
+    field: 'remarks',
+    label: 'Rejection remarks',
+    placeholder: 'Provide the reason for rejection (min 10 characters)…',
     schema: workflowRejectSchema,
   },
   clarify: {
     title: 'Request Clarification',
     description: 'The temple authority will be notified to respond to the clarification.',
-    field: 'notes',
-    label: 'Clarification notes',
-    placeholder: 'Describe what needs clarification…',
+    field: 'message',
+    label: 'Clarification message',
+    placeholder: 'Describe what needs clarification (min 10 characters)…',
     schema: dcClarifySchema,
   },
-  'flag-physical': {
-    title: 'Flag Physical Verification',
-    description: 'This temple will be flagged for a physical inspection before further processing.',
+  'schedule-site-visit': {
+    title: 'Schedule Site Visit',
+    description: 'Schedule a physical site visit for this declaration.',
     field: 'notes',
-    label: 'Verification notes',
-    placeholder: 'Describe the reason for physical verification…',
-    schema: dcClarifySchema,
+    label: 'Site visit notes',
+    placeholder: 'Describe the reason for the site visit…',
+    schema: workflowApproveSchema,
   },
 }
 
@@ -505,11 +511,15 @@ function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: Workflo
             />
             <AlertDialogFooter>
               <AlertDialogCancel onClick={onClose} type="button" className="rounded-xl">Cancel</AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button type="submit" disabled={isSubmitting} className="rounded-xl font-bold px-6 bg-gradient-gold hover:scale-105 transition-transform">
-                  {isSubmitting ? 'Submitting…' : 'Confirm Action'}
-                </Button>
-              </AlertDialogAction>
+              {/* Do NOT use AlertDialogAction here — it intercepts the click and
+                  closes the dialog before the form onSubmit fires. Plain Button only. */}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-xl font-bold px-6 bg-gradient-gold hover:scale-105 transition-transform"
+              >
+                {isSubmitting ? 'Submitting…' : 'Confirm Action'}
+              </Button>
             </AlertDialogFooter>
           </form>
         </Form>

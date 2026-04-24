@@ -45,6 +45,7 @@ public class DeclarationResponse {
     private String acknowledgementNumber;
     private LocalDate dueDate;
     private Boolean overdue;
+    private LocalDateTime overdueFlaggedAt;
     private String remarks;
 
     // ─── 3-Layer Governance Status (TA-safe) ─────────────────────────────────

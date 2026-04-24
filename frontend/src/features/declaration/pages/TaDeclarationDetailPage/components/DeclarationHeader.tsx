@@ -1,10 +1,13 @@
 import { useNavigate } from 'react-router-dom'
+import { DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { ArrowLeft, PencilLine, Sparkles, FileCheck2, Calendar, Building2, TrendingUp } from 'lucide-react'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import type { CompleteDeclarationResponse, DeclarationVersionResponse } from '../../../declarationTypes'
+import { getAvailableActions } from '../../../declarationPermissions'
+import { useAppSelector } from '@/app/store'
 
 interface DeclarationHeaderProps {
   declaration: CompleteDeclarationResponse
@@ -13,6 +16,8 @@ interface DeclarationHeaderProps {
 
 export function DeclarationHeader({ declaration, versions }: DeclarationHeaderProps) {
   const navigate = useNavigate()
+  const role = useAppSelector((state) => state.auth.currentUser?.role)
+  const actions = getAvailableActions(declaration.status, role ?? '')
 
   return (
     <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
@@ -76,6 +81,17 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
           )}
         </div>
 
+        {actions.canEdit && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(`${ROUTE_PATHS.TA_DECLARATION_NEW}?id=${declaration.id}`)}
+            >
+              <PencilLine size={16} className="mr-2" />
+              Edit draft
+            </Button>
+          </div>
+        )}
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
           <MiniStat label="Total Versions" value={versions.length} icon={<TrendingUp size={14} />} />
           <MiniStat label="Clarifications" value={declaration.clarificationRound ?? 0} icon={<FileCheck2 size={14} />} />

@@ -9,6 +9,7 @@ import {
   type CreateDeclarationRequest,
   type CompleteDeclarationResponse,
 } from '../../declarationTypes'
+import { getAvailableActions } from '../../declarationPermissions'
 import {
   useCreateDeclarationMutation,
   useGetDeclarationQuery,
@@ -18,7 +19,7 @@ import {
 import { useUploadDocumentMutation } from '@/features/document/documentApi'
 import { useAppSelector } from '@/app/store'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
+import { DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,7 +59,10 @@ export function DeclarationCreatePage() {
 
   const declarationQuery = useGetDeclarationQuery(declarationId, { skip: !isEditMode })
   const declaration = declarationQuery.data?.data
-  const editable = !isEditMode || declaration?.status === 'DRAFT'
+  // Use getAvailableActions to determine editability: a declaration is editable if the TA can edit it
+  const editable = !isEditMode || (declaration
+    ? getAvailableActions(declaration.status, 'TEMPLE_AUTHORITY').canEdit
+    : true)
 
   const form = useForm<CreateDeclarationRequest>({
     resolver: zodResolver(createDeclarationSchema),
@@ -282,7 +286,7 @@ function HeroPanel({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={(declaration?.status ?? 'DRAFT') as any} />
+              <DeclarationStatusBadge status={(declaration?.status ?? 'DRAFT') as any} isOverdue={declaration?.isOverdue} />
               {declaration?.financialYear && (
                 <span className="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs text-muted-foreground">
                   FY {declaration.financialYear}

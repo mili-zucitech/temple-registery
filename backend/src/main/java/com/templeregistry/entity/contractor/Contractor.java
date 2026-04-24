@@ -25,8 +25,8 @@ public class Contractor extends BaseEntity {
     @Column(name = "company_name", nullable = false, length = 255) private String companyName;
     @Column(name = "gst_number", length = 30) private String gstNumber;
     
-    @Enumerated(EnumType.STRING)
-    @Column(name = "service_type", length = 50) private ServiceType serviceType;
+    @Convert(converter = ServiceTypeConverter.class)
+    @Column(name = "service_type", length = 128) private ServiceType serviceType;
     
     @Column(name = "contract_reference", length = 100) private String contractReference;
     @Column(name = "work_order_date") private LocalDate workOrderDate;
@@ -34,7 +34,7 @@ public class Contractor extends BaseEntity {
     @Column(name = "contract_end_date") private LocalDate contractEndDate;
     @Column(name = "contract_value", precision = 18, scale = 2) private BigDecimal contractValue;
     
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PaymentStatusConverter.class)
     @Column(name = "payment_status", length = 50) private PaymentStatus paymentStatus;
     
     // Multiple document IDs stored as comma-separated values

@@ -4,6 +4,7 @@ import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   AcknowledgementResponse,
   ClarificationRequest,
+  ClarificationRespondRequest,
   CompleteDeclarationResponse,
   CreateDeclarationRequest,
   DeclarationDiffItem,
@@ -44,27 +45,56 @@ export const declarationApi = createApi({
     }),
     updateDeclaration: builder.mutation<ApiResponse<CompleteDeclarationResponse>, { id: number; body: CreateDeclarationRequest }>({
       query: ({ id, body }) => ({ url: `/declarations/${id}`, method: 'PUT', body }),
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }],
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     submitDeclaration: builder.mutation<ApiResponse<void>, number>({
       query: (id) => ({ url: `/declarations/${id}/submit`, method: 'POST' }),
       invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
+    // DC actions — all routed through governance controller
     approveDeclaration: builder.mutation<ApiResponse<void>, number>({
-      query: (id) => ({ url: `/declarations/${id}/approve`, method: 'POST' }),
+      query: (id) => ({ url: `/governance/declarations/${id}/approve`, method: 'POST' }),
       invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     rejectDeclaration: builder.mutation<ApiResponse<void>, { id: number; body: ClarificationRequest }>({
-      query: ({ id, body }) => ({ url: `/declarations/${id}/reject`, method: 'POST', body }),
+      query: ({ id, body }) => ({ url: `/governance/declarations/${id}/reject`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     requestClarification: builder.mutation<ApiResponse<void>, { id: number; body: ClarificationRequest }>({
-      query: ({ id, body }) => ({ url: `/declarations/${id}/clarification`, method: 'POST', body }),
+      query: ({ id, body }) => ({ url: `/governance/declarations/${id}/clarify`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
-    resubmitDeclaration: builder.mutation<ApiResponse<CompleteDeclarationResponse>, { id: number; body: ResubmitDeclarationRequest }>({
-      query: ({ id, body }) => ({ url: `/declarations/${id}/resubmit`, method: 'POST', body }),
+    // TA action — respond to clarification (replaces resubmit)
+    clarificationRespond: builder.mutation<ApiResponse<CompleteDeclarationResponse>, { id: number; body: ClarificationRespondRequest }>({
+      query: ({ id, body }) => ({ url: `/declarations/${id}/clarification-respond`, method: 'POST', body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
+    }),
+    // Kept for backward compatibility with existing components that use resubmit
+    // Maps clarificationResponse → message (backend only accepts { message })
+    resubmitDeclaration: builder.mutation<ApiResponse<CompleteDeclarationResponse>, { id: number; body: ResubmitDeclarationRequest }>({
+      query: ({ id, body }) => ({
+        url: `/declarations/${id}/clarification-respond`,
+        method: 'POST',
+        body: { message: body.clarificationResponse },
+      }),
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
+    }),
+    // DC site visit flow — governance controller
+    scheduleSiteVisit: builder.mutation<ApiResponse<void>, { id: number; body?: { notes?: string } }>({
+      query: ({ id, body }) => ({ url: `/governance/declarations/${id}/schedule-site-visit`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
+    }),
+    completeSiteVisit: builder.mutation<ApiResponse<void>, number>({
+      query: (id) => ({ url: `/governance/declarations/${id}/complete-site-visit`, method: 'POST' }),
+      invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
+    }),
+    verifyDeclaration: builder.mutation<ApiResponse<void>, number>({
+      query: (id) => ({ url: `/governance/declarations/${id}/verify`, method: 'POST' }),
+      invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
+    }),
+    failSiteVisit: builder.mutation<ApiResponse<void>, number>({
+      query: (id) => ({ url: `/governance/declarations/${id}/fail-site-visit`, method: 'POST' }),
+      invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     getAcknowledgement: builder.query<ApiResponse<AcknowledgementResponse>, number>({
       query: (id) => `/declarations/${id}/acknowledgement`,
@@ -90,7 +120,12 @@ export const {
   useApproveDeclarationMutation,
   useRejectDeclarationMutation,
   useRequestClarificationMutation,
+  useClarificationRespondMutation,
   useResubmitDeclarationMutation,
+  useScheduleSiteVisitMutation,
+  useCompleteSiteVisitMutation,
+  useVerifyDeclarationMutation,
+  useFailSiteVisitMutation,
   useGetAcknowledgementQuery,
   useGetDeclarationDiffQuery,
 } = declarationApi

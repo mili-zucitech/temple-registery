@@ -26,6 +26,7 @@ import {
   useFlagPhysicalVerificationMutation,
   useMarkUnderReviewDeclarationMutation,
 } from '@/features/governance/governanceApi'
+import { useScheduleSiteVisitMutation } from '@/features/declaration/declarationApi'
 import type {
   DcTempleSearchFilterRequest,
   ApproveProfileRequest,
@@ -394,7 +395,7 @@ export function useDcDeclarationDetail(declarationId: number) {
 
 // ─── Confirmation Dialog State ─────────────────────────────────────────────
 
-type ActionKind = 'approve' | 'reject' | 'clarify' | 'flag-physical' | null
+type ActionKind = 'approve' | 'reject' | 'clarify' | 'flag-physical' | 'schedule-site-visit' | null
 
 interface WorkflowDialogState {
   open: boolean
@@ -422,6 +423,7 @@ interface WorkflowDialogState {
  * cache entry is invalidated and the UI reflects the new status immediately.
  */
 export function useWorkflowActions() {
+  const dispatch = useAppDispatch()
   const [dialog, setDialog] = useState<WorkflowDialogState>({
     open: false,
     kind: null,
@@ -434,8 +436,19 @@ export function useWorkflowActions() {
   const [clarifyDeclaration, { isLoading: clarifying }] = useClarifyDeclarationMutation()
   const [flagPhysical, { isLoading: flagging }] = useFlagPhysicalVerificationMutation()
   const [markUnderReview] = useMarkUnderReviewDeclarationMutation()
+  const [scheduleSiteVisit, { isLoading: scheduling }] = useScheduleSiteVisitMutation()
 
-  const isSubmitting = approving || rejecting || clarifying || flagging
+  const isSubmitting = approving || rejecting || clarifying || flagging || scheduling
+
+  /** Invalidate DC-side caches so the temple profile and declaration detail refresh. */
+  const invalidateDcCaches = useCallback((declarationId: number | null, templeId: number | null) => {
+    if (declarationId) {
+      dispatch(dcApi.util.invalidateTags([{ type: 'DcDeclaration', id: declarationId }]))
+    }
+    if (templeId) {
+      dispatch(dcApi.util.invalidateTags([{ type: 'DcTempleProfile', id: templeId }, 'DcTempleSearch', 'DcDashboard']))
+    }
+  }, [dispatch])
 
   const openDialog = useCallback((kind: ActionKind, declarationId: number, templeId?: number) => {
     setDialog({ open: true, kind, declarationId, templeId: templeId ?? null })
@@ -468,12 +481,13 @@ export function useWorkflowActions() {
         } else {
           toast.success(result.message ?? 'Declaration approved.')
         }
+        invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
       } catch {
         toast.error('Failed to approve declaration. Please try again.')
       }
     },
-    [dialog.declarationId, dialog.templeId, approveDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, approveDeclaration, invalidateDcCaches, closeDialog],
   )
 
   const confirmReject = useCallback(
@@ -487,12 +501,13 @@ export function useWorkflowActions() {
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
         toast.success(result.message ?? 'Declaration rejected.')
+        invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
       } catch {
         toast.error('Failed to reject declaration. Please try again.')
       }
     },
-    [dialog.declarationId, dialog.templeId, rejectDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, rejectDeclaration, invalidateDcCaches, closeDialog],
   )
 
   const confirmClarify = useCallback(
@@ -506,12 +521,13 @@ export function useWorkflowActions() {
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
         toast.success(result.message ?? 'Clarification requested.')
+        invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
       } catch {
         toast.error('Failed to request clarification. Please try again.')
       }
     },
-    [dialog.declarationId, dialog.templeId, clarifyDeclaration, closeDialog],
+    [dialog.declarationId, dialog.templeId, clarifyDeclaration, invalidateDcCaches, closeDialog],
   )
 
   const confirmFlagPhysical = useCallback(
@@ -525,12 +541,13 @@ export function useWorkflowActions() {
           idempotencyKey: newIdempotencyKey(),
         }).unwrap()
         toast.success(result.message ?? 'Flagged for physical verification.')
+        invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
       } catch {
         toast.error('Failed to flag for physical verification. Please try again.')
       }
     },
-    [dialog.declarationId, dialog.templeId, flagPhysical, closeDialog],
+    [dialog.declarationId, dialog.templeId, flagPhysical, invalidateDcCaches, closeDialog],
   )
 
   const confirmMarkUnderReview = useCallback(
@@ -545,6 +562,24 @@ export function useWorkflowActions() {
     [markUnderReview]
   )
 
+  const confirmScheduleSiteVisit = useCallback(
+    async (body: WorkflowApproveRequest) => {
+      if (!dialog.declarationId) return
+      try {
+        await scheduleSiteVisit({
+          id: dialog.declarationId,
+          body: { notes: body.remarks },
+        }).unwrap()
+        toast.success('Site visit scheduled.')
+        invalidateDcCaches(dialog.declarationId, dialog.templeId)
+        closeDialog()
+      } catch {
+        toast.error('Failed to schedule site visit. Please try again.')
+      }
+    },
+    [dialog.declarationId, dialog.templeId, scheduleSiteVisit, invalidateDcCaches, closeDialog],
+  )
+
   return {
     dialog,
     openDialog,
@@ -553,6 +588,7 @@ export function useWorkflowActions() {
     confirmReject,
     confirmClarify,
     confirmFlagPhysical,
+    confirmScheduleSiteVisit,
     confirmMarkUnderReview,
     isSubmitting,
   }

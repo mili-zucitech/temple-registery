@@ -29,7 +29,7 @@ vi.mock('@/features/dc/dcHooks', () => ({
     confirmApprove: vi.fn(),
     confirmReject: vi.fn(),
     confirmClarify: vi.fn(),
-    confirmFlagPhysical: vi.fn(),
+    confirmScheduleSiteVisit: vi.fn(),
     confirmMarkUnderReview: vi.fn(),
     isSubmitting: false,
   }),
@@ -41,10 +41,10 @@ vi.mock('@/features/dc/dcApi', () => ({
     reducer: (s = {}) => s,
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
   },
-  useVerifyTempleMutation: () => [vi.fn()],
-  useFlagTempleMutation: () => [vi.fn()],
-  useVerifyTrustMutation: () => [vi.fn()],
-  useFlagTrustMutation: () => [vi.fn()],
+  useVerifyTempleMutation: () => [vi.fn(), { isLoading: false }],
+  useFlagTempleMutation: () => [vi.fn(), { isLoading: false }],
+  useVerifyTrustMutation: () => [vi.fn(), { isLoading: false }],
+  useFlagTrustMutation: () => [vi.fn(), { isLoading: false }],
 }))
 
 vi.mock('@/app/store', () => ({

@@ -188,9 +188,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         }
 
         transitionValidator.validateDeclarationTransition(
-                d.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUESTED.name());
+                d.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUIRED.name());
 
-        d.setStatus(DeclarationStatus.CLARIFICATION_REQUESTED);
+        d.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
         d.setClarificationRound(d.getClarificationRound() + 1);
         declarationRepository.save(d);
 
@@ -218,7 +218,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
-                .newStatus(DeclarationStatus.CLARIFICATION_REQUESTED.name())
+                .newStatus(DeclarationStatus.CLARIFICATION_REQUIRED.name())
                 .acknowledgementNumber(null)
                 .message("Clarification requested from temple authority.")
                 .build();
@@ -234,9 +234,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
         transitionValidator.validateDeclarationTransition(
-                d.getStatus().name(), DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name());
+                d.getStatus().name(), DeclarationStatus.SITE_VISIT_SCHEDULED.name());
 
-        d.setStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED);
+        d.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
         declarationRepository.save(d);
 
         saveClarification(declarationId, request.getMessage(), request.getSectionName(),
@@ -257,7 +257,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
-                .newStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name())
+                .newStatus(DeclarationStatus.SITE_VISIT_SCHEDULED.name())
                 .message("Declaration flagged for physical verification.")
                 .build();
     }

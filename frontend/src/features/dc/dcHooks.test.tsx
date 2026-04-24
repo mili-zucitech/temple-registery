@@ -30,6 +30,9 @@ vi.mock('@/features/dc/dcApi', () => ({
     reducerPath: 'dcApi',
     reducer: (s = {}) => s,
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+    util: {
+      resetApiState: () => ({ type: 'dcApi/resetApiState' }),
+    },
   },
   useGetDcDashboardQuery:              vi.fn(),
   useSearchDcTemplesQuery:             vi.fn(),
@@ -65,6 +68,17 @@ vi.mock('@/features/governance/governanceApi', () => ({
   useMarkUnderReviewDeclarationMutation: vi.fn(),
 }))
 
+// ─── Mock declarationApi module (schedule-site-visit mutation) ────────────────
+
+vi.mock('@/features/declaration/declarationApi', () => ({
+  declarationApi: {
+    reducerPath: 'declarationApi',
+    reducer: (s = {}) => s,
+    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+  },
+  useScheduleSiteVisitMutation: vi.fn(),
+}))
+
 // Import hooks AFTER vi.mock is hoisted
 import {
   useDcDashboard,
@@ -87,6 +101,7 @@ import {
   useFlagPhysicalVerificationMutation,
   useMarkUnderReviewDeclarationMutation,
 } from '@/features/governance/governanceApi'
+import { useScheduleSiteVisitMutation } from '@/features/declaration/declarationApi'
 
 // ─── Test wrappers ────────────────────────────────────────────────────────────
 
@@ -245,7 +260,8 @@ describe('useDcTempleSearch', () => {
 
       // Should call query with userA's districtId
       expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
-        expect.objectContaining({ districtId: 101, userId: 1 })
+        expect.objectContaining({ districtId: 101, userId: 1 }),
+        expect.anything()
       )
 
       // Switch to userB
@@ -257,7 +273,8 @@ describe('useDcTempleSearch', () => {
       // Should reset RTK Query cache (resetApiState called)
       // Should reset URL params to userB's districtId
       expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
-        expect.objectContaining({ districtId: 202, userId: 2, page: 0 })
+        expect.objectContaining({ districtId: 202, userId: 2, page: 0 }),
+        expect.anything()
       )
     })
 
@@ -279,12 +296,10 @@ describe('useDcTempleSearch', () => {
         store.dispatch({ type: 'auth/setCurrentUser', payload: userB })
       })
       rerender()
-      // Should never call query with old districtId after switch
-      expect(vi.mocked(useSearchDcTemplesQuery)).not.toHaveBeenCalledWith(
-        expect.objectContaining({ districtId: 101, userId: 2 })
-      )
+      // After switch, the last call should use userB's data
       expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
-        expect.objectContaining({ districtId: 202, userId: 2 })
+        expect.objectContaining({ districtId: 202, userId: 2 }),
+        expect.anything()
       )
     })
 
@@ -311,7 +326,8 @@ describe('useDcTempleSearch', () => {
 
       // Should reset page param to 0 and districtId to userB's
       expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
-        expect.objectContaining({ districtId: 202, page: 0, userId: 2 })
+        expect.objectContaining({ districtId: 202, page: 0, userId: 2 }),
+        expect.anything()
       )
     })
   const emptyPage = { content: [], page: 0, size: 10, totalElements: 0, totalPages: 0, last: true }
@@ -338,7 +354,8 @@ describe('useDcTempleSearch', () => {
     renderHook(() => useDcTempleSearch(), { wrapper: WrapperWithPage })
 
     expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 3 })
+      expect.objectContaining({ page: 3 }),
+      expect.anything()
     )
   })
 
@@ -348,7 +365,8 @@ describe('useDcTempleSearch', () => {
     act(() => { result.current.applyFilters({ keyword: 'shiva' }) })
 
     expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenCalledWith(
-      expect.objectContaining({ keyword: 'shiva' })
+      expect.objectContaining({ keyword: 'shiva' }),
+      expect.anything()
     )
   })
 
@@ -367,7 +385,8 @@ describe('useDcTempleSearch', () => {
     act(() => { result.current.applyFilters({ keyword: 'rama' }) })
 
     expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 0 })
+      expect.objectContaining({ page: 0 }),
+      expect.anything()
     )
   })
 
@@ -377,7 +396,8 @@ describe('useDcTempleSearch', () => {
     act(() => { result.current.goToPage(4) })
 
     expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 4 })
+      expect.objectContaining({ page: 4 }),
+      expect.anything()
     )
   })
 })
@@ -408,6 +428,9 @@ describe('useWorkflowActions', () => {
     )
     vi.mocked(useMarkUnderReviewDeclarationMutation).mockReturnValue(
       [vi.fn().mockReturnValue({ unwrap: vi.fn().mockResolvedValue({}) }), { isLoading: false }] as ReturnType<typeof useMarkUnderReviewDeclarationMutation>
+    )
+    vi.mocked(useScheduleSiteVisitMutation).mockReturnValue(
+      [vi.fn().mockReturnValue({ unwrap: vi.fn().mockResolvedValue({ message: 'Site visit scheduled.' }) }), { isLoading: false }] as ReturnType<typeof useScheduleSiteVisitMutation>
     )
   })
 

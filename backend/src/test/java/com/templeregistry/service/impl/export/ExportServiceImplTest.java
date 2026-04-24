@@ -77,7 +77,7 @@ class ExportServiceImplTest {
     void should_exportDeclarations_scopedByDistrict_when_noStatusProvided() {
         when(jurisdictionGuard.enforceDistrictId(null)).thenReturn(10L);
         when(declarationRepository.findAllByDistrictId(eq(10L), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(List.of(buildDeclaration(1L, 10L, DeclarationStatus.PENDING_REVIEW))));
+                .thenReturn(new PageImpl<>(List.of(buildDeclaration(1L, 10L, DeclarationStatus.SUBMITTED))));
 
         ExportDeclarationsRequest rq = new ExportDeclarationsRequest();
         rq.setDistrictId(null);
