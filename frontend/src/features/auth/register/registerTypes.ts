@@ -14,15 +14,7 @@ export const step1Schema = z.object({
 
 export type Step1Data = z.infer<typeof step1Schema>
 
-// ── Step 2 — Aadhaar OTP Verify ───────────────────────────────────────────────
-
-export const step2Schema = z.object({
-  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d{6}$/, 'OTP must contain only digits'),
-})
-
-export type Step2Data = z.infer<typeof step2Schema>
-
-// ── Step 3 — Account Setup ────────────────────────────────────────────────────
+// ── Step 2 — Account Setup ────────────────────────────────────────────────────
 
 export const step3Schema = z
   .object({
@@ -50,7 +42,7 @@ export const step3Schema = z
 
 export type Step3Data = z.infer<typeof step3Schema>
 
-// ── Step 4 — Temple Details ───────────────────────────────────────────────────
+// ── Step 3 — Temple Details ───────────────────────────────────────────────────
 
 export const TEMPLE_GRADE_OPTIONS = ['A', 'B', 'C'] as const satisfies typeof TEMPLE_GRADES
 export const TRADITION_OPTIONS = [
@@ -84,34 +76,6 @@ export type Step4Data = z.infer<typeof step4Schema>
 
 // ── API Request Payloads ──────────────────────────────────────────────────────
 
-export interface RegisterInitRequest {
-  /** Backend field name is `aadhaar` (not aadhaarNumber) */
-  aadhaar: string
-  mobile: string
-}
-
-export interface RegisterInitResponse {
-  /** Init session token — must be sent back in verify-aadhaar call */
-  tempToken: string
-  maskedAadhaar: string
-  /** dev mode only */
-  devOtp?: string
-}
-
-export interface VerifyAadhaarRequest {
-  /** Backend field name is `aadhaar` */
-  aadhaar: string
-  otp: string
-  /** Init session token received from register/init */
-  tempToken: string
-}
-
-export interface VerifyAadhaarResponse {
-  /** Backend field: `verificationToken` — the AADHAAR_VERIFIED token sent to /register/create */
-  verificationToken: string
-  message: string
-}
-
 export interface TempleRegistrationFields {
   name: string
   aliasName?: string
@@ -126,7 +90,7 @@ export interface TempleRegistrationFields {
 }
 
 export interface CreateAccountRequest {
-  tempToken: string
+  aadhaar: string
   username: string
   email: string
   password: string
@@ -137,22 +101,6 @@ export interface CreateAccountRequest {
 
 export interface CreateAccountResponse {
   userId: number
-}
-
-export interface MfaSetupRequest {
-  userId: number
-  phone: string
-}
-
-export interface MfaSetupVerifyRequest {
-  userId: number
-  otp: string
-}
-
-export interface MfaSetupVerifyResponse {
-  message: string
-  userId: number
-  recoveryCodes: string[]
 }
 
 // ── Wizard State ──────────────────────────────────────────────────────────────
@@ -173,11 +121,8 @@ export interface WizardState {
 
 export const WIZARD_STEPS = [
   { id: 1, label: 'Identity' },
-  { id: 2, label: 'OTP Verify' },
-  { id: 3, label: 'Account' },
-  { id: 4, label: 'Temple' },
-  { id: 5, label: 'Review' },
-  { id: 6, label: 'MFA Setup' },
-  { id: 7, label: 'Recovery' },
-  { id: 8, label: 'Done' },
+  { id: 2, label: 'Account' },
+  { id: 3, label: 'Temple' },
+  { id: 4, label: 'Review' },
+  { id: 5, label: 'Done' },
 ] as const

@@ -9,14 +9,14 @@ interface AssetGroupProps {
 
 export function AssetGroup({ title, icon, children }: AssetGroupProps) {
   return (
-    <Card className="border-border/60 bg-card/95 shadow-soft-md">
-      <CardHeader>
+    <Card className="border-border/60 bg-card/95 shadow-sm">
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <span className="rounded-xl bg-primary/10 p-2 text-primary">{icon}</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</span>
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
+      <CardContent className="space-y-3">{children}</CardContent>
     </Card>
   )
 }
