@@ -1,12 +1,8 @@
 package com.templeregistry.service.impl.auth;
 
-import com.templeregistry.dto.request.auth.AadhaarVerifyRequest;
 import com.templeregistry.dto.request.auth.CreateAccountRequest;
-import com.templeregistry.dto.request.auth.RegistrationInitRequest;
 import com.templeregistry.dto.request.auth.TempleRegistrationRequest;
-import com.templeregistry.dto.response.auth.AadhaarOtpResponse;
 import com.templeregistry.dto.response.auth.CreateAccountResponse;
-import com.templeregistry.dto.response.auth.RegistrationInitResponse;
 import com.templeregistry.entity.auth.MfaType;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.auth.UserRole;
@@ -15,17 +11,12 @@ import com.templeregistry.entity.temple.ReligiousTradition;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleGrade;
 import com.templeregistry.entity.temple.TempleStatus;
-import com.templeregistry.exception.AadhaarVerificationException;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleRepository;
-import com.templeregistry.service.auth.AadhaarService;
-import com.templeregistry.service.auth.JwtService;
 import com.templeregistry.service.auth.RegistrationService;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,45 +30,22 @@ import java.util.UUID;
 @Slf4j
 public class RegistrationServiceImpl implements RegistrationService {
 
-    private static final String CLAIM_REG_PHASE         = "reg_phase";
-    private static final String PHASE_AADHAAR_VERIFIED  = "AADHAAR_VERIFIED";
-
     private final UserRepository     userRepository;
     private final TempleRepository   templeRepository;
     private final HobliRepository    hobliRepository;
     private final PasswordEncoder    passwordEncoder;
-    private final AadhaarService     aadhaarService;
-    private final JwtService         jwtService;
 
     // ── Step 1 ────────────────────────────────────────────────────────────────
-
-    @Override
-    @Transactional(readOnly = true)
-    public RegistrationInitResponse initRegistration(RegistrationInitRequest request) {
-        return aadhaarService.initRegistration(request);
-    }
-
-    // ── Step 2 ────────────────────────────────────────────────────────────────
-
-    @Override
-    @Transactional(readOnly = true)
-    public AadhaarOtpResponse verifyAadhaar(AadhaarVerifyRequest request) {
-        return aadhaarService.verifyAadhaar(request);
-    }
-
-    // ── Step 3 ────────────────────────────────────────────────────────────────
 
     /**
      * Atomically creates the User and Temple, links them, and returns the userId.
      * Rollback occurs on any failure — no orphaned records.
+     * Accepts Aadhaar number directly (no OTP verification required).
      */
     @Override
     @Transactional
     public CreateAccountResponse createAccount(CreateAccountRequest request) {
-        // 1. Validate the AADHAAR_VERIFIED temp token
-        validateAadhaarVerifiedToken(request.getTempToken());
-
-        // 2. Uniqueness guards
+        // 1. Uniqueness guards
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new DuplicateResourceException("Username is already taken.");
         }
@@ -85,14 +53,14 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new DuplicateResourceException("Email address is already registered.");
         }
 
-        // 3. Resolve geo hierarchy (validates hobli FK and loads district/taluk in one query)
+        // 2. Resolve geo hierarchy (validates hobli FK and loads district/taluk in one query)
         TempleRegistrationRequest templeReq = request.getTemple();
         Hobli hobli = hobliRepository.findWithGeoById(templeReq.getHobliId())
                 .orElseThrow(() -> new EntityNotFoundException("Hobli", templeReq.getHobliId()));
         Long talukId    = hobli.getTaluk().getId();
         Long districtId = hobli.getTaluk().getDistrict().getId();
 
-        // 4. Create User (isActive=false; SA must activate after reviewing the registration)
+        // 3. Create User (isActive=false; SA must activate after reviewing the registration)
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
@@ -107,10 +75,10 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .build();
         userRepository.save(user);
 
-        // 5. Fix self-referential audit fields (created_by / updated_by cannot be set before the PK is known)
+        // 4. Fix self-referential audit fields (created_by / updated_by cannot be set before the PK is known)
         userRepository.updateSelfAuditFields(user.getId());
 
-        // 6. Create Temple with a system-generated registration number
+        // 5. Create Temple with a system-generated registration number
         String registrationNumber = generateRegistrationNumber(templeReq.getGrade(), templeReq.getHobliId());
         Temple temple = Temple.builder()
                 .registrationNumber(registrationNumber)
@@ -131,11 +99,11 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .build();
         templeRepository.save(temple);
 
-        // 7. Link the temple to the user in a single UPDATE (avoids reload)
+        // 6. Link the temple to the user in a single UPDATE (avoids reload)
         userRepository.linkTemple(user.getId(), temple.getId());
 
-        log.info("New TEMPLE_AUTHORITY registered: userId=[{}], templeId=[{}], registrationNumber=[{}]",
-                user.getId(), temple.getId(), registrationNumber);
+        log.info("New TEMPLE_AUTHORITY registered: userId=[{}], templeId=[{}], registrationNumber=[{}], aadhaar=[{}]",
+                user.getId(), temple.getId(), registrationNumber, maskAadhaar(request.getAadhaar()));
 
         return CreateAccountResponse.builder()
                 .userId(user.getId())
@@ -145,17 +113,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void validateAadhaarVerifiedToken(String tempToken) {
-        Claims claims;
-        try {
-            claims = jwtService.validateAndParse(tempToken);
-        } catch (JwtException | IllegalArgumentException ex) {
-            throw new AadhaarVerificationException("Registration token is invalid or has expired. Please restart registration.");
-        }
-        String phase = claims.get(CLAIM_REG_PHASE, String.class);
-        if (!PHASE_AADHAAR_VERIFIED.equals(phase)) {
-            throw new AadhaarVerificationException("Aadhaar must be verified before account creation.");
-        }
+    /**
+     * Masks Aadhaar number for logging (shows only last 4 digits).
+     */
+    private static String maskAadhaar(String aadhaar) {
+        if (aadhaar == null || aadhaar.length() < 4) return "****";
+        return "********" + aadhaar.substring(aadhaar.length() - 4);
     }
 
     /**

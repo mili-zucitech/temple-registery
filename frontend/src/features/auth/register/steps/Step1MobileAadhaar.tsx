@@ -5,12 +5,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useWizard } from '../RegisterContext'
-import { useAadhaarOtpRequest } from '../registerHooks'
 import { step1Schema, type Step1Data } from '../registerTypes'
 
 export function Step1MobileAadhaar() {
-  const { state, saveStep1, saveInitToken, nextStep } = useWizard()
-  const { sendOtp, isLoading } = useAadhaarOtpRequest()
+  const { state, saveStep1, nextStep } = useWizard()
 
   const form = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
@@ -21,33 +19,18 @@ export function Step1MobileAadhaar() {
   })
 
   const onSubmit = async (values: Step1Data) => {
-    // sendOtp sends { aadhaar, mobile } to backend and returns the init session token
-    const initToken = await sendOtp(values.aadhaarNumber, values.mobile)
-    if (initToken) {
-      saveStep1(values)
-      saveInitToken(initToken)
-      nextStep()
-    }
+    saveStep1(values)
+    nextStep()
   }
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold font-display">Identity Verification</h2>
+        <h2 className="text-lg font-semibold font-display">Identity Information</h2>
         <p className="text-sm text-muted-foreground">
-          Enter your mobile number and Aadhaar number. An OTP will be sent to the mobile
-          linked with your Aadhaar for verification.
+          Enter your mobile number and Aadhaar number to begin registration.
         </p>
       </div>
-
-      {/* Dev helper */}
-      {import.meta.env.DEV && (
-        <div className="rounded-md border border-dashed border-warning/50 bg-warning/5 px-4 py-3">
-          <p className="text-[11px] font-medium text-warning-foreground">
-            Dev mode: Use Aadhaar <code className="font-mono">123412341234</code> → OTP will be <code className="font-mono">999999</code>
-          </p>
-        </div>
-      )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -113,8 +96,8 @@ export function Step1MobileAadhaar() {
             )}
           />
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Sending OTP…' : 'Send OTP →'}
+          <Button type="submit" className="w-full">
+            Continue →
           </Button>
         </form>
       </Form>
