@@ -19,7 +19,7 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
 
     Page<AssetDeclaration> findAllByTempleId(Long templeId, Pageable pageable);
 
-    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'PENDING_REVIEW' AND d.dueDate < :today")
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'SUBMITTED' AND d.dueDate < :today")
     List<AssetDeclaration> findOverdue(LocalDate today);
 
     @Query("SELECT d FROM AssetDeclaration d WHERE d.dueDate < :today AND d.status NOT IN ('APPROVED', 'REJECTED', 'SUPERSEDED', 'OVERDUE')")
@@ -28,10 +28,10 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
     Page<AssetDeclaration> findAllByDistrictIdAndStatus(Long districtId, DeclarationStatus status, Pageable pageable);
 
     /**
-     * SA query: declarations stuck in PHYSICAL_VERIFICATION_REQUESTED beyond a date
+     * SA query: declarations stuck in SITE_VISIT_SCHEDULED beyond a date
      * threshold.
      */
-    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'PHYSICAL_VERIFICATION_REQUESTED' AND d.submittedAt < :thresholdDateTime")
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'SITE_VISIT_SCHEDULED' AND d.submittedAt < :thresholdDateTime")
     Page<AssetDeclaration> findPhysicalVerificationPendingOlderThan(java.time.LocalDateTime thresholdDateTime,
             Pageable pageable);
 
@@ -69,10 +69,10 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
 
     /**
      * Count declarations requiring DC attention for a given district.
-     * dc_e2e Section 2.6 (S9) — pending_declarations counts all 3 active states.
+     * dc_e2e Section 2.6 (S9) — pending_declarations counts all active states.
      */
     @Query("SELECT COUNT(d) FROM AssetDeclaration d WHERE d.districtId = :districtId " +
-            "AND d.status IN ('PENDING_REVIEW', 'RESUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED')")
+            "AND d.status IN ('SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED')")
     long countActivePendingByDistrict(Long districtId);
 
     boolean existsByTempleIdAndStatusIn(Long templeId, List<DeclarationStatus> statuses);
@@ -82,4 +82,27 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
     Optional<AssetDeclaration> findByTempleIdAndFinancialYearAndVersionNumber(Long templeId, String financialYear, int versionNumber);
 
     List<AssetDeclaration> findAllByTempleIdAndFinancialYearOrderByVersionNumberDesc(Long templeId, String financialYear);
+
+    /**
+     * Find all acknowledgement numbers that start with the given prefix.
+     * Used by AcknowledgementService to determine the next sequence number.
+     */
+    @Query("SELECT d.acknowledgementNumber FROM AssetDeclaration d WHERE d.acknowledgementNumber LIKE :prefix%")
+    List<String> findAcknowledgementNumbersByPrefix(@org.springframework.data.repository.query.Param("prefix") String prefix);
+
+    /**
+     * Bulk update: mark declarations as overdue where due_date < today and status is not terminal.
+     * Used by OverdueScheduler.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE AssetDeclaration d SET d.isOverdue = true, d.overdueFlaggedAt = :now " +
+           "WHERE d.dueDate < :today AND d.status NOT IN :terminalStatuses AND d.isOverdue = false")
+    int markOverdue(@org.springframework.data.repository.query.Param("today") java.time.LocalDate today,
+                    @org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now,
+                    @org.springframework.data.repository.query.Param("terminalStatuses") java.util.List<DeclarationStatus> terminalStatuses);
+
+    /**
+     * Find overdue declarations for a district (paginated).
+     */
+    Page<AssetDeclaration> findByIsOverdueTrueAndDistrictId(Long districtId, Pageable pageable);
 }

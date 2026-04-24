@@ -30,13 +30,17 @@ export function DeclarationsTab({
 }: DeclarationsTabProps) {
   const dotColors: Record<string, string> = useMemo(() => ({
     OVERDUE:                         'bg-destructive',
-    PENDING_REVIEW:                  'bg-warning',
+    SUBMITTED:                       'bg-info',
+    UNDER_REVIEW:                    'bg-warning',
+    CLARIFICATION_REQUIRED:          'bg-accent',
+    CLARIFICATION_RESPONDED:         'bg-sky-400',
+    SITE_VISIT_SCHEDULED:            'bg-purple-400',
+    SITE_VISIT_COMPLETED:            'bg-indigo-400',
+    VERIFIED:                        'bg-teal-400',
     APPROVED:                        'bg-success',
     REJECTED:                        'bg-destructive/50',
-    CLARIFICATION_REQUESTED:         'bg-accent',
-    PHYSICAL_VERIFICATION_REQUESTED: 'bg-accent',
-    SUBMITTED:                       'bg-info',
     DRAFT:                           'bg-muted-foreground/40',
+    SUPERSEDED:                      'bg-muted-foreground/30',
   }), [])
 
   if (declarations.length === 0) {

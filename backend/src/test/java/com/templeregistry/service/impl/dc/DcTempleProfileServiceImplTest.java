@@ -25,6 +25,7 @@ import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.document.FileStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -69,6 +70,7 @@ class DcTempleProfileServiceImplTest {
     @Mock private DeclMovEquipmentRepository equipmentRepository;
     @Mock private CityRepository cityRepository;
     @Mock private JurisdictionGuard jurisdictionGuard;
+    @Mock private FileStorageService fileStorageService;
 
     @InjectMocks
     private DcTempleProfileServiceImpl service;

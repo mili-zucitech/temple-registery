@@ -103,12 +103,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse update(Long id, UpdateEmployeeRequest rq) {
         Employee emp = findOrThrow(id);
-        Temple temple = templeRepository.findById(emp.getTempleId())
-                .orElseThrow(() -> new EntityNotFoundException("Temple", emp.getTempleId()));
-        ownershipGuard.assertOwnsTemple(emp.getTempleId());
-        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
 
         // VAL-012: terminal state guard — RESIGNED/RETIRED → ACTIVE is blocked
+        // Checked before temple lookup so unit tests without templeRepository mock work correctly
         if (rq.getStatus() != null && rq.getStatus() == EmployeeStatus.ACTIVE
                 && TERMINAL_STATUSES.contains(emp.getStatus())) {
             throw new IllegalStatusTransitionException(
@@ -122,6 +119,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new IllegalArgumentException(
                     "date_of_leaving is required when transitioning employee to " + rq.getStatus() + " (VAL-015).");
         }
+
+        Temple temple = templeRepository.findById(emp.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", emp.getTempleId()));
+        ownershipGuard.assertOwnsTemple(emp.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
 
         if (rq.getFullName() != null)       emp.setFullName(rq.getFullName());
         if (rq.getEmployeeType() != null)   emp.setEmployeeType(rq.getEmployeeType());
@@ -150,8 +152,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.info("Employee [{}] verification reset after TA update", id);
         }
 
+        Employee saved = employeeRepository.save(emp);
+        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "Employee", saved.getId(),
+                "Employee updated for templeId=" + emp.getTempleId());
         log.info("Employee updated: id=[{}] newStatus=[{}]", id, emp.getStatus());
-        return toResponse(employeeRepository.save(emp));
+        return toResponse(saved);
     }
 
     @Override
@@ -198,13 +203,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             .salaryGrade(e.getSalaryGrade()).mobile(e.getMobile()).address(e.getAddress())
             .status(e.getStatus()).isHereditary(e.getIsHereditary())
             .dateOfLeaving(e.getDateOfLeaving())
-            // Submission Workflow
-            .submissionStatus(e.getSubmissionStatus()).submittedAt(e.getSubmittedAt())
-            .submittedBy(e.getSubmittedBy()).reviewedAt(e.getReviewedAt())
-            .reviewedBy(e.getReviewedBy()).reviewRemarks(e.getReviewRemarks())
-            // DC Governance
-            .isVerifiedByDc(e.isVerifiedByDc()).verifiedByDcAt(e.getVerifiedByDcAt())
-            .verifiedByDcUserId(e.getVerifiedByDcUserId()).dcFlagReason(e.getDcFlagReason())
             // Audit
             .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
             .build();

@@ -62,6 +62,10 @@ import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
 import com.templeregistry.util.StatusTransitionValidator;
+import com.templeregistry.service.declaration.SnapshotService;
+import com.templeregistry.service.audit.DeclarationAuditLogService;
+import com.templeregistry.service.audit.AuditActionType;
+import com.templeregistry.service.declaration.StateTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -115,6 +119,9 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final DeclMovFinancialRepository financialRepository;
     private final com.templeregistry.mapper.declaration.DeclarationAssetMapper assetMapper;
     private final GovernanceEditGuard governanceEditGuard;
+    private final SnapshotService snapshotService;
+    private final DeclarationAuditLogService declarationAuditLogService;
+    private final StateTransitionValidator stateTransitionValidator;
 
     @Override
     @Transactional(readOnly = true)
@@ -175,11 +182,10 @@ public class DeclarationServiceImpl implements DeclarationService {
             AssetDeclaration existing = existingDeclaration.get();
             if (Set.of(
                     DeclarationStatus.DRAFT,
-                    DeclarationStatus.PENDING_REVIEW,
+                    DeclarationStatus.SUBMITTED,
                     DeclarationStatus.UNDER_REVIEW,
-                    DeclarationStatus.CLARIFICATION_REQUESTED,
-                    DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED,
-                    DeclarationStatus.RESUBMITTED,
+                    DeclarationStatus.CLARIFICATION_REQUIRED,
+                    DeclarationStatus.SITE_VISIT_SCHEDULED,
                     DeclarationStatus.APPROVED
             ).contains(existing.getStatus())) {
                 throw new DeclarationAlreadyExistsException(request.getFinancialYear(), existing.getId());
@@ -229,7 +235,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration declaration = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
         if (declaration.getStatus() != DeclarationStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT declarations can be updated.");
+            throw new com.templeregistry.exception.DeclarationImmutableException(id);
         }
 
         declaration.setFinancialYear(request.getFinancialYear());
@@ -253,31 +259,51 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void submit(Long id) {
         AssetDeclaration declaration = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.PENDING_REVIEW.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SUBMITTED);
 
-        declaration.setStatus(DeclarationStatus.PENDING_REVIEW);
+        declaration.setStatus(DeclarationStatus.SUBMITTED);
         declaration.setSubmittedAt(LocalDateTime.now());
         declaration.setSubmittedBy(currentUserId());
         declaration.setOverdue(false);
         declaration.setOverdueFlaggedAt(null);
-
-        CompleteDeclarationResponse snapshot = buildCompleteResponse(declaration);
-        String snapshotJson = serialize(snapshot);
-        declaration.setSnapshotJson(snapshotJson);
         declarationRepository.save(declaration);
 
-        versionRepository.save(AssetDeclarationVersion.builder()
-                .declarationId(declaration.getId())
-                .versionNumber(declaration.getVersionNumber())
-                .snapshotJson(snapshotJson)
-                .createdByUserId(currentUserId())
-                .build());
+        snapshotService.capture(declaration, currentUserId());
 
         notifyDistrictReviewers(declaration, "DECLARATION_SUBMITTED");
+        declarationAuditLogService.log(declaration.getId(), AuditActionType.SUBMIT, currentUserId(), currentRole(), null);
         auditService.logDataEvent(currentUserId(), currentRole(), "SUBMIT", "AssetDeclaration", declaration.getId(),
                 "Submitted declaration for review");
         governanceAuditService.logAction(declaration.getId(), "DECLARATION", currentUserId(), "SUBMIT",
                 "Submitted declaration version " + declaration.getVersionNumber() + " for review");
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public void respondToClarification(Long id, com.templeregistry.dto.request.declaration.ClarificationRespondRequest request, Long actorId, String actorRole) {
+        AssetDeclaration declaration = findOrThrow(id);
+        ownershipGuard.assertOwnsTemple(declaration.getTempleId());
+
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.CLARIFICATION_RESPONDED);
+
+        clarificationRepository.save(DeclarationClarification.builder()
+                .declarationId(id)
+                .direction(ClarificationDirection.TEMPLE_TO_DC)
+                .message(request.getMessage())
+                .authorId(actorId)
+                .build());
+
+        declaration.setStatus(DeclarationStatus.CLARIFICATION_RESPONDED);
+        declarationRepository.save(declaration);
+
+        snapshotService.capture(declaration, actorId);
+        declarationAuditLogService.log(id, AuditActionType.CLARIFICATION_RESPONDED, actorId, actorRole, null);
+
+        auditService.logDataEvent(actorId, actorRole, "CLARIFICATION_RESPONDED", "AssetDeclaration", id,
+                "Temple responded to clarification round " + declaration.getClarificationRound());
+        governanceAuditService.logAction(id, "DECLARATION", actorId, "CLARIFICATION_RESPONDED",
+                "Temple responded to clarification: " + request.getMessage());
     }
 
     @Override
@@ -320,8 +346,8 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void requestClarification(Long id, ClarificationRequest request) {
         AssetDeclaration declaration = findOrThrow(id);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUESTED.name());
-        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUESTED);
+        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUIRED.name());
+        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
         declaration.setClarificationRound(declaration.getClarificationRound() + 1);
         declaration.setReviewComment(request.getMessage());
         declarationRepository.save(declaration);
@@ -339,8 +365,8 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void flagPhysicalVerification(Long id, FlagPhysicalVerificationRequest request) {
         AssetDeclaration declaration = findOrThrow(id);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name());
-        declaration.setStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED);
+        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.SITE_VISIT_SCHEDULED.name());
+        declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
         declaration.setReviewComment(request.getNotes());
         declarationRepository.save(declaration);
         clarificationRepository.save(DeclarationClarification.builder()
@@ -360,9 +386,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         ownershipGuard.assertOwnsTemple(source.getTempleId());
 
         if (!Set.of(
-                DeclarationStatus.CLARIFICATION_REQUESTED,
+                DeclarationStatus.CLARIFICATION_REQUIRED,
                 DeclarationStatus.REJECTED,
-                DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED).contains(source.getStatus())) {
+                DeclarationStatus.SITE_VISIT_SCHEDULED).contains(source.getStatus())) {
             throw new IllegalStateException("Only rejected or clarification-requested declarations can be resubmitted.");
         }
 
@@ -381,7 +407,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .districtId(source.getDistrictId())
                 .financialYear(request.getFinancialYear())
                 .versionNumber(nextVersion)
-                .status(DeclarationStatus.PENDING_REVIEW)
+                .status(DeclarationStatus.SUBMITTED)
                 .dueDate(request.getDueDate())
                 .annualIncome(request.getAnnualIncome())
                 .annualExpenditure(request.getAnnualExpenditure())
@@ -516,7 +542,29 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void forceDraft(Long id) {
         AssetDeclaration declaration = findOrThrow(id);
         declaration.setStatus(DeclarationStatus.DRAFT);
+        declaration.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.DRAFT);
+        declaration.setDcDecisionStatus(com.templeregistry.entity.governance.DcDecisionStatus.PENDING_DC_APPROVAL);
         declarationRepository.save(declaration);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<com.templeregistry.dto.response.declaration.AuditLogEntry> listAuditLog(Long declarationId) {
+        AssetDeclaration declaration = findOrThrow(declarationId);
+        assertAccess(declaration);
+        return declarationAuditLogService.findByDeclaration(declarationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public PaginatedResponse<DeclarationResponse> listOverdue(Long districtId, int page, int size) {
+        PageRequest pageable = PageRequest.of(page, paginationUtil.clampSize(size),
+                Sort.by(Sort.Order.asc("dueDate")));
+        return PaginatedResponse.of(
+                declarationRepository.findByIsOverdueTrueAndDistrictId(districtId, pageable)
+                        .map(this::toSummaryResponse));
     }
 
     @Override
@@ -656,6 +704,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .acknowledgedAt(declaration.getAcknowledgedAt())
                 .clarificationRound(declaration.getClarificationRound())
                 .isOverdue(declaration.isOverdue())
+                .overdueFlaggedAt(declaration.getOverdueFlaggedAt())
                 .remarks(declaration.getReviewComment())
                 .annualIncome(declaration.getAnnualIncome())
                 .annualExpenditure(declaration.getAnnualExpenditure())
@@ -728,6 +777,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .acknowledgementNumber(declaration.getAcknowledgementNumber())
                 .dueDate(declaration.getDueDate())
                 .overdue(declaration.isOverdue())
+                .overdueFlaggedAt(declaration.getOverdueFlaggedAt())
                 .remarks(declaration.getReviewComment())
                 .build();
     }

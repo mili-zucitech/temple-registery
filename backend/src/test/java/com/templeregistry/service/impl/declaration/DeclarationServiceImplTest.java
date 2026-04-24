@@ -47,6 +47,12 @@ class DeclarationServiceImplTest {
     @Mock PaginationUtil paginationUtil;
     @Mock AuditService auditService;
     @Mock ObjectMapper objectMapper;
+    @Mock com.templeregistry.service.declaration.StateTransitionValidator stateTransitionValidator;
+    @Mock com.templeregistry.service.declaration.SnapshotService snapshotService;
+    @Mock com.templeregistry.service.audit.DeclarationAuditLogService declarationAuditLogService;
+    @Mock com.templeregistry.service.audit.GovernanceAuditService governanceAuditService;
+    @Mock com.templeregistry.service.dc.NotificationEventPublisher notificationPublisher;
+    @Mock com.templeregistry.repository.auth.UserRepository userRepository;
 
     @InjectMocks DeclarationServiceImpl declarationService;
 
@@ -72,18 +78,20 @@ class DeclarationServiceImplTest {
     void should_submitDeclaration_when_status_is_DRAFT() {
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(ownershipGuard).assertOwnsTemple(anyLong());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(draftDeclaration);
+        lenient().when(userRepository.findAllByRoleAndDistrictId(any(), anyLong())).thenReturn(java.util.List.of());
+        when(snapshotService.capture(any(), any())).thenReturn(null);
 
         declarationService.submit(1L);
 
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.PENDING_REVIEW);
+        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.SUBMITTED);
         assertThat(draftDeclaration.getSubmittedAt()).isNotNull();
     }
 
     @Test
     void should_approveDeclaration_and_setAcknowledgementNumber() {
-        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
+        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -107,7 +115,7 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_requestClarification_when_status_is_SUBMITTED() {
-        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
+        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
@@ -116,13 +124,13 @@ class DeclarationServiceImplTest {
 
         declarationService.requestClarification(1L, new ClarificationRequest("Please clarify land documents."));
 
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUESTED);
+        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
         verify(clarificationRepository).save(any());
     }
 
     @Test
     void should_rejectDeclaration_with_reason_logged_as_clarification() {
-        draftDeclaration.setStatus(DeclarationStatus.PENDING_REVIEW);
+        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
         when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
         doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
         doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());

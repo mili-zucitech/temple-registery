@@ -76,10 +76,34 @@ public interface GovernanceWorkflowService {
 
     /**
      * DC flags a declaration for physical verification.
-     * Transitions PENDING_REVIEW / UNDER_REVIEW / RESUBMITTED → PHYSICAL_VERIFICATION_REQUESTED.
+     * Transitions SUBMITTED / UNDER_REVIEW → SITE_VISIT_SCHEDULED.
      */
     WorkflowActionResponse flagPhysicalVerification(Long declarationId, DcClarifyRequest request,
                                                      ScopeHelper.Claims claims);
+
+    /**
+     * DC schedules a site visit for a declaration.
+     * Transitions SUBMITTED / UNDER_REVIEW → SITE_VISIT_SCHEDULED.
+     */
+    void scheduleSiteVisit(Long id, com.templeregistry.dto.request.governance.SiteVisitRequest request, ScopeHelper.Claims claims);
+
+    /**
+     * DC/Inspector completes a site visit.
+     * Transitions SITE_VISIT_SCHEDULED → SITE_VISIT_COMPLETED.
+     */
+    void completeSiteVisit(Long id, ScopeHelper.Claims claims);
+
+    /**
+     * DC marks a declaration as verified after site visit.
+     * Transitions SITE_VISIT_COMPLETED → VERIFIED.
+     */
+    void verifyDeclaration(Long id, ScopeHelper.Claims claims);
+
+    /**
+     * DC marks a site visit as failed.
+     * Sets physicalVerificationStatus = VERIFICATION_FAILED without changing status.
+     */
+    void failSiteVisit(Long id, ScopeHelper.Claims claims);
 
     // ─── Physical Verification (Declarations only) ────────────────────────────
 

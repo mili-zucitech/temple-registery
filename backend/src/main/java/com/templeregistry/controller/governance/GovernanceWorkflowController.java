@@ -153,7 +153,7 @@ public class GovernanceWorkflowController {
     }
 
     @PostMapping("/declarations/{declarationId}/flag-physical")
-    @Operation(summary = "DC: Flag a declaration for physical verification. Transitions PENDING_REVIEW / UNDER_REVIEW / RESUBMITTED → PHYSICAL_VERIFICATION_REQUESTED.")
+    @Operation(summary = "DC: Flag a declaration for physical verification. Transitions SUBMITTED / UNDER_REVIEW → SITE_VISIT_SCHEDULED.")
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<ApiResponse<WorkflowActionResponse>> flagPhysicalVerification(
             @PathVariable Long declarationId,
@@ -162,6 +162,40 @@ public class GovernanceWorkflowController {
         WorkflowActionResponse result = governanceWorkflowService.flagPhysicalVerification(
                 declarationId, request, currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Flagged for physical verification.", result));
+    }
+
+    @PostMapping("/declarations/{declarationId}/schedule-site-visit")
+    @Operation(summary = "DC: Schedule a site visit for a declaration. Transitions SUBMITTED/UNDER_REVIEW → SITE_VISIT_SCHEDULED.")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<Void>> scheduleSiteVisit(
+            @PathVariable Long declarationId,
+            @RequestBody(required = false) com.templeregistry.dto.request.governance.SiteVisitRequest request) {
+        governanceWorkflowService.scheduleSiteVisit(declarationId, request, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Site visit scheduled."));
+    }
+
+    @PostMapping("/declarations/{declarationId}/complete-site-visit")
+    @Operation(summary = "DC/Inspector: Complete a site visit. Transitions SITE_VISIT_SCHEDULED → SITE_VISIT_COMPLETED.")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<Void>> completeSiteVisit(@PathVariable Long declarationId) {
+        governanceWorkflowService.completeSiteVisit(declarationId, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Site visit completed."));
+    }
+
+    @PostMapping("/declarations/{declarationId}/verify")
+    @Operation(summary = "DC: Mark declaration as verified. Transitions SITE_VISIT_COMPLETED → VERIFIED.")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<Void>> verifyDeclaration(@PathVariable Long declarationId) {
+        governanceWorkflowService.verifyDeclaration(declarationId, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Declaration verified."));
+    }
+
+    @PostMapping("/declarations/{declarationId}/fail-site-visit")
+    @Operation(summary = "DC: Mark site visit as failed. Sets physicalVerificationStatus = VERIFICATION_FAILED.")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<Void>> failSiteVisit(@PathVariable Long declarationId) {
+        governanceWorkflowService.failSiteVisit(declarationId, currentClaims());
+        return ResponseEntity.ok(ApiResponse.success("Site visit marked as failed."));
     }
 
     // =========================================================================
