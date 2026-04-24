@@ -9,12 +9,13 @@ import {
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
-import { UploadCloud, FileText } from 'lucide-react'
+import { UploadCloud, FileText, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  // VAL-005: 10 MB
@@ -143,15 +144,22 @@ export function TaDocumentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Documents</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Upload and manage temple documents. PDF only, max 10 MB per file.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+              <FolderOpen size={20} className="text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Documents</h1>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Upload and manage temple documents · PDF only, max 10 MB
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Upload Zone — drag-and-drop */}
       <div

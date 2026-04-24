@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
+import { Card, CardContent } from '@/components/ui/card'
 
 const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
   [ServiceType.CIVIL_WORKS]: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -110,26 +111,31 @@ export function TaContractorsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-primary" />
-            Contractors
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage contractor and service provider records • {totalElements} total
-          </p>
-        </div>
-        <Button
-          className="bg-gradient-gold shadow-gold"
-          onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_NEW)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Contractor
-        </Button>
-      </div>
+    <div className="space-y-5 max-w-7xl mx-auto">
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                <Briefcase size={20} className="text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Contractors</h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Manage contractor and service provider records · {totalElements} total
+                </p>
+              </div>
+            </div>
+            <Button
+              className="bg-gradient-gold shadow-gold"
+              onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_NEW)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Contractor
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg border border-border">

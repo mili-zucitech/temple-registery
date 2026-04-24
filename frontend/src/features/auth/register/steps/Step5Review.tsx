@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Loader2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useWizard } from '../RegisterContext'
 import { useSubmitRegistration } from '../registerHooks'
 
@@ -64,12 +63,12 @@ export function Step5Review() {
   const { submitRegistration, isLoading } = useSubmitRegistration()
   const [submitted, setSubmitted] = useState(false)
 
-  const { step1, step3, step4, tempToken } = state
+  const { step1, step3, step4 } = state
 
   const handleConfirm = async () => {
-    if (!tempToken || !step1 || !step3 || !step4) return
+    if (!step1 || !step3 || !step4) return
     setSubmitted(true)
-    const userId = await submitRegistration(tempToken, step1, step3, step4)
+    const userId = await submitRegistration(step1, step3, step4)
     if (userId !== null) {
       saveUserId(userId)
       nextStep()
@@ -89,11 +88,12 @@ export function Step5Review() {
 
       <div className="space-y-4">
         {/* Account Info */}
-        <ReviewSection title="Account Information" onEdit={() => goToStep(3)}>
+        <ReviewSection title="Account Information" onEdit={() => goToStep(2)}>
           <ReviewRow label="Full Name" value={step3?.fullName} />
           <ReviewRow label="Username" value={step3?.username} />
           <ReviewRow label="Email" value={step3?.email} />
           <ReviewRow label="Mobile" value={step1?.mobile} />
+          <ReviewRow label="Aadhaar Number" value={step1?.aadhaarNumber?.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')} />
           <ReviewRow
             label="Password"
             value="••••••••••"
@@ -101,7 +101,7 @@ export function Step5Review() {
         </ReviewSection>
 
         {/* Temple Info */}
-        <ReviewSection title="Temple Information" onEdit={() => goToStep(4)}>
+        <ReviewSection title="Temple Information" onEdit={() => goToStep(3)}>
           <ReviewRow label="Temple Name" value={step4?.templeName} />
           {step4?.aliasName && <ReviewRow label="Alias Name" value={step4.aliasName} />}
           <ReviewRow label="Primary Deity" value={step4?.deityName} />
@@ -122,20 +122,10 @@ export function Step5Review() {
             />
           )}
         </ReviewSection>
-
-        {/* Aadhaar verification badge */}
-        <div className="flex items-center gap-2 text-sm">
-          <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">
-            ✓ Aadhaar Verified
-          </Badge>
-          <span className="text-muted-foreground">
-            Your identity has been verified via UIDAI.
-          </span>
-        </div>
       </div>
 
       <div className="flex gap-3">
-        <Button type="button" variant="outline" onClick={() => goToStep(4)} className="w-1/3">
+        <Button type="button" variant="outline" onClick={() => goToStep(3)} className="w-1/3">
           ← Back
         </Button>
         <Button
