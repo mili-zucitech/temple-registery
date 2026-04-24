@@ -2,18 +2,52 @@ import { z } from 'zod'
 
 export const DECLARATION_STATUSES = [
   'DRAFT',
-  'PENDING_REVIEW',
+  'SUBMITTED',
   'UNDER_REVIEW',
-  'CLARIFICATION_REQUESTED',
-  'PHYSICAL_VERIFICATION_REQUESTED',
+  'CLARIFICATION_REQUIRED',
+  'CLARIFICATION_RESPONDED',
+  'SITE_VISIT_SCHEDULED',
+  'SITE_VISIT_COMPLETED',
+  'VERIFIED',
   'APPROVED',
   'REJECTED',
   'OVERDUE',
   'SUPERSEDED',
-  'SUBMITTED',
 ] as const
 
 export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
+
+/** Human-readable labels for each canonical status */
+export const DECLARATION_STATUS_LABELS: Record<DeclarationStatus, string> = {
+  DRAFT: 'Draft',
+  SUBMITTED: 'Submitted',
+  UNDER_REVIEW: 'Under Review',
+  CLARIFICATION_REQUIRED: 'Clarification Required',
+  CLARIFICATION_RESPONDED: 'Clarification Responded',
+  SITE_VISIT_SCHEDULED: 'Site Visit Scheduled',
+  SITE_VISIT_COMPLETED: 'Site Visit Completed',
+  VERIFIED: 'Verified',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  OVERDUE: 'Overdue',
+  SUPERSEDED: 'Superseded',
+}
+
+/** Tailwind badge color classes for each canonical status */
+export const DECLARATION_STATUS_BADGE_CLASSES: Record<DeclarationStatus, string> = {
+  DRAFT: 'bg-muted text-muted-foreground border-border',
+  SUBMITTED: 'bg-blue-100 text-blue-800 border-blue-200',
+  UNDER_REVIEW: 'bg-amber-100 text-amber-800 border-amber-200',
+  CLARIFICATION_REQUIRED: 'bg-orange-100 text-orange-800 border-orange-200',
+  CLARIFICATION_RESPONDED: 'bg-sky-100 text-sky-800 border-sky-200',
+  SITE_VISIT_SCHEDULED: 'bg-purple-100 text-purple-800 border-purple-200',
+  SITE_VISIT_COMPLETED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  VERIFIED: 'bg-teal-100 text-teal-800 border-teal-200',
+  APPROVED: 'bg-green-100 text-green-800 border-green-200',
+  REJECTED: 'bg-red-100 text-red-800 border-red-200',
+  OVERDUE: 'bg-red-200 text-red-900 border-red-300',
+  SUPERSEDED: 'bg-gray-200 text-gray-700 border-gray-300',
+}
 
 const moneySchema = z.number().nonnegative().optional()
 const textSchema = z.string().trim().max(1000).optional()
@@ -118,12 +152,17 @@ export const clarificationSchema = z.object({
   message: z.string().min(1, 'Message is required').max(2000),
 })
 
+export const clarificationRespondSchema = z.object({
+  message: z.string().min(1, 'Response is required').max(2000),
+})
+
 export const resubmitDeclarationSchema = createDeclarationSchema.extend({
   clarificationResponse: z.string().min(1, 'Response is required').max(2000),
 })
 
 export type CreateDeclarationRequest = z.infer<typeof createDeclarationSchema>
 export type ClarificationRequest = z.infer<typeof clarificationSchema>
+export type ClarificationRespondRequest = z.infer<typeof clarificationRespondSchema>
 export type ResubmitDeclarationRequest = z.infer<typeof resubmitDeclarationSchema>
 
 export interface AssetItemResponse {
@@ -239,6 +278,8 @@ export interface DeclarationResponse {
   acknowledgementNumber?: string | null
   dueDate?: string | null
   overdue?: boolean | null
+  isOverdue?: boolean | null
+  overdueFlaggedAt?: string | null
   remarks?: string | null
   annualIncome?: number | null
   annualExpenditure?: number | null

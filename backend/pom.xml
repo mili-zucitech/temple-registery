@@ -185,6 +185,14 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- ─── jqwik: Property-Based Testing ───────────────────── -->
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <version>1.8.5</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -234,7 +242,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire: JUnit 5 -->
+            <!-- Surefire: JUnit 5 + jqwik -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -242,6 +250,7 @@
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
+                        <include>**/*PropertyTest.java</include>
                     </includes>
                 </configuration>
             </plugin>

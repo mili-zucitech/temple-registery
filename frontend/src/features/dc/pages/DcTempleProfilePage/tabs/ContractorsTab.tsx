@@ -11,10 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import type { ContractorResponse } from '@/features/dc/dcTypes'
 
 interface ContractorsTabProps {
   contractors: ContractorResponse[]
+  canAct?: boolean
+  onVerifyContractors?: () => void
+  onFlagContractors?: (reason: string) => void
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {

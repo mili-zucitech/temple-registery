@@ -4,7 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FileText, Filter, Plus, Sparkles, ArrowUpRight, Clock3, AlertTriangle, BadgeCheck, LayoutGrid } from 'lucide-react'
 import { useListAllDeclarationsQuery, useListDeclarationsQuery } from '../../declarationApi'
 import { DECLARATION_STATUSES, type DeclarationResponse } from '../../declarationTypes'
-import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
+import { getAvailableActions } from '../../declarationPermissions'
+import { StatusBadge, DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
@@ -74,7 +75,8 @@ export function DeclarationListPage() {
     return declarations.some(
       (decl) =>
         decl.financialYear === currentFY &&
-        ['DRAFT', 'PENDING_REVIEW', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED', 'RESUBMITTED', 'APPROVED'].includes(decl.status)
+        ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED',
+         'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED', 'APPROVED'].includes(decl.status)
     )
   }, [declarations, currentFY, isTA])
 
@@ -84,7 +86,8 @@ export function DeclarationListPage() {
     return declarations.find(
       (decl) =>
         decl.financialYear === currentFY &&
-        ['DRAFT', 'PENDING_REVIEW', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'PHYSICAL_VERIFICATION_REQUESTED', 'RESUBMITTED', 'APPROVED'].includes(decl.status)
+        ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED',
+         'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED', 'APPROVED'].includes(decl.status)
     )
   }, [declarations, currentFY, hasActiveDeclarationForCurrentYear])
 
@@ -242,7 +245,9 @@ function DeclarationCard({
   isAuditor: boolean
   onOpen: () => void
 }) {
-  const overdue = declaration.overdue || (declaration.dueDate && declaration.status === 'PENDING_REVIEW' && new Date(declaration.dueDate) < new Date())
+  const overdue = declaration.isOverdue || declaration.overdue || (declaration.dueDate && new Date(declaration.dueDate) < new Date() && !['APPROVED', 'REJECTED', 'SUPERSEDED'].includes(declaration.status))
+  const userRole = isTA ? 'TEMPLE_AUTHORITY' : isDC ? 'DISTRICT_COLLECTOR' : ''
+  const actions = getAvailableActions(declaration.status, userRole)
 
   return (
     <Card className={cn('overflow-hidden border-border/60 bg-card/95 shadow-soft-md', overdue && 'border-orange-300/70')}>
@@ -251,8 +256,7 @@ function DeclarationCard({
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground">Declaration #{declaration.id}</h2>
-              <StatusBadge status={declaration.status} />
-              {overdue && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-800">Overdue</span>}
+              <DeclarationStatusBadge status={declaration.status} isOverdue={declaration.isOverdue || declaration.overdue} />
             </div>
             <p className="text-sm text-muted-foreground">
               {declaration.templeName ?? `Temple #${declaration.templeId}`}
@@ -269,7 +273,7 @@ function DeclarationCard({
               Review
               <ArrowUpRight size={14} className="ml-2" />
             </Button>
-            {isTA && declaration.status === 'DRAFT' && (
+            {isTA && actions.canEdit && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -388,9 +392,9 @@ function DeclarationGridSkeleton() {
 
 function buildMetrics(declarations: DeclarationResponse[]) {
   return {
-    pending: declarations.filter((item) => ['DRAFT', 'PENDING_REVIEW', 'CLARIFICATION_REQUESTED', 'UNDER_REVIEW'].includes(item.status)).length,
+    pending: declarations.filter((item) => ['DRAFT', 'SUBMITTED', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED', 'UNDER_REVIEW'].includes(item.status)).length,
     approved: declarations.filter((item) => item.status === 'APPROVED').length,
-    overdue: declarations.filter((item) => item.status === 'OVERDUE' || item.overdue).length,
+    overdue: declarations.filter((item) => item.status === 'OVERDUE' || item.isOverdue || item.overdue).length,
   }
 }
 

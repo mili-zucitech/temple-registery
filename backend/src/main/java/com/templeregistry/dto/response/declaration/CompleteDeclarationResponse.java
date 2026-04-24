@@ -27,6 +27,7 @@ public class CompleteDeclarationResponse {
     private LocalDateTime acknowledgedAt;
     private Integer clarificationRound;
     private Boolean isOverdue;
+    private LocalDateTime overdueFlaggedAt;
     private Long reviewedBy;
     private String remarks;
 

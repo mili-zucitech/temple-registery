@@ -10,6 +10,7 @@ import { notificationApi } from '@/features/notification/notificationApi'
 import { exportApi } from '@/features/export/exportApi'
 import { adminApi } from '@/features/admin/adminApi'
 import { dcApi } from '@/features/dc/dcApi'
+import { governanceApi } from '@/features/governance/governanceApi'
 import authReducer from '@/features/auth/authSlice'
 import templeReducer from '@/features/temple-profile/hooks/templeSlice'
 import declarationReducer from '@/features/declaration/declarationSlice'
@@ -30,6 +31,7 @@ export const rootReducer = combineReducers({
   [exportApi.reducerPath]: exportApi.reducer,
   [adminApi.reducerPath]: adminApi.reducer,
   [dcApi.reducerPath]: dcApi.reducer,
+  [governanceApi.reducerPath]: governanceApi.reducer,
 
   // UI slices
   auth: authReducer,

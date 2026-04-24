@@ -66,7 +66,11 @@ public class ContractorServiceImpl implements ContractorService {
         if (rq.getDocumentIds() != null) {
             c.setDocumentIdList(rq.getDocumentIds());
         }
-        return toResponse(contractorRepository.save(c));
+        Contractor saved = contractorRepository.save(c);
+        auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "Contractor", saved.getId(),
+                "Contractor created for templeId=" + templeId);
+        log.info("Contractor created: id=[{}] temple=[{}]", saved.getId(), templeId);
+        return toResponse(saved);
     }
 
     @Override
@@ -104,7 +108,11 @@ public class ContractorServiceImpl implements ContractorService {
             c.setDcFlagReason(null);
             log.info("Contractor [{}] verification reset to PENDING after TA update", id);
         }
-        return toResponse(contractorRepository.save(c));
+        Contractor saved = contractorRepository.save(c);
+        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "Contractor", saved.getId(),
+                "Contractor updated for templeId=" + c.getTempleId());
+        log.info("Contractor updated: id=[{}]", id);
+        return toResponse(saved);
     }
 
     @Override
@@ -151,6 +159,6 @@ public class ContractorServiceImpl implements ContractorService {
                 .contractStartDate(c.getContractStartDate()).contractEndDate(c.getContractEndDate())
                 .contractValue(c.getContractValue()).paymentStatus(c.getPaymentStatus())
                 .documentIds(c.getDocumentIdList())
-                .isVerifiedByDc(c.isVerifiedByDc()).dcFlagReason(c.getDcFlagReason()).build();
+                .build();
     }
 }

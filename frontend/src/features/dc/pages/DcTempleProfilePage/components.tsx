@@ -163,7 +163,7 @@ export function DeclarationCard({
   onClarify,
   onFlagPhysical,
 }: DeclarationCardProps) {
-  const actionable = ['PENDING_REVIEW', 'UNDER_REVIEW', 'RESUBMITTED'].includes(declaration.status)
+  const actionable = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'SITE_VISIT_COMPLETED', 'VERIFIED'].includes(declaration.status)
   const isUrgent = declaration.status === 'OVERDUE'
 
   return (

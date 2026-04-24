@@ -1,13 +1,16 @@
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import type { DeclarationStatus } from '../../../declarationTypes'
+import { getAvailableActions } from '../../../declarationPermissions'
 
 interface ClarificationAlertProps {
   status: DeclarationStatus
 }
 
 export function ClarificationAlert({ status }: ClarificationAlertProps) {
-  const isClarificationPending = status === 'CLARIFICATION_REQUESTED' || status === 'REJECTED'
+  // Use getAvailableActions to determine if the TA can respond to clarification
+  const actions = getAvailableActions(status, 'TEMPLE_AUTHORITY')
+  const isClarificationPending = actions.canRespondToClarification
 
   if (!isClarificationPending) return null
 
@@ -17,7 +20,7 @@ export function ClarificationAlert({ status }: ClarificationAlertProps) {
         <div>
           <p className="text-sm font-semibold text-orange-900">Action required</p>
           <p className="text-sm text-orange-800/90">
-            The declaration needs clarification or has been returned for rework. Update the values and resubmit.
+            The declaration needs clarification. Please respond to the DC&apos;s request.
           </p>
         </div>
         <StatusBadge status={status} />

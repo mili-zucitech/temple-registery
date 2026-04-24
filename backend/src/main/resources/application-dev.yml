@@ -3,6 +3,14 @@ spring:
     url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
     password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
+    hikari:
+      connection-timeout: 20000
+      connection-test-query: SELECT 1
+      idle-timeout: 240000
+      max-lifetime: 540000
+      keepalive-time: 120000
+      minimum-idle: 2
+      maximum-pool-size: 8
 
   jpa:
     hibernate:

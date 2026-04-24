@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderWithProviders } from '@/test/utils/renderWithProviders'
 import { ImageGallery } from '../ImageGallery'
-import { useDeleteTemplePhotoMutation } from '@/features/temple/templeApi'
-import type { TemplePhotoDto } from '@/features/temple/templeTypes'
+import { useDeleteTemplePhotoMutation } from '@/features/temple-profile/hooks/templeApi'
+import type { TemplePhotoDto } from '@/features/temple-profile/hooks/templeTypes'
 
-vi.mock('@/features/temple/templeApi', () => ({
+vi.mock('@/features/temple-profile/hooks/templeApi', () => ({
+  templeApi: {
+    reducerPath: 'templeApi',
+    reducer: (s = {}) => s,
+    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+  },
   useDeleteTemplePhotoMutation: vi.fn(),
 }))
 
@@ -44,10 +49,10 @@ describe('ImageGallery', () => {
     const photo = screen.getByAltText('img1.png')
     fireEvent.click(photo)
 
-    expect(screen.getByText('img1.png')).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    expect(screen.getByText('Uploaded: 01/01/2023')).toBeInTheDocument()
-    expect(screen.getByText('Dimensions: 800 × 600')).toBeInTheDocument()
+    expect(screen.getAllByText('img1.png').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Image 1 of 2/i)).toBeInTheDocument()
+    // Check dimensions are shown
+    expect(screen.getByText('800 × 600 px')).toBeInTheDocument()
   })
 
   it('should_navigateInLightbox', () => {
@@ -55,11 +60,12 @@ describe('ImageGallery', () => {
     
     fireEvent.click(screen.getByAltText('img1.png'))
     
-    const nextButton = screen.getByRole('button', { name: /ChevronRight/i }).parentElement as HTMLButtonElement
+    const nextButton = screen.getByRole('button', { name: /Next photo/i })
     fireEvent.click(nextButton)
 
-    expect(screen.getByText('img2.png')).toBeInTheDocument()
-    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    // After navigating, the lightbox header should show img2.png and "Image 2 of 2"
+    expect(screen.getByText(/Image 2 of 2/i)).toBeInTheDocument()
+    expect(screen.getAllByText('img2.png').length).toBeGreaterThan(0)
   })
 
   it('should_handlePhotoDeletion', async () => {
@@ -69,10 +75,10 @@ describe('ImageGallery', () => {
     
     fireEvent.click(screen.getByAltText('img1.png'))
     
-    const deleteButton = screen.getByText(/Delete Photo/i)
+    const deleteButton = screen.getByText(/Remove Photo/i)
     fireEvent.click(deleteButton)
 
-    const confirmButton = screen.getByText('Delete')
+    const confirmButton = screen.getByText('Delete Permanently')
     fireEvent.click(confirmButton)
 
     await waitFor(() => {

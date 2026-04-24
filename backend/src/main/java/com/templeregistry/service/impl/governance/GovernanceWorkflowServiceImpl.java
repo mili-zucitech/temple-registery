@@ -42,6 +42,11 @@ import com.templeregistry.service.governance.GovernanceWorkflowService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.StatusTransitionValidator;
+import com.templeregistry.service.declaration.AcknowledgementService;
+import com.templeregistry.service.declaration.SnapshotService;
+import com.templeregistry.service.audit.DeclarationAuditLogService;
+import com.templeregistry.service.audit.AuditActionType;
+import com.templeregistry.service.declaration.StateTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -72,6 +77,10 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     private final TempleSearchSummaryService summaryService;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final AcknowledgementService acknowledgementService;
+    private final SnapshotService snapshotService;
+    private final DeclarationAuditLogService declarationAuditLogService;
+    private final StateTransitionValidator stateTransitionValidator;
 
     // =========================================================================
     // TRUST — Submit / Approve / Send Back / Reject
@@ -168,6 +177,9 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         declaration.setSubmissionStatus(SubmissionStatus.SUBMITTED);
         declaration.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
+        declaration.setStatus(DeclarationStatus.SUBMITTED);
+        declaration.setSubmittedAt(java.time.LocalDateTime.now());
+        declaration.setSubmittedBy(currentUserId());
         declaration.setSendBackReason(null);
         declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
@@ -188,8 +200,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
         // Validate legacy DeclarationStatus transition
-        transitionValidator.validateDeclarationTransition(
-                declaration.getStatus().name(), DeclarationStatus.APPROVED.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.APPROVED);
 
         // BLOCK: DC must NOT approve if physical verification has failed
         if (PhysicalVerificationStatus.VERIFICATION_FAILED.equals(declaration.getPhysicalVerificationStatus())) {
@@ -206,7 +217,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         declaration.setReviewedBy(claims.userId());
         declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
 
-        String ackNumber = ackGenerator.generate();
+        String ackNumber = acknowledgementService.generate(declaration.getDistrictId(), declaration.getFinancialYear());
         declaration.setAcknowledgementNumber(ackNumber);
         declaration.setAcknowledgedAt(LocalDateTime.now());
         declarationRepository.save(declaration);
@@ -216,8 +227,12 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                     claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
         }
 
-        notificationPublisher.publish(declaration.getSubmittedBy(), "DECLARATION_APPROVED",
-                declarationId, "ASSET_DECLARATION");
+        snapshotService.capture(declaration, claims.userId());
+        declarationAuditLogService.log(declarationId, AuditActionType.APPROVED, claims.userId(), claims.role(), null);
+
+        notificationPublisher.publish(
+                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
+                "DECLARATION_APPROVED", declarationId, "ASSET_DECLARATION");
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_APPROVED",
                 "AssetDeclaration", declarationId, "ack=" + ackNumber);
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "APPROVE",
@@ -263,8 +278,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        transitionValidator.validateDeclarationTransition(
-                declaration.getStatus().name(), DeclarationStatus.REJECTED.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.REJECTED);
 
         declaration.setStatus(DeclarationStatus.REJECTED);
         declaration.setSubmissionStatus(SubmissionStatus.REJECTED);
@@ -277,8 +291,12 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         saveClarification(declarationId, request.getRemarks(), null, null,
                 claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
 
-        notificationPublisher.publish(declaration.getSubmittedBy(), "DECLARATION_REJECTED",
-                declarationId, "ASSET_DECLARATION");
+        snapshotService.capture(declaration, claims.userId());
+        declarationAuditLogService.log(declarationId, AuditActionType.REJECTED, claims.userId(), claims.role(), request.getRemarks());
+
+        notificationPublisher.publish(
+                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
+                "DECLARATION_REJECTED", declarationId, "ASSET_DECLARATION");
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_REJECTED",
                 "AssetDeclaration", declarationId, "status=REJECTED");
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "REJECT",
@@ -308,18 +326,20 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                     "Maximum clarification rounds reached. You must approve or reject this declaration.");
         }
 
-        transitionValidator.validateDeclarationTransition(
-                declaration.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUESTED.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.CLARIFICATION_REQUIRED);
 
-        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUESTED);
+        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
         declaration.setClarificationRound(declaration.getClarificationRound() + 1);
         declarationRepository.save(declaration);
 
         saveClarification(declarationId, request.getMessage(), request.getSectionName(),
                 request.getFieldNames(), claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
 
-        notificationPublisher.publish(declaration.getSubmittedBy(), "CLARIFICATION_REQUESTED",
-                declarationId, "ASSET_DECLARATION");
+        declarationAuditLogService.log(declarationId, AuditActionType.CLARIFICATION_REQUESTED, claims.userId(), claims.role(), request.getMessage());
+
+        notificationPublisher.publish(
+                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
+                "CLARIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
         auditService.logDataEvent(claims.userId(), claims.role(), "CLARIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId, "round=" + declaration.getClarificationRound());
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "QUERY",
@@ -336,7 +356,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
-                .newStatus(DeclarationStatus.CLARIFICATION_REQUESTED.name())
+                .newStatus(DeclarationStatus.CLARIFICATION_REQUIRED.name())
                 .acknowledgementNumber(null)
                 .message("Clarification requested from temple authority.")
                 .build();
@@ -350,11 +370,12 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        transitionValidator.validateDeclarationTransition(
-                declaration.getStatus().name(), DeclarationStatus.UNDER_REVIEW.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.UNDER_REVIEW);
 
         declaration.setStatus(DeclarationStatus.UNDER_REVIEW);
         declarationRepository.save(declaration);
+
+        declarationAuditLogService.log(declarationId, AuditActionType.UNDER_REVIEW, claims.userId(), claims.role(), null);
 
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_UNDER_REVIEW",
                 "AssetDeclaration", declarationId, "userId=" + claims.userId());
@@ -378,10 +399,9 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        transitionValidator.validateDeclarationTransition(
-                declaration.getStatus().name(), DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name());
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_SCHEDULED);
 
-        declaration.setStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED);
+        declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
         declarationRepository.save(declaration);
 
         saveClarification(declarationId, request.getMessage(), request.getSectionName(),
@@ -398,9 +418,97 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         log.info("Physical verification flagged for declaration [{}] by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
-                .newStatus(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED.name())
+                .newStatus(DeclarationStatus.SITE_VISIT_SCHEDULED.name())
                 .message("Declaration flagged for physical verification.")
                 .build();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public void scheduleSiteVisit(Long id, com.templeregistry.dto.request.governance.SiteVisitRequest request, ScopeHelper.Claims claims) {
+        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        Temple temple = loadTempleWithGeo(declaration.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_SCHEDULED);
+
+        declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
+        declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.ORDERED_FOR_PHYSICAL_VERIFICATION);
+        declaration.setPhysicalVerificationOrderedAt(LocalDateTime.now());
+        declaration.setPhysicalVerificationOrderedBy(claims.userId());
+        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declarationRepository.save(declaration);
+
+        snapshotService.capture(declaration, claims.userId());
+        declarationAuditLogService.log(id, AuditActionType.SITE_VISIT_SCHEDULED, claims.userId(), claims.role(),
+                request != null ? request.getNotes() : null);
+
+        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_SCHEDULED",
+                "Site visit scheduled. Notes: " + (request != null ? request.getNotes() : ""));
+        log.info("Declaration [{}] SITE_VISIT_SCHEDULED by userId={}", id, claims.userId());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public void completeSiteVisit(Long id, ScopeHelper.Claims claims) {
+        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        Temple temple = loadTempleWithGeo(declaration.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_COMPLETED);
+
+        declaration.setStatus(DeclarationStatus.SITE_VISIT_COMPLETED);
+        declaration.setPhysicalVerificationCompletedAt(LocalDateTime.now());
+        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declarationRepository.save(declaration);
+
+        snapshotService.capture(declaration, claims.userId());
+        declarationAuditLogService.log(id, AuditActionType.SITE_VISIT_COMPLETED, claims.userId(), claims.role(), null);
+
+        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_COMPLETED",
+                "Site visit completed.");
+        log.info("Declaration [{}] SITE_VISIT_COMPLETED by userId={}", id, claims.userId());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public void verifyDeclaration(Long id, ScopeHelper.Claims claims) {
+        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        Temple temple = loadTempleWithGeo(declaration.getTempleId());
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+
+        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.VERIFIED);
+
+        declaration.setStatus(DeclarationStatus.VERIFIED);
+        declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.PHYSICALLY_VERIFIED);
+        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declarationRepository.save(declaration);
+
+        snapshotService.capture(declaration, claims.userId());
+        declarationAuditLogService.log(id, AuditActionType.VERIFIED, claims.userId(), claims.role(), null);
+
+        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "VERIFIED",
+                "Declaration physically verified.");
+        log.info("Declaration [{}] VERIFIED by userId={}", id, claims.userId());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public void failSiteVisit(Long id, ScopeHelper.Claims claims) {
+        AssetDeclaration declaration = loadDeclaration(id);
+        jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
+
+        declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED);
+        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declarationRepository.save(declaration);
+
+        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_FAILED",
+                "Site visit failed — physical verification status set to VERIFICATION_FAILED.");
+        log.info("Declaration [{}] site visit FAILED by userId={}", id, claims.userId());
     }
 
     // =========================================================================

@@ -1,0 +1,517 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="APPROVED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-green-100 text-green-800 border-green-200"
+    >
+      APPROVED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="CLARIFICATION_REQUIRED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-orange-100 text-orange-800 border-orange-200"
+    >
+      CLARIFICATION REQUIRED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="CLARIFICATION_RESPONDED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-sky-100 text-sky-800 border-sky-200"
+    >
+      CLARIFICATION RESPONDED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="DRAFT" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-muted text-muted-foreground border-border"
+    >
+      DRAFT
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="OVERDUE" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-200 text-red-900 border-red-300 animate-pulse"
+    >
+      OVERDUE
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="REJECTED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-100 text-red-800 border-red-200"
+    >
+      REJECTED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="SITE_VISIT_COMPLETED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
+    >
+      SITE VISIT COMPLETED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="SITE_VISIT_SCHEDULED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
+    >
+      SITE VISIT SCHEDULED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="SUBMITTED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-blue-100 text-blue-800 border-blue-200"
+    >
+      SUBMITTED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="SUPERSEDED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-gray-200 text-gray-700 border-gray-300"
+    >
+      SUPERSEDED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="UNDER_REVIEW" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-amber-100 text-amber-800 border-amber-200"
+    >
+      UNDER REVIEW
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <DeclarationStatusBadge status="VERIFIED" isOverdue={false} /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-teal-100 text-teal-800 border-teal-200"
+    >
+      VERIFIED
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="APPROVED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-green-100 text-green-800 border-green-200"
+    >
+      APPROVED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="CLARIFICATION_REQUIRED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-orange-100 text-orange-800 border-orange-200"
+    >
+      CLARIFICATION REQUIRED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="CLARIFICATION_RESPONDED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-sky-100 text-sky-800 border-sky-200"
+    >
+      CLARIFICATION RESPONDED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="DRAFT" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-muted text-muted-foreground border-border"
+    >
+      DRAFT
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="OVERDUE" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-200 text-red-900 border-red-300 animate-pulse"
+    >
+      OVERDUE
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="REJECTED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-100 text-red-800 border-red-200"
+    >
+      REJECTED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="SITE_VISIT_COMPLETED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
+    >
+      SITE VISIT COMPLETED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="SITE_VISIT_SCHEDULED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
+    >
+      SITE VISIT SCHEDULED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="SUBMITTED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-blue-100 text-blue-800 border-blue-200"
+    >
+      SUBMITTED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="SUPERSEDED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-gray-200 text-gray-700 border-gray-300"
+    >
+      SUPERSEDED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="UNDER_REVIEW" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-amber-100 text-amber-800 border-amber-200"
+    >
+      UNDER REVIEW
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <DeclarationStatusBadge status="VERIFIED" isOverdue={true} /> with overdue badge 1`] = `
+<div>
+  <span
+    class="inline-flex flex-wrap items-center gap-1.5"
+  >
+    <span
+      class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-teal-100 text-teal-800 border-teal-200"
+    >
+      VERIFIED
+    </span>
+    <span
+      class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
+    >
+      Overdue
+    </span>
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="APPROVED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-green-100 text-green-800 border-green-200"
+  >
+    APPROVED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="CLARIFICATION_REQUIRED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-orange-100 text-orange-800 border-orange-200"
+  >
+    CLARIFICATION REQUIRED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="CLARIFICATION_RESPONDED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-sky-100 text-sky-800 border-sky-200"
+  >
+    CLARIFICATION RESPONDED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="DRAFT" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-muted text-muted-foreground border-border"
+  >
+    DRAFT
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="OVERDUE" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-200 text-red-900 border-red-300 animate-pulse"
+  >
+    OVERDUE
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="REJECTED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-red-100 text-red-800 border-red-200"
+  >
+    REJECTED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="SITE_VISIT_COMPLETED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
+  >
+    SITE VISIT COMPLETED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="SITE_VISIT_SCHEDULED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
+  >
+    SITE VISIT SCHEDULED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="SUBMITTED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-blue-100 text-blue-800 border-blue-200"
+  >
+    SUBMITTED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="SUPERSEDED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-gray-200 text-gray-700 border-gray-300"
+  >
+    SUPERSEDED
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="UNDER_REVIEW" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-amber-100 text-amber-800 border-amber-200"
+  >
+    UNDER REVIEW
+  </span>
+</div>
+`;
+
+exports[`StatusBadge snapshots — all 12 declaration statuses > renders <StatusBadge status="VERIFIED" /> correctly 1`] = `
+<div>
+  <span
+    class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-teal-100 text-teal-800 border-teal-200"
+  >
+    VERIFIED
+  </span>
+</div>
+`;

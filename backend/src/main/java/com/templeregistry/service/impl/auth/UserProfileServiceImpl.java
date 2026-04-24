@@ -85,7 +85,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .findAllByTempleId(templeId, PageRequest.of(0, 1))
                 .stream()
                 .findFirst()
-                .map(d -> d.getStatus() == DeclarationStatus.PENDING_REVIEW ? "SUBMITTED" : d.getStatus().name())
+                .map(d -> d.getStatus().name())
                 .orElse(null);
 
         return UserProfileResponse.TempleCompletionChecklist.builder()

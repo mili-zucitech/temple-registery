@@ -43,6 +43,13 @@ public class GovernanceActionHistory {
     @Column(name = "governance_version", nullable = false)
     private Long governanceVersion = 1L;
 
+    /**
+     * Role of the actor who performed the action.
+     * Added in V42 migration.
+     */
+    @Column(name = "actor_role", length = 32)
+    private String actorRole;
+
     @CreationTimestamp
     @Column(name = "timestamp", nullable = false, updatable = false)
     private LocalDateTime timestamp;
