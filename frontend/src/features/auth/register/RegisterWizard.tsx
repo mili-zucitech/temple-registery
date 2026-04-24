@@ -1,17 +1,14 @@
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
-  Fingerprint, ShieldCheck, UserCircle, Building2,
-  ClipboardList, Smartphone, KeyRound, CheckCircle2, Check,
+  Fingerprint, UserCircle, Building2,
+  ClipboardList, CheckCircle2, Check,
 } from 'lucide-react'
 import { RegisterWizardProvider, useWizard } from './RegisterContext'
 import { Step1MobileAadhaar }  from './steps/Step1MobileAadhaar'
-import { Step2OtpVerify }      from './steps/Step2OtpVerify'
 import { Step3AccountSetup }   from './steps/Step3AccountSetup'
 import { Step4TempleDetails }  from './steps/Step4TempleDetails'
 import { Step5Review }         from './steps/Step5Review'
-import { Step6MfaSetup }       from './steps/Step6MfaSetup'
-import { Step7RecoveryCodes }  from './steps/Step7RecoveryCodes'
 import { Step8Success }        from './steps/Step8Success'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 
@@ -19,13 +16,10 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 
 const STEPS = [
   { id: 1, label: 'Identity',   desc: 'Mobile & Aadhaar',       icon: Fingerprint   },
-  { id: 2, label: 'OTP Verify', desc: 'Verify Aadhaar OTP',     icon: ShieldCheck   },
-  { id: 3, label: 'Account',    desc: 'Username & password',    icon: UserCircle    },
-  { id: 4, label: 'Temple',     desc: 'Temple details',         icon: Building2     },
-  { id: 5, label: 'Review',     desc: 'Confirm registration',   icon: ClipboardList },
-  { id: 6, label: 'MFA Setup',  desc: 'Enable 2-factor auth',   icon: Smartphone    },
-  { id: 7, label: 'Recovery',   desc: 'Backup recovery codes',  icon: KeyRound      },
-  { id: 8, label: 'Done',       desc: 'Registration complete',  icon: CheckCircle2  },
+  { id: 2, label: 'Account',    desc: 'Username & password',    icon: UserCircle    },
+  { id: 3, label: 'Temple',     desc: 'Temple details',         icon: Building2     },
+  { id: 4, label: 'Review',     desc: 'Confirm registration',   icon: ClipboardList },
+  { id: 5, label: 'Done',       desc: 'Registration complete',  icon: CheckCircle2  },
 ] as const
 
 // ── Step Router ───────────────────────────────────────────────────────────────
@@ -34,13 +28,10 @@ function StepRouter() {
   const { state } = useWizard()
   switch (state.currentStep) {
     case 1:  return <Step1MobileAadhaar />
-    case 2:  return <Step2OtpVerify />
-    case 3:  return <Step3AccountSetup />
-    case 4:  return <Step4TempleDetails />
-    case 5:  return <Step5Review />
-    case 6:  return <Step6MfaSetup />
-    case 7:  return <Step7RecoveryCodes />
-    case 8:  return <Step8Success />
+    case 2:  return <Step3AccountSetup />
+    case 3:  return <Step4TempleDetails />
+    case 4:  return <Step5Review />
+    case 5:  return <Step8Success />
     default: return <Step1MobileAadhaar />
   }
 }
@@ -64,7 +55,7 @@ function MobileHeader({ cur }: { cur: number }) {
             </span>
           </div>
           <span className="text-xs tabular-nums font-medium text-sidebar-foreground/50">
-            {cur} <span className="text-sidebar-foreground/25">/ 8</span>
+            {cur} <span className="text-sidebar-foreground/25">/ 5</span>
           </span>
         </div>
 
@@ -299,7 +290,7 @@ function WizardShell() {
             <StepRouter />
           </div>
         </main>
-        {cur < 8 && <LoginFooter className="text-center" />}
+        {cur < 5 && <LoginFooter className="text-center" />}
       </div>
 
       {/* ─── DESKTOP ( lg+ ) ─────────────────────────────────────────────── */}
@@ -315,7 +306,7 @@ function WizardShell() {
             </div>
           </div>
 
-          {cur < 8 && <LoginFooter />}
+          {cur < 5 && <LoginFooter />}
         </div>
       </div>
     </>

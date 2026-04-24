@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FileText, Filter, Plus, Sparkles, ArrowUpRight, Clock3, AlertTriangle, BadgeCheck, LayoutGrid } from 'lucide-react'
+import { FileText, Filter, Plus, Sparkles, ArrowUpRight, Clock3, AlertTriangle, BadgeCheck, LayoutGrid, FileCheck2, Info } from 'lucide-react'
 import { useListAllDeclarationsQuery, useListDeclarationsQuery } from '../../declarationApi'
 import { DECLARATION_STATUSES, type DeclarationResponse } from '../../declarationTypes'
 import { getAvailableActions } from '../../declarationPermissions'
@@ -106,24 +106,23 @@ export function DeclarationListPage() {
   const metrics = buildMetrics(declarations)
 
   return (
-    <div className="space-y-6 pb-8">
-      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/8 via-card to-secondary/10 shadow-soft-xl">
-        <CardContent className="space-y-5 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
-                <Sparkles size={14} />
-                Asset Declaration Center
+    <div className="space-y-5 pb-8">
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                <FileCheck2 size={20} className="text-primary" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Declarations</h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                  Card-based review of temple declarations with version-aware status, due dates, and audit notes.
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Declarations</h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Track asset declarations and review status
                 </p>
               </div>
             </div>
             {isTA && (
-              <div className="relative">
+              <div className="flex flex-col items-end gap-2">
                 <Button 
                   className="bg-gradient-gold shadow-gold" 
                   onClick={() => navigate(ROUTE_PATHS.TA_DECLARATION_NEW)}
@@ -137,27 +136,28 @@ export function DeclarationListPage() {
                   New Declaration
                 </Button>
                 {hasActiveDeclarationForCurrentYear && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Declaration for FY {currentFY} already exists. Update the existing one instead.
-                  </p>
+                  <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-sm">
+                    <Info size={14} className="shrink-0" />
+                    <span>Declaration for FY {currentFY} already exists. Update the existing one instead.</span>
+                  </div>
                 )}
               </div>
             )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Total records" value={totalElements} icon={<LayoutGrid size={16} />} />
-            <MetricCard label="Draft / Pending" value={metrics.pending} icon={<Clock3 size={16} />} />
-            <MetricCard label="Approved" value={metrics.approved} icon={<BadgeCheck size={16} />} />
-            <MetricCard label="Overdue" value={metrics.overdue} icon={<AlertTriangle size={16} />} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Total records" value={totalElements} icon={<LayoutGrid size={18} />} variant="default" />
+            <MetricCard label="Draft / Pending" value={metrics.pending} icon={<Clock3 size={18} />} variant="warning" />
+            <MetricCard label="Approved" value={metrics.approved} icon={<BadgeCheck size={18} />} variant="success" />
+            <MetricCard label="Overdue" value={metrics.overdue} icon={<AlertTriangle size={18} />} variant="danger" />
           </div>
         </CardContent>
       </Card>
 
       {(isDC || isAuditor) && (
-        <Card className="border-border/60 bg-card/95 shadow-soft-md">
-          <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-end">
-            <div className="grid flex-1 gap-4 md:grid-cols-2">
+        <Card className="border-border/60 bg-card/95 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end">
+            <div className="grid flex-1 gap-3 md:grid-cols-2">
               <FilterSelect
                 label="Status"
                 value={statusFilter || 'all'}
@@ -183,7 +183,7 @@ export function DeclarationListPage() {
                 }))}
               />
             </div>
-            <Button variant="outline" onClick={() => {
+            <Button variant="outline" size="sm" onClick={() => {
               setStatusFilter('')
               setFyFilter('')
               setPage(0)
@@ -250,28 +250,41 @@ function DeclarationCard({
   const actions = getAvailableActions(declaration.status, userRole)
 
   return (
-    <Card className={cn('overflow-hidden border-border/60 bg-card/95 shadow-soft-md', overdue && 'border-orange-300/70')}>
-      <CardContent className="space-y-5 p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-2">
+    <Card className={cn(
+      'group overflow-hidden border-border/60 bg-card/95 shadow-sm transition-all hover:shadow-md hover:border-primary/30',
+      overdue && 'border-l-4 border-l-orange-500'
+    )}>
+      <CardContent className="p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex-1 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">Declaration #{declaration.id}</h2>
-              <DeclarationStatusBadge status={declaration.status} isOverdue={declaration.isOverdue || declaration.overdue} />
+              <h2 className="text-base font-semibold text-foreground">Declaration #{declaration.id}</h2>
+              <StatusBadge status={declaration.status} />
+              {overdue && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-800">
+                  <AlertTriangle size={10} />
+                  Overdue
+                </span>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {declaration.templeName ?? `Temple #${declaration.templeId}`}
-              {declaration.financialYear ? ` · FY ${declaration.financialYear}` : ''}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Version {declaration.versionNumber ?? 1}
-              {declaration.remarks ? ` · ${declaration.remarks}` : ''}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>{declaration.templeName ?? `Temple #${declaration.templeId}`}</span>
+              {declaration.financialYear && (
+                <>
+                  <span className="text-muted-foreground/40">•</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                    <FileText size={12} />
+                    FY {declaration.financialYear}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={onOpen}>
-              Review
-              <ArrowUpRight size={14} className="ml-2" />
+            <Button variant="outline" size="sm" className="group-hover:border-primary/50 group-hover:bg-primary/5 hover:text-foreground" onClick={onOpen}>
+              {isDC || isAuditor ? 'Review' : 'View Details'}
+              <ArrowUpRight size={14} className="ml-1.5" />
             </Button>
             {isTA && actions.canEdit && (
               <Button
@@ -285,24 +298,11 @@ function DeclarationCard({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SmallStat label="Submitted" value={formatDate(declaration.submittedAt)} />
-          <SmallStat label="Reviewed" value={formatDate(declaration.reviewedAt)} />
-          <SmallStat label="Due date" value={formatDate(declaration.dueDate)} emphasize={Boolean(overdue)} />
-          <SmallStat label="Ack number" value={declaration.acknowledgementNumber ?? 'Pending'} />
-        </div>
-
-        <div className="grid gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryChip label="Agricultural land" value={declaration.agriculturalLandAcres ?? 0} unit="acres" />
-          <SummaryChip label="Buildings" value={declaration.buildingsSqft ?? 0} unit="sq ft" />
-          <SummaryChip label="Gold" value={declaration.goldGrams ?? 0} unit="g" />
-          <SummaryChip label="Vehicles" value={declaration.vehiclesCount ?? 0} unit="items" />
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{declaration.leasedPropertiesCount ?? 0} leased properties</span>
-          <span>{formatCurrency(declaration.financialAssetsValue ?? 0)} in financial assets</span>
-          <span>{isDC || isAuditor ? 'DC view' : 'Temple authority view'}</span>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <CompactStat label="Submitted" value={formatDate(declaration.submittedAt)} />
+          <CompactStat label="Reviewed" value={formatDate(declaration.reviewedAt)} />
+          <CompactStat label="Due date" value={formatDate(declaration.dueDate)} emphasize={Boolean(overdue)} />
+          <CompactStat label="Ack number" value={declaration.acknowledgementNumber ?? 'Pending'} />
         </div>
       </CardContent>
     </Card>
@@ -337,23 +337,55 @@ function FilterSelect({
   )
 }
 
-function MetricCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
+function MetricCard({ label, value, icon, variant = 'default' }: { 
+  label: string; 
+  value: number; 
+  icon: ReactNode;
+  variant?: 'default' | 'warning' | 'success' | 'danger';
+}) {
+  const variantStyles = {
+    default: 'from-slate-50 to-slate-100 border-slate-200 text-slate-700',
+    warning: 'from-amber-50 to-amber-100 border-amber-200 text-amber-700',
+    success: 'from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-700',
+    danger: 'from-rose-50 to-rose-100 border-rose-200 text-rose-700',
+  }
+
+  const iconStyles = {
+    default: 'bg-slate-100 text-slate-600',
+    warning: 'bg-amber-100 text-amber-600',
+    success: 'bg-emerald-100 text-emerald-600',
+    danger: 'bg-rose-100 text-rose-600',
+  }
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-soft-sm">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className="text-primary">{icon}</span>
+    <div className={cn(
+      'group relative overflow-hidden rounded-xl border bg-gradient-to-br p-4 shadow-sm transition-all hover:shadow-md',
+      variantStyles[variant]
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <div className="text-[10px] font-medium uppercase tracking-wider opacity-70">{label}</div>
+          <div className="mt-2 text-2xl font-bold">{value.toLocaleString()}</div>
+        </div>
+        <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-110', iconStyles[variant])}>
+          {icon}
+        </div>
       </div>
-      <div className="mt-3 text-2xl font-semibold text-foreground">{value.toLocaleString()}</div>
+      <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/20 blur-2xl" />
     </div>
   )
 }
 
-function SmallStat({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
+function CompactStat({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn('mt-1 text-sm font-medium', emphasize ? 'text-orange-700' : 'text-foreground')}>{value}</div>
+    <div className={cn(
+      'rounded-lg border bg-gradient-to-br px-3 py-2 transition-colors',
+      emphasize 
+        ? 'border-orange-200 from-orange-50 to-orange-100' 
+        : 'border-border/50 from-background/60 to-muted/30'
+    )}>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn('mt-0.5 text-xs font-semibold', emphasize ? 'text-orange-700' : 'text-foreground')}>{value}</div>
     </div>
   )
 }
@@ -371,17 +403,17 @@ function SummaryChip({ label, value, unit }: { label: string; value: number; uni
 
 function DeclarationGridSkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3">
       {Array.from({ length: 4 }).map((_, index) => (
         <Card key={index} className="animate-pulse border-border/60">
-          <CardContent className="space-y-4 p-5">
-            <div className="h-6 w-1/3 rounded bg-muted" />
-            <div className="h-4 w-2/3 rounded bg-muted" />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="h-16 rounded-2xl bg-muted" />
-              <div className="h-16 rounded-2xl bg-muted" />
-              <div className="h-16 rounded-2xl bg-muted" />
-              <div className="h-16 rounded-2xl bg-muted" />
+          <CardContent className="space-y-3 p-4">
+            <div className="h-5 w-1/3 rounded bg-muted" />
+            <div className="h-3 w-2/3 rounded bg-muted" />
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="h-12 rounded-lg bg-muted" />
+              <div className="h-12 rounded-lg bg-muted" />
+              <div className="h-12 rounded-lg bg-muted" />
+              <div className="h-12 rounded-lg bg-muted" />
             </div>
           </CardContent>
         </Card>

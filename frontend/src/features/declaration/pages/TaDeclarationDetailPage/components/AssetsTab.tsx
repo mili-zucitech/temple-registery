@@ -1,8 +1,8 @@
-import { FileText, History } from 'lucide-react'
+import { FileText, Landmark, Building2, FileCheck, MapPin, Coins, Gem, Car, Wrench, TrendingUp } from 'lucide-react'
 import type { CompleteDeclarationResponse } from '../../../declarationTypes'
 import { AssetGroup } from './AssetGroup'
 import { AssetSection } from './AssetSection'
-import { AssetLine } from './AssetLine'
+import { DetailedAssetCard } from './DetailedAssetCard'
 
 interface AssetsTabProps {
   declaration: CompleteDeclarationResponse
@@ -11,15 +11,20 @@ interface AssetsTabProps {
 export function AssetsTab({ declaration }: AssetsTabProps) {
   return (
     <div className="space-y-4">
-      <AssetGroup title="Immovable Assets" icon={<FileText size={16} />}>
+      <AssetGroup title="Immovable Assets" icon={<Landmark size={16} />}>
         <AssetSection
           title="Agricultural Land"
           items={declaration.agriculturalLands}
           renderItem={(item) => (
-            <AssetLine
-              title={item.surveyNumber ?? 'Parcel'}
-              subtitle={`${item.village ?? 'Unknown village'} · ${item.areaAcres ?? 0} acres`}
-              value={item.ownerOfRecord ?? item.pattaStatus ?? 'N/A'}
+            <DetailedAssetCard
+              icon={<MapPin size={14} />}
+              fields={[
+                { label: 'Survey Number', value: item.surveyNumber || '—' },
+                { label: 'Village', value: item.village || '—' },
+                { label: 'Area', value: `${item.areaAcres || 0} acres`, highlight: true },
+                { label: 'Owner of Record', value: item.ownerOfRecord || '—' },
+                { label: 'Patta Status', value: item.pattaStatus || '—' },
+              ]}
             />
           )}
         />
@@ -27,46 +32,66 @@ export function AssetsTab({ declaration }: AssetsTabProps) {
           title="Buildings"
           items={declaration.buildings}
           renderItem={(item) => (
-            <AssetLine
-              title={item.location ?? 'Building'}
-              subtitle={`${item.totalAreaSqft ?? 0} sq ft · ${item.yearBuilt ?? 'Year n/a'}`}
-              value={item.structureType ?? formatCurrency(item.valuationInr ?? 0)}
+            <DetailedAssetCard
+              icon={<Building2 size={14} />}
+              fields={[
+                { label: 'Location', value: item.location || '—' },
+                { label: 'Total Area', value: `${item.totalAreaSqft || 0} sq ft`, highlight: true },
+                { label: 'Year Built', value: item.yearBuilt?.toString() || '—' },
+                { label: 'Structure Type', value: item.structureType || '—' },
+                { label: 'Valuation', value: formatCurrency(item.valuationInr || 0) },
+              ]}
             />
           )}
         />
         <AssetSection
-          title="Leased properties"
+          title="Leased Properties"
           items={declaration.leasedProperties}
           renderItem={(item) => (
-            <AssetLine
-              title={item.propertyAddress ?? 'Leased property'}
-              subtitle={`${item.lesseeName ?? 'Lessee n/a'} · ${formatDate(item.leaseStartDate)} to ${formatDate(item.leaseEndDate)}`}
-              value={item.agreementDocumentId ? `Doc #${item.agreementDocumentId}` : 'No PDF'}
+            <DetailedAssetCard
+              icon={<FileCheck size={14} />}
+              fields={[
+                { label: 'Property Address', value: item.propertyAddress || '—' },
+                { label: 'Lessee Name', value: item.lesseeName || '—' },
+                { label: 'Lease Start Date', value: formatDate(item.leaseStartDate) },
+                { label: 'Lease End Date', value: formatDate(item.leaseEndDate) },
+                { label: 'Monthly Rent', value: formatCurrency(item.monthlyRent || 0), highlight: true },
+                { label: 'Agreement Document', value: item.agreementDocumentId ? `Doc #${item.agreementDocumentId}` : 'No PDF' },
+              ]}
             />
           )}
         />
         <AssetSection
-          title="Other land holdings"
+          title="Other Land Holdings"
           items={declaration.otherLands}
           renderItem={(item) => (
-            <AssetLine
-              title={item.location ?? 'Other land'}
-              subtitle={`${item.area ?? 0} units · ${item.usageType ?? 'Usage n/a'}`}
-              value={item.revenueDepartmentReference ?? 'No reference'}
+            <DetailedAssetCard
+              icon={<MapPin size={14} />}
+              fields={[
+                { label: 'Location', value: item.location || '—' },
+                { label: 'Area', value: `${item.area || 0} units`, highlight: true },
+                { label: 'Usage Type', value: item.usageType || '—' },
+                { label: 'Revenue Dept Reference', value: item.revenueDepartmentReference || '—' },
+              ]}
             />
           )}
         />
       </AssetGroup>
 
-      <AssetGroup title="Movable Assets" icon={<History size={16} />}>
+      <AssetGroup title="Movable Assets" icon={<Coins size={16} />}>
         <AssetSection
-          title="Gold & silver"
+          title="Gold & Silver"
           items={declaration.preciousMetals}
           renderItem={(item) => (
-            <AssetLine
-              title={item.itemDescription ?? 'Metal item'}
-              subtitle={`${item.weightGrams ?? 0} g · ${item.purity ?? 'Purity n/a'}`}
-              value={item.metalType ?? formatCurrency(item.approximateValueInr ?? 0)}
+            <DetailedAssetCard
+              icon={<Coins size={14} />}
+              fields={[
+                { label: 'Item Description', value: item.itemDescription || '—' },
+                { label: 'Metal Type', value: item.metalType || '—' },
+                { label: 'Weight', value: `${item.weightGrams || 0} g`, highlight: true },
+                { label: 'Purity', value: item.purity || '—' },
+                { label: 'Approximate Value', value: formatCurrency(item.approximateValueInr || 0) },
+              ]}
             />
           )}
         />
@@ -74,10 +99,15 @@ export function AssetsTab({ declaration }: AssetsTabProps) {
           title="Artifacts"
           items={declaration.artifacts}
           renderItem={(item) => (
-            <AssetLine
-              title={item.itemDescription ?? 'Artifact'}
-              subtitle={`${item.material ?? 'Material n/a'} · ${item.ageOrPeriod ?? 'Age n/a'}`}
-              value={item.museumGradeClassification ?? item.provenance ?? 'No classification'}
+            <DetailedAssetCard
+              icon={<Gem size={14} />}
+              fields={[
+                { label: 'Item Description', value: item.itemDescription || '—' },
+                { label: 'Material', value: item.material || '—' },
+                { label: 'Age/Period', value: item.ageOrPeriod || '—' },
+                { label: 'Provenance', value: item.provenance || '—' },
+                { label: 'Museum Grade', value: item.museumGradeClassification || '—' },
+              ]}
             />
           )}
         />
@@ -85,10 +115,14 @@ export function AssetsTab({ declaration }: AssetsTabProps) {
           title="Vehicles"
           items={declaration.vehicles}
           renderItem={(item) => (
-            <AssetLine
-              title={item.registrationNumber ?? 'Vehicle'}
-              subtitle={`${item.makeModel ?? 'Model n/a'} · ${item.year ?? 'Year n/a'}`}
-              value={item.purpose ?? 'Purpose n/a'}
+            <DetailedAssetCard
+              icon={<Car size={14} />}
+              fields={[
+                { label: 'Registration Number', value: item.registrationNumber || '—', highlight: true },
+                { label: 'Make & Model', value: item.makeModel || '—' },
+                { label: 'Year', value: item.year?.toString() || '—' },
+                { label: 'Purpose', value: item.purpose || '—' },
+              ]}
             />
           )}
         />
@@ -96,21 +130,28 @@ export function AssetsTab({ declaration }: AssetsTabProps) {
           title="Equipment"
           items={declaration.equipment}
           renderItem={(item) => (
-            <AssetLine
-              title={item.itemName ?? 'Equipment'}
-              subtitle={item.serialNumber ?? 'Serial n/a'}
-              value={formatCurrency(item.approximateValueInr ?? 0)}
+            <DetailedAssetCard
+              icon={<Wrench size={14} />}
+              fields={[
+                { label: 'Item Name', value: item.itemName || '—' },
+                { label: 'Serial Number', value: item.serialNumber || '—' },
+                { label: 'Approximate Value', value: formatCurrency(item.approximateValueInr || 0), highlight: true },
+              ]}
             />
           )}
         />
         <AssetSection
-          title="Financial assets"
+          title="Financial Assets"
           items={declaration.financialAssets}
           renderItem={(item) => (
-            <AssetLine
-              title={item.assetSubtype ?? 'Financial asset'}
-              subtitle={`${item.bankName ?? 'Bank n/a'} · ${item.maturityDate ? formatDate(item.maturityDate) : 'No maturity date'}`}
-              value={formatCurrency(item.amount ?? 0)}
+            <DetailedAssetCard
+              icon={<TrendingUp size={14} />}
+              fields={[
+                { label: 'Asset Subtype', value: item.assetSubtype || '—' },
+                { label: 'Bank Name', value: item.bankName || '—' },
+                { label: 'Amount', value: formatCurrency(item.amount || 0), highlight: true },
+                { label: 'Maturity Date', value: item.maturityDate ? formatDate(item.maturityDate) : '—' },
+              ]}
             />
           )}
         />

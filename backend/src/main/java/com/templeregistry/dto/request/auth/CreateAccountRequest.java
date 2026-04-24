@@ -6,16 +6,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Step 3: Create the user account and temple record.
- * Requires an AADHAAR_VERIFIED tempToken issued by /register/verify-aadhaar.
+ * Step 2: Create the user account and temple record.
+ * Accepts Aadhaar number directly (no OTP verification required).
  * Password policy enforces SC-04: min 10 chars, uppercase, lowercase, digit, special char.
  */
 @Getter
 @NoArgsConstructor
 public class CreateAccountRequest {
 
-    @NotBlank(message = "Temp token is required.")
-    private String tempToken;
+    @NotBlank(message = "Aadhaar number is required.")
+    @Pattern(regexp = "^\\d{12}$", message = "Aadhaar number must be exactly 12 digits.")
+    private String aadhaar;
 
     @NotBlank(message = "Username is required.")
     @Size(min = 4, max = 100, message = "Username must be 4–100 characters.")
