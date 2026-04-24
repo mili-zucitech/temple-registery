@@ -6,12 +6,9 @@ import type { Step1Data, Step3Data, Step4Data, WizardState } from './registerTyp
 type WizardAction =
   | { type: 'SET_STEP'; payload: number }
   | { type: 'SAVE_STEP1'; payload: Step1Data }
-  | { type: 'SAVE_INIT_TOKEN'; payload: string }
-  | { type: 'SAVE_TEMP_TOKEN'; payload: string }
   | { type: 'SAVE_STEP3'; payload: Omit<Step3Data, 'confirmPassword'> }
   | { type: 'SAVE_STEP4'; payload: Step4Data }
   | { type: 'SAVE_USER_ID'; payload: number }
-  | { type: 'SAVE_RECOVERY_CODES'; payload: string[] }
   | { type: 'RESET' }
 
 // ── Reducer ───────────────────────────────────────────────────────────────────
@@ -34,18 +31,12 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, currentStep: action.payload }
     case 'SAVE_STEP1':
       return { ...state, step1: action.payload }
-    case 'SAVE_INIT_TOKEN':
-      return { ...state, initToken: action.payload }
-    case 'SAVE_TEMP_TOKEN':
-      return { ...state, tempToken: action.payload }
     case 'SAVE_STEP3':
       return { ...state, step3: action.payload }
     case 'SAVE_STEP4':
       return { ...state, step4: action.payload }
     case 'SAVE_USER_ID':
       return { ...state, userId: action.payload }
-    case 'SAVE_RECOVERY_CODES':
-      return { ...state, recoveryCodes: action.payload }
     case 'RESET':
       return initialState
     default:
@@ -61,12 +52,9 @@ interface WizardContextValue {
   nextStep: () => void
   prevStep: () => void
   saveStep1: (data: Step1Data) => void
-  saveInitToken: (token: string) => void
-  saveTempToken: (token: string) => void
   saveStep3: (data: Omit<Step3Data, 'confirmPassword'>) => void
   saveStep4: (data: Step4Data) => void
   saveUserId: (id: number) => void
-  saveRecoveryCodes: (codes: string[]) => void
   reset: () => void
 }
 
@@ -82,7 +70,7 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
   }, [])
 
   const nextStep = useCallback(() => {
-    dispatch({ type: 'SET_STEP', payload: Math.min(state.currentStep + 1, 8) })
+    dispatch({ type: 'SET_STEP', payload: Math.min(state.currentStep + 1, 5) })
   }, [state.currentStep])
 
   const prevStep = useCallback(() => {
@@ -91,14 +79,6 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
 
   const saveStep1 = useCallback((data: Step1Data) => {
     dispatch({ type: 'SAVE_STEP1', payload: data })
-  }, [])
-
-  const saveInitToken = useCallback((token: string) => {
-    dispatch({ type: 'SAVE_INIT_TOKEN', payload: token })
-  }, [])
-
-  const saveTempToken = useCallback((token: string) => {
-    dispatch({ type: 'SAVE_TEMP_TOKEN', payload: token })
   }, [])
 
   const saveStep3 = useCallback((data: Omit<Step3Data, 'confirmPassword'>) => {
@@ -113,10 +93,6 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
     dispatch({ type: 'SAVE_USER_ID', payload: id })
   }, [])
 
-  const saveRecoveryCodes = useCallback((codes: string[]) => {
-    dispatch({ type: 'SAVE_RECOVERY_CODES', payload: codes })
-  }, [])
-
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' })
   }, [])
@@ -127,12 +103,9 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
     nextStep,
     prevStep,
     saveStep1,
-    saveInitToken,
-    saveTempToken,
     saveStep3,
     saveStep4,
     saveUserId,
-    saveRecoveryCodes,
     reset,
   }
 

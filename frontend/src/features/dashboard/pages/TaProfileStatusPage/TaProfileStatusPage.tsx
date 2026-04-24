@@ -7,9 +7,10 @@ import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import {
-  CheckCircle2, XCircle, Clock, FileEdit, ChevronDown, ChevronUp, ArrowLeft,
+  CheckCircle2, XCircle, Clock, FileEdit, ChevronDown, ChevronUp, History,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -179,34 +180,32 @@ export function TaProfileStatusPage() {
 
   return (
     <motion.div
-      className="space-y-6 max-w-3xl"
+      className="space-y-5 max-w-3xl"
       initial="hidden"
       animate="show"
       variants={{ show: { transition: { staggerChildren: 0.07 } } }}
     >
-      {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <button
-              onClick={() => navigate(ROUTE_PATHS.TA_DASHBOARD)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft size={14} /> Back to Dashboard
-            </button>
-          </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Profile Submission History</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Track all profile submissions sent to the District Collector for review.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate(ROUTE_PATHS.TA_TEMPLE)}
-        >
-          Edit Profile
-        </Button>
+      <motion.div variants={fadeUp}>
+        <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                  <History size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profile Submission History</h1>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Track all profile submissions sent to the District Collector for review
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate(ROUTE_PATHS.TA_TEMPLE)}>
+                Edit Profile
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Status legend */}

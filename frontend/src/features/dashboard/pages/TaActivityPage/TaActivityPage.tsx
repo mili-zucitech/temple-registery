@@ -9,6 +9,7 @@ import {
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { usePagination } from '@/hooks/usePagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import {
@@ -160,34 +161,42 @@ export function TaActivityPage() {
 
   return (
     <motion.div
-      className="space-y-6 max-w-3xl"
+      className="space-y-5 max-w-3xl"
       initial="hidden"
       animate="show"
       variants={{ show: { transition: { staggerChildren: 0.06 } } }}
     >
-      {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Activity</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Notifications and system events for your temple.
-            {totalElements > 0 && (
-              <span className="ml-2 text-foreground font-medium">{totalElements} total</span>
-            )}
-          </p>
-        </div>
-        {unreadCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground"
-            onClick={handleMarkAll}
-            disabled={isMarkingAll}
-          >
-            <CheckCheck size={14} />
-            {isMarkingAll ? 'Marking…' : 'Mark all read'}
-          </Button>
-        )}
+      <motion.div variants={fadeUp}>
+        <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                  <Bell size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Notifications and system events for your temple
+                    {totalElements > 0 && <span className="ml-1">· {totalElements} total</span>}
+                  </p>
+                </div>
+              </div>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  onClick={handleMarkAll}
+                  disabled={isMarkingAll}
+                >
+                  <CheckCheck size={14} />
+                  {isMarkingAll ? 'Marking…' : 'Mark all read'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* List */}

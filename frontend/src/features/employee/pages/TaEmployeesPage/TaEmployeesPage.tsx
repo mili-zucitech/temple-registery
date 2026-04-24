@@ -31,6 +31,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { Eye, Plus, Pencil, Trash2, Users } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 
 type FormMode = 'create' | 'edit' | null
 
@@ -141,23 +142,28 @@ export function TaEmployeesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Users className="size-7 text-primary" />
-            Employees
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage temple employee records • {totalElements} total
-          </p>
-        </div>
-        <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
-          <Plus className="size-4 mr-2" />
-          Add Employee
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                <Users size={20} className="text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Employees</h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Manage temple employee records · {totalElements} total
+                </p>
+              </div>
+            </div>
+            <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
+              <Plus className="size-4 mr-2" />
+              Add Employee
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Create Dialog */}
       <Dialog open={mode === 'create'} onOpenChange={(open) => !open && closeForm()}>

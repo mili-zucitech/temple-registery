@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin, Navigation } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { GeoHierarchySelect } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelect'
+import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
+import { LocationMapPicker } from '../components/LocationMapPicker'
 import type { GeoSelection } from '@/features/geo/geoTypes'
 import { useWizard } from '../RegisterContext'
 import {
@@ -39,7 +40,6 @@ function isOutsideIndia(lat: number, lon: number): boolean {
 export function Step4TempleDetails() {
   const { state, saveStep4, nextStep, prevStep } = useWizard()
   const [geoSelection, setGeoSelection] = useState<GeoSelection>({})
-  const [isDetectingGps, setIsDetectingGps] = useState(false)
   const [gpsWarning, setGpsWarning] = useState<string | null>(null)
 
   const form = useForm<Step4Data>({
@@ -66,32 +66,15 @@ export function Step4TempleDetails() {
     }
   }
 
-  const handleGpsDetect = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser.')
-      return
+  const handleLocationChange = (lat: number, lon: number) => {
+    form.setValue('gpsLatitude', lat, { shouldDirty: true })
+    form.setValue('gpsLongitude', lon, { shouldDirty: true })
+    
+    if (isOutsideIndia(lat, lon)) {
+      setGpsWarning('Detected coordinates appear to be outside India. Please verify.')
+    } else {
+      setGpsWarning(null)
     }
-    setIsDetectingGps(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = parseFloat(position.coords.latitude.toFixed(6))
-        const lon = parseFloat(position.coords.longitude.toFixed(6))
-        form.setValue('gpsLatitude', lat, { shouldDirty: true })
-        form.setValue('gpsLongitude', lon, { shouldDirty: true })
-        if (isOutsideIndia(lat, lon)) {
-          setGpsWarning('Detected coordinates appear to be outside India. Please verify.')
-        } else {
-          setGpsWarning(null)
-          toast.success('GPS location detected.')
-        }
-        setIsDetectingGps(false)
-      },
-      (_err) => {
-        toast.error('Could not detect location. Please enter coordinates manually.')
-        setIsDetectingGps(false)
-      },
-      { timeout: 10000, maximumAge: 60000 },
-    )
   }
 
   const watchLat = form.watch('gpsLatitude')
@@ -112,7 +95,7 @@ export function Step4TempleDetails() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold font-display">Temple Details</h2>
         <p className="text-sm text-muted-foreground">
@@ -223,14 +206,14 @@ export function Step4TempleDetails() {
           {/* Section: Location */}
           <fieldset className="space-y-4 rounded-lg border border-border p-4">
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Location
+              Administrative Location
             </legend>
 
             <div>
               <p className="text-xs text-muted-foreground mb-3">
                 Select the administrative hierarchy for the temple's location.
               </p>
-              <GeoHierarchySelect value={geoSelection} onChange={handleGeoChange} />
+              <GeoHierarchySelectGrid value={geoSelection} onChange={handleGeoChange} />
               {form.formState.errors.hobliId && (
                 <p className="mt-1.5 text-sm text-destructive">
                   {form.formState.errors.hobliId.message}
@@ -264,6 +247,7 @@ export function Step4TempleDetails() {
                       inputMode="numeric"
                       maxLength={6}
                       placeholder="560001"
+                      className="max-w-xs"
                     />
                   </FormControl>
                   <FormMessage />
@@ -272,28 +256,15 @@ export function Step4TempleDetails() {
             />
           </fieldset>
 
-          {/* Section: GPS Coordinates (optional) */}
+          {/* Section: GPS Location with Map */}
           <fieldset className="space-y-4 rounded-lg border border-border p-4">
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              GPS Coordinates <span className="normal-case font-normal">(Optional)</span>
+              GPS Location <span className="normal-case font-normal">(Optional but Recommended)</span>
             </legend>
 
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Helps locate this temple on the map.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleGpsDetect}
-                disabled={isDetectingGps}
-                className="flex items-center gap-1.5 text-xs"
-              >
-                <Navigation className="h-3.5 w-3.5" />
-                {isDetectingGps ? 'Detecting…' : 'Auto-detect'}
-              </Button>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Use GPS detection or manually enter the temple's coordinates.
+            </p>
 
             {gpsWarning && (
               <div className="flex items-start gap-2 rounded-md bg-warning/10 border border-warning/30 px-3 py-2">
@@ -302,59 +273,11 @@ export function Step4TempleDetails() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="gpsLatitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Latitude</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 12.3456"
-                          className="pl-8"
-                          value={field.value ?? ''}
-                          onChange={(e) =>
-                            field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))
-                          }
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="gpsLongitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Longitude</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 76.6543"
-                          className="pl-8"
-                          value={field.value ?? ''}
-                          onChange={(e) =>
-                            field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))
-                          }
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <LocationMapPicker
+              latitude={form.watch('gpsLatitude') ?? null}
+              longitude={form.watch('gpsLongitude') ?? null}
+              onLocationChange={handleLocationChange}
+            />
           </fieldset>
 
           <div className="flex gap-3">
