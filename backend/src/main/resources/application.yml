@@ -4,7 +4,19 @@ spring:
     username: 3Nkwm2fKtuGqoiu.root
     password: 6sXYNlDhrX80xnDz
     hikari:
+      # How long to wait for a connection from the pool before throwing
       connection-timeout: 20000
+      # Validate connections before handing them out — catches stale/closed connections
+      connection-test-query: SELECT 1
+      # How long a connection can sit idle before being evicted (4 min — under TiDB's ~5 min server timeout)
+      idle-timeout: 240000
+      # Max lifetime of any connection regardless of activity (9 min — well under TiDB's 10 min limit)
+      max-lifetime: 540000
+      # Send a keepalive ping every 2 minutes to prevent server-side idle timeout
+      keepalive-time: 120000
+      # Pool size — keep small for TiDB Cloud free tier
+      minimum-idle: 2
+      maximum-pool-size: 8
 
   jpa:
     hibernate:

@@ -12,6 +12,7 @@ import { notificationApi } from '@/features/notification/notificationApi'
 import { exportApi } from '@/features/export/exportApi'
 import { adminApi } from '@/features/admin/adminApi'
 import { dcApi } from '@/features/dc/dcApi'
+import { governanceApi } from '@/features/governance/governanceApi'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 
 /** Global RTK Query error logger middleware */
@@ -51,6 +52,7 @@ export const store = configureStore({
       exportApi.middleware,
       adminApi.middleware,
       dcApi.middleware,
+      governanceApi.middleware,
     ),
 })
 

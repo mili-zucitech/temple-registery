@@ -28,8 +28,4 @@ public class ContractorResponse {
     private BigDecimal contractValue;
     private PaymentStatus paymentStatus;
     private List<Long> documentIds; // Multiple documents
-    
-    // DC Governance fields
-    private boolean isVerifiedByDc;
-    private String dcFlagReason;
 }

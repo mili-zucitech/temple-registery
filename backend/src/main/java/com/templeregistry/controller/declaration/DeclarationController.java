@@ -5,6 +5,7 @@ import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.declaration.*;
 import com.templeregistry.dto.response.declaration.*;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.declaration.DeclarationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -54,54 +58,20 @@ public class DeclarationController {
     }
 
     @PostMapping("/api/v1/declarations/{id}/submit")
-    @Operation(summary = "Submit declaration for DC review (DRAFT â†’ SUBMITTED)")
+    @Operation(summary = "Submit declaration for DC review (DRAFT → SUBMITTED)")
     public ResponseEntity<ApiResponse<Void>> submit(@PathVariable Long id) {
         declarationService.submit(id);
         return ResponseEntity.ok(ApiResponse.success("Declaration submitted."));
     }
 
-    @PostMapping("/api/v1/declarations/{id}/approve")
-    @Operation(summary = "Approve declaration (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_ACT_DC)
-    public ResponseEntity<ApiResponse<Void>> approve(@PathVariable Long id) {
-        declarationService.approve(id);
-        return ResponseEntity.ok(ApiResponse.success("Declaration approved."));
-    }
-
-    @PostMapping("/api/v1/declarations/{id}/reject")
-    @Operation(summary = "Reject declaration (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_ACT_DC)
-    public ResponseEntity<ApiResponse<Void>> reject(
-            @PathVariable Long id, @Valid @RequestBody ClarificationRequest reason) {
-        declarationService.reject(id, reason);
-        return ResponseEntity.ok(ApiResponse.success("Declaration rejected."));
-    }
-
-    @PostMapping("/api/v1/declarations/{id}/clarification")
-    @Operation(summary = "Request clarification from temple (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_ACT_DC)
-    public ResponseEntity<ApiResponse<Void>> requestClarification(
-            @PathVariable Long id, @Valid @RequestBody ClarificationRequest rq) {
-        declarationService.requestClarification(id, rq);
-        return ResponseEntity.ok(ApiResponse.success("Clarification requested."));
-    }
-
-    @PostMapping("/api/v1/declarations/{id}/flag-physical-verification")
-    @Operation(summary = "Flag for physical verification (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_ACT_DC)
-    public ResponseEntity<ApiResponse<Void>> flagPhysical(
-            @PathVariable Long id, @Valid @RequestBody FlagPhysicalVerificationRequest rq) {
-        declarationService.flagPhysicalVerification(id, rq);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/api/v1/declarations/{id}/resubmit")
-    @Operation(summary = "Resubmit after clarification (TA)")
+    @PostMapping("/api/v1/declarations/{id}/clarification-respond")
+    @Operation(summary = "Respond to clarification request (TA) — CLARIFICATION_REQUIRED → CLARIFICATION_RESPONDED")
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
-    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> resubmit(
-            @PathVariable Long id, @Valid @RequestBody ResubmitDeclarationRequest rq) {
-        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted.",
-                declarationService.resubmit(id, rq)));
+    public ResponseEntity<ApiResponse<Void>> respondToClarification(
+            @PathVariable Long id, @Valid @RequestBody ClarificationRespondRequest rq) {
+        ScopeHelper.Claims claims = currentClaims();
+        declarationService.respondToClarification(id, rq, claims.userId(), claims.role());
+        return ResponseEntity.ok(ApiResponse.success("Clarification response submitted."));
     }
 
     @GetMapping("/api/v1/declarations/{id}/acknowledgement")
@@ -129,5 +99,28 @@ public class DeclarationController {
     @Operation(summary = "Get the submission version history for a declaration")
     public ResponseEntity<ApiResponse<?>> listVersions(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Versions retrieved.", declarationService.listVersions(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/audit")
+    @Operation(summary = "Get audit trail for a declaration (all authenticated roles)")
+    public ResponseEntity<ApiResponse<List<AuditLogEntry>>> getAuditLog(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Audit log retrieved.",
+                declarationService.listAuditLog(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/overdue")
+    @Operation(summary = "DC: List overdue declarations for a district (paginated)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<PaginatedResponse<DeclarationResponse>>> listOverdue(
+            @RequestParam Long districtId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success("Overdue declarations retrieved.",
+                declarationService.listOverdue(districtId, page, size)));
+    }
+
+    private ScopeHelper.Claims currentClaims() {
+        return (ScopeHelper.Claims) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
     }
 }

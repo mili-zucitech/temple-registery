@@ -42,10 +42,10 @@ import {
 } from '@/features/dc/dcHooks'
 import type { ClarificationItemResponse } from '@/features/dc/dcTypes'
 import {
-  dcClarifySchema,
   workflowApproveSchema,
   workflowRejectSchema,
 } from '@/features/dc/dcTypes'
+import { dcClarifySchema } from '@/features/governance/governanceTypes'
 import { useGetDeclarationDiffQuery, useGetDeclarationVersionsQuery } from '@/features/declaration/declarationApi'
 
 export function DcDeclarationDetailPage() {
@@ -58,7 +58,7 @@ export function DcDeclarationDetailPage() {
   const canAct = role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
   const { declaration, isLoading, isError } = useDcDeclarationDetail(id)
-  const { dialog, openDialog, closeDialog, confirmApprove, confirmReject, confirmClarify, confirmFlagPhysical, isSubmitting } = useWorkflowActions()
+  const { dialog, openDialog, closeDialog, confirmApprove, confirmReject, confirmClarify, confirmScheduleSiteVisit, isSubmitting } = useWorkflowActions()
 
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
   const versions = versionsQuery.data?.data ?? []
@@ -75,7 +75,7 @@ export function DcDeclarationDetailPage() {
     }
   }, [compareVersion, versions])
 
-  const actionable = ['PENDING_REVIEW', 'UNDER_REVIEW', 'RESUBMITTED', 'CLARIFICATION_REQUESTED'].includes(declaration?.status ?? '')
+  const actionable = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'SITE_VISIT_COMPLETED', 'VERIFIED'].includes(declaration?.status ?? '')
 
   if (isLoading) {
     return <DeclarationSkeleton />
@@ -299,21 +299,21 @@ export function DcDeclarationDetailPage() {
                 <CardDescription>Approve, reject, or request clarification from the temple authority.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Button onClick={() => openDialog('approve', declaration.id)} className="justify-start">
+                <Button onClick={() => openDialog('approve', declaration.id)} className="justify-start" disabled={isSubmitting}>
                   <BadgeCheck size={16} className="mr-2" />
                   Approve
                 </Button>
-                <Button variant="destructive" onClick={() => openDialog('reject', declaration.id)} className="justify-start">
+                <Button variant="destructive" onClick={() => openDialog('reject', declaration.id)} className="justify-start" disabled={isSubmitting}>
                   <XCircle size={16} className="mr-2" />
                   Reject
                 </Button>
-                <Button variant="outline" onClick={() => openDialog('clarify', declaration.id)} className="justify-start">
+                <Button variant="outline" onClick={() => openDialog('clarify', declaration.id)} className="justify-start" disabled={isSubmitting}>
                   <HelpCircle size={16} className="mr-2" />
                   Request clarification
                 </Button>
-                <Button variant="outline" onClick={() => openDialog('flag-physical', declaration.id)} className="justify-start">
+                <Button variant="outline" onClick={() => openDialog('schedule-site-visit', declaration.id)} className="justify-start" disabled={isSubmitting}>
                   <ShieldAlert size={16} className="mr-2" />
-                  Flag verification
+                  Schedule site visit
                 </Button>
               </CardContent>
             </Card>
@@ -329,21 +329,21 @@ export function DcDeclarationDetailPage() {
             <CardContent className="space-y-3">
               {canAct && actionable ? (
                 <>
-                  <Button className="w-full justify-start" onClick={() => openDialog('approve', declaration.id)}>
+                  <Button className="w-full justify-start" onClick={() => openDialog('approve', declaration.id)} disabled={isSubmitting}>
                     <BadgeCheck size={16} className="mr-2" />
                     Approve
                   </Button>
-                  <Button variant="destructive" className="w-full justify-start" onClick={() => openDialog('reject', declaration.id)}>
+                  <Button variant="destructive" className="w-full justify-start" onClick={() => openDialog('reject', declaration.id)} disabled={isSubmitting}>
                     <XCircle size={16} className="mr-2" />
                     Reject
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => openDialog('clarify', declaration.id)}>
+                  <Button variant="outline" className="w-full justify-start" onClick={() => openDialog('clarify', declaration.id)} disabled={isSubmitting}>
                     <HelpCircle size={16} className="mr-2" />
                     Clarify
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => openDialog('flag-physical', declaration.id)}>
+                  <Button variant="outline" className="w-full justify-start" onClick={() => openDialog('schedule-site-visit', declaration.id)} disabled={isSubmitting}>
                     <Stamp size={16} className="mr-2" />
-                    Physical verification
+                    Schedule site visit
                   </Button>
                 </>
               ) : (
@@ -376,7 +376,7 @@ export function DcDeclarationDetailPage() {
         onApprove={confirmApprove}
         onReject={confirmReject}
         onClarify={confirmClarify}
-        onFlagPhysical={confirmFlagPhysical}
+        onScheduleSiteVisit={confirmScheduleSiteVisit}
         isSubmitting={isSubmitting}
       />
     </div>
@@ -389,7 +389,7 @@ function WorkflowDialogs({
   onApprove,
   onReject,
   onClarify,
-  onFlagPhysical,
+  onScheduleSiteVisit,
   isSubmitting,
 }: {
   dialog: ReturnType<typeof useWorkflowActions>['dialog']
@@ -397,7 +397,7 @@ function WorkflowDialogs({
   onApprove: (body: any) => Promise<void>
   onReject: (body: any) => Promise<void>
   onClarify: (body: any) => Promise<void>
-  onFlagPhysical: (body: any) => Promise<void>
+  onScheduleSiteVisit: (body: any) => Promise<void>
   isSubmitting: boolean
 }) {
   return (
@@ -405,17 +405,17 @@ function WorkflowDialogs({
       <WorkflowDialog open={dialog.open && dialog.kind === 'approve'} kind="approve" onClose={onClose} onSubmit={onApprove} isSubmitting={isSubmitting} />
       <WorkflowDialog open={dialog.open && dialog.kind === 'reject'} kind="reject" onClose={onClose} onSubmit={onReject} isSubmitting={isSubmitting} />
       <WorkflowDialog open={dialog.open && dialog.kind === 'clarify'} kind="clarify" onClose={onClose} onSubmit={onClarify} isSubmitting={isSubmitting} />
-      <WorkflowDialog open={dialog.open && dialog.kind === 'flag-physical'} kind="flag-physical" onClose={onClose} onSubmit={onFlagPhysical} isSubmitting={isSubmitting} />
+      <WorkflowDialog open={dialog.open && dialog.kind === 'schedule-site-visit'} kind="schedule-site-visit" onClose={onClose} onSubmit={onScheduleSiteVisit} isSubmitting={isSubmitting} />
     </>
   )
 }
 
-type DialogKind = 'approve' | 'reject' | 'clarify' | 'flag-physical'
+type DialogKind = 'approve' | 'reject' | 'clarify' | 'schedule-site-visit'
 
 const DIALOG_META: Record<DialogKind, {
   title: string
   description: string
-  field: 'notes' | 'reason'
+  field: 'notes' | 'reason' | 'message'
   label: string
   placeholder: string
   schema: typeof workflowApproveSchema | typeof workflowRejectSchema | typeof dcClarifySchema
@@ -439,18 +439,18 @@ const DIALOG_META: Record<DialogKind, {
   clarify: {
     title: 'Request Clarification',
     description: 'The temple authority will be asked to correct or explain the filing.',
-    field: 'notes',
-    label: 'Clarification notes',
+    field: 'message',
+    label: 'Clarification message',
     placeholder: 'Describe the correction or clarification required...',
     schema: dcClarifySchema,
   },
-  'flag-physical': {
-    title: 'Flag Physical Verification',
-    description: 'Mark this declaration for physical inspection.',
+  'schedule-site-visit': {
+    title: 'Schedule Site Visit',
+    description: 'Schedule a physical site visit for this declaration.',
     field: 'notes',
-    label: 'Verification notes',
-    placeholder: 'Explain why this declaration needs physical verification...',
-    schema: dcClarifySchema,
+    label: 'Site visit notes',
+    placeholder: 'Explain why a site visit is required...',
+    schema: workflowApproveSchema,
   },
 }
 
@@ -468,7 +468,7 @@ function WorkflowDialog({
   isSubmitting: boolean
 }) {
   const meta = DIALOG_META[kind]
-  const form = useForm<{ notes?: string; reason?: string }>({
+  const form = useForm<{ notes?: string; reason?: string; message?: string }>({
     resolver: zodResolver(meta.schema),
     defaultValues: { [meta.field]: '' } as any,
   })

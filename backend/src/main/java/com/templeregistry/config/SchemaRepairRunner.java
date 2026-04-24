@@ -33,6 +33,9 @@ public class SchemaRepairRunner implements CommandLineRunner {
         addColumnIfMissing("asset_declarations", "physical_verification_ordered_at",  "DATETIME(6) NULL");
         addColumnIfMissing("asset_declarations", "physical_verification_ordered_by",  "BIGINT NULL");
         addColumnIfMissing("asset_declarations", "physical_verification_completed_at","DATETIME(6) NULL");
+        // Ensure status column is VARCHAR(40) to accept all DeclarationStatus enum values
+        // (V42 migration may have changed it to ENUM which blocks new values)
+        ensureStatusColumnIsVarchar("asset_declarations", "status", "VARCHAR(40) NOT NULL DEFAULT 'DRAFT'");
 
         // trusts — columns added by V25/V35 that may be missing
         addColumnIfMissing("trusts", "governance_version",         "BIGINT NOT NULL DEFAULT 1");
@@ -63,6 +66,27 @@ public class SchemaRepairRunner implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.warn("SchemaRepairRunner: could not check/add column {}.{}: {}", table, column, e.getMessage());
+        }
+    }
+
+    /**
+     * If the status column is an ENUM (from V42 migration), convert it to VARCHAR(40)
+     * so all DeclarationStatus enum values can be stored without constraint violations.
+     */
+    private void ensureStatusColumnIsVarchar(String table, String column, String definition) {
+        try {
+            String dataType = jdbc.queryForObject(
+                "SELECT DATA_TYPE FROM information_schema.COLUMNS " +
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                String.class, table, column);
+            if ("enum".equalsIgnoreCase(dataType)) {
+                jdbc.execute("ALTER TABLE `" + table + "` MODIFY COLUMN `" + column + "` " + definition);
+                log.info("SchemaRepairRunner: converted {}.{} from ENUM to VARCHAR(40)", table, column);
+            } else {
+                log.debug("SchemaRepairRunner: {}.{} is already {} — no change needed.", table, column, dataType);
+            }
+        } catch (Exception e) {
+            log.warn("SchemaRepairRunner: could not check/modify {}.{}: {}", table, column, e.getMessage());
         }
     }
 }

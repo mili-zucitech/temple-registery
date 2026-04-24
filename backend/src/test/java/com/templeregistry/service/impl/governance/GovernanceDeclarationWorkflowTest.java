@@ -70,6 +70,10 @@ class GovernanceDeclarationWorkflowTest {
     @Mock GovernanceAuditService governanceAuditService;
     @Mock ObjectMapper objectMapper;
     @Mock UserRepository userRepository;
+    @Mock com.templeregistry.service.declaration.StateTransitionValidator stateTransitionValidator;
+    @Mock com.templeregistry.service.declaration.SnapshotService snapshotService;
+    @Mock com.templeregistry.service.audit.DeclarationAuditLogService declarationAuditLogService;
+    @Mock com.templeregistry.service.declaration.AcknowledgementService acknowledgementService;
 
     @InjectMocks
     GovernanceWorkflowServiceImpl workflowService;
@@ -83,7 +87,7 @@ class GovernanceDeclarationWorkflowTest {
         pendingDeclaration = AssetDeclaration.builder()
                 .templeId(1L)
                 .districtId(10L)
-                .status(DeclarationStatus.PENDING_REVIEW)
+                .status(DeclarationStatus.SUBMITTED)
                 .submittedBy(99L)
                 .build();
         pendingDeclaration.setId(42L);
@@ -103,8 +107,8 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
-        when(ackGenerator.generate()).thenReturn("ACK-2024-0042");
+        doNothing().when(stateTransitionValidator).validate(any(), any());
+        lenient().when(acknowledgementService.generate(any(), any())).thenReturn("ACK-2024-0042");
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowApproveRequest request = new WorkflowApproveRequest();
@@ -124,7 +128,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
 
         assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
                 .isInstanceOf(IllegalStatusTransitionException.class)
@@ -151,7 +155,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowRejectRequest request = new WorkflowRejectRequest();
@@ -175,7 +179,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
@@ -184,8 +188,8 @@ class GovernanceDeclarationWorkflowTest {
 
         WorkflowActionResponse result = workflowService.requestClarification(42L, request, dcClaims);
 
-        assertThat(result.getNewStatus()).isEqualTo("CLARIFICATION_REQUESTED");
-        assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUESTED);
+        assertThat(result.getNewStatus()).isEqualTo("CLARIFICATION_REQUIRED");
+        assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
         assertThat(pendingDeclaration.getClarificationRound()).isEqualTo(1);
         verify(clarificationRepository).save(any());
         verify(notificationPublisher).publish(eq(99L), eq("CLARIFICATION_REQUESTED"), eq(42L), anyString());
@@ -214,7 +218,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
         User sa1 = User.builder().role(UserRole.SUPER_ADMIN).username("sa1").build();
         sa1.setId(1000L);
@@ -239,7 +243,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowActionResponse result = workflowService.markUnderReview(42L, dcClaims);
@@ -255,7 +259,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
+        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
@@ -263,8 +267,8 @@ class GovernanceDeclarationWorkflowTest {
 
         WorkflowActionResponse result = workflowService.flagPhysicalVerification(42L, request, dcClaims);
 
-        assertThat(result.getNewStatus()).isEqualTo("PHYSICAL_VERIFICATION_REQUESTED");
-        assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.PHYSICAL_VERIFICATION_REQUESTED);
+        assertThat(result.getNewStatus()).isEqualTo("SITE_VISIT_SCHEDULED");
+        assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.SITE_VISIT_SCHEDULED);
         verify(notificationPublisher).publish(eq(99L), eq("PHYSICAL_VERIFICATION_REQUESTED"), eq(42L), anyString());
         verify(summaryService).refresh(1L);
     }
@@ -276,8 +280,8 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(temple, dcClaims);
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
-        when(ackGenerator.generate()).thenReturn("ACK-X");
+        doNothing().when(stateTransitionValidator).validate(any(), any());
+        lenient().when(acknowledgementService.generate(any(), any())).thenReturn("ACK-X");
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims);

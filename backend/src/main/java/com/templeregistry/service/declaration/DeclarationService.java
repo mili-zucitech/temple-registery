@@ -24,6 +24,13 @@ public interface DeclarationService {
 
     void submit(Long id);
 
+    /**
+     * TA responds to a clarification request.
+     * Transitions CLARIFICATION_REQUIRED → CLARIFICATION_RESPONDED.
+     * Only the message is accepted — no asset field changes are allowed.
+     */
+    void respondToClarification(Long id, ClarificationRespondRequest request, Long actorId, String actorRole);
+
     void approve(Long id);
 
     void reject(Long id, ClarificationRequest reason);
@@ -47,6 +54,16 @@ public interface DeclarationService {
 
     /** Version history for a declaration, newest submission first. */
     List<DeclarationVersionResponse> listVersions(Long declarationId);
+
+    /**
+     * Returns the audit log for a declaration.
+     */
+    List<com.templeregistry.dto.response.declaration.AuditLogEntry> listAuditLog(Long declarationId);
+
+    /**
+     * DC: paginated list of overdue declarations for a district.
+     */
+    PaginatedResponse<DeclarationResponse> listOverdue(Long districtId, int page, int size);
 
     /**
      * SA-only: force a SUBMITTED declaration back to DRAFT — logged in audit trail.

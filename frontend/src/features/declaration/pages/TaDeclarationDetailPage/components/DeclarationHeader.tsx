@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PencilLine, Sparkles } from 'lucide-react'
-import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
+import { DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import type { CompleteDeclarationResponse, DeclarationVersionResponse } from '../../../declarationTypes'
+import { getAvailableActions } from '../../../declarationPermissions'
+import { useAppSelector } from '@/app/store'
 
 interface DeclarationHeaderProps {
   declaration: CompleteDeclarationResponse
@@ -13,6 +15,8 @@ interface DeclarationHeaderProps {
 
 export function DeclarationHeader({ declaration, versions }: DeclarationHeaderProps) {
   const navigate = useNavigate()
+  const role = useAppSelector((state) => state.auth.currentUser?.role)
+  const actions = getAvailableActions(declaration.status, role ?? '')
 
   return (
     <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/8 via-card to-secondary/10 shadow-soft-xl">
@@ -41,15 +45,13 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={declaration.status} />
+              <DeclarationStatusBadge
+                status={declaration.status}
+                isOverdue={declaration.isOverdue || declaration.overdue}
+              />
               <span className="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs text-muted-foreground">
                 Version {declaration.versionNumber ?? 1}
               </span>
-              {declaration.overdue && (
-                <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-800">
-                  Overdue
-                </span>
-              )}
               {declaration.acknowledgementNumber && (
                 <span className="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs text-muted-foreground">
                   Ack {declaration.acknowledgementNumber}
@@ -69,7 +71,7 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
           </div>
         </div>
 
-        {declaration.status === 'DRAFT' && (
+        {actions.canEdit && (
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"

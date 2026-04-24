@@ -517,7 +517,7 @@ class StaffContractorNoApprovalTest {
 
             CreateContractorRequest rq = new CreateContractorRequest();
             ReflectionTestUtils.setField(rq, "name", "Audit Contractor");
-            ReflectionTestUtils.setField(rq, "serviceType", "Plumbing");
+            ReflectionTestUtils.setField(rq, "serviceType", com.templeregistry.entity.contractor.ServiceType.OTHER);
 
             contractorService.create(1L, rq);
 
@@ -534,7 +534,7 @@ class StaffContractorNoApprovalTest {
 
             CreateContractorRequest rq = new CreateContractorRequest();
             ReflectionTestUtils.setField(rq, "name", "Updated Contractor Name");
-            ReflectionTestUtils.setField(rq, "serviceType", "Electrical");
+            ReflectionTestUtils.setField(rq, "serviceType", com.templeregistry.entity.contractor.ServiceType.ELECTRICAL);
             ReflectionTestUtils.setField(rq, "contractValue", BigDecimal.valueOf(200000));
 
             contractorService.update(20L, rq);

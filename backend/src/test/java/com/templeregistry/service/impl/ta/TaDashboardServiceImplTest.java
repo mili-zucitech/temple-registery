@@ -17,12 +17,14 @@ import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.JurisdictionAccessDeniedException;
 import com.templeregistry.mapper.temple.TempleMapper;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.temple.TempleProfileStagingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,8 @@ class TaDashboardServiceImplTest {
     @Mock AuditService auditService;
     @Mock OwnershipGuard ownershipGuard;
     @Mock TempleMapper templeMapper;
+    @Mock NotificationEventPublisher notificationPublisher;
+    @Mock UserRepository userRepository;
 
     @InjectMocks TaDashboardServiceImpl taDashboardService;
 
@@ -182,6 +186,8 @@ class TaDashboardServiceImplTest {
                 .submittedAt(LocalDateTime.now()).build();
 
         when(stagingService.submitForReview(TEMPLE_ID)).thenReturn(submittedResponse);
+        when(templeRepository.findById(TEMPLE_ID)).thenReturn(Optional.of(activeTemple));
+        when(userRepository.findAllByRoleAndDistrictId(any(), any())).thenReturn(java.util.List.of());
         doNothing().when(auditService).logDataEvent(anyLong(), anyString(), anyString(), anyString(), anyLong(), anyString());
 
         TempleProfileStagingResponse result = taDashboardService.submitProfile(claims);

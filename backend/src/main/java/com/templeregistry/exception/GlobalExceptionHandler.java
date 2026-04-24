@@ -11,7 +11,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
-
 import org.springframework.http.HttpHeaders;
 
 import java.util.List;
@@ -55,6 +54,27 @@ public class GlobalExceptionHandler {
         log.warn("Illegal status transition: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(ex.getMessage(), "ILLEGAL_STATUS_TRANSITION"));
+    }
+
+    @ExceptionHandler(InvalidStateTransitionException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidStateTransition(InvalidStateTransitionException ex) {
+        log.warn("Invalid state transition: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage(), "INVALID_STATE_TRANSITION"));
+    }
+
+    @ExceptionHandler(DeclarationImmutableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDeclarationImmutable(DeclarationImmutableException ex) {
+        log.warn("Declaration immutable: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage(), "DECLARATION_IMMUTABLE"));
+    }
+
+    @ExceptionHandler(AcknowledgementNotAvailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAcknowledgementNotAvailable(AcknowledgementNotAvailableException ex) {
+        log.warn("Acknowledgement not available: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error(ex.getMessage(), "ACKNOWLEDGEMENT_NOT_AVAILABLE"));
     }
 
     @ExceptionHandler(ClarificationLimitExceededException.class)

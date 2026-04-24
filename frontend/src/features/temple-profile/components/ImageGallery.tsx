@@ -152,6 +152,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
           <div className="relative w-full h-full flex items-center justify-center px-4 py-24">
             <button
               onClick={prevImage}
+              aria-label="Previous photo"
               className="absolute left-8 p-4 bg-white/5 hover:bg-white/15 text-white rounded-full transition-all duration-300 backdrop-blur-md border border-white/10 z-10 hidden md:block hover:-translate-x-1"
             >
               <ChevronLeft className="w-8 h-8" />
@@ -241,6 +242,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
 
             <button
               onClick={nextImage}
+              aria-label="Next photo"
               className="absolute right-8 p-4 bg-white/5 hover:bg-white/15 text-white rounded-full transition-all duration-300 backdrop-blur-md border border-white/10 z-10 hidden md:block hover:translate-x-1"
             >
               <ChevronRight className="w-8 h-8" />

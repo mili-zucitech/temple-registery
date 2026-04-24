@@ -3,10 +3,15 @@ package com.templeregistry.service.impl.employee;
 import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.employee.EmployeeStatus;
+import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.repository.employee.EmployeeRepository;
+import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.util.PaginationUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,8 +19,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -26,23 +34,36 @@ import static org.mockito.Mockito.*;
 class EmployeeServiceImplTest {
 
     @Mock EmployeeRepository employeeRepository;
+    @Mock TempleRepository templeRepository;
     @Mock OwnershipGuard ownershipGuard;
+    @Mock JurisdictionGuard jurisdictionGuard;
     @Mock PaginationUtil paginationUtil;
+    @Mock AuditService auditService;
 
     @InjectMocks EmployeeServiceImpl employeeService;
 
     private Employee resignedEmployee;
     private Employee activeEmployee;
+    private Temple temple;
 
     @BeforeEach
     void setUp() {
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
+
         resignedEmployee = Employee.builder()
                 .templeId(1L).fullName("Rama Dasa").status(EmployeeStatus.RESIGNED).build();
 
         activeEmployee = Employee.builder()
                 .templeId(1L).fullName("Krishna Dasa").status(EmployeeStatus.ACTIVE).build();
 
+        temple = Temple.builder().name("Test Temple").registrationNumber("REG-001").districtId(1L).build();
+
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(any());
+        lenient().doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        lenient().when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
+        lenient().doNothing().when(auditService).logDataEvent(any(), any(), any(), any(), any(), any());
     }
 
     /* ── VAL-012: Terminal status guard ─────────────────────────────── */

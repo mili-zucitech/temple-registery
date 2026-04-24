@@ -14,10 +14,13 @@ import {
   type CompleteDeclarationResponse,
   type ResubmitDeclarationRequest,
 } from '../../declarationTypes'
+import { getAvailableActions } from '../../declarationPermissions'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Form } from '@/components/ui/form'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { useAppSelector } from '@/app/store'
+import { USER_ROLES } from '@/constants/roles'
 import { DeclarationHeader, ClarificationAlert } from './components'
 
 // Lazy load tab components for code splitting
@@ -81,8 +84,12 @@ export function TaDeclarationDetailPage() {
     }
   }, [declaration, form])
 
-  const isClarificationPending =
-    declaration?.status === 'CLARIFICATION_REQUESTED' || declaration?.status === 'REJECTED'
+  const role = useAppSelector((state) => state.auth.currentUser?.role)
+  const actions = declaration
+    ? getAvailableActions(declaration.status, role ?? USER_ROLES.TEMPLE_AUTHORITY)
+    : null
+  // The resubmit/clarification-respond tab is shown when the TA can respond to clarification
+  const isClarificationPending = actions?.canRespondToClarification ?? false
   const activeVersion = useMemo(
     () => versions.find((version) => version.versionNumber === compareVersion) ?? versions[0],
     [versions, compareVersion]

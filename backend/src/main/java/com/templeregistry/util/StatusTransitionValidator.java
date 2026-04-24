@@ -19,13 +19,15 @@ public class StatusTransitionValidator {
 
     // Declaration state machine
     private static final Map<String, Set<String>> DECLARATION_TRANSITIONS = Map.of(
-            "DRAFT",                           Set.of("PENDING_REVIEW"),
-            "PENDING_REVIEW",                  Set.of("UNDER_REVIEW", "APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED", "OVERDUE", "DRAFT"),
-            "UNDER_REVIEW",                    Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
-            "RESUBMITTED",                     Set.of("UNDER_REVIEW", "APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "PHYSICAL_VERIFICATION_REQUESTED"),
-            "CLARIFICATION_REQUESTED",         Set.of("RESUBMITTED", "OVERDUE"),
-            "PHYSICAL_VERIFICATION_REQUESTED", Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUESTED", "RESUBMITTED"),
-            "OVERDUE",                         Set.of("RESUBMITTED", "PENDING_REVIEW")
+            "DRAFT",                      Set.of("SUBMITTED"),
+            "SUBMITTED",                  Set.of("UNDER_REVIEW", "APPROVED", "REJECTED", "CLARIFICATION_REQUIRED", "SITE_VISIT_SCHEDULED"),
+            "UNDER_REVIEW",               Set.of("APPROVED", "REJECTED", "CLARIFICATION_REQUIRED", "SITE_VISIT_SCHEDULED"),
+            "CLARIFICATION_REQUIRED",     Set.of("CLARIFICATION_RESPONDED", "OVERDUE"),
+            "CLARIFICATION_RESPONDED",    Set.of("UNDER_REVIEW", "APPROVED", "REJECTED"),
+            "SITE_VISIT_SCHEDULED",       Set.of("SITE_VISIT_COMPLETED"),
+            "SITE_VISIT_COMPLETED",       Set.of("VERIFIED"),
+            "VERIFIED",                   Set.of("APPROVED", "REJECTED"),
+            "OVERDUE",                    Set.of("SUBMITTED")
     );
 
     // Temple Profile Staging state machine
