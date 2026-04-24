@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -24,7 +25,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
+import { ROUTE_PATHS } from '@/constants/routePaths'
+import { Building2, Users, Calendar, TrendingUp, Plus, Edit, Trash2, FileText, Eye, User, Phone, MapPin, Shield, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+
+const MEMBERS_PAGE_SIZE = 10
 
 const MAX_MINUTES_SIZE = 10 * 1024 * 1024
 
@@ -41,6 +48,7 @@ function trustReviewStatus(trust: { isVerifiedByDc?: boolean; dcFlagReason?: str
 }
 
 export function TaTrustPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('details')
   const [page, setPage] = useState(0)
   const [showTrustForm, setShowTrustForm] = useState(false)
@@ -49,6 +57,9 @@ export function TaTrustPage() {
   const [showFinancialForm, setShowFinancialForm] = useState(false)
   const [showMeetingForm, setShowMeetingForm] = useState(false)
   const [meetingFile, setMeetingFile] = useState<File | null>(null)
+  const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
+  const [memberPage, setMemberPage] = useState(0)
+  const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
@@ -213,28 +224,62 @@ export function TaTrustPage() {
   }
 
   const reviewStatus = trustReviewStatus(trust)
-  const currentMembers = membersData?.data?.current ?? []
-  const pastMembers = membersData?.data?.past ?? []
+  const allCurrentMembers = membersData?.data?.current ?? []
+  const allPastMembers = membersData?.data?.past ?? []
   const financials = financialsData?.data ?? []
   const meetings = meetingsData?.data?.content ?? []
+
+  // Pagination for members
+  const displayMembers = memberTab === 'current' ? allCurrentMembers : allPastMembers
+  const totalMemberPages = Math.ceil(displayMembers.length / MEMBERS_PAGE_SIZE)
+  const paginatedMembers = displayMembers.slice(
+    memberPage * MEMBERS_PAGE_SIZE,
+    (memberPage + 1) * MEMBERS_PAGE_SIZE
+  )
+
+  const viewingMember = viewingMemberId 
+    ? [...allCurrentMembers, ...allPastMembers].find(m => m.id === viewingMemberId)
+    : null
 
   if (trustLoading) {
     return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Trust Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage trust details, board members, meetings, and annual financials.</p>
-        </div>
-        {!trust && (
-          <Button className="bg-gradient-gold shadow-gold" onClick={() => setShowTrustForm(true)}>
-            Register Trust
-          </Button>
-        )}
-      </div>
+    <div className="space-y-5 pb-10">
+      {/* Modern Header */}
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                <Building2 size={20} className="text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Trust Management</h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Manage trust details, board members, and financial records
+                </p>
+              </div>
+            </div>
+            {!trust && (
+              <Button className="bg-gradient-gold shadow-gold" onClick={() => setShowTrustForm(true)}>
+                <Plus size={16} className="mr-2" />
+                Register Trust
+              </Button>
+            )}
+          </div>
+
+          {trust && (
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <MiniStat label="Trust Status" value={reviewStatus} icon={<Building2 size={14} />} />
+              <MiniStat label="Board Members" value={allCurrentMembers.length} icon={<Users size={14} />} />
+              <MiniStat label="Meetings Recorded" value={meetings.length} icon={<Calendar size={14} />} />
+              <MiniStat label="Financial Statements" value={financials.length} icon={<TrendingUp size={14} />} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {!trust && !showTrustForm ? (
         <EmptyState
@@ -243,103 +288,140 @@ export function TaTrustPage() {
           action={{ label: 'Register Trust', onClick: () => setShowTrustForm(true) }}
         />
       ) : (
-        <Tabs value={tab} onValueChange={(value) => { setTab(value); setPage(0) }}>
-          <TabsList>
-            <TabsTrigger value="details">Trust Details</TabsTrigger>
-            <TabsTrigger value="board" disabled={!trust}>Board Members</TabsTrigger>
-            <TabsTrigger value="meetings" disabled={!trust}>Meetings</TabsTrigger>
-            <TabsTrigger value="financials" disabled={!trust}>Financials</TabsTrigger>
-          </TabsList>
+        <Tabs value={tab} onValueChange={(value) => { setTab(value); setPage(0) }} className="w-full">
+          <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
+            <TabsList className="grid w-full grid-cols-4 gap-1 bg-transparent p-0 lg:w-auto">
+              <TabsTrigger 
+                value="details"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                Trust Details
+              </TabsTrigger>
+              <TabsTrigger 
+                value="board" 
+                disabled={!trust}
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                Board Members
+              </TabsTrigger>
+              <TabsTrigger 
+                value="meetings" 
+                disabled={!trust}
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                Meetings
+              </TabsTrigger>
+              <TabsTrigger 
+                value="financials" 
+                disabled={!trust}
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                Financials
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="details" className="mt-6">
+          <TabsContent value="details" className="mt-5 animate-in fade-in-50 duration-300">
             {showTrustForm || !trust ? (
               <Form {...trustForm}>
-                <form onSubmit={trustForm.handleSubmit(onSaveTrust)} className="space-y-4 rounded-lg border border-border bg-card p-6">
-                  <h2 className="font-semibold text-foreground">{trust ? 'Edit Trust Details' : 'Register Trust'}</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField control={trustForm.control} name="trustName" render={({ field }) => (
-                      <FormItem><FormLabel>Trust Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="trustType" render={({ field }) => (
-                      <FormItem><FormLabel>Trust Type *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {TRUST_TYPES.map((type) => <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="registrationNumber" render={({ field }) => (
-                      <FormItem><FormLabel>Registration Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="dateOfRegistration" render={({ field }) => (
-                      <FormItem><FormLabel>Date of Registration *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="registeringAuthority" render={({ field }) => (
-                      <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="panNumber" render={({ field }) => (
-                      <FormItem><FormLabel>PAN Number *</FormLabel><FormControl><Input {...field} className="uppercase" /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="bankAccountNumber" render={({ field }) => (
-                      <FormItem><FormLabel>Bank Account Number *</FormLabel><FormControl><Input inputMode="numeric" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="bankName" render={({ field }) => (
-                      <FormItem><FormLabel>Bank Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="bankBranch" render={({ field }) => (
-                      <FormItem><FormLabel>Bank Branch *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={trustForm.control} name="annualIncome" render={({ field }) => (
-                      <FormItem><FormLabel>Annual Income</FormLabel><FormControl><Input type="number" min={0} step="0.01" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating || updating}>
-                      {(creating || updating) ? 'Saving...' : trust ? 'Update Trust' : 'Register Trust'}
-                    </Button>
-                    {trust && <Button type="button" variant="outline" onClick={() => setShowTrustForm(false)}>Cancel</Button>}
-                  </div>
+                <form onSubmit={trustForm.handleSubmit(onSaveTrust)} className="space-y-4">
+                  <Card className="border-border/60 bg-card/95 shadow-sm">
+                    <CardContent className="p-5 space-y-4">
+                      <h2 className="font-semibold text-foreground">{trust ? 'Edit Trust Details' : 'Register Trust'}</h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField control={trustForm.control} name="trustName" render={({ field }) => (
+                          <FormItem><FormLabel>Trust Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="trustType" render={({ field }) => (
+                          <FormItem><FormLabel>Trust Type *</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                {TRUST_TYPES.map((type) => <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="registrationNumber" render={({ field }) => (
+                          <FormItem><FormLabel>Registration Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="dateOfRegistration" render={({ field }) => (
+                          <FormItem><FormLabel>Date of Registration *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="registeringAuthority" render={({ field }) => (
+                          <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="panNumber" render={({ field }) => (
+                          <FormItem><FormLabel>PAN Number *</FormLabel><FormControl><Input {...field} className="uppercase" /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="bankAccountNumber" render={({ field }) => (
+                          <FormItem><FormLabel>Bank Account Number *</FormLabel><FormControl><Input inputMode="numeric" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="bankName" render={({ field }) => (
+                          <FormItem><FormLabel>Bank Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="bankBranch" render={({ field }) => (
+                          <FormItem><FormLabel>Bank Branch *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={trustForm.control} name="annualIncome" render={({ field }) => (
+                          <FormItem><FormLabel>Annual Income</FormLabel><FormControl><Input type="number" min={0} step="0.01" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                      </div>
+                      <div className="flex gap-3 pt-2">
+                        <Button type="submit" className="bg-gradient-gold shadow-gold" disabled={creating || updating}>
+                          {(creating || updating) ? 'Saving...' : trust ? 'Update Trust' : 'Register Trust'}
+                        </Button>
+                        {trust && <Button type="button" variant="outline" onClick={() => setShowTrustForm(false)}>Cancel</Button>}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </form>
               </Form>
             ) : (
-              <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="font-semibold text-foreground">{trust.trustName}</h2>
-                    <p className="text-xs text-muted-foreground mt-1">DC review status</p>
+              <Card className="border-border/60 bg-card/95 shadow-sm">
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">{trust.trustName}</h2>
+                      <p className="text-xs text-muted-foreground mt-1">DC review status</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={reviewStatus} />
+                      <Button variant="outline" size="sm" onClick={() => setShowTrustForm(true)}>
+                        <Edit size={14} className="mr-1.5" />
+                        Edit
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={reviewStatus} />
-                    <Button variant="outline" size="sm" onClick={() => setShowTrustForm(true)}>Edit</Button>
+                  {trust.dcFlagReason && (
+                    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+                      <strong>DC feedback:</strong> {trust.dcFlagReason}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <InfoField label="Type" value={trust.trustType?.replace(/_/g, ' ') ?? '—'} />
+                    <InfoField label="Reg. No" value={trust.registrationNumber ?? '—'} />
+                    <InfoField label="Authority" value={trust.registeringAuthority ?? '—'} />
+                    <InfoField label="Date" value={trust.dateOfRegistration ?? '—'} />
+                    <InfoField label="PAN" value={trust.maskedPanNumber ?? '—'} />
+                    <InfoField label="Bank Account" value={trust.maskedBankAccountNumber ?? '—'} />
+                    <InfoField label="Bank" value={trust.bankName ?? '—'} />
+                    <InfoField label="Branch" value={trust.bankBranch ?? '—'} />
+                    <InfoField label="Annual Income" value={formatInr(trust.annualIncome)} />
                   </div>
-                </div>
-                {trust.dcFlagReason && (
-                  <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                    DC feedback: {trust.dcFlagReason}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-muted-foreground">Type:</span> <span className="font-medium">{trust.trustType?.replace(/_/g, ' ')}</span></div>
-                  <div><span className="text-muted-foreground">Reg. No:</span> <span className="font-medium">{trust.registrationNumber}</span></div>
-                  <div><span className="text-muted-foreground">Authority:</span> <span className="font-medium">{trust.registeringAuthority}</span></div>
-                  <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{trust.dateOfRegistration}</span></div>
-                  <div><span className="text-muted-foreground">PAN:</span> <span className="font-medium">{trust.maskedPanNumber ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Bank Account:</span> <span className="font-medium">{trust.maskedBankAccountNumber ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Bank:</span> <span className="font-medium">{trust.bankName ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Branch:</span> <span className="font-medium">{trust.bankBranch ?? '—'}</span></div>
-                  <div><span className="text-muted-foreground">Annual Income:</span> <span className="font-medium">{formatInr(trust.annualIncome)}</span></div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
-          <TabsContent value="board" className="mt-6 space-y-4">
+          <TabsContent value="board" className="mt-5 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Board Members</h2>
-              <Button size="sm" onClick={() => { setShowMemberForm(true); setEditingMemberId(null) }}>+ Add Member</Button>
+              <Button size="sm" onClick={() => { setShowMemberForm(true); setEditingMemberId(null) }}>
+                <Plus size={14} className="mr-1.5" />
+                Add Member
+              </Button>
             </div>
             {showMemberForm && (
               <Form {...memberForm}>
@@ -403,14 +485,157 @@ export function TaTrustPage() {
               </Form>
             )}
             {membersLoading ? <CardSkeleton /> : (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <MemberSection title={`Current Members (${currentMembers.length})`} members={currentMembers} onDelete={onDeleteMember} onEdit={(id) => setEditingMemberId(id)} deleting={deletingMember} />
-                <MemberSection title={`Past Members (${pastMembers.length})`} members={pastMembers} onDelete={onDeleteMember} onEdit={(id) => setEditingMemberId(id)} deleting={deletingMember} />
-              </div>
+              <>
+                {/* Member Type Tabs */}
+                <div className="inline-flex rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm">
+                  <button
+                    onClick={() => { setMemberTab('current'); setMemberPage(0) }}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                      memberTab === 'current'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Current Members ({allCurrentMembers.length})
+                  </button>
+                  <button
+                    onClick={() => { setMemberTab('past'); setMemberPage(0) }}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                      memberTab === 'past'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Past Members ({allPastMembers.length})
+                  </button>
+                </div>
+
+                {/* Members Table */}
+                <div className="animate-in fade-in-50 duration-300" key={memberTab}>
+                  <MemberTable 
+                    members={paginatedMembers} 
+                    onDelete={onDeleteMember} 
+                    onEdit={(id) => setEditingMemberId(id)} 
+                    deleting={deletingMember}
+                    onView={(id) => setViewingMemberId(id)}
+                  />
+                </div>
+
+                {/* Pagination */}
+                {totalMemberPages > 1 && (
+                  <div className="flex items-center justify-between rounded-lg border border-border/60 bg-card/95 px-4 py-3 shadow-sm">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {memberPage * MEMBERS_PAGE_SIZE + 1} to {Math.min((memberPage + 1) * MEMBERS_PAGE_SIZE, displayMembers.length)} of {displayMembers.length} members
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMemberPage(p => Math.max(0, p - 1))}
+                        disabled={memberPage === 0}
+                      >
+                        <ChevronLeft size={16} className="mr-1" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMemberPage(p => Math.min(totalMemberPages - 1, p + 1))}
+                        disabled={memberPage >= totalMemberPages - 1}
+                      >
+                        Next
+                        <ChevronRight size={16} className="ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 
-          <TabsContent value="meetings" className="mt-6 space-y-4">
+          {/* Member Detail Modal */}
+          <Dialog open={viewingMemberId !== null} onOpenChange={(open) => !open && setViewingMemberId(null)}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              {viewingMember && (
+                <div className="space-y-5">
+                  {/* Gradient Header */}
+                  <div className="overflow-hidden rounded-lg border border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm -m-6 mb-0 p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="flex items-start gap-3 flex-1 min-w-0 pr-4">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                          <User size={20} className="text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <h3 className="text-xl font-semibold text-foreground truncate pr-2">{viewingMember.fullName}</h3>
+                          <p className="text-sm text-muted-foreground mt-0.5 truncate pr-2">{viewingMember.designation ?? 'No designation'}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0 ml-auto">
+                        {/* <StatusBadge status={viewingMember.isVerifiedByDc ? 'APPROVED' : viewingMember.dcFlagReason ? 'FLAGGED' : 'PENDING'} /> */}
+                        {viewingMember.isCurrent ? (
+                          <span className="inline-flex items-center mr-5 gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600 whitespace-nowrap">
+                            <CheckCircle2 size={12} />
+                            Current
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2.5 py-0.5 text-xs font-medium text-gray-600 whitespace-nowrap">
+                            Past
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DC Feedback if flagged */}
+                  {viewingMember.dcFlagReason && (
+                    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
+                      <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-destructive">DC Feedback</p>
+                        <p className="text-sm text-destructive/90 mt-1">{viewingMember.dcFlagReason}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personal Information */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <User size={16} className="text-primary" />
+                      Personal Information
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <ModalInfoCard icon={<User size={16} />} label="Designation" value={viewingMember.designation ?? 'Not specified'} />
+                      <ModalInfoCard icon={<Shield size={16} />} label="Aadhaar Number" value={viewingMember.maskedAadhaar ?? 'Not provided'} />
+                      <ModalInfoCard icon={<Phone size={16} />} label="Contact Number" value={viewingMember.contactNumber ?? 'Not provided'} />
+                      <ModalInfoCard icon={<MapPin size={16} />} label="Address" value={viewingMember.address ?? 'Not provided'} className="sm:col-span-3" />
+                    </div>
+                  </div>
+
+                  {/* Tenure Information */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <Calendar size={16} className="text-primary" />
+                      Tenure Information
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <ModalInfoCard 
+                        icon={<Calendar size={16} />} 
+                        label="Appointment Date" 
+                        value={viewingMember.appointmentDate ? new Date(viewingMember.appointmentDate).toLocaleDateString('en-IN') : 'Not specified'} 
+                      />
+                      <ModalInfoCard 
+                        icon={<Calendar size={16} />} 
+                        label="Tenure End Date" 
+                        value={viewingMember.tenureEndDate ? new Date(viewingMember.tenureEndDate).toLocaleDateString('en-IN') : 'Not specified'} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          <TabsContent value="meetings" className="mt-6 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Board Meetings</h2>
               <Button size="sm" onClick={() => setShowMeetingForm(true)}>+ Record Meeting</Button>
@@ -457,7 +682,7 @@ export function TaTrustPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="financials" className="mt-6 space-y-4">
+          <TabsContent value="financials" className="mt-6 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Financial Statements</h2>
               <Button size="sm" onClick={() => setShowFinancialForm(true)}>+ Submit Statement</Button>
@@ -518,14 +743,13 @@ export function TaTrustPage() {
   )
 }
 
-function MemberSection({
-  title,
+function MemberTable({
   members,
   onDelete,
   onEdit,
+  onView,
   deleting,
 }: {
-  title: string
   members: Array<{
     id: number
     fullName: string
@@ -536,44 +760,126 @@ function MemberSection({
     address?: string
     isVerifiedByDc?: boolean
     dcFlagReason?: string | null
+    isCurrent: boolean
   }>
   onDelete: (memberId: number) => Promise<void>
   onEdit: (memberId: number) => void
+  onView: (memberId: number) => void
   deleting: boolean
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="border-b border-border px-4 py-3 font-semibold">{title}</div>
+    <Card className="overflow-hidden border-border/60 bg-card/95 shadow-sm">
       {members.length === 0 ? (
-        <div className="p-4 text-sm text-muted-foreground">No records available.</div>
+        <div className="p-8 text-sm text-muted-foreground text-center">No members found</div>
       ) : (
-        <div className="divide-y divide-border">
-          {members.map((member) => (
-            <div key={member.id} className="p-4 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{member.fullName}</p>
-                  <p className="text-sm text-muted-foreground">{member.designation ?? '—'}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(member.id)}>Edit</Button>
-                  <Button variant="ghost" size="sm" disabled={deleting} onClick={() => void onDelete(member.id)}>Delete</Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">Appointment:</span> {member.appointmentDate ?? '—'}</div>
-                <div><span className="text-muted-foreground">Aadhaar:</span> {member.maskedAadhaar ?? '—'}</div>
-                <div><span className="text-muted-foreground">Contact:</span> {member.contactNumber ?? '—'}</div>
-                <div><span className="text-muted-foreground">Address:</span> {member.address ?? '—'}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={member.isVerifiedByDc ? 'APPROVED' : member.dcFlagReason ? 'FLAGGED' : 'PENDING'} />
-                {member.dcFlagReason && <span className="text-xs text-destructive">{member.dcFlagReason}</span>}
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/20 border-b border-border">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Name</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Designation</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Appointment</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Contact</th>
+                <th className="px-4 py-3 text-center font-semibold text-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {members.map((member) => {
+                return (
+                  <tr key={member.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-foreground">{member.fullName}</div>
+                      {member.maskedAadhaar && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{member.maskedAadhaar}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{member.designation ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {member.appointmentDate ? new Date(member.appointmentDate).toLocaleDateString('en-IN') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{member.contactNumber ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => onView(member.id)}
+                          className="h-8 w-8 p-0"
+                          title="View details"
+                        >
+                          <Eye size={14} />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => onEdit(member.id)}
+                          className="h-8 w-8 p-0"
+                          title="Edit member"
+                        >
+                          <Edit size={14} />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          disabled={deleting} 
+                          onClick={() => void onDelete(member.id)}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          title="Delete member"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
+    </Card>
+  )
+}
+
+function ModalInfoCard({ 
+  icon, 
+  label, 
+  value, 
+  className = '' 
+}: { 
+  icon: React.ReactNode
+  label: string
+  value: string
+  className?: string 
+}) {
+  return (
+    <div className={`rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 p-4 shadow-sm ${className}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-primary/70">{icon}</div>
+        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      </div>
+      <div className="text-sm font-semibold text-foreground break-words">{value}</div>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-primary/70">{icon}</div>
+      </div>
+      <div className="mt-1.5 text-base font-semibold text-foreground">{value}</div>
+    </div>
+  )
+}
+
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-gradient-to-br from-background/60 to-muted/20 px-3 py-2">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-xs font-semibold text-foreground">{value}</div>
     </div>
   )
 }

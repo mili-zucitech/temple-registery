@@ -14,15 +14,8 @@ import type {
   CurrentUser,
 } from './authTypes'
 import type {
-  RegisterInitRequest,
-  RegisterInitResponse,
-  VerifyAadhaarRequest,
-  VerifyAadhaarResponse,
   CreateAccountRequest,
   CreateAccountResponse,
-  MfaSetupRequest,
-  MfaSetupVerifyRequest,
-  MfaSetupVerifyResponse,
 } from './register/registerTypes'
 import type { ApiResponse } from '@/types'
 
@@ -68,24 +61,8 @@ export const authApi = createApi({
     }),
 
     // ── Registration flow ────────────────────────────────────────────────────
-    registerInit: builder.mutation<ApiResponse<RegisterInitResponse>, RegisterInitRequest>({
-      query: (body) => ({ url: '/auth/register/init', method: 'POST', body }),
-    }),
-
-    verifyAadhaar: builder.mutation<ApiResponse<VerifyAadhaarResponse>, VerifyAadhaarRequest>({
-      query: (body) => ({ url: '/auth/register/verify-aadhaar', method: 'POST', body }),
-    }),
-
     registerCreate: builder.mutation<ApiResponse<CreateAccountResponse>, CreateAccountRequest>({
       query: (body) => ({ url: '/auth/register/create', method: 'POST', body }),
-    }),
-
-    mfaSetup: builder.mutation<ApiResponse<void>, MfaSetupRequest>({
-      query: (body) => ({ url: '/auth/mfa/setup', method: 'POST', body }),
-    }),
-
-    mfaSetupVerify: builder.mutation<ApiResponse<MfaSetupVerifyResponse>, MfaSetupVerifyRequest>({
-      query: (body) => ({ url: '/auth/mfa/verify', method: 'POST', body }),
     }),
   }),
   tagTypes: ['CurrentUser'],
@@ -101,9 +78,5 @@ export const {
   useAadhaarOtpVerifyMutation,
   useRegisterMutation,
   useGetCurrentUserQuery,
-  useRegisterInitMutation,
-  useVerifyAadhaarMutation,
   useRegisterCreateMutation,
-  useMfaSetupMutation,
-  useMfaSetupVerifyMutation,
 } = authApi
