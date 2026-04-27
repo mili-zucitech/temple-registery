@@ -81,6 +81,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional
@@ -109,6 +110,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
             saveClarification(declarationId, request.getRemarks(), null, null, claims.userId(),
                     ClarificationDirection.DC_TO_TEMPLE);
         }
+
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyDeclarationApproved(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId());
 
         notificationPublisher.publish(
                 d.getSubmittedBy(), "DECLARATION_APPROVED", declarationId, "ASSET_DECLARATION");
@@ -151,6 +155,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         saveClarification(declarationId, request.getRemarks(), null, null, claims.userId(),
                 ClarificationDirection.DC_TO_TEMPLE);
+
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyDeclarationRejected(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), request.getRemarks());
 
         notificationPublisher.publish(
                 d.getSubmittedBy(), "DECLARATION_REJECTED", declarationId, "ASSET_DECLARATION");
@@ -197,6 +204,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         saveClarification(declarationId, request.getMessage(), request.getSectionName(),
                 request.getFieldNames(), claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
 
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyDeclarationFlagged(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), request.getMessage());
+
         notificationPublisher.publish(
                 d.getSubmittedBy(), "CLARIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
 
@@ -241,6 +251,9 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         saveClarification(declarationId, request.getMessage(), request.getSectionName(),
                 request.getFieldNames(), claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
+
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyDeclarationMarkedForPhysicalVisit(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), null);
 
         notificationPublisher.publish(
                 d.getSubmittedBy(), "PHYSICAL_VERIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");

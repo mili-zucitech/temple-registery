@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">Notification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .priority-LOW { background-color: #e3f2fd; color: #1976d2; }
+        .priority-MEDIUM { background-color: #fff3e0; color: #f57c00; }
+        .priority-HIGH { background-color: #ffe0b2; color: #e65100; }
+        .priority-CRITICAL { background-color: #ffebee; color: #c62828; }
+        .content {
+            padding: 30px 20px;
+        }
+        .message {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .action-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #667eea;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+            transition: background-color 0.3s;
+        }
+        .action-button:hover {
+            background-color: #5568d3;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 th:text="${title}">Notification</h1>
+            <span th:class="'priority-badge priority-' + ${priority}" th:text="${priority}">MEDIUM</span>
+        </div>
+        
+        <div class="content">
+            <p>Dear User,</p>
+            
+            <div class="message">
+                <p th:text="${body}">Notification message goes here.</p>
+            </div>
+            
+            <div style="text-align: center;">
+                <a th:href="${actionUrl}" class="action-button">View Details</a>
+            </div>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+                This is an automated notification from the Temple Registry System. 
+                Please log in to your account to view full details and take necessary action.
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Temple Registry System</strong></p>
+            <p>Government of India | Department of Religious Affairs</p>
+            <p th:text="'© ' + ${year} + ' Temple Registry. All rights reserved.'">© 2024 Temple Registry. All rights reserved.</p>
+            <p style="margin-top: 10px;">
+                <a href="#" style="color: #667eea; text-decoration: none;">Privacy Policy</a> | 
+                <a href="#" style="color: #667eea; text-decoration: none;">Terms of Service</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -46,4 +46,8 @@ export const ROUTE_PATHS = {
   AUDITOR_TEMPLE_DETAIL: '/auditor/temples/:templeId',
   AUDITOR_DECLARATIONS: '/auditor/declarations',
   AUDITOR_DECLARATION_DETAIL: '/auditor/declarations/:id',
+
+  // Notifications (all authenticated users)
+  NOTIFICATIONS: '/notifications',
+  NOTIFICATION_PREFERENCES: '/notifications/preferences',
 } as const

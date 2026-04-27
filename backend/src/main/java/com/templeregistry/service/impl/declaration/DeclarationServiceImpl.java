@@ -122,6 +122,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final SnapshotService snapshotService;
     private final DeclarationAuditLogService declarationAuditLogService;
     private final StateTransitionValidator stateTransitionValidator;
+    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional(readOnly = true)
@@ -269,6 +270,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         declarationRepository.save(declaration);
 
         snapshotService.capture(declaration, currentUserId());
+
+        // Send notification to all DCs in this district
+        notificationHelper.notifyDeclarationSubmitted(declaration.getId(), declaration.getTempleId(), declaration.getFinancialYear(), currentUserId());
 
         notifyDistrictReviewers(declaration, "DECLARATION_SUBMITTED");
         declarationAuditLogService.log(declaration.getId(), AuditActionType.SUBMIT, currentUserId(), currentRole(), null);

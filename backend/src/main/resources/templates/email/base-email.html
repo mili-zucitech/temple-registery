@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">Temple Registry Notification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .email-body {
+            padding: 30px 20px;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+        .priority-LOW { background-color: #e2e8f0; color: #475569; }
+        .priority-MEDIUM { background-color: #dbeafe; color: #1e40af; }
+        .priority-HIGH { background-color: #fed7aa; color: #c2410c; }
+        .priority-CRITICAL { background-color: #fecaca; color: #991b1b; }
+        .notification-content {
+            background-color: #f8fafc;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .notification-content p {
+            margin: 0 0 10px 0;
+        }
+        .action-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #667eea;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        .action-button:hover {
+            background-color: #5568d3;
+        }
+        .email-footer {
+            background-color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+        }
+        .timestamp {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>🕉️ Temple Registry & Management Portal</h1>
+        </div>
+        <div class="email-body">
+            <span th:class="'priority-badge priority-' + ${priority}" th:text="${priority}">MEDIUM</span>
+            <h2 th:text="${title}">Notification Title</h2>
+            <div class="notification-content">
+                <p th:text="${body}">Notification body content goes here.</p>
+            </div>
+            <a th:href="${actionUrl}" class="action-button">View Details</a>
+            <p class="timestamp">
+                <strong>Time:</strong> <span th:text="${timestamp}">24 Apr 2026, 10:30 AM</span>
+            </p>
+        </div>
+        <div class="email-footer">
+            <p>This is an automated notification from the Temple Registry & Management Portal.</p>
+            <p>Please do not reply to this email. For support, contact your District Collector office.</p>
+            <p>&copy; 2026 Temple Registry System. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
