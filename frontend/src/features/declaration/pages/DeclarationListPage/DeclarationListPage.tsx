@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FileText, Filter, Plus, Sparkles, ArrowUpRight, Clock3, AlertTriangle, BadgeCheck, LayoutGrid, FileCheck2, Info } from 'lucide-react'
+import { FileText, Filter, Plus, Sparkles, ArrowUpRight, Clock, Clock3, AlertTriangle, BadgeCheck, LayoutGrid, FileCheck2, Info } from 'lucide-react'
 import { useListAllDeclarationsQuery, useListDeclarationsQuery } from '../../declarationApi'
 import { DECLARATION_STATUSES, type DeclarationResponse } from '../../declarationTypes'
 import { getAvailableActions } from '../../declarationPermissions'
@@ -264,6 +264,12 @@ function DeclarationCard({
                 <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-800">
                   <AlertTriangle size={10} />
                   Overdue
+                </span>
+              )}
+              {isTA && declaration.status === 'CLARIFICATION_REQUIRED' && (
+                <span className="inline-flex items-center gap-1 rounded-sm border border-orange-300 bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-800 uppercase tracking-label">
+                  <Clock size={10} aria-hidden />
+                  ACTION REQ.
                 </span>
               )}
             </div>

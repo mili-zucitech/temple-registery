@@ -1,23 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import {
   useGetDeclarationDiffQuery,
   useGetDeclarationQuery,
   useGetDeclarationVersionsQuery,
 } from '../../declarationApi'
-import {
-  resubmitDeclarationSchema,
-  type CompleteDeclarationResponse,
-  type ResubmitDeclarationRequest,
-} from '../../declarationTypes'
 import { getAvailableActions } from '../../declarationPermissions'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useAppSelector } from '@/app/store'
 import { USER_ROLES } from '@/constants/roles'
-import { DeclarationHeader, ClarificationAlert } from './components'
+import { DeclarationHeader } from './components'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -65,17 +59,6 @@ export function TaDeclarationDetailPage() {
     }
   }, [compareVersion, versions])
 
-  const form = useForm<ResubmitDeclarationRequest>({
-    resolver: zodResolver(resubmitDeclarationSchema),
-    defaultValues: emptyValues,
-  })
-
-  useEffect(() => {
-    if (declaration) {
-      form.reset(mapDeclarationToRequest(declaration))
-    }
-  }, [declaration, form])
-
   const role = useAppSelector((state) => state.auth.currentUser?.role)
   const actions = declaration
     ? getAvailableActions(declaration.status, role ?? USER_ROLES.TEMPLE_AUTHORITY)
@@ -104,7 +87,6 @@ export function TaDeclarationDetailPage() {
   return (
     <div className="space-y-5 pb-10">
       <DeclarationHeader declaration={declaration} versions={versions} />
-      <ClarificationAlert status={declaration.status} />
 
       <Tabs defaultValue="overview" className="w-full">
         <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
@@ -143,6 +125,8 @@ export function TaDeclarationDetailPage() {
               versions={versions}
               activeVersion={activeVersion}
               onVersionSelect={setCompareVersion}
+              declarationId={declaration.id}
+              declarationStatus={declaration.status}
             />
           </Suspense>
         </TabsContent>

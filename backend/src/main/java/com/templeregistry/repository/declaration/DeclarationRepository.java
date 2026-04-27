@@ -19,6 +19,13 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
 
     Page<AssetDeclaration> findAllByTempleId(Long templeId, Pageable pageable);
 
+    /**
+     * Temple-scoped paginated list excluding DRAFT declarations.
+     * Used by DC-facing temple profile view — DCs should not see TA workspace drafts.
+     */
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.templeId = :templeId AND d.status != 'DRAFT'")
+    Page<AssetDeclaration> findAllByTempleIdExcludingDraft(Long templeId, Pageable pageable);
+
     @Query("SELECT d FROM AssetDeclaration d WHERE d.status = 'SUBMITTED' AND d.dueDate < :today")
     List<AssetDeclaration> findOverdue(LocalDate today);
 
@@ -50,6 +57,19 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
      * districtId = null means SUPER_ADMIN (handled by Specification layer).
      */
     Page<AssetDeclaration> findAllByDistrictId(Long districtId, Pageable pageable);
+
+    /**
+     * District-scoped paginated list excluding DRAFT declarations.
+     * Used by DC-facing list endpoint — DCs should not see TA workspace drafts.
+     */
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.districtId = :districtId AND d.status != 'DRAFT'")
+    Page<AssetDeclaration> findAllByDistrictIdExcludingDraft(Long districtId, Pageable pageable);
+
+    /**
+     * SA: all declarations excluding DRAFT.
+     */
+    @Query("SELECT d FROM AssetDeclaration d WHERE d.status != 'DRAFT'")
+    Page<AssetDeclaration> findAllExcludingDraft(Pageable pageable);
 
     /**
      * SUPER_ADMIN: all declarations filtered by status only, no district

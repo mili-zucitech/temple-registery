@@ -3,6 +3,7 @@ import { baseQueryWithReauth } from '../../services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   AcknowledgementResponse,
+  ChatMessage,
   ClarificationRequest,
   ClarificationRespondRequest,
   CompleteDeclarationResponse,
@@ -106,6 +107,10 @@ export const declarationApi = createApi({
       }),
       providesTags: (_r, _e, { id }) => [{ type: 'Declaration', id: `diff-${id}` }],
     }),
+    getConversation: builder.query<ApiResponse<ChatMessage[]>, number>({
+      query: (id) => `/declarations/${id}/conversation`,
+      providesTags: (_r, _e, id) => [{ type: 'Declaration', id: `conversation-${id}` }],
+    }),
   }),
 })
 
@@ -128,4 +133,5 @@ export const {
   useFailSiteVisitMutation,
   useGetAcknowledgementQuery,
   useGetDeclarationDiffQuery,
+  useGetConversationQuery,
 } = declarationApi
