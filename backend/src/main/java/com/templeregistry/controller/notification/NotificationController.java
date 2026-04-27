@@ -63,6 +63,7 @@ public class NotificationController {
     private NotificationResponse toResponse(InAppNotification n) {
         return NotificationResponse.builder()
                 .id(n.getId()).title(n.getTitle()).body(n.getBody())
+                .priority(n.getPriority()).category(n.getCategory()).actionUrl(n.getActionUrl())
                 .referenceType(n.getReferenceType()).referenceId(n.getReferenceId())
                 .read(n.isRead()).readAt(n.getReadAt()).createdAt(n.getCreatedAt()).build();
     }
