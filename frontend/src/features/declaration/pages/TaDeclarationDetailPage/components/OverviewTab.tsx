@@ -5,15 +5,18 @@ import { cn } from '@/lib/utils'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { Building2, Landmark, Coins, TrendingUp, FileText, Calendar } from 'lucide-react'
 import type { CompleteDeclarationResponse, DeclarationStatus, DeclarationVersionResponse } from '../../../declarationTypes'
+import { ChatPanel } from '@/features/declaration/components/ChatPanel'
 
 interface OverviewTabProps {
   declaration: CompleteDeclarationResponse
   versions: DeclarationVersionResponse[]
   activeVersion?: DeclarationVersionResponse
   onVersionSelect: (versionNumber: number) => void
+  declarationId: number
+  declarationStatus: DeclarationStatus
 }
 
-export function OverviewTab({ declaration, versions, activeVersion, onVersionSelect }: OverviewTabProps) {
+export function OverviewTab({ declaration, versions, activeVersion, onVersionSelect, declarationId, declarationStatus }: OverviewTabProps) {
   // Prepare data for charts
   const assetDistribution = [
     { name: 'Agricultural Land', value: declaration.agriculturalLands.length, color: '#10b981' },
@@ -189,6 +192,13 @@ export function OverviewTab({ declaration, versions, activeVersion, onVersionSel
           )}
         </CardContent>
       </Card>
+
+      {/* Unified Chat Panel */}
+      <ChatPanel
+        declarationId={declarationId}
+        declarationStatus={declarationStatus}
+        readonly={false}
+      />
     </div>
   )
 }

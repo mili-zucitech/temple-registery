@@ -70,6 +70,10 @@ class RegistrationServiceImplTest {
                 t.getDistrictId() != null));
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // createAccount — duplicate username
+    // ────────────────────────────────────────────────────────────────────────
+
     @Test
     void should_throwDuplicateResourceException_when_usernameExists() {
         CreateAccountRequest request = mockCreateRequest();
@@ -79,6 +83,10 @@ class RegistrationServiceImplTest {
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessageContaining("Username");
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // createAccount — duplicate email
+    // ────────────────────────────────────────────────────────────────────────
 
     @Test
     void should_throwDuplicateResourceException_when_emailExists() {
@@ -90,6 +98,10 @@ class RegistrationServiceImplTest {
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessageContaining("Email");
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // createAccount — hobli not found
+    // ────────────────────────────────────────────────────────────────────────
 
     @Test
     void should_throwEntityNotFoundException_when_hobliNotFound() {
@@ -115,6 +127,7 @@ class RegistrationServiceImplTest {
         when(r.getPassword()).thenReturn("Secure@Pass1");
         when(r.getFullName()).thenReturn("Test Authority");
         when(r.getMobile()).thenReturn("9876543210");
+        when(r.getAadhaar()).thenReturn("123412341234");
 
         TempleRegistrationRequest templeReq = mock(TempleRegistrationRequest.class);
         when(templeReq.getHobliId()).thenReturn(1L);

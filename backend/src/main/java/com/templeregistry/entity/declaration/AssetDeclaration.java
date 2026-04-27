@@ -44,7 +44,7 @@ public class AssetDeclaration extends BaseEntity {
     private int versionNumber = 1;
 
     @Builder.Default
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = DeclarationStatusConverter.class)
     @Column(name = "status", nullable = false, length = 40) private DeclarationStatus status = DeclarationStatus.DRAFT;
 
     // Immovable Assets
