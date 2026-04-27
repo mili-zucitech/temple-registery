@@ -40,6 +40,7 @@ import com.templeregistry.service.trust.TrustValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -161,9 +162,10 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .findAllByTempleId(templeId, PageRequest.of(0, 100))
                                 .stream().map(this::toContractorResponse).toList();
 
-                // Declarations (most recent 10)
+                // Declarations (most recent 10, excluding DRAFT — DCs should not see TA workspace drafts)
                 List<DeclarationResponse> declarations = declarationRepository
-                                .findAllByTempleId(templeId, PageRequest.of(0, 10))
+                                .findAllByTempleIdExcludingDraft(templeId, PageRequest.of(0, 10,
+                                        Sort.by(Sort.Order.desc("submittedAt"), Sort.Order.desc("versionNumber"), Sort.Order.desc("id"))))
                                 .stream().map(this::toDeclarationResponse).toList();
 
                 // Current approved profile

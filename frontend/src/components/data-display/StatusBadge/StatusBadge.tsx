@@ -34,9 +34,14 @@ interface StatusBadgeProps {
   className?: string
 }
 
+const LABEL_OVERRIDES: Partial<Record<string, string>> = {
+  SITE_VISIT_SCHEDULED: 'Site Visit Scheduled',
+  SITE_VISIT_COMPLETED: 'Site Visit Done',
+}
+
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const classes = VARIANT_CLASSES[status] ?? 'bg-muted text-muted-foreground border-border'
-  const label = status.replace(/_/g, ' ')
+  const label = LABEL_OVERRIDES[status] ?? status.replace(/_/g, ' ')
 
   return (
     <span

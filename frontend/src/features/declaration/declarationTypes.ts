@@ -322,3 +322,15 @@ export interface ClarificationThreadItem {
 }
 
 export type CompleteDeclarationRequest = CreateDeclarationRequest
+
+export type ChatMessageType = 'CLARIFICATION' | 'RESPONSE' | 'SITE_VISIT'
+export type ChatActor = 'DC' | 'TA'
+
+export interface ChatMessage {
+  id: string
+  type: ChatMessageType
+  actor: ChatActor
+  message: string
+  timestamp: string   // ISO-8601
+  metadata: string | null
+}
