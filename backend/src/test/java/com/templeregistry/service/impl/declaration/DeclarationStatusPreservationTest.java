@@ -89,7 +89,8 @@ class DeclarationStatusPreservationTest {
                 Mockito.mock(com.templeregistry.service.governance.GovernanceEditGuard.class),
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
-                Mockito.mock(com.templeregistry.service.declaration.StateTransitionValidator.class)
+                Mockito.mock(com.templeregistry.service.declaration.StateTransitionValidator.class),
+                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class)
         );
 
         // Mock security context so @PreAuthorize doesn't interfere
