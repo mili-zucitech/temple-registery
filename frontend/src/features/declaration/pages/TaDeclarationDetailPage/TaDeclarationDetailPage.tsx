@@ -107,7 +107,6 @@ export function TaDeclarationDetailPage() {
   return (
     <div className="space-y-5 pb-10">
       <DeclarationHeader declaration={declaration} versions={versions} />
-      <ClarificationAlert status={declaration.status} />
 
       <Tabs defaultValue="overview" className="w-full">
         <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
@@ -146,6 +145,8 @@ export function TaDeclarationDetailPage() {
               versions={versions}
               activeVersion={activeVersion}
               onVersionSelect={setCompareVersion}
+              declarationId={declaration.id}
+              declarationStatus={declaration.status}
             />
           </Suspense>
         </TabsContent>

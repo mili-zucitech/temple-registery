@@ -92,7 +92,7 @@ exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <Declara
     <span
       class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
     >
-      SITE VISIT COMPLETED
+      Site Visit Done
     </span>
   </span>
 </div>
@@ -106,7 +106,7 @@ exports[`DeclarationStatusBadge snapshots — isOverdue=false > renders <Declara
     <span
       class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
     >
-      SITE VISIT SCHEDULED
+      Site Visit Scheduled
     </span>
   </span>
 </div>
@@ -290,7 +290,7 @@ exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <Declarat
     <span
       class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
     >
-      SITE VISIT COMPLETED
+      Site Visit Done
     </span>
     <span
       class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
@@ -309,7 +309,7 @@ exports[`DeclarationStatusBadge snapshots — isOverdue=true > renders <Declarat
     <span
       class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
     >
-      SITE VISIT SCHEDULED
+      Site Visit Scheduled
     </span>
     <span
       class="inline-flex items-center rounded-sm border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium uppercase tracking-label text-red-800"
@@ -461,7 +461,7 @@ exports[`StatusBadge snapshots — all 12 declaration statuses > renders <Status
   <span
     class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-indigo-100 text-indigo-800 border-indigo-200"
   >
-    SITE VISIT COMPLETED
+    Site Visit Done
   </span>
 </div>
 `;
@@ -471,7 +471,7 @@ exports[`StatusBadge snapshots — all 12 declaration statuses > renders <Status
   <span
     class="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium uppercase tracking-label bg-purple-100 text-purple-800 border-purple-200"
   >
-    SITE VISIT SCHEDULED
+    Site Visit Scheduled
   </span>
 </div>
 `;
