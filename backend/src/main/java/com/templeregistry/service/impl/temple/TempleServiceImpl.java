@@ -53,6 +53,7 @@ public class TempleServiceImpl implements TempleService {
     private final JurisdictionGuard jurisdictionGuard;
     private final OwnershipGuard ownershipGuard;
     private final TempleSearchSummaryService summaryService;
+    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional(readOnly = true)
@@ -99,6 +100,10 @@ public class TempleServiceImpl implements TempleService {
         Temple temple = templeMapper.fromCreateRequest(request);
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(saved.getId());
+        
+        // Send notification to all DCs in this district
+        notificationHelper.notifyTempleCreated(saved.getId(), saved.getCreatedBy());
+        
         log.info("Temple created: id=[{}], reg=[{}]", saved.getId(), saved.getRegistrationNumber());
         return templeMapper.toTempleResponse(saved);
     }
@@ -169,6 +174,10 @@ public class TempleServiceImpl implements TempleService {
         applyUpdates(temple, request);
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(saved.getId());
+        
+        // Send notification to all DCs in this district
+        notificationHelper.notifyTempleUpdated(saved.getId(), saved.getUpdatedBy());
+        
         log.info("Temple updated: id=[{}]", saved.getId());
         return templeMapper.toTempleResponse(saved);
     }

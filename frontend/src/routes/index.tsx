@@ -38,6 +38,8 @@ const TaDocumentsPage = lazy(() => import('@/features/document/pages/TaDocuments
 const TaDeclarationDetailPage = lazy(() => import('@/features/declaration/pages/TaDeclarationDetailPage/TaDeclarationDetailPage').then(m => ({ default: m.TaDeclarationDetailPage })))
 const TaProfileStatusPage = lazy(() => import('@/features/dashboard/pages/TaProfileStatusPage/TaProfileStatusPage').then(m => ({ default: m.TaProfileStatusPage })))
 const TaActivityPage = lazy(() => import('@/features/dashboard/pages/TaActivityPage/TaActivityPage').then(m => ({ default: m.TaActivityPage })))
+const NotificationInboxPage = lazy(() => import('@/features/notification/pages/NotificationInboxPage').then(m => ({ default: m.NotificationInboxPage })))
+const NotificationPreferencesPage = lazy(() => import('@/features/notification/pages/NotificationPreferencesPage').then(m => ({ default: m.NotificationPreferencesPage })))
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -114,6 +116,13 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationDetailPage /></Suspense> },
+            ],
+          },
+          // Notifications (all authenticated users)
+          {
+            children: [
+              { path: ROUTE_PATHS.NOTIFICATIONS, element: <Suspense fallback={<PageLoader />}><NotificationInboxPage /></Suspense> },
+              { path: ROUTE_PATHS.NOTIFICATION_PREFERENCES, element: <Suspense fallback={<PageLoader />}><NotificationPreferencesPage /></Suspense> },
             ],
           },
         ],

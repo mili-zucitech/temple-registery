@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Email</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f4f4f4;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        h1 {
+            color: #667eea;
+        }
+        .message {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕉️ Temple Registry System - Test Email</h1>
+        <div class="message">
+            <p th:text="${message}">Test message</p>
+            <p><strong>Timestamp:</strong> <span th:text="${timestamp}">2026-04-24</span></p>
+        </div>
+        <div class="footer">
+            <p>If you received this email, your SMTP configuration is working correctly!</p>
+            <p>&copy; 2026 Temple Registry & Management Portal</p>
+        </div>
+    </div>
+</body>
+</html>

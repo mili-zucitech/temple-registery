@@ -1,7 +1,6 @@
-import { Bell, Menu } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Menu } from 'lucide-react'
 import { useAppSelector } from '@/app/store'
-import { useListNotificationsQuery } from '@/features/notification/notificationApi'
+import { NotificationBell } from '@/features/notification/components/NotificationBell'
 
 interface TopBarProps {
   title?: string
@@ -10,8 +9,6 @@ interface TopBarProps {
 
 export function TopBar({ title, onMenuClick }: TopBarProps) {
   const currentUser = useAppSelector((s) => s.auth.currentUser)
-  const { data } = useListNotificationsQuery({ size: 1 })
-  const unreadCount = data?.data?.totalElements ?? 0
   
   // Don't show redundant title for dashboard
   const displayTitle = title === 'Dashboard' ? '' : title
@@ -34,15 +31,8 @@ export function TopBar({ title, onMenuClick }: TopBarProps) {
         )}
       </div>
       <div className="flex items-center gap-3">
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative hover:bg-muted/50 transition-colors">
-          <Bell size={18} className="text-muted-foreground hover:text-foreground transition-colors" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm animate-in zoom-in duration-300">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Button>
+        {/* Notification bell with dropdown */}
+        <NotificationBell />
 
         {/* User profile / Avatar */}
         {currentUser && (
