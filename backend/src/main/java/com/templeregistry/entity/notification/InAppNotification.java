@@ -30,6 +30,15 @@ public class InAppNotification {
     @Column(name = "body", nullable = false, columnDefinition = "TEXT")
     private String body;
 
+    @Column(name = "priority", length = 20)
+    private String priority;  // LOW, MEDIUM, HIGH, CRITICAL
+
+    @Column(name = "category", length = 30)
+    private String category;  // SUBMISSION, APPROVAL, REJECTION, etc.
+
+    @Column(name = "action_url", length = 255)
+    private String actionUrl;
+
     @Column(name = "reference_id")
     private Long referenceId;
 

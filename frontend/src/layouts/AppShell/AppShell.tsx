@@ -25,6 +25,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/auditor/dashboard': 'Dashboard',
   '/auditor/temples': 'Temples',
   '/auditor/declarations': 'Declarations',
+  '/notifications': 'Notifications',
+  '/notifications/preferences': 'Notification Preferences',
 }
 
 export function AppShell() {

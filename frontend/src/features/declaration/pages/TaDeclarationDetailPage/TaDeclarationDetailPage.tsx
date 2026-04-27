@@ -1,17 +1,21 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   useGetDeclarationDiffQuery,
   useGetDeclarationQuery,
   useGetDeclarationVersionsQuery,
 } from '../../declarationApi'
-import { getAvailableActions } from '../../declarationPermissions'
+import {
+  resubmitDeclarationSchema,
+  type CompleteDeclarationResponse,
+  type ResubmitDeclarationRequest,
+} from '../../declarationTypes'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { useAppSelector } from '@/app/store'
-import { USER_ROLES } from '@/constants/roles'
-import { DeclarationHeader } from './components'
+import { DeclarationHeader, ClarificationAlert } from './components'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -59,12 +63,28 @@ export function TaDeclarationDetailPage() {
     }
   }, [compareVersion, versions])
 
-  const role = useAppSelector((state) => state.auth.currentUser?.role)
-  const actions = declaration
-    ? getAvailableActions(declaration.status, role ?? USER_ROLES.TEMPLE_AUTHORITY)
-    : null
-  // The resubmit/clarification-respond tab is shown when the TA can respond to clarification
-  const isClarificationPending = actions?.canRespondToClarification ?? false
+  // Helper function to map declaration to form request
+  const mapDeclarationToRequest = (_decl: CompleteDeclarationResponse): ResubmitDeclarationRequest => {
+    return {
+      // Map the declaration fields to the resubmit request format
+      // Add the actual mapping based on your schema
+      // This is a placeholder - adjust according to your actual types
+    } as ResubmitDeclarationRequest
+  }
+
+  const emptyValues: ResubmitDeclarationRequest = {} as ResubmitDeclarationRequest
+
+  const form = useForm<ResubmitDeclarationRequest>({
+    resolver: zodResolver(resubmitDeclarationSchema),
+    defaultValues: emptyValues,
+  })
+
+  useEffect(() => {
+    if (declaration) {
+      form.reset(mapDeclarationToRequest(declaration))
+    }
+  }, [declaration, form])
+  
   const activeVersion = useMemo(
     () => versions.find((version) => version.versionNumber === compareVersion) ?? versions[0],
     [versions, compareVersion]

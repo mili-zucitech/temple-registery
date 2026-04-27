@@ -34,6 +34,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
     private final JurisdictionGuard jurisdictionGuard;
     private final NotificationEventPublisher notificationPublisher;
     private final TempleSearchSummaryService summaryService;
+    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional
@@ -60,7 +61,10 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
 
-        // Publish notification to Temple Authority
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyTempleApproved(templeId, claims.userId());
+
+        // Publish notification to Temple Authority (legacy)
         notificationPublisher.publishTempleVerified(
                 templeId,
                 temple.getName(),
@@ -98,7 +102,10 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
 
-        // Publish notification to Temple Authority
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyTempleFlagged(templeId, claims.userId(), request.getReason());
+
+        // Publish notification to Temple Authority (legacy)
         notificationPublisher.publishTempleFlagged(
                 templeId,
                 temple.getName(),

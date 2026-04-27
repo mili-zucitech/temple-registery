@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -17,6 +19,7 @@ const DEV_USERS = [
 
 export function LoginForm() {
   const { handleLogin, isLoading } = useLogin()
+  const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<LoginRequest>({
     resolver: zodResolver(loginSchema),
@@ -35,10 +38,15 @@ export function LoginForm() {
           control={form.control}
           name="username"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username</FormLabel>
+            <FormItem className="space-y-1.5">
+              <FormLabel className="text-gray-700 font-medium text-sm">Username</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your username" autoComplete="username" {...field} />
+                <Input 
+                  placeholder="Enter your username" 
+                  autoComplete="username" 
+                  className="h-10 border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 bg-white"
+                  {...field} 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -49,33 +57,73 @@ export function LoginForm() {
           control={form.control}
           name="password"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
+            <FormItem className="space-y-1.5">
+              <FormLabel className="text-gray-700 font-medium text-sm">Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Enter your password" autoComplete="current-password" {...field} />
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password" 
+                    autoComplete="current-password" 
+                    className="h-10 border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 bg-white pr-10"
+                    {...field} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button type="submit" className="w-full bg-gradient-gold shadow-gold" disabled={isLoading}>
-          {isLoading ? 'Signing in…' : 'Sign In'}
+        <Button 
+          type="submit" 
+          className="w-full h-10 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold shadow-md hover:shadow-lg transition-all mt-5" 
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Signing in…
+            </span>
+          ) : (
+            'Sign In'
+          )}
         </Button>
 
-        <div className="flex items-center justify-between text-sm">
-          <Link to="/forgot-password" className="text-primary hover:underline">
+        <div className="flex items-center justify-between text-xs pt-1">
+          <Link 
+            to="/forgot-password" 
+            className="text-orange-600 hover:text-orange-700 hover:underline font-medium"
+          >
             Forgot password?
           </Link>
-          <Link to="/register" className="text-primary hover:underline">
+          <Link 
+            to="/register" 
+            className="text-orange-600 hover:text-orange-700 hover:underline font-medium"
+          >
             Register as Temple Authority
           </Link>
         </div>
 
         {/* Dev-only quick fill */}
         {import.meta.env.DEV && (
-          <div className="border-t border-dashed border-border pt-3">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="border-t border-gray-200 pt-3 mt-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               Dev shortcuts
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -84,7 +132,7 @@ export function LoginForm() {
                   key={username}
                   type="button"
                   onClick={() => fillDevUser(username)}
-                  className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                 >
                   {label}
                 </button>

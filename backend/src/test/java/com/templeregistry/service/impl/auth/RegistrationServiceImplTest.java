@@ -34,15 +34,15 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RegistrationServiceImplTest {
 
-    @Mock UserRepository   userRepository;
-    @Mock TempleRepository templeRepository;
-    @Mock HobliRepository  hobliRepository;
-    @Mock PasswordEncoder  passwordEncoder;
+    @Mock UserRepository     userRepository;
+    @Mock TempleRepository   templeRepository;
+    @Mock HobliRepository    hobliRepository;
+    @Mock PasswordEncoder    passwordEncoder;
 
     @InjectMocks RegistrationServiceImpl registrationService;
 
     // ────────────────────────────────────────────────────────────────────────
-    // createAccount — happy path
+    // createAccount Tests
     // ────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -54,6 +54,7 @@ class RegistrationServiceImplTest {
         when(hobliRepository.findWithGeoById(1L)).thenReturn(Optional.of(buildHobli()));
         when(passwordEncoder.encode("Secure@Pass1")).thenReturn("hashed");
 
+        // Simulate JPA setting the generated ID
         doAnswer(inv -> { ((User) inv.getArgument(0)).setId(42L); return null; })
                 .when(userRepository).save(any(User.class));
         doAnswer(inv -> { ((Temple) inv.getArgument(0)).setId(99L); return null; })
@@ -120,6 +121,7 @@ class RegistrationServiceImplTest {
 
     private CreateAccountRequest mockCreateRequest() {
         CreateAccountRequest r = mock(CreateAccountRequest.class);
+        when(r.getAadhaar()).thenReturn("123412341234");
         when(r.getUsername()).thenReturn("ta_user");
         when(r.getEmail()).thenReturn("ta@temple.dev");
         when(r.getPassword()).thenReturn("Secure@Pass1");
