@@ -32,6 +32,7 @@ vi.mock('@/features/dc/dcApi', () => ({
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
     util: {
       resetApiState: () => ({ type: 'dcApi/resetApiState' }),
+      invalidateTags: () => ({ type: 'dcApi/invalidateTags' }),
     },
   },
   useGetDcDashboardQuery:              vi.fn(),

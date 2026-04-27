@@ -47,6 +47,7 @@ import {
 } from '@/features/dc/dcTypes'
 import { dcClarifySchema } from '@/features/governance/governanceTypes'
 import { useGetDeclarationDiffQuery, useGetDeclarationVersionsQuery } from '@/features/declaration/declarationApi'
+import { ChatPanel } from '@/features/declaration/components/ChatPanel'
 
 export function DcDeclarationDetailPage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -179,21 +180,11 @@ export function DcDeclarationDetailPage() {
                 </Card>
               </div>
 
-              <Card className="border-border/60 bg-card/95 shadow-soft-md">
-                <CardHeader>
-                  <CardTitle className="text-base">Clarification trail</CardTitle>
-                  <CardDescription>Chronological conversation between DC and temple authority.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {(declaration.clarifications?.length ?? 0) === 0 ? (
-                    <EmptyState title="No clarifications" description="No clarification messages have been recorded yet." />
-                  ) : (
-                    (declaration.clarifications ?? []).map((item) => (
-                      <ClarificationCard key={item.id} item={item} />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+              <ChatPanel
+                declarationId={declaration.id}
+                declarationStatus={declaration.status}
+                readonly={true}
+              />
             </TabsContent>
 
             <TabsContent value="assets" className="mt-6 space-y-4">
