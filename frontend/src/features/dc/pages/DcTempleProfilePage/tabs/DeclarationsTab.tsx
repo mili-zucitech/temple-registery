@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { DeclarationCard } from '../components'
 import { DeclarationDetailSection } from '../components/DeclarationDetailSection'
 import { cn } from '@/lib/utils'
-import type { DeclarationSummary, DeclarationDetailResponse, ClarificationItemResponse } from '@/features/dc/dcTypes'
+import type { DeclarationSummary, DeclarationDetailResponse } from '@/features/dc/dcTypes'
 
 interface DeclarationsTabProps {
   declarations: DeclarationSummary[]
@@ -61,9 +61,8 @@ export function DeclarationsTab({
       <div className="absolute left-[21px] top-8 bottom-0 w-0.5 bg-slate-200" aria-hidden />
 
       <div className="space-y-6">
-        {declarations.map((dec, index) => {
+        {declarations.map((dec) => {
           const dotCls = dotColors[dec.status] ?? 'bg-slate-300'
-          const isLast = index === declarations.length - 1
           return (
             <div key={dec.id} className="relative">
               {/* Timeline dot */}
@@ -80,11 +79,6 @@ export function DeclarationsTab({
                   declaration={dec}
                   canAct={canAct}
                   isSelected={selectedDeclarationId === dec.id}
-                  clarifications={
-                    selectedDeclarationId === dec.id
-                      ? (selectedDeclarationDetail?.clarifications ?? null)
-                      : null
-                  }
                   onSelect={() =>
                     onSelectDeclaration(selectedDeclarationId === dec.id ? null : dec.id)
                   }

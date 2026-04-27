@@ -1,8 +1,10 @@
-import { Phone, Shield, UserCircle, ChevronLeft, Clipboard, Clock, MessageSquare } from 'lucide-react'
+import { Phone, Shield, UserCircle, ChevronLeft, Clipboard, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Button } from '@/components/ui/button'
-import type { BoardMemberSummary, DeclarationSummary, ClarificationItemResponse } from '@/features/dc/dcTypes'
+import { ChatPanel } from '@/features/declaration/components/ChatPanel'
+import type { BoardMemberSummary, DeclarationSummary } from '@/features/dc/dcTypes'
+import type { DeclarationStatus } from '@/features/declaration/declarationTypes'
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
@@ -144,7 +146,6 @@ interface DeclarationCardProps {
   declaration: DeclarationSummary
   canAct: boolean
   isSelected: boolean
-  clarifications: ClarificationItemResponse[] | null
   onSelect: () => void
   onApprove: () => void
   onReject: () => void
@@ -156,14 +157,13 @@ export function DeclarationCard({
   declaration,
   canAct,
   isSelected,
-  clarifications,
   onSelect,
   onApprove,
   onReject,
   onClarify,
   onFlagPhysical,
 }: DeclarationCardProps) {
-  const actionable = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'SITE_VISIT_COMPLETED', 'VERIFIED'].includes(declaration.status)
+  const actionable = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED'].includes(declaration.status)
   const isUrgent = declaration.status === 'OVERDUE'
 
   return (
@@ -238,34 +238,14 @@ export function DeclarationCard({
         </div>
       )}
 
-      {/* Clarification history thread */}
-      {isSelected && clarifications && clarifications.length > 0 && (
-        <div className="border-t border-border px-5 py-4 bg-muted/5 space-y-3">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-label flex items-center gap-1.5">
-            <MessageSquare size={12} />
-            Communication Audit Trail
-          </h3>
-          <div className="space-y-3 pl-3 border-l border-border/60">
-            {clarifications.map((item) => (
-              <div
-                key={item.id}
-                className="relative rounded-lg p-3 text-xs bg-white border border-border/80 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className={cn(
-                    "text-xs font-medium uppercase tracking-label",
-                    item.direction === 'DC_TO_TA' ? "text-muted-foreground" : "text-primary"
-                  )}>
-                    {item.direction === 'DC_TO_TA' ? 'Sent to Temple' : 'Received Response'}
-                  </span>
-                  <span className="text-xs font-regular text-muted-foreground">
-                    {new Date(item.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </div>
-                <p className="text-xs font-regular text-foreground leading-relaxed">{item.notes}</p>
-              </div>
-            ))}
-          </div>
+      {/* Unified Chat Panel — replaces old clarification audit trail */}
+      {isSelected && (
+        <div className="border-t border-border px-5 py-4 bg-muted/5">
+          <ChatPanel
+            declarationId={declaration.id}
+            declarationStatus={declaration.status as DeclarationStatus}
+            readonly={true}
+          />
         </div>
       )}
     </div>

@@ -93,6 +93,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DeclarationServiceImpl implements DeclarationService {
 
+    private static final Map<String, String> LEGACY_ALIASES = Map.of(
+        "CLARIFICATION_REQUESTED", "CLARIFICATION_REQUIRED"
+    );
+
     private final DeclarationRepository declarationRepository;
     private final DeclarationClarificationRepository clarificationRepository;
     private final AssetDeclarationVersionRepository versionRepository;
@@ -146,7 +150,7 @@ public class DeclarationServiceImpl implements DeclarationService {
 
         Page<AssetDeclaration> result;
         if (status != null && !status.isBlank()) {
-            DeclarationStatus declarationStatus = DeclarationStatus.valueOf(status.toUpperCase());
+            DeclarationStatus declarationStatus = resolveStatus(status);
             if (financialYear != null && !financialYear.isBlank()) {
                 result = districtId != null
                         ? declarationRepository.findAllByDistrictIdAndStatusAndFinancialYear(districtId, declarationStatus, financialYear, pageable)
@@ -158,8 +162,8 @@ public class DeclarationServiceImpl implements DeclarationService {
             }
         } else {
             result = districtId != null
-                    ? declarationRepository.findAllByDistrictId(districtId, pageable)
-                    : declarationRepository.findAll(pageable);
+                    ? declarationRepository.findAllByDistrictIdExcludingDraft(districtId, pageable)
+                    : declarationRepository.findAllExcludingDraft(pageable);
         }
 
         Set<Long> templeIds = result.getContent().stream().map(AssetDeclaration::getTempleId).collect(Collectors.toSet());
@@ -852,6 +856,12 @@ public class DeclarationServiceImpl implements DeclarationService {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private static DeclarationStatus resolveStatus(String raw) {
+        String normalised = raw.toUpperCase();
+        String canonical  = LEGACY_ALIASES.getOrDefault(normalised, normalised);
+        return DeclarationStatus.valueOf(canonical);
     }
 
     private LocalDateTime parseDateTime(String value) {
