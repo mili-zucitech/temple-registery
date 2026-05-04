@@ -1,4 +1,6 @@
-export const API_BASE = import.meta.env.VITE_API_BASE_URL
+import { getApiV1BaseUrl } from '@/lib/apiBase'
+
+export const API_BASE = getApiV1BaseUrl()
 
 export const API_PATHS = {
   AUTH: {

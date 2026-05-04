@@ -4,7 +4,9 @@ import com.templeregistry.dto.response.auth.UserProfileResponse;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.declaration.DeclarationStatus;
-import com.templeregistry.entity.temple.TempleProfileStagingStatus;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.service.workflow.WorkflowEngine;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.contractor.ContractorRepository;
@@ -33,6 +35,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final EmployeeRepository employeeRepository;
     private final ContractorRepository contractorRepository;
     private final DeclarationRepository declarationRepository;
+    private final WorkflowEngine workflowEngine;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,7 +57,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .fullName(user.getFullName())
                 .mobile(user.getMobile())
                 .role(user.getRole())
-                .isActive(user.isActive())
+                .active(user.isActive())
                 .districtId(user.getDistrictId())
                 .templeId(user.getTempleId())
                 .aadhaarVerified(user.isAadhaarVerified())
@@ -67,9 +70,13 @@ public class UserProfileServiceImpl implements UserProfileService {
         String profileStatus = stagingRepository
                 .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
                         templeId,
-                        List.of(TempleProfileStagingStatus.DRAFT, TempleProfileStagingStatus.PENDING_REVIEW,
-                                TempleProfileStagingStatus.APPROVED))
-                .map(s -> s.getStatus() == TempleProfileStagingStatus.PENDING_REVIEW ? "SUBMITTED" : s.getStatus().name())
+                        List.of(com.templeregistry.entity.workflow.WorkflowStatus.DRAFT, 
+                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                                com.templeregistry.entity.workflow.WorkflowStatus.APPROVED))
+                .map(s -> {
+                    WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
+                    return instance.getStatus().name();
+                })
                 .orElse(null);
 
         boolean trustExists = !trustRepository.findAllByTempleId(templeId).isEmpty();

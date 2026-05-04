@@ -34,6 +34,7 @@ class TempleServiceImplTest {
     @Mock TempleMapper templeMapper;
     @Mock JurisdictionGuard jurisdictionGuard;
     @Mock PaginationUtil paginationUtil;
+    @Mock com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @InjectMocks TempleServiceImpl templeService;
 

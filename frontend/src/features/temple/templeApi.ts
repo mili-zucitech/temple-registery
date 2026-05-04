@@ -4,7 +4,7 @@ import type { ApiResponse, PaginatedResponse } from '@/types'
 import type {
   TempleResponse, TempleSearchResultResponse, CreateTempleRequest, TempleSearchFilterRequest,
   TempleProfileStagingResponse, CreateTempleProfileStagingRequest, TaCurrentProfileResponse,
-} from './templeTypes'
+} from '../temple-profile/hooks/templeTypes'
 
 export const templeApi = createApi({
   reducerPath: 'templeApi',

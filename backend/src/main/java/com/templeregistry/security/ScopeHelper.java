@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -26,6 +27,22 @@ public class ScopeHelper {
      * Typed claims extracted from a validated JWT.
      */
     public record Claims(Long userId, String role, Long districtId, Long templeId, String username) {
+        /**
+         * Returns temple IDs as a Set for compatibility with ActionContext.
+         * Currently supports single temple per user; returns singleton set.
+         * Future: JWT may contain multiple temple IDs for multi-temple TAs.
+         */
+        public java.util.Set<Long> templeIds() {
+            return templeId != null ? java.util.Set.of(templeId) : java.util.Set.of();
+        }
+
+        public static Claims fromContext() {
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (principal instanceof Claims claims) {
+                return claims;
+            }
+            throw new org.springframework.security.access.AccessDeniedException("Invalid authentication principal");
+        }
     }
 
     private final RSAPublicKey publicKey;

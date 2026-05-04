@@ -12,5 +12,5 @@ public interface TrustRepository extends JpaRepository<Trust, Long> {
     Optional<Trust> findByIdAndTempleId(Long id, Long templeId);
     Optional<Trust> findByTrustRegistrationNumberIgnoreCase(String registrationNumber);
     Optional<Trust> findByTrustPANNumberIgnoreCase(String trustPANNumber);
-    boolean existsByTempleIdAndIsDeletedFalse(Long templeId);
+    boolean existsByTempleIdAndDeletedFalse(Long templeId);
 }

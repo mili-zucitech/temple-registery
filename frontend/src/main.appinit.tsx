@@ -1,7 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { Toaster } from 'sonner';
 import { store } from './app/store';
 import { AppRouter } from './routes';
 import { useGetCurrentUserQuery } from '@/features/auth/authApi';
@@ -37,7 +36,6 @@ createRoot(rootElement).render(
     <Provider store={store}>
       <AppInitGate>
         <AppRouter />
-        <Toaster richColors position="top-right" closeButton />
       </AppInitGate>
     </Provider>
   </StrictMode>

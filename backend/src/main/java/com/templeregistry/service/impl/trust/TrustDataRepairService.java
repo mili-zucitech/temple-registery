@@ -48,7 +48,7 @@ public class TrustDataRepairService {
 
         int syncedTemples = 0;
         for (Temple temple : templeRepository.findAll()) {
-            boolean shouldBeRegistered = trustRepository.existsByTempleIdAndIsDeletedFalse(temple.getId());
+            boolean shouldBeRegistered = trustRepository.existsByTempleIdAndDeletedFalse(temple.getId());
             if (temple.isTrustRegistered() != shouldBeRegistered) {
                 temple.setTrustRegistered(shouldBeRegistered);
                 syncedTemples++;

@@ -7,14 +7,17 @@ export type DcRole = (typeof DC_ROLES)[number]
 
 export const DECLARATION_STATUSES = [
   'DRAFT',
-  'PENDING_REVIEW',
+  'SUBMITTED',
   'UNDER_REVIEW',
-  'RESUBMITTED',
-  'CLARIFICATION_REQUESTED',
-  'PHYSICAL_VERIFICATION_REQUESTED',
+  'CLARIFICATION_REQUIRED',
+  'CLARIFICATION_RESPONDED',
+  'SITE_VISIT_SCHEDULED',
+  'SITE_VISIT_COMPLETED',
+  'VERIFIED',
   'APPROVED',
   'REJECTED',
   'OVERDUE',
+  'SUPERSEDED',
 ] as const
 export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
 
@@ -296,6 +299,8 @@ export interface DeclarationDetailResponse {
   otherMovableValue: number | null
   submittedAt: string | null
   reviewedAt: string | null
+  reviewedBy?: number | null
+  remarks?: string | null
   acknowledgementNumber: string | null
   dueDate: string | null
   clarificationRound: number
@@ -426,6 +431,8 @@ export interface EmployeeSummary {
   address: string | null
   status: string
   isHereditary: boolean
+  isVerifiedByDc?: boolean
+  dcFlagReason?: string | null
 }
 
 export interface ContractorResponse {

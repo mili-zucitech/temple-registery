@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.trust;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,9 +18,8 @@ public class BoardMemberResponse {
     private LocalDate tenureEndDate;
     private String contactNumber;
     private String address;
-    @JsonProperty("isCurrent")
-    private boolean isCurrent;
-    @JsonProperty("isVerifiedByDc")
-    private boolean isVerifiedByDc;
+    @JsonProperty("current")
+    private boolean current;
+    @JsonIgnore
     private String dcFlagReason;
 }

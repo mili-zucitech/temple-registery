@@ -5,16 +5,16 @@ import java.time.LocalDateTime;
 public class TemplePhotoDto {
     private Long id;
     private String url;
-    private boolean isPrimary;
+    private boolean primary;
     private String fileName;
     private LocalDateTime uploadDate;
     private Integer width;
     private Integer height;
 
-    public TemplePhotoDto(Long id, String url, boolean isPrimary, String fileName, LocalDateTime uploadDate, Integer width, Integer height) {
+    public TemplePhotoDto(Long id, String url, boolean primary, String fileName, LocalDateTime uploadDate, Integer width, Integer height) {
         this.id = id;
         this.url = url;
-        this.isPrimary = isPrimary;
+        this.primary = primary;
         this.fileName = fileName;
         this.uploadDate = uploadDate;
         this.width = width;
@@ -30,7 +30,7 @@ public class TemplePhotoDto {
     }
 
     public boolean isPrimary() {
-        return isPrimary;
+        return primary;
     }
 
     public String getFileName() {

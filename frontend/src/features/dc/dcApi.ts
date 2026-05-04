@@ -218,8 +218,14 @@ export const dcApi = createApi({
       invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
     }),
 
-    // ─── Notifications ────────────────────────────────────────────────────────
+    // ─── Notifications (deprecated — use notificationApi instead) ────────────
+    //
+    // These endpoints duplicate the canonical /notifications/* routes.
+    // Frontend hooks (useDcNotifications) have been redirected to notificationApi.
+    // These remain exported for backward compatibility with the backend
+    // DcNotificationController but should not be used in new code.
 
+    /** @deprecated Use useListNotificationsQuery from notificationApi */
     getDcNotifications: builder.query<
       ApiResponse<PaginatedResponse<NotificationResponse>>,
       { page?: number; size?: number }
@@ -231,11 +237,13 @@ export const dcApi = createApi({
       providesTags: ['DcNotification'],
     }),
 
+    /** @deprecated Use useGetUnreadCountQuery from notificationApi */
     getDcUnreadCount: builder.query<ApiResponse<number>, void>({
       query: () => '/dc/notifications/unread-count',
       providesTags: ['DcNotification'],
     }),
 
+    /** @deprecated Use useMarkReadMutation from notificationApi */
     markNotificationRead: builder.mutation<ApiResponse<void>, number>({
       query: (id) => ({
         url: `/dc/notifications/${id}/read`,
@@ -244,6 +252,7 @@ export const dcApi = createApi({
       invalidatesTags: ['DcNotification'],
     }),
 
+    /** @deprecated Use useMarkAllReadMutation from notificationApi */
     markAllNotificationsRead: builder.mutation<ApiResponse<number>, void>({
       query: () => ({
         url: '/dc/notifications/read-all',

@@ -1,7 +1,5 @@
 package com.templeregistry.service.impl.governance;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.dto.request.dc.DcClarifyRequest;
 import com.templeregistry.dto.request.dc.WorkflowApproveRequest;
 import com.templeregistry.dto.request.dc.WorkflowRejectRequest;
@@ -11,44 +9,42 @@ import com.templeregistry.dto.request.governance.SendBackRequest;
 import com.templeregistry.dto.request.governance.UpdatePhysicalVerificationRequest;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
 import com.templeregistry.dto.response.governance.PhysicalVerificationHistoryResponse;
-import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.ClarificationDirection;
-import com.templeregistry.entity.declaration.DeclarationClarification;
 import com.templeregistry.entity.declaration.DeclarationStatus;
-import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.governance.PhysicalVerificationHistory;
 import com.templeregistry.entity.governance.PhysicalVerificationStatus;
 import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.Trust;
-import com.templeregistry.exception.ClarificationLimitExceededException;
+import com.templeregistry.entity.workflow.WorkflowAction;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.IllegalStatusTransitionException;
-import com.templeregistry.repository.auth.UserRepository;
-import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.governance.PhysicalVerificationHistoryRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.trust.TrustRepository;
+import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.audit.AuditActionType;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.audit.DeclarationAuditLogService;
 import com.templeregistry.service.audit.GovernanceAuditService;
-import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.service.declaration.AcknowledgementService;
 import com.templeregistry.service.governance.GovernanceWorkflowService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
-import com.templeregistry.util.AcknowledgementNumberGenerator;
-import com.templeregistry.util.StatusTransitionValidator;
-import com.templeregistry.service.declaration.AcknowledgementService;
-import com.templeregistry.service.declaration.SnapshotService;
-import com.templeregistry.service.audit.DeclarationAuditLogService;
-import com.templeregistry.service.audit.AuditActionType;
-import com.templeregistry.service.declaration.StateTransitionValidator;
+import com.templeregistry.service.workflow.ActionContext;
+import com.templeregistry.service.workflow.WorkflowActionRequest;
+import com.templeregistry.service.workflow.WorkflowEngine;
+import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -56,6 +52,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
+import com.templeregistry.entity.declaration.DeclarationClarification;
+import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
+import com.templeregistry.service.workflow.VersionService;
+import com.templeregistry.service.clarification.ClarificationEngine;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.service.document.FileStorageService;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import java.io.ByteArrayOutputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -64,23 +74,24 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
     private final TrustRepository trustRepository;
     private final DeclarationRepository declarationRepository;
-    private final DeclarationClarificationRepository clarificationRepository;
     private final TempleRepository templeRepository;
     private final PhysicalVerificationHistoryRepository physicalVerificationHistoryRepository;
     private final GovernanceAuditService governanceAuditService;
     private final AuditService auditService;
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
-    private final NotificationEventPublisher notificationPublisher;
-    private final AcknowledgementNumberGenerator ackGenerator;
-    private final StatusTransitionValidator transitionValidator;
-    private final TempleSearchSummaryService summaryService;
-    private final UserRepository userRepository;
-    private final ObjectMapper objectMapper;
     private final AcknowledgementService acknowledgementService;
-    private final SnapshotService snapshotService;
-    private final DeclarationAuditLogService declarationAuditLogService;
-    private final StateTransitionValidator stateTransitionValidator;
+    private final TempleSearchSummaryService summaryService;
+    private final WorkflowEngine workflowEngine;
+    private final WorkflowEngineAdaptor workflowEngineAdaptor;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
+    private final com.templeregistry.service.notification.NotificationRecipientResolver recipientResolver;
+    private final UserRepository userRepository;
+    private final NotificationEventPublisher notificationPublisher;
+    private final DeclarationClarificationRepository clarificationRepository;
+    private final VersionService versionService;
+    private final ClarificationEngine clarificationEngine;
+    private final FileStorageService fileStorageService;
 
     // =========================================================================
     // TRUST — Submit / Approve / Send Back / Reject
@@ -92,17 +103,20 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     public void submitTrust(Long trustId) {
         Trust trust = loadTrust(trustId);
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
-        assertCanSubmit(trust.getSubmissionStatus(), "Trust", trustId);
 
-        trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-        trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
+        // Canonical: WorkflowEngine validates and transitions
+        workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.TRUST, trustId,
+            trust.getTempleId(), districtIdForTrust(trust), currentUserId());
+
+        // [P2] Snapshot the domain entity (not the workflow instance)
+        versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
+
+        // Keep legacy status in sync during transition period
+        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
         trust.setSendBackReason(null);
-        trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
         trustRepository.save(trust);
 
-        notifyDcOfSubmission(trust.getTempleId(), "TRUST", trustId);
-        governanceAuditService.logAction(trustId, "TRUST", currentUserId(), "SUBMIT",
-                "Trust submitted for DC approval.");
         log.info("Trust [{}] submitted by userId={}", trustId, currentUserId());
     }
 
@@ -111,17 +125,21 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void approveTrust(Long trustId) {
         Trust trust = loadTrust(trustId);
-        assertDcCanAct(trust.getSubmissionStatus(), "Trust", trustId);
         assertDistrictScopeForTrust(trust);
 
-        trust.setSubmissionStatus(SubmissionStatus.APPROVED);
-        trust.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
-        trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
+        workflowEngineAdaptor.adaptApprove(
+            WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust), currentUserId());
+
+        // [P2] Snapshot on approval
+        versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
+
+        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.APPROVED);
         trustRepository.save(trust);
 
-        notifyTaOfDecision(trust.getTempleId(), "TRUST", trustId, "APPROVED", null);
-        governanceAuditService.logAction(trustId, "TRUST", currentUserId(), "APPROVE",
-                "Trust approved by DC.");
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
+            com.templeregistry.entity.governance.SubmissionStatus.APPROVED.name());
+
         log.info("Trust [{}] APPROVED by userId={}", trustId, currentUserId());
     }
 
@@ -130,17 +148,20 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void sendBackTrust(Long trustId, SendBackRequest request) {
         Trust trust = loadTrust(trustId);
-        assertDcCanAct(trust.getSubmissionStatus(), "Trust", trustId);
         assertDistrictScopeForTrust(trust);
 
-        trust.setSubmissionStatus(SubmissionStatus.SENT_BACK);
+        workflowEngineAdaptor.adaptSendBack(
+            WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
+            currentUserId(), request.getReason());
+
+        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SENT_BACK);
         trust.setSendBackReason(request.getReason());
-        trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
         trustRepository.save(trust);
 
-        notifyTaOfDecision(trust.getTempleId(), "TRUST", trustId, "SENT_BACK", request.getReason());
-        governanceAuditService.logAction(trustId, "TRUST", currentUserId(), "SEND_BACK",
-                request.getReason());
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
+            com.templeregistry.entity.governance.SubmissionStatus.SENT_BACK.name());
+
         log.info("Trust [{}] SENT_BACK by userId={}", trustId, currentUserId());
     }
 
@@ -149,17 +170,19 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void rejectTrust(Long trustId, RejectRequest request) {
         Trust trust = loadTrust(trustId);
-        assertDcCanAct(trust.getSubmissionStatus(), "Trust", trustId);
         assertDistrictScopeForTrust(trust);
 
-        trust.setSubmissionStatus(SubmissionStatus.REJECTED);
-        trust.setDcDecisionStatus(DcDecisionStatus.REJECTED_BY_DC);
-        trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
+        workflowEngineAdaptor.adaptReject(
+            WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
+            currentUserId(), request.getReason());
+
+        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.REJECTED);
         trustRepository.save(trust);
 
-        notifyTaOfDecision(trust.getTempleId(), "TRUST", trustId, "REJECTED", request.getReason());
-        governanceAuditService.logAction(trustId, "TRUST", currentUserId(), "REJECT",
-                request.getReason());
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
+            com.templeregistry.entity.governance.SubmissionStatus.REJECTED.name());
+
         log.info("Trust [{}] REJECTED by userId={}", trustId, currentUserId());
     }
 
@@ -173,20 +196,19 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     public void submitDeclaration(Long declarationId) {
         AssetDeclaration declaration = loadDeclaration(declarationId);
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
-        assertCanSubmit(declaration.getSubmissionStatus(), "AssetDeclaration", declarationId);
 
-        declaration.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-        declaration.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-        declaration.setStatus(DeclarationStatus.SUBMITTED);
-        declaration.setSubmittedAt(java.time.LocalDateTime.now());
+        // Canonical: WorkflowEngine validates and transitions
+        workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.DECLARATION, declarationId,
+            declaration.getTempleId(), declaration.getDistrictId(), currentUserId());
+
+        // [P2] Snapshot the domain entity (replacing legacy snapshotService)
+        versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, currentUserId(), null);
+
+        // Keep legacy status in sync
         declaration.setSubmittedBy(currentUserId());
-        declaration.setSendBackReason(null);
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        notifyDcOfSubmission(declaration.getTempleId(), "ASSET_DECLARATION", declarationId);
-        governanceAuditService.logAction(declarationId, "DECLARATION", currentUserId(), "SUBMIT",
-                "Declaration submitted for DC approval.");
         log.info("Declaration [{}] submitted by userId={}", declarationId, currentUserId());
     }
 
@@ -194,53 +216,59 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public WorkflowActionResponse approveDeclaration(Long declarationId, WorkflowApproveRequest request,
-                                                      ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(declarationId);
+                                                      ScopeHelper.Claims claims,
+                                                      String idempotencyKey) {
+        AssetDeclaration declaration = loadDeclaration(declarationId);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Validate legacy DeclarationStatus transition
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.APPROVED);
-
         // BLOCK: DC must NOT approve if physical verification has failed
+        // [P4] This is now ALSO enforced by SiteVisitBlocksApprovalPolicy in the engine.
         if (PhysicalVerificationStatus.VERIFICATION_FAILED.equals(declaration.getPhysicalVerificationStatus())) {
             throw new IllegalStatusTransitionException(
-                    "Cannot approve declaration [" + declarationId + "]: physical verification has FAILED. " +
-                    "Resolve the verification failure before approving.");
+                    "Cannot approve declaration [" + declarationId + "]: physical verification has FAILED.");
         }
 
-        // Update both status fields for full consistency
+        // Preserve response contract on client retries: once approved, return the original
+        // acknowledgement instead of generating a new one.
+        if (DeclarationStatus.APPROVED.equals(declaration.getStatus())
+            && StringUtils.hasText(declaration.getAcknowledgementNumber())) {
+            String existingAck = declaration.getAcknowledgementNumber();
+            return WorkflowActionResponse.builder()
+                .declarationId(declarationId)
+                .newStatus(DeclarationStatus.APPROVED.name())
+                .acknowledgementNumber(existingAck)
+                .message("Declaration approved successfully. Acknowledgement: " + existingAck)
+                .build();
+        }
+
+        // [P3] Canonical: WorkflowEngine records transition + publishes event
+        // IMPORTANT: adaptApprove() must happen BEFORE we mutate the entity status
+        workflowEngineAdaptor.adaptApprove(
+            WorkflowEntityType.DECLARATION,
+            declarationId,
+            claims.districtId(),
+            claims.userId(),
+            effectiveIdempotencyKey(idempotencyKey));
+
+        // Generate acknowledgement number
+        String ackNumber = acknowledgementService.generate(declaration.getDistrictId(), declaration.getFinancialYear());
+        String acknowledgementPath = generateAcknowledgementDocument(declaration, ackNumber);
+        declaration.setAcknowledgementNumber(ackNumber);
+        declaration.setAcknowledgementDocFilePath(acknowledgementPath);
+        declaration.setAcknowledgedAt(LocalDateTime.now());
         declaration.setStatus(DeclarationStatus.APPROVED);
-        declaration.setSubmissionStatus(SubmissionStatus.APPROVED);
-        declaration.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
         declaration.setReviewedAt(LocalDateTime.now());
         declaration.setReviewedBy(claims.userId());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
-
-        String ackNumber = acknowledgementService.generate(declaration.getDistrictId(), declaration.getFinancialYear());
-        declaration.setAcknowledgementNumber(ackNumber);
-        declaration.setAcknowledgedAt(LocalDateTime.now());
+        if (request != null && request.getRemarks() != null) {
+            declaration.setReviewComment(request.getRemarks());
+        }
         declarationRepository.save(declaration);
 
-        if (request != null && request.getRemarks() != null) {
-            saveClarification(declarationId, request.getRemarks(), null, null,
-                    claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
-        }
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.DECLARATION, declarationId, DeclarationStatus.APPROVED.name());
 
-        snapshotService.capture(declaration, claims.userId());
-        declarationAuditLogService.log(declarationId, AuditActionType.APPROVED, claims.userId(), claims.role(), null);
-
-        notificationPublisher.publish(
-                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
-                "DECLARATION_APPROVED", declarationId, "ASSET_DECLARATION");
-        auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_APPROVED",
-                "AssetDeclaration", declarationId, "ack=" + ackNumber);
-        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "APPROVE",
-                "Approved with acknowledgement: " + ackNumber +
-                ". PhysicalVerificationStatus=" + declaration.getPhysicalVerificationStatus());
-        summaryService.refresh(declaration.getTempleId());
-
-        log.info("Declaration [{}] APPROVED by userId={} ack={}", declarationId, claims.userId(), ackNumber);
+        // [P2] Snapshot on approval
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
                 .newStatus(DeclarationStatus.APPROVED.name())
@@ -249,23 +277,30 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .build();
     }
 
+    public WorkflowActionResponse approveDeclaration(Long declarationId, WorkflowApproveRequest request,
+                                                     ScopeHelper.Claims claims) {
+        return approveDeclaration(declarationId, request, claims, null);
+    }
+
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void sendBackDeclaration(Long declarationId, SendBackRequest request) {
         AssetDeclaration declaration = loadDeclaration(declarationId);
-        assertDcCanAct(declaration.getSubmissionStatus(), "AssetDeclaration", declarationId);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
 
-        declaration.setSubmissionStatus(SubmissionStatus.SENT_BACK);
+        workflowEngineAdaptor.adaptSendBack(
+            WorkflowEntityType.DECLARATION, declarationId, declaration.getDistrictId(),
+            currentUserId(), request.getReason());
+
+        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
         declaration.setSendBackReason(request.getReason());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declaration.setClarificationRound(declaration.getClarificationRound() + 1);
         declarationRepository.save(declaration);
 
-        notifyTaOfDecision(declaration.getTempleId(), "ASSET_DECLARATION", declarationId, "SENT_BACK",
-                request.getReason());
-        governanceAuditService.logAction(declarationId, "DECLARATION", currentUserId(), "SEND_BACK",
-                request.getReason());
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.DECLARATION, declarationId, DeclarationStatus.CLARIFICATION_REQUIRED.name());
+
         log.info("Declaration [{}] SENT_BACK by userId={}", declarationId, currentUserId());
     }
 
@@ -273,35 +308,35 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public WorkflowActionResponse rejectDeclaration(Long declarationId, WorkflowRejectRequest request,
-                                                     ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(declarationId);
+                                                     ScopeHelper.Claims claims,
+                                                     String idempotencyKey) {
+        AssetDeclaration declaration = loadDeclaration(declarationId);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.REJECTED);
+        workflowEngineAdaptor.adaptReject(
+            WorkflowEntityType.DECLARATION,
+            declarationId,
+            claims.districtId(),
+            claims.userId(),
+            request.getRemarks(),
+            effectiveIdempotencyKey(idempotencyKey));
 
         declaration.setStatus(DeclarationStatus.REJECTED);
-        declaration.setSubmissionStatus(SubmissionStatus.REJECTED);
-        declaration.setDcDecisionStatus(DcDecisionStatus.REJECTED_BY_DC);
         declaration.setReviewedAt(LocalDateTime.now());
         declaration.setReviewedBy(claims.userId());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
+        declaration.setReviewComment(request.getRemarks());
         declarationRepository.save(declaration);
 
-        saveClarification(declarationId, request.getRemarks(), null, null,
-                claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
+        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
+        assertEntityStatusConsistency(WorkflowEntityType.DECLARATION, declarationId, DeclarationStatus.REJECTED.name());
 
-        snapshotService.capture(declaration, claims.userId());
-        declarationAuditLogService.log(declarationId, AuditActionType.REJECTED, claims.userId(), claims.role(), request.getRemarks());
+        // [P2] Snapshot on rejection
+        versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
 
-        notificationPublisher.publish(
-                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
-                "DECLARATION_REJECTED", declarationId, "ASSET_DECLARATION");
-        auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_REJECTED",
-                "AssetDeclaration", declarationId, "status=REJECTED");
-        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "REJECT",
-                "Rejected with remarks: " + request.getRemarks());
         summaryService.refresh(declaration.getTempleId());
+
+        // [P3] Manual notificationHelper call removed — NotificationRouter handles GovernanceDomainEvent.
 
         log.info("Declaration [{}] REJECTED by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
@@ -312,48 +347,66 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .build();
     }
 
+    public WorkflowActionResponse rejectDeclaration(Long declarationId, WorkflowRejectRequest request,
+                                                    ScopeHelper.Claims claims) {
+        return rejectDeclaration(declarationId, request, claims, null);
+    }
+
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public WorkflowActionResponse requestClarification(Long declarationId, DcClarifyRequest request,
-                                                        ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(declarationId);
+                                                        ScopeHelper.Claims claims,
+                                                        String idempotencyKey) {
+        AssetDeclaration declaration = loadDeclaration(declarationId);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
+        // BLOCK: Limit rounds
         if (declaration.getClarificationRound() >= 3) {
-            throw new ClarificationLimitExceededException(
-                    "Maximum clarification rounds reached. You must approve or reject this declaration.");
+            throw new com.templeregistry.exception.ClarificationLimitExceededException(
+                "Cannot request more clarifications. Maximum round [3] reached.");
         }
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.CLARIFICATION_REQUIRED);
+        // [P6] Canonical: ClarificationEngine handles thread creation + WorkflowEngine transition
+        WorkflowInstance instance = workflowInstanceRepository.findByEntityTypeAndEntityId(WorkflowEntityType.DECLARATION, declarationId)
+            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance", declarationId));
+
+        clarificationEngine.requestClarification(
+            instance.getId(),
+            com.templeregistry.service.clarification.ClarificationRequest.builder()
+                .message(request.getMessage())
+                .sectionName(request.getSectionName())
+                .build(),
+            claims.userId(),
+            effectiveIdempotencyKey(idempotencyKey));
 
         declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
         declaration.setClarificationRound(declaration.getClarificationRound() + 1);
         declarationRepository.save(declaration);
 
-        saveClarification(declarationId, request.getMessage(), request.getSectionName(),
-                request.getFieldNames(), claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
-
-        declarationAuditLogService.log(declarationId, AuditActionType.CLARIFICATION_REQUESTED, claims.userId(), claims.role(), request.getMessage());
-
-        notificationPublisher.publish(
-                declaration.getSubmittedBy() != null ? declaration.getSubmittedBy() : 0L,
-                "CLARIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
-        auditService.logDataEvent(claims.userId(), claims.role(), "CLARIFICATION_REQUESTED",
-                "AssetDeclaration", declarationId, "round=" + declaration.getClarificationRound());
-        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "QUERY",
-                "Clarification requested (round " + declaration.getClarificationRound() + "): " + request.getMessage());
-
-        if (declaration.getClarificationRound() == 2) {
-            userRepository.findAllByRole(UserRole.SUPER_ADMIN).forEach(sa ->
-                    notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION",
-                            declarationId, "ASSET_DECLARATION"));
-        }
+        // [P9] Legacy record creation for parity (TO BE REMOVED in Phase B)
+        clarificationRepository.save(DeclarationClarification.builder()
+                .declarationId(declarationId)
+                .direction(ClarificationDirection.DC_TO_TEMPLE)
+                .message(request.getMessage())
+                .sectionName(request.getSectionName())
+                .authorId(claims.userId())
+                .build());
 
         summaryService.refresh(declaration.getTempleId());
-        log.info("Clarification requested for declaration [{}] by userId={}", declarationId, claims.userId());
 
+        // [P3] Manual notificationHelper removed — event outbox takes over.
+
+        // Escalation logic
+        if (declaration.getClarificationRound() >= 2) {
+            List<com.templeregistry.entity.auth.User> superAdmins = userRepository.findAllByRole(com.templeregistry.entity.auth.UserRole.SUPER_ADMIN);
+            for (com.templeregistry.entity.auth.User sa : superAdmins) {
+                notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION", declarationId, "ASSET_DECLARATION");
+            }
+        }
+
+        log.info("Clarification requested for declaration [{}] by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
                 .newStatus(DeclarationStatus.CLARIFICATION_REQUIRED.name())
@@ -362,25 +415,23 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .build();
     }
 
+    public WorkflowActionResponse requestClarification(Long declarationId, DcClarifyRequest request,
+                                                       ScopeHelper.Claims claims) {
+        return requestClarification(declarationId, request, claims, null);
+    }
+
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public WorkflowActionResponse markUnderReview(Long declarationId, ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(declarationId);
+        AssetDeclaration declaration = loadDeclaration(declarationId);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.UNDER_REVIEW);
+        executeDeclarationTransition(declarationId, WorkflowAction.BEGIN_REVIEW, claims, null);
 
         declaration.setStatus(DeclarationStatus.UNDER_REVIEW);
         declarationRepository.save(declaration);
-
-        declarationAuditLogService.log(declarationId, AuditActionType.UNDER_REVIEW, claims.userId(), claims.role(), null);
-
-        auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_UNDER_REVIEW",
-                "AssetDeclaration", declarationId, "userId=" + claims.userId());
-        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "UNDER_REVIEW",
-                "Marked as under review by DC");
 
         log.info("Declaration [{}] marked UNDER_REVIEW by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
@@ -394,26 +445,23 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public WorkflowActionResponse flagPhysicalVerification(Long declarationId, DcClarifyRequest request,
-                                                            ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(declarationId);
+                                                            ScopeHelper.Claims claims,
+                                                            String idempotencyKey) {
+        AssetDeclaration declaration = loadDeclaration(declarationId);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_SCHEDULED);
+        // [P3] Canonical: WorkflowEngine sub-status transition
+        executeDeclarationTransition(declarationId, WorkflowAction.SCHEDULE_SITE_VISIT, claims, idempotencyKey);
 
         declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
         declarationRepository.save(declaration);
 
-        saveClarification(declarationId, request.getMessage(), request.getSectionName(),
-                request.getFieldNames(), claims.userId(), ClarificationDirection.DC_TO_TEMPLE);
-
-        notificationPublisher.publish(declaration.getSubmittedBy(), "PHYSICAL_VERIFICATION_REQUESTED",
-                declarationId, "ASSET_DECLARATION");
         auditService.logDataEvent(claims.userId(), claims.role(), "PHYSICAL_VERIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId, "flagged=true");
-        governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "FLAG",
-                "Flagged for physical verification: " + request.getMessage());
         summaryService.refresh(declaration.getTempleId());
+
+        // [P3] Manual notificationHelper removed — event outbox takes over.
 
         log.info("Physical verification flagged for declaration [{}] by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
@@ -423,29 +471,38 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .build();
     }
 
+    public WorkflowActionResponse flagPhysicalVerification(Long declarationId, DcClarifyRequest request,
+                                                           ScopeHelper.Claims claims) {
+        return flagPhysicalVerification(declarationId, request, claims, null);
+    }
+
+    public void sendBackDeclaration(Long declarationId, DcClarifyRequest request,
+                                    ScopeHelper.Claims claims) {
+        SendBackRequest sendBackRequest = new SendBackRequest();
+        sendBackRequest.setReason(request != null ? request.getMessage() : null);
+        sendBackDeclaration(declarationId, sendBackRequest);
+    }
+
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void scheduleSiteVisit(Long id, com.templeregistry.dto.request.governance.SiteVisitRequest request, ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        AssetDeclaration declaration = loadDeclaration(id);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_SCHEDULED);
+        // [P3] Canonical: WorkflowEngine sub-status transition
+        executeDeclarationTransition(id, WorkflowAction.SCHEDULE_SITE_VISIT, claims, null);
 
         declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
         declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.ORDERED_FOR_PHYSICAL_VERIFICATION);
         declaration.setPhysicalVerificationOrderedAt(LocalDateTime.now());
         declaration.setPhysicalVerificationOrderedBy(claims.userId());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        snapshotService.capture(declaration, claims.userId());
-        declarationAuditLogService.log(id, AuditActionType.SITE_VISIT_SCHEDULED, claims.userId(), claims.role(),
-                request != null ? request.getNotes() : null);
+        // [P2] Snapshot on site visit schedule
+        versionService.snapshot(WorkflowEntityType.DECLARATION, id, 1, declaration, claims.userId(), null);
 
-        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_SCHEDULED",
-                "Site visit scheduled. Notes: " + (request != null ? request.getNotes() : ""));
         log.info("Declaration [{}] SITE_VISIT_SCHEDULED by userId={}", id, claims.userId());
     }
 
@@ -453,22 +510,20 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void completeSiteVisit(Long id, ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        AssetDeclaration declaration = loadDeclaration(id);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SITE_VISIT_COMPLETED);
+        // [P3] Canonical: WorkflowEngine sub-status transition
+        executeDeclarationTransition(id, WorkflowAction.COMPLETE_SITE_VISIT, claims, null);
 
         declaration.setStatus(DeclarationStatus.SITE_VISIT_COMPLETED);
         declaration.setPhysicalVerificationCompletedAt(LocalDateTime.now());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        snapshotService.capture(declaration, claims.userId());
-        declarationAuditLogService.log(id, AuditActionType.SITE_VISIT_COMPLETED, claims.userId(), claims.role(), null);
+        // [P2] Snapshot on completion
+        versionService.snapshot(WorkflowEntityType.DECLARATION, id, 1, declaration, claims.userId(), null);
 
-        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_COMPLETED",
-                "Site visit completed.");
         log.info("Declaration [{}] SITE_VISIT_COMPLETED by userId={}", id, claims.userId());
     }
 
@@ -476,22 +531,20 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional
     @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public void verifyDeclaration(Long id, ScopeHelper.Claims claims) {
-        AssetDeclaration declaration = loadDeclarationWithLock(id);
+        AssetDeclaration declaration = loadDeclaration(id);
         Temple temple = loadTempleWithGeo(declaration.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.VERIFIED);
+        // [P3] Canonical: WorkflowEngine sub-status transition
+        executeDeclarationTransition(id, WorkflowAction.VERIFY_SITE_VISIT, claims, null);
 
         declaration.setStatus(DeclarationStatus.VERIFIED);
         declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.PHYSICALLY_VERIFIED);
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        snapshotService.capture(declaration, claims.userId());
-        declarationAuditLogService.log(id, AuditActionType.VERIFIED, claims.userId(), claims.role(), null);
+        // [P2] Snapshot on verification
+        versionService.snapshot(WorkflowEntityType.DECLARATION, id, 1, declaration, claims.userId(), null);
 
-        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "VERIFIED",
-                "Declaration physically verified.");
         log.info("Declaration [{}] VERIFIED by userId={}", id, claims.userId());
     }
 
@@ -502,12 +555,12 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         AssetDeclaration declaration = loadDeclaration(id);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
 
+        // [P3] Canonical: WorkflowEngine sub-status transition
+        executeDeclarationTransition(id, WorkflowAction.FAIL_SITE_VISIT, claims, null);
+
         declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED);
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        governanceAuditService.logAction(id, "DECLARATION", claims.userId(), "SITE_VISIT_FAILED",
-                "Site visit failed — physical verification status set to VERIFICATION_FAILED.");
         log.info("Declaration [{}] site visit FAILED by userId={}", id, claims.userId());
     }
 
@@ -522,22 +575,19 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         AssetDeclaration declaration = loadDeclaration(declarationId);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
 
-        // Can only order if declaration has been submitted
-        if (declaration.getSubmissionStatus() == SubmissionStatus.DRAFT
-                || declaration.getSubmissionStatus() == SubmissionStatus.REJECTED) {
+        if (declaration.getStatus() == DeclarationStatus.DRAFT
+                || declaration.getStatus() == DeclarationStatus.REJECTED) {
             throw new IllegalStatusTransitionException(
                     "Cannot order physical verification for declaration [" + declarationId +
-                    "] in status " + declaration.getSubmissionStatus() + ". Declaration must be SUBMITTED.");
+                    "] in status " + declaration.getStatus() + ". Declaration must be SUBMITTED.");
         }
 
         PhysicalVerificationStatus previous = declaration.getPhysicalVerificationStatus();
         declaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.ORDERED_FOR_PHYSICAL_VERIFICATION);
         declaration.setPhysicalVerificationOrderedAt(LocalDateTime.now());
         declaration.setPhysicalVerificationOrderedBy(currentUserId());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
-        // Append-only history entry
         physicalVerificationHistoryRepository.save(PhysicalVerificationHistory.builder()
                 .declarationId(declarationId)
                 .dcUserId(currentUserId())
@@ -547,8 +597,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .build());
 
         governanceAuditService.logAction(declarationId, "DECLARATION", currentUserId(),
-                "ORDER_PHYSICAL_VERIFICATION",
-                "Physical verification ordered. Notes: " + request.getNotes());
+                "ORDER_PHYSICAL_VERIFICATION", "Physical verification ordered. Notes: " + request.getNotes());
         log.info("Declaration [{}] physical verification ORDERED by userId={}", declarationId, currentUserId());
     }
 
@@ -562,7 +611,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         PhysicalVerificationStatus current = declaration.getPhysicalVerificationStatus();
         PhysicalVerificationStatus newStatus = request.getNewStatus();
 
-        // Only allowed from ORDERED state
         if (current != PhysicalVerificationStatus.ORDERED_FOR_PHYSICAL_VERIFICATION) {
             throw new IllegalStatusTransitionException(
                     "Physical verification status can only be updated from ORDERED_FOR_PHYSICAL_VERIFICATION. " +
@@ -577,7 +625,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         declaration.setPhysicalVerificationStatus(newStatus);
         declaration.setPhysicalVerificationCompletedAt(LocalDateTime.now());
-        declaration.setGovernanceVersion(declaration.getGovernanceVersion() + 1);
         declarationRepository.save(declaration);
 
         physicalVerificationHistoryRepository.save(PhysicalVerificationHistory.builder()
@@ -590,8 +637,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         governanceAuditService.logAction(declarationId, "DECLARATION", currentUserId(),
                 "UPDATE_PHYSICAL_VERIFICATION",
-                "Physical verification updated: " + current + " → " + newStatus +
-                ". Notes: " + request.getNotes());
+                "Physical verification updated: " + current + " → " + newStatus + ". Notes: " + request.getNotes());
         log.info("Declaration [{}] physical verification updated: {} → {} by userId={}",
                 declarationId, current, newStatus, currentUserId());
     }
@@ -600,7 +646,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     @Transactional(readOnly = true)
     @PreAuthorize(RoleConstants.CAN_ACT_DC + " or " + RoleConstants.IS_DC_ROLE)
     public List<PhysicalVerificationHistoryResponse> getPhysicalVerificationHistory(Long declarationId) {
-        // Jurisdiction check
         AssetDeclaration declaration = loadDeclaration(declarationId);
         jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
 
@@ -623,27 +668,10 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     // Private helpers
     // =========================================================================
 
-    /**
-     * Validates that a TA can submit: only DRAFT or SENT_BACK are valid starting states.
-     * REJECTED records cannot be edited — TA must create a new one.
-     */
-    private void assertCanSubmit(SubmissionStatus current, String entityType, Long entityId) {
-        if (current != SubmissionStatus.DRAFT && current != SubmissionStatus.SENT_BACK) {
-            throw new IllegalStatusTransitionException(
-                    "Cannot submit " + entityType + " [" + entityId + "]: current status is " + current +
-                    ". Only DRAFT or SENT_BACK records can be submitted.");
-        }
-    }
-
-    /**
-     * Validates that DC can act: only SUBMITTED records can be approved/sent-back/rejected.
-     */
-    private void assertDcCanAct(SubmissionStatus current, String entityType, Long entityId) {
-        if (current != SubmissionStatus.SUBMITTED) {
-            throw new IllegalStatusTransitionException(
-                    "Cannot perform DC action on " + entityType + " [" + entityId +
-                    "]: current status is " + current + ". Only SUBMITTED records can be acted upon.");
-        }
+    private Long districtIdForTrust(Trust trust) {
+        return templeRepository.findById(trust.getTempleId())
+            .map(t -> t.getDistrictId())
+            .orElse(0L);
     }
 
     private void assertDistrictScopeForTrust(Trust trust) {
@@ -662,57 +690,141 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .orElseThrow(() -> new EntityNotFoundException("AssetDeclaration", id));
     }
 
-    private AssetDeclaration loadDeclarationWithLock(Long id) {
-        return declarationRepository.findByIdWithLock(id)
-                .orElseThrow(() -> new EntityNotFoundException("AssetDeclaration", id));
-    }
-
     private Temple loadTempleWithGeo(Long templeId) {
         return templeRepository.findWithGeoById(templeId)
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
     }
 
-    private void saveClarification(Long declarationId, String message, String sectionName,
-                                   List<String> fieldNames, Long authorId,
-                                   ClarificationDirection direction) {
-        String fieldNamesJson = null;
-        if (fieldNames != null && !fieldNames.isEmpty()) {
-            try {
-                fieldNamesJson = objectMapper.writeValueAsString(fieldNames);
-            } catch (JsonProcessingException e) {
-                log.warn("Failed to serialize fieldNames for declarationId={}", declarationId);
-            }
-        }
-        clarificationRepository.save(DeclarationClarification.builder()
-                .declarationId(declarationId)
-                .direction(direction)
-                .message(message)
-                .sectionName(sectionName)
-                .fieldNamesJson(fieldNamesJson)
-                .authorId(authorId)
-                .build());
-    }
-
-    private void notifyDcOfSubmission(Long templeId, String moduleName, Long entityId) {
-        notificationPublisher.publish(0L, moduleName + "_SUBMITTED", entityId, moduleName);
-        log.debug("DC submission notification queued: module={} entityId={}", moduleName, entityId);
-    }
-
-    private void notifyTaOfDecision(Long templeId, String moduleName, Long entityId,
-                                     String decision, String reason) {
-        notificationPublisher.publish(0L, moduleName + "_" + decision, entityId, moduleName);
-        log.debug("TA decision notification queued: module={} entityId={} decision={}", moduleName, entityId, decision);
-    }
-
     private Long currentUserId() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        org.springframework.security.core.Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null) return 0L;
+        Object principal = authentication.getPrincipal();
         if (principal instanceof ScopeHelper.Claims c) return c.userId();
         return 0L;
+    }
+
+    private String currentRole() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return c.role();
+        return "UNKNOWN";
     }
 
     private ScopeHelper.Claims currentClaims() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof ScopeHelper.Claims c) return c;
         throw new IllegalStateException("Authenticated principal is not a ScopeHelper.Claims instance.");
+    }
+
+    private void executeDeclarationTransition(Long declarationId,
+                                              WorkflowAction action,
+                                              ScopeHelper.Claims claims,
+                                              String clientIdempotencyKey) {
+        WorkflowInstance wi = workflowEngineAdaptor.findState(WorkflowEntityType.DECLARATION, declarationId)
+            .orElseGet(() -> {
+                AssetDeclaration declaration = loadDeclaration(declarationId);
+                return workflowEngineAdaptor.ensureInitiated(
+                    WorkflowEntityType.DECLARATION,
+                    declarationId,
+                    declaration.getTempleId(),
+                    declaration.getDistrictId(),
+                    claims.userId());
+            });
+
+        workflowEngine.execute(wi.getId(),
+            WorkflowActionRequest.builder()
+                .action(action)
+                .idempotencyKey(effectiveIdempotencyKey(clientIdempotencyKey))
+                .build(),
+            ActionContext.builder()
+                .actorId(claims.userId())
+                .actorRole("DC")
+                .actorDistrictId(claims.districtId())
+                .build());
+    }
+
+    private String effectiveIdempotencyKey(String clientProvidedKey) {
+        return StringUtils.hasText(clientProvidedKey)
+            ? clientProvidedKey
+            : UUID.randomUUID().toString();
+    }
+
+    private String generateAcknowledgementDocument(AssetDeclaration declaration, String acknowledgementNumber) {
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(output);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+
+            document.add(new Paragraph("Temple Registry - Declaration Acknowledgement"));
+            document.add(new Paragraph("Acknowledgement Number: " + acknowledgementNumber));
+            document.add(new Paragraph("Declaration ID: " + declaration.getId()));
+            document.add(new Paragraph("Temple ID: " + declaration.getTempleId()));
+            document.add(new Paragraph("Financial Year: " + declaration.getFinancialYear()));
+            document.add(new Paragraph("Approved At: " + LocalDateTime.now()));
+            document.close();
+
+            String filename = "ACK_DECLARATION_" + declaration.getId() + ".pdf";
+            return fileStorageService.uploadBytes("declarations/acknowledgements", filename, output.toByteArray());
+        } catch (Exception ex) {
+            log.warn("Acknowledgement PDF generation failed for declarationId={} ackNumber={}: {}",
+                declaration.getId(), acknowledgementNumber, ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * V-H1 guard: asserts that the entity-level status string matches the WorkflowInstance
+     * status after a dual-write transition.
+     *
+     * <p>Both writes happen in the same {@code @Transactional}, so there is no partial-failure
+     * atomicity risk. This guard exists to detect <em>mapping divergence</em> introduced by future
+     * refactors — e.g., a developer changes the entity status enum value without updating the
+     * corresponding WorkflowStatus enum, or vice-versa.
+     *
+     * <p>Throws {@link IllegalStateException} only when the names do not match, so it is safe
+     * in production (both sides should always agree). In tests the mismatch will surface
+     * immediately.
+     *
+     * @param entityType      the workflow entity type (DECLARATION, TRUST, …)
+     * @param entityId        the domain entity PK
+     * @param entityStatusName the {@code .name()} of the entity-level status enum just set
+     */
+    private void assertEntityStatusConsistency(
+            WorkflowEntityType entityType, Long entityId, String entityStatusName) {
+        workflowEngineAdaptor.findState(entityType, entityId).ifPresent(wi -> {
+            String workflowStatusName = wi.getStatus() != null ? wi.getStatus().name() : "null";
+            String canonicalWorkflowStatusName = canonicalizeWorkflowStatusForEntity(entityType, workflowStatusName);
+            if (!canonicalWorkflowStatusName.equalsIgnoreCase(entityStatusName)) {
+                // Log at ERROR so that it surfaces in monitoring before any production issue
+                log.error(
+                    "[V-H1] Status divergence detected after transition: entityType={} entityId={} " +
+                    "entityStatus={} workflowStatus={} canonicalWorkflowStatus={} — these must be kept in sync",
+                    entityType, entityId, entityStatusName, workflowStatusName, canonicalWorkflowStatusName);
+                throw new IllegalStateException(
+                    "Entity status [" + entityStatusName + "] diverged from WorkflowInstance status ["
+                    + workflowStatusName + "] for " + entityType + " id=" + entityId
+                    + ". Update the status mapping in GovernanceWorkflowServiceImpl.");
+            }
+        });
+    }
+
+    private String canonicalizeWorkflowStatusForEntity(WorkflowEntityType entityType, String workflowStatusName) {
+        if (entityType == WorkflowEntityType.TRUST) {
+            // Trust entity uses SubmissionStatus.SENT_BACK while the workflow engine
+            // uses WorkflowStatus.CLARIFICATION_REQUESTED for the same state.
+            return switch (workflowStatusName) {
+                case "CLARIFICATION_REQUESTED" -> "SENT_BACK";
+                default -> workflowStatusName;
+            };
+        }
+        if (entityType != WorkflowEntityType.DECLARATION) {
+            return workflowStatusName;
+        }
+
+        return switch (workflowStatusName) {
+            case "RE_APPROVED" -> "APPROVED";
+            case "CLARIFICATION_REQUESTED" -> "CLARIFICATION_REQUIRED";
+            case "RESUBMITTED" -> "SUBMITTED";
+            default -> workflowStatusName;
+        };
     }
 }

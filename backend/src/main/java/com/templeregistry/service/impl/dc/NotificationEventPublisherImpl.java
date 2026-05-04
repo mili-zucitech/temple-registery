@@ -3,6 +3,7 @@ package com.templeregistry.service.impl.dc;
 import com.templeregistry.entity.notification.NotificationEvent;
 import com.templeregistry.repository.notification.NotificationEventRepository;
 import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.service.notification.NotificationRecipientResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationEventPublisherImpl implements NotificationEventPublisher {
 
     private final NotificationEventRepository notificationEventRepository;
+    private final NotificationRecipientResolver recipientResolver;
 
     @Override
     @Transactional(propagation = Propagation.REQUIRED)
@@ -45,36 +47,45 @@ public class NotificationEventPublisherImpl implements NotificationEventPublishe
     @Override
     @Transactional(propagation = Propagation.REQUIRED)
     public void publishTempleVerified(Long templeId, String templeName, Long dcUserId, String remarks) {
-        // TODO: Lookup Temple Authority user ID for this temple and send notification
-        // For now, logging the event
-        log.info("Temple verified notification: templeId={} templeName={} dcUserId={} remarks={}",
-                templeId, templeName, dcUserId, remarks);
-        
-        // When TA user lookup is implemented, call:
-        // publish(taUserId, "TEMPLE_PROFILE_VERIFIED", templeId, "TEMPLE_PROFILE");
+        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
+        if (taIds.length == 0) {
+            log.warn("publishTempleVerified: no TA found for templeId={}", templeId);
+            return;
+        }
+        for (Long taId : taIds) {
+            publish(taId, "TEMPLE_PROFILE_VERIFIED", templeId, "TEMPLE_PROFILE");
+        }
+        log.info("TEMPLE_PROFILE_VERIFIED notification queued: templeId={} templeName={} taCount={}",
+                templeId, templeName, taIds.length);
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRED)
     public void publishTempleFlagged(Long templeId, String templeName, Long dcUserId, String reason) {
-        // TODO: Lookup Temple Authority user ID for this temple and send notification
-        // For now, logging the event
-        log.info("Temple flagged notification: templeId={} templeName={} dcUserId={} reason={}",
-                templeId, templeName, dcUserId, reason);
-        
-        // When TA user lookup is implemented, call:
-        // publish(taUserId, "TEMPLE_PROFILE_FLAGGED", templeId, "TEMPLE_PROFILE");
+        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
+        if (taIds.length == 0) {
+            log.warn("publishTempleFlagged: no TA found for templeId={}", templeId);
+            return;
+        }
+        for (Long taId : taIds) {
+            publish(taId, "TEMPLE_PROFILE_FLAGGED", templeId, "TEMPLE_PROFILE");
+        }
+        log.info("TEMPLE_PROFILE_FLAGGED notification queued: templeId={} templeName={} taCount={}",
+                templeId, templeName, taIds.length);
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRED)
     public void publishTempleUnflagged(Long templeId, String templeName, Long dcUserId, String remarks) {
-        // TODO: Lookup Temple Authority user ID for this temple and send notification
-        // For now, logging the event
-        log.info("Temple unflagged notification: templeId={} templeName={} dcUserId={} remarks={}",
-                templeId, templeName, dcUserId, remarks);
-        
-        // When TA user lookup is implemented, call:
-        // publish(taUserId, "TEMPLE_PROFILE_UNFLAGGED", templeId, "TEMPLE_PROFILE");
+        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
+        if (taIds.length == 0) {
+            log.warn("publishTempleUnflagged: no TA found for templeId={}", templeId);
+            return;
+        }
+        for (Long taId : taIds) {
+            publish(taId, "TEMPLE_PROFILE_UNFLAGGED", templeId, "TEMPLE_PROFILE");
+        }
+        log.info("TEMPLE_PROFILE_UNFLAGGED notification queued: templeId={} templeName={} taCount={}",
+                templeId, templeName, taIds.length);
     }
 }

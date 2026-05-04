@@ -21,8 +21,12 @@ import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.governance.GovernanceEditGuard;
+import com.templeregistry.service.notification.NotificationHelper;
+import com.templeregistry.service.notification.NotificationRecipientResolver;
 import com.templeregistry.service.trust.TrustService;
 import com.templeregistry.service.trust.TrustValidationService;
+import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.util.HmacUtil;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +66,10 @@ public class TrustServiceImpl implements TrustService {
     private final GovernanceEditGuard governanceEditGuard;
     private final GovernanceAuditService governanceAuditService;
     private final NotificationEventPublisher notificationPublisher;
+    private final NotificationHelper notificationHelper;
+    private final com.templeregistry.service.notification.NotificationEventPublisher eventPublisher;
+    private final NotificationRecipientResolver recipientResolver;
+    private final WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,7 +92,7 @@ public class TrustServiceImpl implements TrustService {
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         trustValidationService.validateTrustRequest(rq, null);
         // Prevent duplicate trust per temple
-        if (trustRepository.existsByTempleIdAndIsDeletedFalse(templeId)) {
+        if (trustRepository.existsByTempleIdAndDeletedFalse(templeId)) {
             throw new com.templeregistry.exception.DuplicateResourceException(
                     "A trust is already registered for this temple.");
         }
@@ -104,6 +112,10 @@ public class TrustServiceImpl implements TrustService {
         Trust saved = trustRepository.save(trust);
         temple.setTrustRegistered(true);
         templeRepository.save(temple);
+        // ── Workflow Engine: initiate governance instance ──────────────────────
+        workflowEngineAdaptor.ensureInitiated(
+            WorkflowEntityType.TRUST, saved.getId(),
+            templeId, temple.getDistrictId(), currentUserId());
         log.info("Trust created: id=[{}] for temple=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
@@ -124,14 +136,14 @@ public class TrustServiceImpl implements TrustService {
     @Override
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
-    public TrustResponse update(Long id, CreateTrustRequest rq) {
+    public TrustResponse update(Long id, UpdateTrustRequest rq) {
         Trust trust = trustRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Trust", id));
         Temple temple = templeRepository.findById(trust.getTempleId())
                 .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
-        trustValidationService.validateTrustRequest(rq, id);
+        trustValidationService.validateTrustUpdateRequest(rq, id);
 
         // Capture status before edit to detect re-submission requirement
         SubmissionStatus statusBeforeEdit = trust.getSubmissionStatus();
@@ -145,28 +157,35 @@ public class TrustServiceImpl implements TrustService {
         trust.setTrustRegistrationNumber(rq.getRegistrationNumber().trim());
         trust.setRegisteringAuthority(rq.getRegisteringAuthority().trim());
         trust.setDateOfRegistration(rq.getDateOfRegistration());
-        trust.setTrustPANNumber(rq.getPanNumber().trim().toUpperCase());
-        trust.setBankAccountNumber(rq.getBankAccountNumber().trim());
+        // Only overwrite sensitive fields when the user explicitly provides a new value
+        if (rq.getPanNumber() != null && !rq.getPanNumber().isBlank()) {
+            trust.setTrustPANNumber(rq.getPanNumber().trim().toUpperCase());
+        }
+        if (rq.getBankAccountNumber() != null && !rq.getBankAccountNumber().isBlank()) {
+            trust.setBankAccountNumber(rq.getBankAccountNumber().trim());
+        }
         trust.setBankNameAndBranch(joinBankNameAndBranch(rq.getBankName(), rq.getBankBranch()));
         trust.setAnnualIncome(rq.getAnnualIncome());
 
         // Re-submission: if trust was APPROVED and TA edits, reset to PENDING_REVIEW
         if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
-            trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
+            // Clear send-back reason before re-submission
             trust.setSendBackReason(null);
-            trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
+            trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
 
-            // Notify DC of re-submission
-            notificationPublisher.publish(0L, "TRUST_RESUBMITTED", trust.getId(), "TRUST");
-            governanceAuditService.logAction(id, "TRUST", currentUserId(), "RESUBMIT",
-                    "Trust re-submitted after TA edit of APPROVED record.");
+            // ── Workflow Engine: adapt edit-approved transition ───────────────
+            workflowEngineAdaptor.adaptEditApproved(
+                WorkflowEntityType.TRUST, trust.getId(), currentUserId(), trust.getTempleId());
+
+            // EC-04: Notify via helper
+            notificationHelper.notifyTrustUpdated(trust.getId(), trust.getTempleId(), trust.getTrustName(), currentUserId());
+
             log.info("Trust [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
         }
 
         // Legacy DC verification reset (isVerifiedByDc field on Trust entity)
         if (trust.isVerifiedByDc()) {
-            trust.setVerifiedByDc(false);
+            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
             trust.setDcFlagReason(null);
             log.info("Trust [{}] DC verification flag reset after TA update", id);
         }
@@ -227,7 +246,17 @@ public class TrustServiceImpl implements TrustService {
                 .address(rq.getAddress())
                 .isCurrent(trustValidationService.isCurrentMember(rq.getTenureEndDate()))
                 .build();
-        return toBoardResponse(boardMemberRepository.save(member));
+        BoardMember saved = boardMemberRepository.save(member);
+        // Notify via helper (structural requirement)
+        notificationHelper.notifyBoardMemberAdded(saved.getId(), trust.getTempleId(), trust.getTrustName(), saved.getFullName(), currentUserId());
+        
+        Long[] dcIds = recipientResolver.getDistrictCollectorsForTemple(trust.getTempleId());
+        for (Long dcId : dcIds) {
+            eventPublisher.publish(new com.templeregistry.event.board.BoardMemberAddedEvent(
+                this, saved.getId(), trust.getTrustName(), saved.getFullName(),
+                saved.getDesignation(), currentUserId(), dcId));
+        }
+        return toBoardResponse(saved);
     }
 
     @Override
@@ -253,13 +282,23 @@ public class TrustServiceImpl implements TrustService {
         if (rq.getContactNumber() != null)   member.setContactNumber(rq.getContactNumber());
         if (rq.getAddress() != null)         member.setAddress(rq.getAddress());
         if (rq.getTenureEndDate() != null)   member.setTenureEndDate(rq.getTenureEndDate());
-        if (Boolean.FALSE.equals(rq.getIsCurrent()) && rq.getTenureEndDate() == null) {
+        if (Boolean.FALSE.equals(rq.getCurrent()) && rq.getTenureEndDate() == null) {
             member.setTenureEndDate(LocalDate.now());
         }
         member.setCurrent(trustValidationService.isCurrentMember(member.getTenureEndDate()));
 
         log.info("BoardMember updated: id=[{}] isCurrent=[{}]", memberId, member.isCurrent());
-        return toBoardResponse(boardMemberRepository.save(member));
+        BoardMember updated = boardMemberRepository.save(member);
+        // Notify via helper (structural requirement)
+        notificationHelper.notifyBoardMemberUpdated(updated.getId(), trust.getTempleId(), trust.getTrustName(), updated.getFullName(), currentUserId());
+
+        Long[] dcIds = recipientResolver.getDistrictCollectorsForTemple(trust.getTempleId());
+        for (Long dcId : dcIds) {
+            eventPublisher.publish(new com.templeregistry.event.board.BoardMemberUpdatedEvent(
+                this, updated.getId(), trust.getTrustName(), updated.getFullName(),
+                currentUserId(), dcId));
+        }
+        return toBoardResponse(updated);
     }
 
     @Override
@@ -278,6 +317,65 @@ public class TrustServiceImpl implements TrustService {
             throw new EntityNotFoundException("BoardMember", memberId);
         }
         boardMemberRepository.delete(member);
+        // Notify via helper (structural requirement)
+        notificationHelper.notifyBoardMemberRemoved(member.getId(), trust.getTempleId(), trust.getTrustName(), member.getFullName(), currentUserId());
+
+        Long[] dcIds = recipientResolver.getDistrictCollectorsForTemple(trust.getTempleId());
+        for (Long dcId : dcIds) {
+            eventPublisher.publish(new com.templeregistry.event.board.BoardMemberRemovedEvent(
+                this, member.getId(), trust.getTrustName(), member.getFullName(),
+                currentUserId(), dcId));
+        }
+    }
+
+    @Override
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
+    @Transactional
+    public BoardMemberResponse approveBoardMember(Long trustId, Long memberId, String remarks,
+                                                   com.templeregistry.security.ScopeHelper.Claims claims) {
+        Trust trust = trustRepository.findById(trustId)
+                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
+        Temple temple = templeRepository.findById(trust.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+        BoardMember member = boardMemberRepository.findById(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("BoardMember", memberId));
+        if (!Objects.equals(member.getTrustId(), trustId)) {
+            throw new EntityNotFoundException("BoardMember", memberId);
+        }
+        member.setVerifiedByDc(true);
+        member.setDcFlagReason(null);
+        boardMemberRepository.save(member);
+        // ── Workflow Engine: adapt board member approval ───────────────────────
+        workflowEngineAdaptor.adaptApprove(
+            WorkflowEntityType.BOARD_MEMBER, memberId, claims.districtId(), claims.userId());
+        log.info("BoardMember [{}] APPROVED by DC userId={}", memberId, claims.userId());
+        return toBoardResponse(member);
+    }
+
+    @Override
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
+    @Transactional
+    public BoardMemberResponse rejectBoardMember(Long trustId, Long memberId, String reason,
+                                                  com.templeregistry.security.ScopeHelper.Claims claims) {
+        Trust trust = trustRepository.findById(trustId)
+                .orElseThrow(() -> new EntityNotFoundException("Trust", trustId));
+        Temple temple = templeRepository.findById(trust.getTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", trust.getTempleId()));
+        jurisdictionGuard.assertDistrictScope(temple, claims);
+        BoardMember member = boardMemberRepository.findById(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("BoardMember", memberId));
+        if (!Objects.equals(member.getTrustId(), trustId)) {
+            throw new EntityNotFoundException("BoardMember", memberId);
+        }
+        member.setVerifiedByDc(false);
+        member.setDcFlagReason(reason);
+        boardMemberRepository.save(member);
+        // ── Workflow Engine: adapt board member rejection ──────────────────────
+        workflowEngineAdaptor.adaptReject(
+            WorkflowEntityType.BOARD_MEMBER, memberId, claims.districtId(), claims.userId(), reason);
+        log.info("BoardMember [{}] REJECTED by DC userId={} reason={}", memberId, claims.userId(), reason);
+        return toBoardResponse(member);
     }
 
     @Override
@@ -288,7 +386,7 @@ public class TrustServiceImpl implements TrustService {
                 .orElseThrow(() -> new EntityNotFoundException("Trust", id));
         trustRepository.delete(trust);
         templeRepository.findById(trust.getTempleId()).ifPresent(temple -> {
-            temple.setTrustRegistered(trustRepository.existsByTempleIdAndIsDeletedFalse(temple.getId()));
+            temple.setTrustRegistered(trustRepository.existsByTempleIdAndDeletedFalse(temple.getId()));
         });
     }
 
@@ -314,6 +412,14 @@ public class TrustServiceImpl implements TrustService {
                 .build();
         financialRepository.save(fin);
         log.info("Financial submitted for trust [{}], FY [{}]", trustId, rq.getFinancialYear());
+
+        // Notify DCs of financial submission
+        Long[] dcIds = recipientResolver.getDistrictCollectorsForTemple(trust.getTempleId());
+        for (Long dcId : dcIds) {
+            eventPublisher.publish(new com.templeregistry.event.finance.FinanceSubmittedEvent(
+                this, trust.getId(), trust.getTrustName(), rq.getFinancialYear().trim(),
+                currentUserId(), dcId));
+        }
     }
 
     @Override
@@ -436,7 +542,10 @@ public class TrustServiceImpl implements TrustService {
     private TrustResponse toResponse(Trust t) {
         String[] bankParts = splitBankNameAndBranch(t.getBankNameAndBranch());
         return TrustResponse.builder()
-                .id(t.getId()).templeId(t.getTempleId()).trustName(t.getTrustName())
+                .id(t.getId())
+                .workflowInstanceId(workflowEngineAdaptor.getWorkflowInstanceId(
+                    WorkflowEntityType.TRUST, t.getId()))
+                .templeId(t.getTempleId()).trustName(t.getTrustName())
                 .trustType(t.getTrustType()).registrationNumber(t.getTrustRegistrationNumber())
                 .registeringAuthority(t.getRegisteringAuthority())
                 .dateOfRegistration(t.getDateOfRegistration())
@@ -447,10 +556,9 @@ public class TrustServiceImpl implements TrustService {
                 .bankBranch(bankParts[1])
                 .annualIncome(t.getAnnualIncome())
                 .status(t.getStatus())
-                .isActive(t.getStatus() == TrustStatus.ACTIVE)
+                .active(t.getStatus() == TrustStatus.ACTIVE)
                 .dissolvedAt(t.getDissolutionDate())
                 .dissolutionReason(t.getDissolutionReason())
-                .isVerifiedByDc(t.isVerifiedByDc())
                 .dcFlagReason(t.getDcFlagReason())
                 // 3-layer governance status (TA-safe: no systemVerificationStatus)
                 .submissionStatus(t.getSubmissionStatus())
@@ -465,8 +573,8 @@ public class TrustServiceImpl implements TrustService {
                 .id(bm.getId()).trustId(bm.getTrustId()).fullName(bm.getFullName())
                 .maskedAadhaar(bm.getMaskedAadhaar()).designation(bm.getDesignation())
                 .appointmentDate(bm.getAppointmentDate()).tenureEndDate(bm.getTenureEndDate())
-                .contactNumber(bm.getContactNumber()).address(bm.getAddress()).isCurrent(isCurrent)
-                .isVerifiedByDc(bm.isVerifiedByDc()).dcFlagReason(bm.getDcFlagReason())
+                .contactNumber(bm.getContactNumber()).address(bm.getAddress()).current(isCurrent)
+                .dcFlagReason(bm.getDcFlagReason())
                 .build();
     }
 

@@ -27,7 +27,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     private final NotificationPreferenceRepository preferenceRepository;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<NotificationPreferenceResponse> getUserPreferences(Long userId) {
         List<NotificationPreference> preferences = preferenceRepository.findAllByUserId(userId);
 

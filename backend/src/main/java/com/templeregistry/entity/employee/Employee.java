@@ -1,6 +1,7 @@
 package com.templeregistry.entity.employee;
 
 import com.templeregistry.entity.base.BaseEntity;
+import com.templeregistry.entity.governance.SubmissionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
 @Table(name = "employees", indexes = {
         @Index(name = "idx_employees_temple_id", columnList = "temple_id"),
         @Index(name = "idx_employees_status", columnList = "status"),
-        @Index(name = "idx_employees_submission_status", columnList = "submission_status"),
         @Index(name = "idx_employees_employee_ref", columnList = "employee_ref"),
         @Index(name = "idx_employees_employee_type", columnList = "employee_type"),
         @Index(name = "idx_employees_verified", columnList = "is_verified_by_dc")
@@ -56,7 +56,7 @@ public class Employee extends BaseEntity {
 
     @Builder.Default
     @Column(name = "is_hereditary", nullable = false)
-    private Boolean isHereditary = false;
+    private Boolean hereditary = false;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -67,9 +67,10 @@ public class Employee extends BaseEntity {
     private LocalDate dateOfLeaving;
 
     // Submission Workflow Fields
+    // NOTE: submission_status column was dropped from employees table by V36 migration.
+    // This field is kept as @Transient for in-memory workflow tracking only.
+    @Transient
     @Builder.Default
-    @Enumerated(EnumType.STRING)
-    @Column(name = "submission_status", nullable = false, length = 20)
     private SubmissionStatus submissionStatus = SubmissionStatus.DRAFT;
 
     @Column(name = "submitted_at")
@@ -90,7 +91,7 @@ public class Employee extends BaseEntity {
     // DC Governance Fields
     @Builder.Default
     @Column(name = "is_verified_by_dc", nullable = false)
-    private boolean isVerifiedByDc = false;
+    private boolean verifiedByDc = false;
 
     @Column(name = "verified_by_dc_at")
     private LocalDateTime verifiedByDcAt;

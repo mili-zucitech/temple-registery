@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   PhysicalVerificationStatus,
   PhysicalVerificationHistoryEntry,
@@ -104,27 +106,26 @@ export function PhysicalVerificationPanel({
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         {physicalVerificationStatus === 'NOT_INITIATED' && (
-          <button
+          <Button
             type="button"
             onClick={() => setShowOrderForm(true)}
             disabled={isOrdering}
-            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             aria-label="Order physical verification for this declaration"
           >
             Order Physical Verification
-          </button>
+          </Button>
         )}
 
         {physicalVerificationStatus === 'ORDERED_FOR_PHYSICAL_VERIFICATION' && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => setShowUpdateForm(true)}
             disabled={isUpdating}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             aria-label="Update physical verification result"
           >
             Update Verification Result
-          </button>
+          </Button>
         )}
       </div>
 
@@ -140,29 +141,25 @@ export function PhysicalVerificationPanel({
             <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700">
               Notes (optional)
             </label>
-            <textarea
+            <Textarea
               id="orderNotes"
               rows={3}
               placeholder="Add any notes for the verification team…"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1"
               {...orderForm.register('notes')}
             />
           </div>
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={isOrdering}
-              className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={isOrdering}>
               {isOrdering ? 'Ordering…' : 'Confirm Order'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => { setShowOrderForm(false); orderForm.reset() }}
-              className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -199,29 +196,25 @@ export function PhysicalVerificationPanel({
             <label htmlFor="updateNotes" className="block text-sm font-medium text-gray-700">
               Notes (optional)
             </label>
-            <textarea
+            <Textarea
               id="updateNotes"
               rows={3}
               placeholder="Add verification notes…"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1"
               {...updateForm.register('notes')}
             />
           </div>
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={isUpdating}
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={isUpdating}>
               {isUpdating ? 'Updating…' : 'Confirm Update'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => { setShowUpdateForm(false); updateForm.reset() }}
-              className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}

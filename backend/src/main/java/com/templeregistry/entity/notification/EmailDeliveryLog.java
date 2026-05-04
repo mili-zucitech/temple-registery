@@ -28,7 +28,7 @@ public class EmailDeliveryLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "notification_event_id", nullable = false)
+    @Column(name = "notification_event_id")
     private Long notificationEventId;
 
     @Column(name = "recipient_email", nullable = false, length = 255)
