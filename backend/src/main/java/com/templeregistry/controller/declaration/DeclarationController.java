@@ -54,7 +54,7 @@ public class DeclarationController {
     }
 
     @PutMapping("/api/v1/declarations/{id}")
-    @Operation(summary = "Update DRAFT declaration fields")
+    @Operation(summary = "Update DRAFT or REJECTED declaration fields")
     public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> update(
             @PathVariable Long id, @Valid @RequestBody CreateDeclarationRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Declaration updated.", declarationService.update(id, rq)));
@@ -72,6 +72,14 @@ public class DeclarationController {
     public ResponseEntity<ApiResponse<Void>> submit(@PathVariable Long id) {
         return ResponseEntity.status(HttpStatus.GONE)
             .body(ApiResponse.error("This endpoint is deprecated. Use POST /api/v1/governance/declarations/" + id + "/submit", "ENDPOINT_DEPRECATED"));
+    }
+
+    @PostMapping("/api/v1/declarations/{id}/resubmit")
+    @Operation(summary = "Resubmit a REJECTED or CLARIFICATION_REQUIRED declaration (creates new version)")
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> resubmit(
+            @PathVariable Long id, @Valid @RequestBody ResubmitDeclarationRequest rq) {
+        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted.", 
+                declarationService.resubmit(id, rq)));
     }
 
     @PostMapping("/api/v1/declarations/{id}/clarification-respond")

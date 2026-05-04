@@ -1,5 +1,5 @@
-import { Briefcase, Calendar, Receipt, Hash, Eye, FileText, Download } from 'lucide-react'
-import { useState } from 'react'
+import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download, User, Building2, AlertCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { SectionCard } from '../components'
 import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
@@ -216,131 +216,133 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
       {/* Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-primary" />
-              {selectedContractor?.name}
-            </DialogTitle>
-            <DialogDescription>Contractor Details</DialogDescription>
-          </DialogHeader>
-
           {selectedContractor && (
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Basic Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase">
-                      Contractor Name
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.name}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase">
-                      GST Number
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.gstNumber || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase">
-                      Service Type
-                    </label>
-                    <div className="mt-1">
-                      <Badge variant="outline" className={SERVICE_TYPE_COLORS[selectedContractor.serviceType]}>
+            <div className="space-y-5">
+              {/* Gradient Header */}
+              <div className="overflow-hidden rounded-lg border border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm -m-6 mb-0 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0 pr-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                      <Briefcase size={20} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <h3 className="text-xl font-semibold text-foreground truncate pr-2">{selectedContractor.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5 truncate pr-2">
                         {SERVICE_TYPE_LABELS[selectedContractor.serviceType]}
-                      </Badge>
+                      </p>
                     </div>
                   </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0 ml-auto mr-5">
+                    <Badge variant="outline" className={SERVICE_TYPE_COLORS[selectedContractor.serviceType]}>
+                      {SERVICE_TYPE_LABELS[selectedContractor.serviceType]}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* DC Feedback if flagged */}
+              {selectedContractor.dcFlagReason && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
+                  <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase">
-                      Payment Status
-                    </label>
-                    <div className="mt-1">
-                      <Badge variant="outline" className={PAYMENT_STATUS_COLORS[selectedContractor.paymentStatus]}>
-                        {PAYMENT_STATUS_LABELS[selectedContractor.paymentStatus]}
-                      </Badge>
-                    </div>
+                    <p className="text-sm font-semibold text-destructive">DC Feedback</p>
+                    <p className="text-sm text-destructive/90 mt-1">{selectedContractor.dcFlagReason}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Basic Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Building2 size={16} className="text-primary" />
+                  Basic Information
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ModalInfoCard 
+                    icon={<User size={16} />} 
+                    label="Contractor Name" 
+                    value={selectedContractor.name} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Receipt size={16} />} 
+                    label="GST Number" 
+                    value={selectedContractor.gstNumber || 'Not provided'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Briefcase size={16} />} 
+                    label="Service Type" 
+                    value={SERVICE_TYPE_LABELS[selectedContractor.serviceType]} 
+                  />
+                  <ModalInfoCard 
+                    icon={<CheckCircle2 size={16} />} 
+                    label="Payment Status" 
+                    value={PAYMENT_STATUS_LABELS[selectedContractor.paymentStatus]} 
+                  />
                 </div>
               </div>
 
               {/* Contract Information */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Contract Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
-                      <Hash className="h-3 w-3" />
-                      Contract Reference
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.contractReference || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Work Order Date
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.workOrderDate
-                        ? new Date(selectedContractor.workOrderDate).toLocaleDateString('en-IN')
-                        : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Contract Start Date
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.contractStartDate
-                        ? new Date(selectedContractor.contractStartDate).toLocaleDateString('en-IN')
-                        : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Contract End Date
-                    </label>
-                    <p className="text-sm font-medium text-foreground mt-1">
-                      {selectedContractor.contractEndDate
-                        ? new Date(selectedContractor.contractEndDate).toLocaleDateString('en-IN')
-                        : '—'}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
-                      <Receipt className="h-3 w-3" />
-                      Contract Value
-                    </label>
-                    <p className="text-lg font-bold text-foreground mt-1">
-                      {formatCurrency(selectedContractor.contractValue as any)}
-                    </p>
-                  </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <FileText size={16} className="text-primary" />
+                  Contract Information
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ModalInfoCard 
+                    icon={<Hash size={16} />} 
+                    label="Contract Reference" 
+                    value={selectedContractor.contractReference || 'Not specified'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Calendar size={16} />} 
+                    label="Work Order Date" 
+                    value={selectedContractor.workOrderDate
+                      ? new Date(selectedContractor.workOrderDate).toLocaleDateString('en-IN')
+                      : 'Not specified'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Calendar size={16} />} 
+                    label="Contract Start Date" 
+                    value={selectedContractor.contractStartDate
+                      ? new Date(selectedContractor.contractStartDate).toLocaleDateString('en-IN')
+                      : 'Not specified'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Calendar size={16} />} 
+                    label="Contract End Date" 
+                    value={selectedContractor.contractEndDate
+                      ? new Date(selectedContractor.contractEndDate).toLocaleDateString('en-IN')
+                      : 'Not specified'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Receipt size={16} />} 
+                    label="Contract Value" 
+                    value={formatCurrency(selectedContractor.contractValue as any)}
+                    className="sm:col-span-2"
+                    highlight
+                  />
                 </div>
               </div>
 
               {/* Contract Documents */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Contract Documents</h3>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <FileText size={16} className="text-primary" />
+                  Contract Documents
+                </h4>
                 {selectedContractor.documentIds && selectedContractor.documentIds.length > 0 ? (
                   <div className="space-y-2">
                     {selectedContractor.documentIds.map((docId, index) => (
                       <div
                         key={docId}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30"
+                        className="flex items-center justify-between p-4 rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 shadow-sm hover:shadow-md transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
                           <div>
-                            <p className="text-sm font-medium text-foreground">
+                            <p className="text-sm font-semibold text-foreground">
                               Contract Document {index + 1}
                             </p>
                             <p className="text-xs text-muted-foreground">Document ID: {docId}</p>
@@ -351,16 +353,18 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => handlePreviewDocument(docId)}
+                            className="h-8"
                           >
-                            <Eye className="h-4 w-4 mr-1" />
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
                             Preview
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleDownloadDocument(docId)}
+                            className="h-8"
                           >
-                            <Download className="h-4 w-4 mr-1" />
+                            <Download className="h-3.5 w-3.5 mr-1.5" />
                             Download
                           </Button>
                         </div>
@@ -368,9 +372,12 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-6 border border-dashed border-border rounded-lg">
-                    <FileText className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                    <p className="text-sm text-muted-foreground">No documents uploaded</p>
+                  <div className="text-center py-8 border border-dashed border-border/60 rounded-lg bg-muted/20">
+                    <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-muted/50 mb-3">
+                      <FileText className="h-6 w-6 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">No documents uploaded</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">Contract documents will appear here</p>
                   </div>
                 )}
               </div>
@@ -379,6 +386,30 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function ModalInfoCard({ 
+  icon, 
+  label, 
+  value, 
+  className = '',
+  highlight = false
+}: { 
+  icon: React.ReactNode
+  label: string
+  value: string
+  className?: string
+  highlight?: boolean
+}) {
+  return (
+    <div className={`rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 p-4 shadow-sm ${highlight ? 'ring-2 ring-primary/20' : ''} ${className}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-primary/70">{icon}</div>
+        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      </div>
+      <div className={`${highlight ? 'text-lg' : 'text-sm'} font-semibold text-foreground break-words`}>{value}</div>
     </div>
   )
 }

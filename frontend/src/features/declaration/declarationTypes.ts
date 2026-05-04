@@ -281,6 +281,7 @@ export interface DeclarationResponse {
   isOverdue?: boolean | null
   overdueFlaggedAt?: string | null
   remarks?: string | null
+  rejectionReason?: string | null
   annualIncome?: number | null
   annualExpenditure?: number | null
 }

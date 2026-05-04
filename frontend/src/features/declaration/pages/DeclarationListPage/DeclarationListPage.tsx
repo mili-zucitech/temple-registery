@@ -70,13 +70,15 @@ export function DeclarationListPage() {
   const totalElements = query.data?.data?.totalElements ?? 0
 
   // Check if there's an active declaration for the current financial year
+  // Disable new declaration if there's any non-terminal status declaration
   const hasActiveDeclarationForCurrentYear = useMemo(() => {
     if (!isTA) return false
     return declarations.some(
       (decl) =>
         decl.financialYear === currentFY &&
-        ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED',
-         'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED', 'APPROVED'].includes(decl.status)
+        // Allow new declaration only if all declarations are REJECTED or SUPERSEDED
+        // APPROVED is terminal but should also block new declarations
+        !['REJECTED', 'SUPERSEDED'].includes(decl.status)
     )
   }, [declarations, currentFY, isTA])
 
@@ -86,8 +88,7 @@ export function DeclarationListPage() {
     return declarations.find(
       (decl) =>
         decl.financialYear === currentFY &&
-        ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED',
-         'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'VERIFIED', 'APPROVED'].includes(decl.status)
+        !['REJECTED', 'SUPERSEDED'].includes(decl.status)
     )
   }, [declarations, currentFY, hasActiveDeclarationForCurrentYear])
 
@@ -128,7 +129,7 @@ export function DeclarationListPage() {
                   onClick={() => navigate(ROUTE_PATHS.TA_DECLARATION_NEW)}
                   disabled={hasActiveDeclarationForCurrentYear}
                   title={hasActiveDeclarationForCurrentYear 
-                    ? `A declaration already exists for FY ${currentFY}. Please update the existing declaration (ID: ${existingDeclaration?.id}).`
+                    ? `A declaration for FY ${currentFY} already exists (ID: ${existingDeclaration?.id}, Status: ${existingDeclaration?.status}). You can only have one active declaration per financial year.`
                     : 'Create a new declaration for the current financial year'
                   }
                 >
@@ -138,7 +139,12 @@ export function DeclarationListPage() {
                 {hasActiveDeclarationForCurrentYear && (
                   <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-sm">
                     <Info size={14} className="shrink-0" />
-                    <span>Declaration for FY {currentFY} already exists. Update the existing one instead.</span>
+                    <span>
+                      Declaration for FY {currentFY} already exists (Status: {existingDeclaration?.status}). 
+                      {existingDeclaration?.status === 'REJECTED' 
+                        ? ' Please update and resubmit the rejected declaration.' 
+                        : ' Update the existing one instead.'}
+                    </span>
                   </div>
                 )}
               </div>
@@ -298,7 +304,7 @@ function DeclarationCard({
                 variant="ghost"
                 onClick={() => onOpen()}
               >
-                Edit draft
+                {declaration.status === 'REJECTED' ? 'Update' : 'Edit draft'}
               </Button>
             )}
           </div>
@@ -450,7 +456,8 @@ function resolveDeclarationRoute({
   if (isDC) return ROUTE_PATHS.DC_DECLARATION_DETAIL.replace(':id', String(declaration.id))
   if (isAuditor) return ROUTE_PATHS.AUDITOR_DECLARATION_DETAIL.replace(':id', String(declaration.id))
   if (isTA) {
-    return declaration.status === 'DRAFT'
+    // Allow editing for both DRAFT and REJECTED statuses
+    return (declaration.status === 'DRAFT' || declaration.status === 'REJECTED')
       ? `${ROUTE_PATHS.TA_DECLARATION_NEW}?id=${declaration.id}`
       : ROUTE_PATHS.TA_DECLARATION_DETAIL.replace(':id', String(declaration.id))
   }

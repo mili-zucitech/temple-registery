@@ -1,9 +1,15 @@
-import { AlertTriangle, Shield, Users, TrendingUp } from 'lucide-react'
-import { SectionCard, DetailItem, BoardMemberCard } from '../components'
+import { useState, useMemo } from 'react'
+import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle } from 'lucide-react'
+import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ModuleStatusBadge, deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { BoardMemberSummary, TrustFinancialSummary } from '@/features/dc/dcTypes'
+
+const MEMBERS_PAGE_SIZE = 10
 
 interface TrustTabProps {
   trust: any | null
@@ -20,6 +26,24 @@ interface TrustTabProps {
 
 export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerifyTrust, onFlagTrust }: TrustTabProps) {
   const trustStatus = trust ? deriveModuleStatus(trust.isVerifiedByDc, trust.dcFlagReason) : null
+  const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
+  const [memberPage, setMemberPage] = useState(0)
+  const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
+
+  // Pagination for members
+  const allCurrentMembers = boardMembers.current
+  const allPastMembers = boardMembers.past
+  const displayMembers = memberTab === 'current' ? allCurrentMembers : allPastMembers
+  const totalMemberPages = Math.ceil(displayMembers.length / MEMBERS_PAGE_SIZE)
+  const paginatedMembers = displayMembers.slice(
+    memberPage * MEMBERS_PAGE_SIZE,
+    (memberPage + 1) * MEMBERS_PAGE_SIZE
+  )
+
+  const viewingMember = useMemo(() => {
+    if (!viewingMemberId) return null
+    return [...allCurrentMembers, ...allPastMembers].find(m => m.id === viewingMemberId)
+  }, [viewingMemberId, allCurrentMembers, allPastMembers])
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -71,18 +95,6 @@ export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerif
               </div>
             </div>
           )}
-
-          {/* Oversight block */}
-          <div className="mt-6 pt-6 border-t border-slate-100">
-            <GovernanceActionPanel
-              entityName="Trust Registration"
-              isVerified={trust.isVerifiedByDc}
-              flagReason={trust.dcFlagReason}
-              canAct={canAct}
-              onVerify={(notes) => onVerifyTrust(trust.id, notes)}
-              onFlag={(reason) => onFlagTrust(trust.id, reason)}
-            />
-          </div>
         </SectionCard>
       ) : (
         <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/30 p-6 shadow-sm" role="alert">
@@ -129,29 +141,252 @@ export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerif
             <p className="text-xs font-regular text-slate-500 max-w-[250px]">The temple authority has not submitted the current board structure.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            <BoardGroup title={`Current Members (${boardMembers.current.length})`} members={boardMembers.current} />
-            <BoardGroup title={`Past Members (${boardMembers.past.length})`} members={boardMembers.past} />
+          <div className="space-y-4">
+            {/* Member Type Tabs */}
+            <div className="inline-flex rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm">
+              <button
+                onClick={() => { setMemberTab('current'); setMemberPage(0) }}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  memberTab === 'current'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Current Members ({allCurrentMembers.length})
+              </button>
+              <button
+                onClick={() => { setMemberTab('past'); setMemberPage(0) }}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  memberTab === 'past'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Past Members ({allPastMembers.length})
+              </button>
+            </div>
+
+            {/* Members Table */}
+            <div className="animate-in fade-in-50 duration-300" key={memberTab}>
+              <MemberTable 
+                members={paginatedMembers}
+                onView={(id) => setViewingMemberId(id)}
+              />
+            </div>
+
+            {/* Pagination */}
+            {totalMemberPages > 1 && (
+              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-card/95 px-4 py-3 shadow-sm">
+                <p className="text-sm text-muted-foreground">
+                  Showing {memberPage * MEMBERS_PAGE_SIZE + 1} to {Math.min((memberPage + 1) * MEMBERS_PAGE_SIZE, displayMembers.length)} of {displayMembers.length} members
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMemberPage(p => Math.max(0, p - 1))}
+                    disabled={memberPage === 0}
+                  >
+                    <ChevronLeft size={16} className="mr-1" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMemberPage(p => Math.min(totalMemberPages - 1, p + 1))}
+                    disabled={memberPage >= totalMemberPages - 1}
+                  >
+                    Next
+                    <ChevronRight size={16} className="ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Member Detail Modal */}
+      <Dialog open={viewingMemberId !== null} onOpenChange={(open) => !open && setViewingMemberId(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {viewingMember && (
+            <div className="space-y-5">
+              {/* Gradient Header */}
+              <div className="overflow-hidden rounded-lg border border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm -m-6 mb-0 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0 pr-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                      <User size={20} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <h3 className="text-xl font-semibold text-foreground truncate pr-2">{viewingMember.fullName}</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5 truncate pr-2">{viewingMember.designation ?? 'No designation'}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0 ml-auto">
+                    {viewingMember.isCurrent ? (
+                      <span className="inline-flex items-center mr-5 gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600 whitespace-nowrap">
+                        <CheckCircle2 size={12} />
+                        Current
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2.5 py-0.5 text-xs font-medium text-gray-600 whitespace-nowrap">
+                        Past
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* DC Feedback if flagged */}
+              {viewingMember.dcFlagReason && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
+                  <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-destructive">DC Feedback</p>
+                    <p className="text-sm text-destructive/90 mt-1">{viewingMember.dcFlagReason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Personal Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <User size={16} className="text-primary" />
+                  Personal Information
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <ModalInfoCard icon={<User size={16} />} label="Designation" value={viewingMember.designation ?? 'Not specified'} />
+                  <ModalInfoCard icon={<Shield size={16} />} label="Aadhaar Number" value={viewingMember.maskedAadhaar ?? 'Not provided'} />
+                  <ModalInfoCard icon={<Phone size={16} />} label="Contact Number" value={viewingMember.contactNumber ?? 'Not provided'} />
+                  <ModalInfoCard icon={<MapPin size={16} />} label="Address" value={viewingMember.address ?? 'Not provided'} className="sm:col-span-3" />
+                </div>
+              </div>
+
+              {/* Tenure Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Calendar size={16} className="text-primary" />
+                  Tenure Information
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ModalInfoCard 
+                    icon={<Calendar size={16} />} 
+                    label="Appointment Date" 
+                    value={viewingMember.appointmentDate ? new Date(viewingMember.appointmentDate).toLocaleDateString('en-IN') : 'Not specified'} 
+                  />
+                  <ModalInfoCard 
+                    icon={<Calendar size={16} />} 
+                    label="Tenure End Date" 
+                    value={viewingMember.tenureEndDate ? new Date(viewingMember.tenureEndDate).toLocaleDateString('en-IN') : 'Not specified'} 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Oversight block - moved to end */}
+      {trust && (
+        <SectionCard
+          title="Trust Verification"
+          icon={<Shield size={18} className="text-emerald-600" />}
+        >
+          <GovernanceActionPanel
+            entityName="Trust Registration"
+            isVerified={trust.isVerifiedByDc}
+            flagReason={trust.dcFlagReason}
+            canAct={canAct}
+            onVerify={(notes) => onVerifyTrust(trust.id, notes)}
+            onFlag={(reason) => onFlagTrust(trust.id, reason)}
+          />
+        </SectionCard>
+      )}
     </div>
   )
 }
 
-function BoardGroup({ title, members }: { title: string; members: BoardMemberSummary[] }) {
+function MemberTable({
+  members,
+  onView,
+}: {
+  members: BoardMemberSummary[]
+  onView: (memberId: number) => void
+}) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold uppercase tracking-label text-slate-500">{title}</h3>
+    <Card className="overflow-hidden border-border/60 bg-card/95 shadow-sm">
       {members.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">No records.</div>
+        <div className="p-8 text-sm text-muted-foreground text-center">No members found</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {members.map((member) => (
-            <BoardMemberCard key={member.id} member={member} />
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/20 border-b border-border">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Name</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Designation</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Appointment</th>
+                <th className="px-4 py-3 text-left font-semibold text-foreground">Contact</th>
+                <th className="px-4 py-3 text-center font-semibold text-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {members.map((member) => {
+                return (
+                  <tr key={member.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-foreground">{member.fullName}</div>
+                      {member.maskedAadhaar && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{member.maskedAadhaar}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{member.designation ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {member.appointmentDate ? new Date(member.appointmentDate).toLocaleDateString('en-IN') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{member.contactNumber ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => onView(member.id)}
+                          className="h-8 w-8 p-0"
+                          title="View details"
+                        >
+                          <Eye size={14} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
+    </Card>
+  )
+}
+
+function ModalInfoCard({ 
+  icon, 
+  label, 
+  value, 
+  className = '' 
+}: { 
+  icon: React.ReactNode
+  label: string
+  value: string
+  className?: string 
+}) {
+  return (
+    <div className={`rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 p-4 shadow-sm ${className}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-primary/70">{icon}</div>
+        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      </div>
+      <div className="text-sm font-semibold text-foreground break-words">{value}</div>
     </div>
   )
 }

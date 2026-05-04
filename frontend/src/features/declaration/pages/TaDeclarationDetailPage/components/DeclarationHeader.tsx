@@ -8,6 +8,7 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 import type { CompleteDeclarationResponse, DeclarationVersionResponse } from '../../../declarationTypes'
 import { getAvailableActions } from '../../../declarationPermissions'
 import { useAppSelector } from '@/app/store'
+import { ChatModal } from '@/features/declaration/components/ChatModal'
 
 interface DeclarationHeaderProps {
   declaration: CompleteDeclarationResponse
@@ -32,16 +33,23 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
             <ArrowLeft size={14} className="mr-1.5" />
             Back to Declarations
           </Button>
-          {declaration.status === 'DRAFT' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`${ROUTE_PATHS.TA_DECLARATION_NEW}?id=${declaration.id}`)}
-            >
-              <PencilLine size={16} className="mr-2" />
-              Edit draft
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <ChatModal 
+              declarationId={declaration.id}
+              declarationStatus={declaration.status}
+              readonly={false}
+            />
+            {(declaration.status === 'DRAFT' || declaration.status === 'REJECTED') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`${ROUTE_PATHS.TA_DECLARATION_NEW}?id=${declaration.id}`)}
+              >
+                <PencilLine size={16} className="mr-2" />
+                {declaration.status === 'REJECTED' ? 'Update & Resubmit' : 'Edit draft'}
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -83,12 +91,17 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
 
         {actions.canEdit && (
           <div className="flex flex-wrap gap-2">
+            <ChatModal 
+              declarationId={declaration.id}
+              declarationStatus={declaration.status}
+              readonly={false}
+            />
             <Button
               variant="outline"
               onClick={() => navigate(`${ROUTE_PATHS.TA_DECLARATION_NEW}?id=${declaration.id}`)}
             >
               <PencilLine size={16} className="mr-2" />
-              Edit draft
+              {declaration.status === 'REJECTED' ? 'Update & Resubmit' : 'Edit draft'}
             </Button>
           </div>
         )}
