@@ -183,16 +183,22 @@ export function DcTempleProfilePage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
 
         {/* ── HERO CASE HEADER ─────────────────────────────────────────────── */}
-        <header className="relative bg-slate-900 border-b border-slate-800 shadow-sm mb-0">
-          {/* Decorative background elements */}
-          <div className="absolute top-0 right-0 -mt-16 -mr-16 h-64 w-64 rounded-full bg-primary/10 blur-3xl opacity-20" />
-          <div className="absolute bottom-0 left-0 -mb-20 -ml-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl opacity-20" />
+        <header 
+          className="relative overflow-hidden mb-0 rounded-t-xl"
+          style={{
+            background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+            boxShadow: '0 4px 20px hsl(36 80% 50% / 0.25)'
+          }}
+        >
+          {/* Decorative background elements - matching DC Dashboard */}
+          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15 pointer-events-none" />
+          <div className="absolute right-20 -bottom-10 h-28 w-28 rounded-full bg-white/10 pointer-events-none" />
 
           {/* Alert Banner */}
           {(isOverdue || needsReview) && (
             <div className={cn(
-              'flex items-center justify-between gap-4 px-6 py-3 text-xs font-medium uppercase tracking-label',
-              isOverdue ? 'bg-destructive/90 text-white' : 'bg-amber-500/90 text-white',
+              'flex items-center justify-between gap-4 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm',
+              isOverdue ? 'bg-red-900/40 text-white border-b border-red-800/30' : 'bg-amber-900/30 text-white border-b border-amber-800/20',
             )} role="alert">
               <span className="flex items-center gap-2">
                 <AlertTriangle size={14} aria-hidden />
@@ -203,7 +209,7 @@ export function DcTempleProfilePage() {
               {canAct && (
                 <button
                   onClick={() => setActiveTab('declarations')}
-                  className="bg-white/20 px-4 py-1.5 rounded-lg hover:bg-white/30 transition-all font-medium text-xs tracking-button"
+                  className="bg-white/25 border border-white/30 px-4 py-1.5 rounded-lg hover:bg-white/40 transition-all font-semibold text-xs tracking-button shadow-sm"
                 >
                   {isOverdue ? 'ACT NOW' : 'REVIEW'}
                 </button>
@@ -216,37 +222,41 @@ export function DcTempleProfilePage() {
             <div className="flex items-start justify-between gap-6">
               <div className="flex items-start gap-4 min-w-0">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
                   onClick={() => navigate(-1)}
-                  className="mt-1 h-10 w-10 shrink-0 rounded-xl border-border/50 bg-white/5 hover:bg-white/10 text-white border-white/10 transition-all"
+                  className="mt-1 h-10 w-10 shrink-0 rounded-lg bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm transition-all"
                 >
                   <ChevronLeft size={18} />
                 </Button>
                 <div className="min-w-0">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h1 className="text-xl font-bold tracking-title text-white">
+                    <h1 className="text-xl font-bold text-white leading-tight">
                       {temple.name}
                     </h1>
                     {temple.grade && <TempleGradeBadge grade={temple.grade as TempleGrade} />}
                     {verificationPosture && (
                       <span className={cn(
-                        "px-2 py-0.5 rounded text-xs font-medium uppercase tracking-label border",
-                        verificationPosture.color
+                        "px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider border backdrop-blur-sm",
+                        verificationPosture.label === 'High Risk' 
+                          ? 'bg-red-500/20 text-white border-red-400/30'
+                          : verificationPosture.label === 'Needs Attention'
+                          ? 'bg-amber-500/20 text-white border-amber-400/30'
+                          : 'bg-emerald-500/20 text-white border-emerald-400/30'
                       )}>
                         {verificationPosture.label}
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-white/60 font-regular">
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-white/80 font-medium">
                     <div className="flex items-center gap-1.5">
-                      <MapPin size={13} className="text-white/40" />
+                      <MapPin size={13} className="text-white/60" />
                       {locationDisplay || 'Location not set'}
                     </div>
                     {temple.registrationNumber && (
-                      <div className="flex items-center gap-1.5 pl-4 border-l border-white/10">
-                        <FileText size={13} className="text-white/40" />
-                        Reg ID: <span className="text-white font-medium">{temple.registrationNumber}</span>
+                      <div className="flex items-center gap-1.5 pl-4 border-l border-white/20">
+                        <FileText size={13} className="text-white/60" />
+                        Reg ID: <span className="text-white font-semibold">{temple.registrationNumber}</span>
                       </div>
                     )}
                   </div>
@@ -262,53 +272,73 @@ export function DcTempleProfilePage() {
         </header>
         
         {/* Tab Navigation — Moved outside for sticky functionality */}
-        <div className="sticky top-0 z-30 border-t border-slate-800 px-6 bg-slate-900 shadow-md rounded-b-2xl">
-          <TabsList className="h-14 p-0 bg-transparent gap-1 overflow-x-auto flex w-full no-scrollbar">
-            {(
-              [
-                { v: 'overview',     label: 'Overview',      icon: <Info size={15} />, count: null },
-                { v: 'declarations', label: 'Declarations',  icon: <FileText size={15} />, count: declarations?.length ?? 0 },
-                { v: 'trust',        label: 'Trust & Board', icon: <Shield size={15} />,   count: boardMemberCount },
-                { v: 'staff',        label: 'Staff',         icon: <Users size={15} />,    count: employees?.length ?? 0 },
-                { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={15} />,count: contractors?.length ?? 0 },
-                { v: 'documents',    label: 'Documents',     icon: <FileText size={15} />, count: null },
-              ] as const
-            ).map((tab) => (
-              <TabsTrigger
-                key={tab.v}
-                value={tab.v}
-                className={cn(
-                  "relative h-14 flex items-center gap-2 px-5 text-xs font-medium transition-all duration-200 tracking-button",
-                  "text-slate-400 hover:text-white hover:bg-slate-800/50",
-                  "data-[state=active]:text-white data-[state=active]:bg-slate-800/80 shadow-none"
-                )}
-              >
-                {tab.icon}
-                <span className="hidden sm:inline">{tab.label}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className={cn(
-                    "ml-1 text-xs font-medium px-2 py-0.5 rounded-full transition-all tracking-label",
-                    activeTab === tab.v
-                      ? "bg-amber-500 text-slate-950 shadow-sm"
-                      : "bg-slate-800 text-slate-400 border border-slate-700"
-                  )}>
-                    {tab.count}
-                  </span>
-                )}
-                {activeTab === tab.v && (
-                  <div className="absolute bottom-0 inset-x-0 h-1 bg-amber-500 rounded-t-full shadow-[0_-2px_8px_rgba(245,158,11,0.3)]" />
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <div 
+          className="sticky top-0 z-30 shadow-lg backdrop-blur-sm"
+          style={{
+            background: 'rgba(30, 27, 24, 0.95)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent px-6">
+            <TabsList className="h-12 p-0 bg-transparent gap-1 flex w-full min-w-max">
+              {(
+                [
+                  { v: 'overview',     label: 'Overview',      icon: <Info size={14} />, count: null },
+                  { v: 'declarations', label: 'Declarations',  icon: <FileText size={14} />, count: declarations?.length ?? 0 },
+                  { v: 'trust',        label: 'Trust & Board', icon: <Shield size={14} />,   count: boardMemberCount },
+                  { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
+                  { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
+                  { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
+                ] as const
+              ).map((tab) => (
+                <TabsTrigger
+                  key={tab.v}
+                  value={tab.v}
+                  className={cn(
+                    "relative h-12 flex items-center gap-2 px-4 text-xs font-semibold transition-all duration-200 tracking-wider whitespace-nowrap rounded-t-lg",
+                    "text-slate-400 hover:text-white hover:bg-white/5",
+                    "data-[state=active]:text-white shadow-none"
+                  )}
+                  style={activeTab === tab.v ? {
+                    background: 'linear-gradient(to bottom, rgba(251, 146, 60, 0.15), rgba(249, 115, 22, 0.08))',
+                    borderLeft: '1px solid rgba(251, 146, 60, 0.2)',
+                    borderRight: '1px solid rgba(251, 146, 60, 0.2)',
+                    borderTop: '1px solid rgba(251, 146, 60, 0.2)',
+                  } : {}}
+                >
+                  {tab.icon}
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {tab.count !== null && tab.count > 0 && (
+                    <span className={cn(
+                      "ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md transition-all",
+                      activeTab === tab.v
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : "bg-slate-800/80 text-slate-400 border border-slate-700/50"
+                    )}>
+                      {tab.count}
+                    </span>
+                  )}
+                  {activeTab === tab.v && (
+                    <div 
+                      className="absolute bottom-0 inset-x-0 h-0.5"
+                      style={{
+                        background: 'linear-gradient(90deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+                        boxShadow: '0 0 12px rgba(251, 146, 60, 0.6)'
+                      }}
+                    />
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </div>
 
         {/* ── TAB CONTENTS ─────────────────────────────────────────────────── */}
         <div className="relative z-[1] mt-6">
-          <TabsContent value="overview" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="overview" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <OverviewTab
               profile={profile}
-              pendingStaging={pendingStaging}
               canAct={canAct}
               onVerifyTemple={async (notes) => {
                 await verifyTemple({ id, body: { notes } }).unwrap()
@@ -316,21 +346,10 @@ export function DcTempleProfilePage() {
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
               }}
-              onApproveProfile={(stagingId) => {
-                if (window.confirm('Approve this profile update?')) {
-                  submitApproveProfile(stagingId, id, { notes: 'Approved via DC Portal' })
-                }
-              }}
-              onRejectProfile={(stagingId) => {
-                const reason = window.prompt('Rejection reason (min 1 character):')
-                if (reason) {
-                  submitRejectProfile(stagingId, id, { reason })
-                }
-              }}
             />
           </TabsContent>
 
-          <TabsContent value="declarations" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="declarations" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DeclarationsTab
               declarations={declarations}
               canAct={canAct}
@@ -344,7 +363,7 @@ export function DcTempleProfilePage() {
             />
           </TabsContent>
 
-          <TabsContent value="trust" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="trust" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TrustTab
               trust={trust}
               boardMembers={boardMembers}
@@ -369,19 +388,19 @@ export function DcTempleProfilePage() {
             />
           </TabsContent>
 
-          <TabsContent value="staff" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="staff" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StaffTab
               employees={employees}
             />
           </TabsContent>
 
-          <TabsContent value="contractors" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="contractors" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ContractorsTab
               contractors={contractors}
             />
           </TabsContent>
 
-          <TabsContent value="documents" className="mt-0 focus-visible:outline-none">
+          <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DocumentsTab templeId={id} />
           </TabsContent>
         </div>

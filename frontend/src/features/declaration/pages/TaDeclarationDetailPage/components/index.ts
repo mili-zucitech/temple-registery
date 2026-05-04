@@ -1,5 +1,6 @@
 export { DeclarationHeader } from './DeclarationHeader'
 export { ClarificationAlert } from './ClarificationAlert'
+export { RejectionAlert } from './RejectionAlert'
 export { OverviewTab } from './OverviewTab'
 export { AssetsTab } from './AssetsTab'
 export { HistoryTab } from './HistoryTab'

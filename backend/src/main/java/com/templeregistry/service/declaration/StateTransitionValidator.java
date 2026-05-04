@@ -16,6 +16,7 @@ public class StateTransitionValidator {
 
     private static final Set<String> PERMITTED = Set.of(
         "DRAFT->SUBMITTED",
+        "REJECTED->SUBMITTED",
         "SUBMITTED->UNDER_REVIEW",
         "SUBMITTED->APPROVED",
         "SUBMITTED->REJECTED",
@@ -32,7 +33,9 @@ public class StateTransitionValidator {
         "SITE_VISIT_SCHEDULED->SITE_VISIT_COMPLETED",
         "SITE_VISIT_COMPLETED->VERIFIED",
         "VERIFIED->APPROVED",
-        "VERIFIED->REJECTED"
+        "VERIFIED->REJECTED",
+        "SITE_VISIT_SCHEDULED->REJECTED",
+        "SITE_VISIT_SCHEDULED-APPROVED>"
     );
 
     /**

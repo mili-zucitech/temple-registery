@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Search, FileText, Users, Building2,
-  ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw
+  ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useLogout } from '@/features/auth/authHooks'
 import { useAppSelector } from '@/app/store'
@@ -62,9 +62,11 @@ import { useEffect } from 'react'
 interface SidebarProps {
   open?: boolean
   setOpen?: (open: boolean) => void
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
-export function Sidebar({ open, setOpen }: SidebarProps) {
+export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarProps) {
   const { handleLogout } = useLogout()
   const currentUser = useAppSelector((s) => s.auth.currentUser)
   const role = currentUser?.role
@@ -87,53 +89,93 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   return (
     <aside
       className={cn(
-        // Mobile: off-canvas
-        'fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out',
+        // Mobile: off-canvas drawer
+        'fixed inset-y-0 left-0 z-40 flex h-screen flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out',
         'lg:static lg:translate-x-0 shadow-soft-lg lg:shadow-none',
+        // Mobile drawer behavior
         open ? 'translate-x-0' : '-translate-x-full',
+        // Desktop collapsed/expanded width
+        collapsed ? 'lg:w-20' : 'lg:w-64',
+        // Mobile always full width when open
+        'w-64',
       )}
       aria-label="Sidebar"
     >
       {/* Logo Section */}
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border/50">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-gold shadow-gold group cursor-pointer hover:rotate-12 transition-transform">
-          <span className="text-sm font-bold text-white tracking-tighter">TR</span>
+      <div className={cn(
+        "flex h-16 items-center border-b border-sidebar-border/50 transition-all duration-300 relative",
+        collapsed ? "lg:justify-center lg:px-3" : "justify-between px-6"
+      )}>
+        <div className={cn(
+          "flex items-center gap-3 min-w-0 transition-all duration-300",
+          collapsed && "lg:flex-col lg:gap-0"
+        )}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-gold shadow-gold cursor-pointer hover:scale-110 transition-transform flex-shrink-0">
+            <span className="text-sm font-bold text-white tracking-tighter">TR</span>
+          </div>
+          <div className={cn(
+            "flex flex-col transition-all duration-300 overflow-hidden",
+            collapsed ? "lg:w-0 lg:h-0 lg:opacity-0" : "w-auto opacity-100"
+          )}>
+            <p className="text-sm font-display font-bold text-sidebar-foreground leading-none tracking-tight whitespace-nowrap">Temple Registry</p>
+            <p className="text-[10px] text-sidebar-foreground/50 font-medium leading-none mt-1 uppercase tracking-wider whitespace-nowrap">Karnataka HR&CE</p>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <p className="text-sm font-display font-bold text-sidebar-foreground leading-none tracking-tight">Temple Registry</p>
-          <p className="text-[10px] text-sidebar-foreground/50 font-medium leading-none mt-1 uppercase tracking-wider">Karnataka HR&CE</p>
-        </div>
+        
+        {/* Collapse Toggle Button - Desktop Only, positioned absolutely when collapsed */}
+        <button
+          onClick={onToggleCollapse}
+          className={cn(
+            "hidden lg:flex items-center justify-center rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all group flex-shrink-0",
+            collapsed ? "absolute -right-3 top-1/2 -translate-y-1/2 bg-sidebar border border-sidebar-border shadow-md h-6 w-6 z-50" : "p-1.5"
+          )}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+          ) : (
+            <ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" />
+          )}
+        </button>
       </div>
 
       {/* Navigation Section */}
-      <nav className="flex-1 overflow-y-auto py-4 px-4 space-y-1.5 custom-scrollbar">
+      <nav className={cn(
+        "flex-1 overflow-y-auto py-4 space-y-1.5 custom-scrollbar transition-all duration-300",
+        collapsed ? "lg:px-2" : "px-4"
+      )}>
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
               cn(
-                'group flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm transition-all duration-200',
+                'group flex items-center rounded-xl text-sm transition-all duration-200 relative',
                 isActive
-                  ? 'bg-sidebar-primary text-white font-semibold shadow-soft-md shadow-sidebar-primary/20 translate-x-1'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:translate-x-1',
+                  ? 'bg-sidebar-primary text-white font-semibold shadow-soft-md shadow-sidebar-primary/20'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                collapsed ? 'lg:justify-center lg:p-3' : 'gap-3 px-4 py-2.5',
               )
             }
             onClick={() => setOpen?.(false)}
+            title={collapsed ? item.label : undefined}
           >
             {({ isActive }) => (
               <>
-                <div className={cn(
-                  "transition-transform group-hover:scale-110 duration-200",
-                  "flex items-center justify-center w-5 h-5"
-                )}>
+                <div className="transition-transform group-hover:scale-110 duration-200 flex items-center justify-center flex-shrink-0 w-5 h-5">
                   {item.icon}
                 </div>
-                <span className="font-medium tracking-tight">{item.label}</span>
+                <span className={cn(
+                  "font-medium tracking-tight transition-all duration-300 overflow-hidden whitespace-nowrap",
+                  collapsed ? "lg:w-0 lg:opacity-0 lg:absolute" : "w-auto opacity-100"
+                )}>
+                  {item.label}
+                </span>
                 {/* Active indicator dot */}
                 <div className={cn(
-                  "ml-auto h-1.5 w-1.5 rounded-full bg-white transition-opacity duration-200",
-                  isActive ? "opacity-100" : "opacity-0"
+                  "rounded-full bg-white transition-all duration-200 flex-shrink-0",
+                  isActive ? "opacity-100" : "opacity-0",
+                  collapsed ? "lg:absolute lg:bottom-1.5 lg:left-1/2 lg:-translate-x-1/2 lg:h-1 lg:w-1" : "ml-auto h-1.5 w-1.5"
                 )} />
               </>
             )}
@@ -142,26 +184,27 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       </nav>
 
       {/* User Info & Actions Section */}
-      <div className="mt-auto border-t border-sidebar-border/50 p-4 bg-sidebar-accent/30">
-        {/* {currentUser && (
-          <div className="mb-4 px-3 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-sidebar-primary font-bold text-xs ring-2 ring-sidebar-primary/10">
-              {currentUser.fullName.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-sidebar-foreground truncate tracking-tight">{currentUser.fullName}</p>
-              <p className="text-[10px] text-sidebar-foreground/40 font-medium truncate uppercase tracking-tighter mt-0.5">{currentUser.role.replace(/_/g, ' ')}</p>
-            </div>
-          </div>
-        )} */}
+      <div className={cn(
+        "border-t border-sidebar-border/50 bg-sidebar-accent/30 transition-all duration-300",
+        collapsed ? "lg:p-2" : "p-4"
+      )}>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-3 rounded-xl text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive px-3 py-5 transition-all group"
+          className={cn(
+            "w-full rounded-xl text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-all group",
+            collapsed ? "lg:justify-center lg:p-3" : "justify-start gap-3 px-3 py-5"
+          )}
           onClick={handleLogout}
+          title={collapsed ? "Sign Out" : undefined}
         >
-          <LogOut size={16} className="transition-transform group-hover:-translate-x-1" />
-          <span className="font-semibold text-xs uppercase tracking-widest">Sign Out</span>
+          <LogOut size={16} className="transition-transform group-hover:scale-110 flex-shrink-0" />
+          <span className={cn(
+            "font-semibold text-xs uppercase tracking-widest transition-all duration-300 overflow-hidden whitespace-nowrap",
+            collapsed ? "lg:w-0 lg:opacity-0 lg:absolute" : "w-auto opacity-100"
+          )}>
+            Sign Out
+          </span>
         </Button>
       </div>
     </aside>
