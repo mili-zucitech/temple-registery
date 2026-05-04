@@ -25,6 +25,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    Optional<User> findByPasswordResetTokenHash(String tokenHash);
+
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query(
             "UPDATE User u SET u.createdBy = :userId, u.updatedBy = :userId WHERE u.id = :userId")

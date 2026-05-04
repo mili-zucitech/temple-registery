@@ -104,7 +104,7 @@ public class GovernanceWorkflowController {
             @Valid @RequestBody(required = false) WorkflowApproveRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         WorkflowActionResponse result = governanceWorkflowService.approveDeclaration(
-                declarationId, request != null ? request : new WorkflowApproveRequest(), currentClaims());
+            declarationId, request != null ? request : new WorkflowApproveRequest(), currentClaims(), idempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Declaration approved.", result));
     }
 
@@ -126,7 +126,7 @@ public class GovernanceWorkflowController {
             @Valid @RequestBody WorkflowRejectRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         WorkflowActionResponse result = governanceWorkflowService.rejectDeclaration(
-                declarationId, request, currentClaims());
+            declarationId, request, currentClaims(), idempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Declaration rejected.", result));
     }
 
@@ -138,7 +138,7 @@ public class GovernanceWorkflowController {
             @Valid @RequestBody DcClarifyRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         WorkflowActionResponse result = governanceWorkflowService.requestClarification(
-                declarationId, request, currentClaims());
+            declarationId, request, currentClaims(), idempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Clarification requested.", result));
     }
 
@@ -160,7 +160,7 @@ public class GovernanceWorkflowController {
             @Valid @RequestBody DcClarifyRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         WorkflowActionResponse result = governanceWorkflowService.flagPhysicalVerification(
-                declarationId, request, currentClaims());
+            declarationId, request, currentClaims(), idempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Flagged for physical verification.", result));
     }
 

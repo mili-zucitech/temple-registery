@@ -17,23 +17,8 @@ public class TempleVerificationResponse {
     private String registrationNumber;
     private String templeName;
     
-    /** True if DC has verified this temple profile */
-    private boolean isVerifiedByDc;
-    
-    /** Timestamp when DC verified the profile */
-    private LocalDateTime verifiedByDcAt;
-    
-    /** User ID of DC who verified */
-    private Long verifiedByDcUserId;
-    
-    /** True if DC has flagged this temple profile for issues */
-    private boolean isFlaggedByDc;
-    
-    /** Timestamp when DC flagged the profile */
-    private LocalDateTime flaggedByDcAt;
-    
-    /** User ID of DC who flagged */
-    private Long flaggedByDcUserId;
+    /** Current verification status: UNVERIFIED, UNDER_REVIEW, VERIFIED, FLAGGED */
+    private String verificationStatus;
     
     /** Reason provided by DC for rejection or flagging */
     private String dcRejectionReason;

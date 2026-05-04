@@ -10,4 +10,5 @@ import java.util.List;
 public interface GovernanceActionRepository extends JpaRepository<GovernanceActionHistory, Long> {
     List<GovernanceActionHistory> findByEntityTypeAndEntityIdOrderByTimestampDesc(String entityType, Long entityId);
     List<GovernanceActionHistory> findByEntityTypeAndEntityIdOrderByTimestampAsc(String entityType, Long entityId);
+    boolean existsByWorkflowTransitionId(Long workflowTransitionId);
 }

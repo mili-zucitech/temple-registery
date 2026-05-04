@@ -2,6 +2,7 @@ package com.templeregistry.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
+import org.slf4j.MDC;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,7 +28,15 @@ public class ApiResponse<T> {
         this.errorCode = errorCode;
         this.errors = errors;
         this.timestamp = Instant.now().toString();
-        this.requestId = UUID.randomUUID().toString();
+        this.requestId = resolveRequestId();
+    }
+
+    private static String resolveRequestId() {
+        String requestId = MDC.get("requestId");
+        if (requestId == null || requestId.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+        return requestId;
     }
 
     public static <T> ApiResponse<T> success(String message, T data) {

@@ -43,11 +43,11 @@ public class Contractor extends BaseEntity {
 
     // DC Governance Fields
     @Builder.Default
-    @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
+    @Column(name = "is_verified_by_dc", nullable = false) private boolean verifiedByDc = false;
     @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
-    @Column(name = "is_gst_valid") private Boolean isGstValid;
+    @Column(name = "is_gst_valid") private Boolean gstValid;
     @Builder.Default
-    @Column(name = "is_payment_pending", nullable = false) private boolean isPaymentPending = false;
+    @Column(name = "is_payment_pending", nullable = false) private boolean paymentPending = false;
     
     // Helper methods for document IDs
     public List<Long> getDocumentIdList() {

@@ -14,8 +14,7 @@ public interface DcTempleVerificationService {
 
     /**
      * Verify a temple profile.
-     * Sets isVerifiedByDc = true, records timestamp and DC user ID.
-     * Automatically removes any existing flag.
+     * Sets verificationStatus = VERIFIED, clears rejection reason.
      * Publishes notification to Temple Authority.
      * Requires DISTRICT_COLLECTOR or SUPER_ADMIN role.
      */
@@ -23,8 +22,7 @@ public interface DcTempleVerificationService {
 
     /**
      * Flag a temple profile for issues.
-     * Sets isFlaggedByDc = true, records reason, timestamp and DC user ID.
-     * Removes verification if previously verified.
+     * Sets verificationStatus = FLAGGED, records rejection reason.
      * Publishes notification to Temple Authority.
      * Requires DISTRICT_COLLECTOR or SUPER_ADMIN role.
      */
@@ -32,7 +30,7 @@ public interface DcTempleVerificationService {
 
     /**
      * Remove flag from a temple profile.
-     * Sets isFlaggedByDc = false, clears rejection reason.
+     * Sets verificationStatus = UNVERIFIED, clears rejection reason.
      * Does not automatically verify the profile.
      * Publishes notification to Temple Authority.
      * Requires DISTRICT_COLLECTOR or SUPER_ADMIN role.

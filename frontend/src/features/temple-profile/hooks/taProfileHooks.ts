@@ -321,6 +321,7 @@ export function useTempleProfile() {
     talukName,
     hobliName,
     stagingProfile,
+    currentProfile: latestVersion,
     isLoading,
     isError,
     isIniting: false,

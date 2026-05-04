@@ -7,29 +7,16 @@ import type { NotificationResponse } from '@/features/notification/notificationA
 
 // ─── Module-level mocks ───────────────────────────────────────────────────────
 
-const mockMarkRead    = vi.fn().mockReturnValue({ unwrap: vi.fn().mockResolvedValue({}) })
-const mockMarkAllRead = vi.fn().mockReturnValue({ unwrap: vi.fn().mockResolvedValue({}) })
+const mockMarkRead    = vi.fn()
+const mockMarkAllRead = vi.fn()
 
-vi.mock('@/features/notification/notificationApi', () => ({
-  notificationApi: {
-    reducerPath: 'notificationApi',
-    reducer: (s = {}) => s,
-    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
-  },
-  useListNotificationsQuery: vi.fn(),
-  useMarkReadMutation:       vi.fn(),
-  useMarkAllReadMutation:    vi.fn(),
+vi.mock('./useTaActivity', () => ({
+  useTaActivity: vi.fn(),
 }))
 
-import {
-  useListNotificationsQuery,
-  useMarkReadMutation,
-  useMarkAllReadMutation,
-} from '@/features/notification/notificationApi'
+import { useTaActivity } from './useTaActivity'
 
-const mockList        = vi.mocked(useListNotificationsQuery)
-const mockMarkReadHook    = vi.mocked(useMarkReadMutation)
-const mockMarkAllReadHook = vi.mocked(useMarkAllReadMutation)
+const mockUseTaActivity = vi.mocked(useTaActivity)
 
 const makeNotification = (overrides: Partial<NotificationResponse>): NotificationResponse => ({
   id: 1,
@@ -40,20 +27,30 @@ const makeNotification = (overrides: Partial<NotificationResponse>): Notificatio
   ...overrides,
 })
 
+const defaultHookReturn = {
+  notifications: [],
+  totalPages: 0,
+  totalElements: 0,
+  unreadCount: 0,
+  isLoading: false,
+  isError: false,
+  isMarking: false,
+  isMarkingAll: false,
+  markRead: mockMarkRead,
+  markAllRead: mockMarkAllRead,
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('TaActivityPage', () => {
   beforeEach(() => {
-    mockMarkReadHook.mockReturnValue([mockMarkRead, { isLoading: false }] as ReturnType<typeof useMarkReadMutation>)
-    mockMarkAllReadHook.mockReturnValue([mockMarkAllRead, { isLoading: false }] as ReturnType<typeof useMarkAllReadMutation>)
+    mockUseTaActivity.mockReturnValue(defaultHookReturn)
+    mockMarkRead.mockClear()
+    mockMarkAllRead.mockClear()
   })
 
   it('should_renderSkeletons_when_notificationsAreLoading', () => {
-    mockList.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isError: false,
-    } as ReturnType<typeof useListNotificationsQuery>)
+    mockUseTaActivity.mockReturnValue({ ...defaultHookReturn, isLoading: true })
 
     renderWithProviders(<TaActivityPage />, { initialRoute: '/ta/activity' })
 
@@ -62,12 +59,6 @@ describe('TaActivityPage', () => {
   })
 
   it('should_renderEmptyState_when_noNotificationsExist', () => {
-    mockList.mockReturnValue({
-      data: { data: { content: [], totalPages: 0, totalElements: 0 } },
-      isLoading: false,
-      isError: false,
-    } as ReturnType<typeof useListNotificationsQuery>)
-
     renderWithProviders(<TaActivityPage />, { initialRoute: '/ta/activity' })
 
     expect(screen.getByText(/No notifications yet/i)).toBeInTheDocument()
@@ -79,11 +70,13 @@ describe('TaActivityPage', () => {
       makeNotification({ id: 2, title: 'Clarification Requested', body: 'DC requests clarification.', read: true }),
     ]
 
-    mockList.mockReturnValue({
-      data: { data: { content: notifications, totalPages: 1, totalElements: 2 } },
-      isLoading: false,
-      isError: false,
-    } as ReturnType<typeof useListNotificationsQuery>)
+    mockUseTaActivity.mockReturnValue({
+      ...defaultHookReturn,
+      notifications,
+      totalPages: 1,
+      totalElements: 2,
+      unreadCount: 1,
+    })
 
     renderWithProviders(<TaActivityPage />, { initialRoute: '/ta/activity' })
 
@@ -99,11 +92,13 @@ describe('TaActivityPage', () => {
       makeNotification({ id: 2, title: 'Submission Received', read: false }),
     ]
 
-    mockList.mockReturnValue({
-      data: { data: { content: notifications, totalPages: 1, totalElements: 2 } },
-      isLoading: false,
-      isError: false,
-    } as ReturnType<typeof useListNotificationsQuery>)
+    mockUseTaActivity.mockReturnValue({
+      ...defaultHookReturn,
+      notifications,
+      totalPages: 1,
+      totalElements: 2,
+      unreadCount: 2,
+    })
 
     renderWithProviders(<TaActivityPage />, { initialRoute: '/ta/activity' })
 
@@ -118,11 +113,13 @@ describe('TaActivityPage', () => {
       makeNotification({ id: 1, title: 'Profile Approved', read: false }),
     ]
 
-    mockList.mockReturnValue({
-      data: { data: { content: notifications, totalPages: 1, totalElements: 1 } },
-      isLoading: false,
-      isError: false,
-    } as ReturnType<typeof useListNotificationsQuery>)
+    mockUseTaActivity.mockReturnValue({
+      ...defaultHookReturn,
+      notifications,
+      totalPages: 1,
+      totalElements: 1,
+      unreadCount: 1,
+    })
 
     renderWithProviders(<TaActivityPage />, { initialRoute: '/ta/activity' })
 

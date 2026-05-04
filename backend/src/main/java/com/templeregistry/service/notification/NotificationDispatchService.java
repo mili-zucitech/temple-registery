@@ -1,6 +1,6 @@
 package com.templeregistry.service.notification;
 
-import com.templeregistry.event.base.BaseNotificationEvent;
+import com.templeregistry.event.workflow.GovernanceDomainEvent;
 
 /**
  * Service responsible for dispatching notifications based on domain events.
@@ -9,10 +9,10 @@ import com.templeregistry.event.base.BaseNotificationEvent;
 public interface NotificationDispatchService {
 
     /**
-     * Dispatches notifications for the given event to all recipients.
+     * Dispatches notifications for the given governance event to all recipients.
      * Determines notification channels (in-app, email) based on event priority and user preferences.
      *
-     * @param event the domain event that triggered the notification
+     * @param event the governance domain event that triggered the notification
      */
-    void dispatch(BaseNotificationEvent event);
+    void dispatch(GovernanceDomainEvent event);
 }

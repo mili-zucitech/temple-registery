@@ -29,7 +29,7 @@ export function OverviewTab({
   const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
 
   const pendingReviewDecls = useMemo(() =>
-    declarations.filter((d) => ['PENDING_REVIEW', 'UNDER_REVIEW', 'RESUBMITTED'].includes(d.status)),
+    declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
     [declarations]
   )
   const overdueDecls = useMemo(() =>

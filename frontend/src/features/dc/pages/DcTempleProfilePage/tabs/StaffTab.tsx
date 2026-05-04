@@ -1,8 +1,7 @@
-import { Users, CheckCircle2, Flag, Clock, Hash, Phone, MapPin, Award, Briefcase, Shield, Calendar, UserCheck, Eye } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Users, Hash, Shield, Briefcase, Phone, UserCheck, Eye } from 'lucide-react'
+import { useState } from 'react'
 import { SectionCard } from '../components'
-import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
-import { ModuleStatusBadge, deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
+import { deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -19,21 +18,11 @@ const ITEMS_PER_PAGE = 10
 /**
  * Staff tab — module-level verification with improved UI and pagination.
  */
-export function StaffTab({ employees, canAct, onVerifyStaff, onFlagStaff }: StaffTabProps) {
+export function StaffTab({ employees }: StaffTabProps) {
   const [currentPage, setCurrentPage] = useState(0)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null)
 
-  const moduleStatus: ModuleVerificationStatus = useMemo(() => {
-    if (employees.length === 0) return 'PENDING'
-    if (employees.some(e => e.dcFlagReason)) return 'FLAGGED'
-    if (employees.every(e => e.isVerifiedByDc)) return 'VERIFIED'
-    return 'PENDING'
-  }, [employees])
-
-  const moduleFlagReason = useMemo(
-    () => employees.find(e => e.dcFlagReason)?.dcFlagReason ?? null,
-    [employees]
-  )
+  const totalActive = employees.filter((e) => e.status === 'ACTIVE').length
 
   // Pagination
   const totalPages = Math.ceil(employees.length / ITEMS_PER_PAGE)
@@ -65,7 +54,9 @@ export function StaffTab({ employees, canAct, onVerifyStaff, onFlagStaff }: Staf
                 <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
                   {employees.length} {employees.length === 1 ? 'Member' : 'Members'}
                 </span>
-                <ModuleStatusBadge status={moduleStatus} />
+                <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                  {totalActive} Active
+                </span>
               </div>
             )
             : (
@@ -208,39 +199,6 @@ export function StaffTab({ employees, canAct, onVerifyStaff, onFlagStaff }: Staf
               </div>
             )}
 
-            {/* ── Module-level oversight block ─────────────────────────────── */}
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              {moduleStatus === 'PENDING' && (
-                <GovernanceActionPanel
-                  entityName="Staff Module"
-                  isVerified={false}
-                  flagReason={null}
-                  canAct={canAct}
-                  onVerify={onVerifyStaff}
-                  onFlag={onFlagStaff}
-                />
-              )}
-              {moduleStatus === 'VERIFIED' && (
-                <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
-                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-800">Staff module verified</p>
-                    <p className="text-xs text-emerald-700/70 mt-0.5">All employee records have been audited and approved.</p>
-                  </div>
-                </div>
-              )}
-              {moduleStatus === 'FLAGGED' && (
-                <div className="rounded-xl border border-red-100 bg-red-50/40 px-5 py-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <Flag size={16} className="text-red-600 shrink-0" />
-                    <p className="text-sm font-semibold text-red-800">Staff module flagged</p>
-                  </div>
-                  {moduleFlagReason && (
-                    <p className="text-xs text-red-700 pl-7">{moduleFlagReason}</p>
-                  )}
-                </div>
-              )}
-            </div>
           </>
         )}
       </SectionCard>

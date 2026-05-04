@@ -1,12 +1,13 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import { setAccessToken, clearCurrentUser } from '../features/auth/authSlice'
+import { getApiV1BaseUrl } from '@/lib/apiBase'
 
 // Inline type to avoid store → authApi → baseQueryWithReauth → store circular dep
 type StateWithAuth = { auth: { accessToken: string | null } }
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: import.meta.env.VITE_API_BASE_URL,
+  baseUrl: getApiV1BaseUrl(),
   credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as StateWithAuth).auth.accessToken

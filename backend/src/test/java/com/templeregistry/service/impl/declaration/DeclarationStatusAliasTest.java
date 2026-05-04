@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Exploratory bug-condition tests for the CLARIFICATION_REQUESTED → CLARIFICATION_REQUIRED alias.
@@ -58,7 +59,6 @@ class DeclarationStatusAliasTest {
                 templeRepository,
                 Mockito.mock(com.templeregistry.security.OwnershipGuard.class),
                 Mockito.mock(com.templeregistry.security.JurisdictionGuard.class),
-                Mockito.mock(com.templeregistry.util.StatusTransitionValidator.class),
                 Mockito.mock(com.templeregistry.util.AcknowledgementNumberGenerator.class),
                 Mockito.mock(com.templeregistry.service.dc.NotificationEventPublisher.class),
                 paginationUtil,
@@ -80,8 +80,9 @@ class DeclarationStatusAliasTest {
                 Mockito.mock(com.templeregistry.service.governance.GovernanceEditGuard.class),
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
-                Mockito.mock(com.templeregistry.service.declaration.StateTransitionValidator.class),
-                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class)
+                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngineAdaptor.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class)
         );
 
         // Mock security context so @PreAuthorize doesn't interfere
@@ -98,7 +99,7 @@ class DeclarationStatusAliasTest {
      *
      * On unfixed code, DeclarationStatus.valueOf("CLARIFICATION_REQUESTED") throws
      * IllegalArgumentException because the constant was renamed to CLARIFICATION_REQUIRED.
-     * This test asserts the legacy name resolves to CLARIFICATION_REQUIRED.
+     * This test asserts the legacy name resolves to CLARIFICATION_REQUIRED via fromValue().
      * EXPECTED TO FAIL on unfixed code (confirms the bug exists).
      */
     @Test
@@ -106,7 +107,7 @@ class DeclarationStatusAliasTest {
         // On unfixed code this throws:
         //   IllegalArgumentException: No enum constant
         //   com.templeregistry.entity.declaration.DeclarationStatus.CLARIFICATION_REQUESTED
-        DeclarationStatus result = DeclarationStatus.valueOf("CLARIFICATION_REQUESTED");
+        DeclarationStatus result = DeclarationStatus.fromValue("CLARIFICATION_REQUESTED");
         assertThat(result).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
     }
 

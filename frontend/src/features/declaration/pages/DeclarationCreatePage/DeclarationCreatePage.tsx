@@ -964,8 +964,8 @@ function buildSummary(values?: CreateDeclarationRequest): SummaryState {
   }
 }
 
-function sum(values?: Array<number | undefined>) {
-  return (values ?? []).reduce((acc, value) => acc + (value ?? 0), 0)
+function sum(values?: Array<number | null | undefined>) {
+  return (values ?? []).reduce<number>((acc, value) => acc + (value ?? 0), 0)
 }
 
 interface SummaryState {

@@ -56,6 +56,13 @@ class TrustServiceImplTest {
     @Mock DocumentService documentService;
     @Mock DocumentRepository documentRepository;
     @Mock HmacUtil hmacUtil;
+    @Mock com.templeregistry.service.governance.GovernanceEditGuard governanceEditGuard;
+    @Mock com.templeregistry.service.audit.GovernanceAuditService governanceAuditService;
+    @Mock com.templeregistry.service.dc.NotificationEventPublisher notificationPublisher;
+    @Mock com.templeregistry.service.notification.NotificationHelper notificationHelper;
+    @Mock com.templeregistry.service.notification.NotificationRecipientResolver recipientResolver;
+    @Mock com.templeregistry.service.notification.NotificationEventPublisher eventPublisher;
+    @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @InjectMocks TrustServiceImpl sut;
 
@@ -107,6 +114,10 @@ class TrustServiceImplTest {
 
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(anyLong());
         lenient().doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        // recipientResolver returns empty array by default so board-member/finance notification
+        // loops don't NPE in tests that don't care about notification side-effects
+        lenient().when(recipientResolver.getDistrictCollectorsForTemple(anyLong()))
+                .thenReturn(new Long[]{});
     }
 
     // ─── Trust Creation ───────────────────────────────────────────────────────
@@ -131,7 +142,7 @@ class TrustServiceImplTest {
         @Test
         void creates_trust_and_persists_temple_flag() {
             when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
-            when(trustRepository.existsByTempleIdAndIsDeletedFalse(1L)).thenReturn(false);
+            when(trustRepository.existsByTempleIdAndDeletedFalse(1L)).thenReturn(false);
             when(trustRepository.save(any())).thenAnswer(inv -> {
                 Trust t = inv.getArgument(0);
                 org.springframework.test.util.ReflectionTestUtils.setField(t, "id", 99L);
@@ -150,7 +161,7 @@ class TrustServiceImplTest {
         @Test
         void response_does_not_contain_raw_pan() {
             when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
-            when(trustRepository.existsByTempleIdAndIsDeletedFalse(1L)).thenReturn(false);
+            when(trustRepository.existsByTempleIdAndDeletedFalse(1L)).thenReturn(false);
             when(trustRepository.save(any())).thenAnswer(inv -> {
                 Trust t = inv.getArgument(0);
                 org.springframework.test.util.ReflectionTestUtils.setField(t, "id", 99L);
@@ -171,7 +182,7 @@ class TrustServiceImplTest {
         @Test
         void duplicate_trust_per_temple_is_rejected() {
             when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
-            when(trustRepository.existsByTempleIdAndIsDeletedFalse(1L)).thenReturn(true);
+            when(trustRepository.existsByTempleIdAndDeletedFalse(1L)).thenReturn(true);
 
             assertThatThrownBy(() -> sut.create(1L, validRequest()))
                     .isInstanceOf(DuplicateResourceException.class)
@@ -269,7 +280,7 @@ class TrustServiceImplTest {
 
             LocalDate endDate = LocalDate.now().minusDays(1);
             UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
-                    .isCurrent(false)
+                    .current(false)
                     .tenureEndDate(endDate)
                     .build();
 
@@ -288,7 +299,7 @@ class TrustServiceImplTest {
             when(trustValidationService.isCurrentMember(any())).thenReturn(false);
 
             UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
-                    .isCurrent(false)
+                    .current(false)
                     .tenureEndDate(null) // no date provided
                     .build();
 
@@ -411,7 +422,7 @@ class TrustServiceImplTest {
 
             UpdateBoardMemberRequest rq = UpdateBoardMemberRequest.builder()
                     .fullName("Updated Name")
-                    .isCurrent(true)
+                    .current(true)
                     .build();
 
             assertThatNoException().isThrownBy(() -> sut.updateBoardMember(10L, 20L, rq));

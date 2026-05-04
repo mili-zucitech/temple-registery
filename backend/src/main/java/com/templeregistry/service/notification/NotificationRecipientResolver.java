@@ -145,4 +145,32 @@ public class NotificationRecipientResolver {
                 .map(Temple::getDistrictId)
                 .orElse(null);
     }
+
+    /**
+     * Gets all SUPER_ADMIN user IDs.
+     * Used by NotificationRouter for ADMIN-channel notification rules.
+     */
+    public Long[] getSuperAdminIds() {
+        List<User> admins = userRepository.findAllByRole(UserRole.SUPER_ADMIN);
+        if (admins.isEmpty()) {
+            log.debug("No super admins found");
+            return new Long[0];
+        }
+        return admins.stream().map(User::getId).toArray(Long[]::new);
+    }
+
+    /**
+     * Convenience: returns first element of an array as a single Long.
+     * Used by NotificationRouter which expects Long, not Long[].
+     */
+    public Long getTempleAuthorityId(Long templeId) {
+        Long[] ids = getTempleAuthorityIds(templeId);
+        return ids.length > 0 ? ids[0] : null;
+    }
+
+    public Long getDistrictCollectorId(Long districtId) {
+        Long[] ids = getDistrictCollectorIds(districtId);
+        return ids.length > 0 ? ids[0] : null;
+    }
 }
+

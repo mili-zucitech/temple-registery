@@ -9,7 +9,7 @@ import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.employee.EmployeeStatus;
-import com.templeregistry.entity.employee.SubmissionStatus;
+import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.IllegalStatusTransitionException;
@@ -75,9 +75,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .templeId(templeId).fullName(rq.getFullName()).employeeType(rq.getEmployeeType())
                 .employeeRef(rq.getEmployeeRef()).designation(rq.getDesignation())
                 .dateOfJoining(rq.getDateOfJoining()).salaryGrade(rq.getSalaryGrade())
-                .mobile(rq.getMobile()).address(rq.getAddress()).isHereditary(rq.isHereditary())
+                .mobile(rq.getMobile()).address(rq.getAddress()).hereditary(rq.isHereditary())
                 .status(EmployeeStatus.ACTIVE)
-                .submissionStatus(SubmissionStatus.DRAFT) // New employees start as DRAFT
+                .submissionStatus(SubmissionStatus.DRAFT)
                 .build();
         Employee saved = employeeRepository.save(emp);
         auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "Employee", saved.getId(),
@@ -134,16 +134,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (rq.getDateOfLeaving() != null) emp.setDateOfLeaving(rq.getDateOfLeaving());
         }
 
-        // Auto-reset: TA edit after DC verification resets status to DRAFT
-        if (emp.getSubmissionStatus() == SubmissionStatus.APPROVED || emp.getSubmissionStatus() == SubmissionStatus.REJECTED) {
-            emp.setSubmissionStatus(SubmissionStatus.DRAFT);
-            emp.setReviewedAt(null);
-            emp.setReviewedBy(null);
-            emp.setReviewRemarks(null);
-            log.info("Employee [{}] submission status reset to DRAFT after TA update", id);
-        }
-
-        // Reset DC verification flags if edited after verification
+        // Auto-reset: TA edit after DC verification resets review fields
         if (emp.isVerifiedByDc()) {
             emp.setVerifiedByDc(false);
             emp.setVerifiedByDcAt(null);
@@ -201,7 +192,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             .employeeType(e.getEmployeeType()).employeeRef(e.getEmployeeRef())
             .designation(e.getDesignation()).dateOfJoining(e.getDateOfJoining())
             .salaryGrade(e.getSalaryGrade()).mobile(e.getMobile()).address(e.getAddress())
-            .status(e.getStatus()).isHereditary(e.getIsHereditary())
+            .status(e.getStatus()).hereditary(e.getHereditary())
             .dateOfLeaving(e.getDateOfLeaving())
             // Audit
             .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
@@ -221,14 +212,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         
-        // Validate can submit
-        if (emp.getSubmissionStatus() != SubmissionStatus.DRAFT) {
-            throw new IllegalStateException(
-                "Only DRAFT employees can be submitted for review. Current status: " + emp.getSubmissionStatus());
-        }
-        
         // Update submission fields
-        emp.setSubmissionStatus(SubmissionStatus.PENDING_REVIEW);
         emp.setSubmittedAt(LocalDateTime.now());
         emp.setSubmittedBy(currentClaims().userId());
         
@@ -236,7 +220,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         
         // Publish notification to DC
         notificationService.notify(
-            null, // DC notification - will be handled by notification service
+            null,
             "Employee Record Submitted",
             "New employee record submitted for review: " + emp.getFullName() + " (" + emp.getEmployeeType() + ")",
             "EMPLOYEE_SUBMISSION",
@@ -259,14 +243,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         ownershipGuard.assertOwnsTemple(emp.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         
-        // Validate can withdraw
-        if (emp.getSubmissionStatus() != SubmissionStatus.PENDING_REVIEW) {
-            throw new IllegalStateException(
-                "Only PENDING_REVIEW employees can be withdrawn. Current status: " + emp.getSubmissionStatus());
-        }
-        
-        // Reset to DRAFT
-        emp.setSubmissionStatus(SubmissionStatus.DRAFT);
+        // Reset submission fields
         emp.setSubmittedAt(null);
         emp.setSubmittedBy(null);
         
@@ -290,13 +267,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         jurisdictionGuard.assertDistrictScope(temple, claims);
         
         // Validate can approve
-        if (emp.getSubmissionStatus() != SubmissionStatus.PENDING_REVIEW) {
+        if (emp.getSubmittedAt() == null) {
             throw new IllegalStateException(
-                "Only PENDING_REVIEW employees can be approved. Current status: " + emp.getSubmissionStatus());
+                "Only submitted employees can be approved.");
         }
         
         // Update approval fields
-        emp.setSubmissionStatus(SubmissionStatus.APPROVED);
         emp.setReviewedAt(LocalDateTime.now());
         emp.setReviewedBy(claims.userId());
         emp.setReviewRemarks(request.getRemarks());
@@ -308,18 +284,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setDcFlagReason(null); // Clear any previous flag
         
         Employee saved = employeeRepository.save(emp);
-        
-        // Notify Temple Authority
-        if (emp.getSubmittedBy() != null) {
-            notificationService.notify(
-                emp.getSubmittedBy(),
-                "Employee Record Approved",
-                "Your employee record has been approved: " + emp.getFullName() + 
-                    (request.getRemarks() != null ? ". Remarks: " + request.getRemarks() : ""),
-                "EMPLOYEE_APPROVAL",
-                saved.getId()
-            );
-        }
         
         log.info("Employee approved: id=[{}] temple=[{}] by DC user=[{}]", 
             id, emp.getTempleId(), claims.userId());
@@ -337,13 +301,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         jurisdictionGuard.assertDistrictScope(temple, claims);
         
         // Validate can reject
-        if (emp.getSubmissionStatus() != SubmissionStatus.PENDING_REVIEW) {
+        if (emp.getSubmittedAt() == null) {
             throw new IllegalStateException(
-                "Only PENDING_REVIEW employees can be rejected. Current status: " + emp.getSubmissionStatus());
+                "Only submitted employees can be rejected.");
         }
         
         // Update rejection fields
-        emp.setSubmissionStatus(SubmissionStatus.REJECTED);
         emp.setReviewedAt(LocalDateTime.now());
         emp.setReviewedBy(claims.userId());
         emp.setReviewRemarks(request.getReason());
@@ -353,18 +316,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setDcFlagReason(request.getReason());
         
         Employee saved = employeeRepository.save(emp);
-        
-        // Notify Temple Authority
-        if (emp.getSubmittedBy() != null) {
-            notificationService.notify(
-                emp.getSubmittedBy(),
-                "Employee Record Rejected",
-                "Your employee record has been rejected: " + emp.getFullName() + 
-                    ". Reason: " + request.getReason(),
-                "EMPLOYEE_REJECTION",
-                saved.getId()
-            );
-        }
         
         log.info("Employee rejected: id=[{}] temple=[{}] by DC user=[{}] reason=[{}]", 
             id, emp.getTempleId(), claims.userId(), request.getReason());

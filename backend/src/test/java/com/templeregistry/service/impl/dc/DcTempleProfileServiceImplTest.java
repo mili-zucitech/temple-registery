@@ -163,7 +163,7 @@ class DcTempleProfileServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of()));
         when(contractorRepository.findAllByTempleId(eq(temple.getId()), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
-        when(declarationRepository.findAllByTempleId(eq(temple.getId()), any(PageRequest.class)))
+        when(declarationRepository.findAllByTempleIdExcludingDraft(eq(temple.getId()), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
         when(profileCurrentRepository.findByTempleId(temple.getId())).thenReturn(Optional.empty());
     }
