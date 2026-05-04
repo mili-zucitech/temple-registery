@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useListNotificationsQuery, useMarkAllReadMutation, NotificationPriority, NotificationCategory } from '../notificationApi'
+import { useNotificationInbox } from '../hooks/useNotificationInbox'
+import { NotificationPriority, NotificationCategory } from '../notificationApi'
 import { NotificationCard } from '../components/NotificationCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,12 +17,10 @@ export function NotificationInboxPage() {
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'ALL'>('ALL')
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all')
 
-  const { data, isLoading, isFetching } = useListNotificationsQuery({ page, size: 20 })
-  const [markAllRead, { isLoading: isMarkingAllRead }] = useMarkAllReadMutation()
+  const { notifications, totalPages, totalElements, isLoading, isFetching, isError, isMarkingAllRead, markAllRead } =
+    useNotificationInbox(page)
 
-  const notifications = data?.data?.content || []
-  const totalPages = data?.data?.totalPages || 0
-  const totalElements = data?.data?.totalElements || 0
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   // Filter notifications
   const filteredNotifications = notifications.filter((notification) => {
@@ -57,16 +56,6 @@ export function NotificationInboxPage() {
     return true
   })
 
-  const unreadCount = notifications.filter((n) => !n.read).length
-
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllRead().unwrap()
-    } catch (error) {
-      console.error('Failed to mark all as read:', error)
-    }
-  }
-
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
@@ -85,7 +74,7 @@ export function NotificationInboxPage() {
             </Button>
           </Link>
           {unreadCount > 0 && (
-            <Button onClick={handleMarkAllRead} disabled={isMarkingAllRead}>
+            <Button onClick={() => markAllRead()} disabled={isMarkingAllRead}>
               {isMarkingAllRead ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
@@ -159,6 +148,10 @@ export function NotificationInboxPage() {
             <div className="flex items-center justify-center p-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          ) : isError ? (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">Failed to load notifications. Please try again.</p>
+            </Card>
           ) : filteredNotifications.length === 0 ? (
             <Card className="p-12 text-center">
               <p className="text-muted-foreground">No notifications found</p>

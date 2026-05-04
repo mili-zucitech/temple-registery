@@ -68,10 +68,6 @@ public class Trust extends BaseEntity {
     @Column(name = "dissolution_reason", columnDefinition = "TEXT")
     private String dissolutionReason;
 
-    @Column(name = "is_verified_by_dc", nullable = false)
-    @Builder.Default
-    private boolean isVerifiedByDc = false;
-
     @Column(name = "dc_flag_reason", columnDefinition = "MEDIUMTEXT")
     private String dcFlagReason;
 
@@ -104,8 +100,12 @@ public class Trust extends BaseEntity {
     @Column(name = "send_back_reason", columnDefinition = "TEXT")
     private String sendBackReason;
 
-    /** Optimistic lock counter for governance state changes. */
-    @Builder.Default
-    @Column(name = "governance_version", nullable = false)
-    private Long governanceVersion = 1L;
+    /**
+     * Derived helper method to check if trust is verified by DC.
+     * Returns true if dcDecisionStatus is APPROVED_BY_DC.
+     * This replaces the removed isVerifiedByDc boolean field.
+     */
+    public boolean isVerifiedByDc() {
+        return DcDecisionStatus.APPROVED_BY_DC.equals(this.dcDecisionStatus);
+    }
 }

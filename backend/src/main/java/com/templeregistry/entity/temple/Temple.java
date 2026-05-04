@@ -144,27 +144,6 @@ public class Temple extends BaseEntity {
     @Column(name = "verification_status", nullable = false, length = 20)
     private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
 
-    // DC Verification Fields
-    @Builder.Default
-    @Column(name = "is_verified_by_dc", nullable = false)
-    private boolean isVerifiedByDc = false;
-
-    @Column(name = "verified_by_dc_at")
-    private java.time.LocalDateTime verifiedByDcAt;
-
-    @Column(name = "verified_by_dc_user_id")
-    private Long verifiedByDcUserId;
-
-    @Builder.Default
-    @Column(name = "is_flagged_by_dc", nullable = false)
-    private boolean isFlaggedByDc = false;
-
-    @Column(name = "flagged_by_dc_at")
-    private java.time.LocalDateTime flaggedByDcAt;
-
-    @Column(name = "flagged_by_dc_user_id")
-    private Long flaggedByDcUserId;
-
     @Column(name = "dc_rejection_reason", columnDefinition = "TEXT")
     private String dcRejectionReason;
 }

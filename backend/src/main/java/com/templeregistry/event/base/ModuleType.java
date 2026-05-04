@@ -10,5 +10,6 @@ public enum ModuleType {
     CONTRACTOR,
     DECLARATION,
     DOCUMENT,
+    FINANCE,
     SYSTEM
 }

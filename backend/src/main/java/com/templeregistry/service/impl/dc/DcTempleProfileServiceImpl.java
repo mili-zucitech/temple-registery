@@ -14,7 +14,9 @@ import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.geo.City;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
-import com.templeregistry.entity.temple.TempleProfileStagingStatus;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.service.workflow.WorkflowEngine;
 import com.templeregistry.entity.trust.BoardMember;
 import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.trust.TrustFinancial;
@@ -77,6 +79,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final CityRepository cityRepository;
         private final JurisdictionGuard jurisdictionGuard;
         private final TrustValidationService trustValidationService;
+        private final WorkflowEngine workflowEngine;
 
         @Override
         @Transactional(readOnly = true)
@@ -308,7 +311,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
                 return profileStagingRepository
                                 .findFirstByTempleIdAndStatus(templeId,
-                                                TempleProfileStagingStatus.PENDING_REVIEW)
+                                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED)
                                 .map(this::toProfileStagingResponse)
                                 .orElse(null);
         }
@@ -346,12 +349,6 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                                 .status(t.getStatus() != null ? t.getStatus().name() : null)
                                 .verificationStatus(t.getVerificationStatus() != null ? t.getVerificationStatus().name() : null)
-                                .isVerifiedByDc(t.isVerifiedByDc())
-                                .verifiedByDcAt(t.getVerifiedByDcAt())
-                                .verifiedByDcUserId(t.getVerifiedByDcUserId())
-                                .isFlaggedByDc(t.isFlaggedByDc())
-                                .flaggedByDcAt(t.getFlaggedByDcAt())
-                                .flaggedByDcUserId(t.getFlaggedByDcUserId())
                                 .dcRejectionReason(t.getDcRejectionReason())
                                 .build();
         }
@@ -359,6 +356,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims) {
                 String[] bankParts = splitBankNameAndBranch(t.getBankNameAndBranch());
                 List<TrustFinancial> financials = trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(t.getId());
+                boolean isVerified = t.getDcDecisionStatus() == com.templeregistry.entity.governance.DcDecisionStatus.APPROVED_BY_DC;
                 return TempleFullProfileResponse.DcTrustSummary.builder()
                                 .id(t.getId())
                                 .trustName(t.getTrustName())
@@ -371,9 +369,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .bankName(bankParts[0])
                                 .bankBranch(bankParts[1])
                                 .annualIncome(t.getAnnualIncome())
-                                .isVerifiedByDc(t.isVerifiedByDc())
                                 .dcFlagReason(t.getDcFlagReason())
-                                .reviewStatus(t.isVerifiedByDc() ? "APPROVED" : (t.getDcFlagReason() != null ? "FLAGGED" : "PENDING"))
+                                .reviewStatus(isVerified ? "APPROVED" : (t.getDcFlagReason() != null ? "FLAGGED" : "PENDING"))
                                 .validationIssues(buildTrustValidationIssues(t))
                                 .financialStatus(financials.isEmpty() ? "MISSING" : "SUBMITTED")
                                 .build();
@@ -417,8 +414,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .tenureEndDate(m.getTenureEndDate())
                                 .contactNumber(m.getContactNumber())
                                 .address(m.getAddress())
-                                .isCurrent(trustValidationService.isCurrentMember(m.getTenureEndDate()))
-                                .isVerifiedByDc(m.isVerifiedByDc())
+                                .current(trustValidationService.isCurrentMember(m.getTenureEndDate()))
                                 .dcFlagReason(m.getDcFlagReason())
                                 .build();
         }
@@ -444,7 +440,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .mobile(e.getMobile())
                                 .address(e.getAddress())
                                 .status(e.getStatus())
-                                .isHereditary(e.getIsHereditary())
+                                .hereditary(e.getHereditary())
                                 .build();
         }
 
@@ -524,11 +520,12 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         }
 
         private ProfileStagingResponse toProfileStagingResponse(TempleProfileStaging s) {
+                WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
                 return ProfileStagingResponse.builder()
                                 .id(s.getId())
                                 .templeId(s.getTempleId())
-                                .version(s.getVersionNumber())
-                                .status(s.getStatus().name())
+                                .version(instance.getVersionNumber())
+                                .status(instance.getStatus().name())
                                 .contactPersonName(s.getContactPersonName())
                                 .contactPersonDesignation(s.getContactPersonDesignation())
                                 .phone(s.getPhone())
@@ -543,8 +540,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .annualFestivals(s.getAnnualFestivals())
                                 .landmark(s.getLandmark())
                                 .historicalSignificance(s.getHistoricalSignificance())
-                                .submittedAt(s.getSubmittedAt())
-                                .submittedBy(s.getSubmittedBy())
+                                .submittedAt(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
+                                .submittedBy(instance.getCreatedBy())
                                 .build();
         }
 

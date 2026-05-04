@@ -3,8 +3,6 @@ package com.templeregistry.controller.notification;
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.notification.NotificationResponse;
-import com.templeregistry.entity.notification.InAppNotification;
-import com.templeregistry.repository.notification.InAppNotificationRepository;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.notification.NotificationService;
 import com.templeregistry.util.PaginationUtil;
@@ -26,7 +24,6 @@ import org.springframework.web.bind.annotation.*;
 public class NotificationController {
 
     private final NotificationService notificationService;
-    private final InAppNotificationRepository notificationRepository;
     private final PaginationUtil paginationUtil;
 
     @GetMapping
@@ -35,9 +32,8 @@ public class NotificationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Long userId = currentUserId();
-        Page<NotificationResponse> result = notificationRepository
-                .findAllByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(page, paginationUtil.clampSize(size)))
-                .map(this::toResponse);
+        Page<NotificationResponse> result = notificationService
+            .listNotifications(userId, PageRequest.of(page, paginationUtil.clampSize(size)));
         return ResponseEntity.ok(ApiResponse.success("Notifications retrieved.", PaginatedResponse.of(result)));
     }
 
@@ -55,16 +51,22 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(count + " notification(s) marked as read."));
     }
 
+    @PostMapping("/{id}/acknowledge")
+    @Operation(summary = "Acknowledge a notification that requires acknowledgement")
+    public ResponseEntity<ApiResponse<Void>> acknowledge(@PathVariable Long id) {
+        notificationService.acknowledge(id, currentUserId());
+        return ResponseEntity.ok(ApiResponse.success("Notification acknowledged."));
+    }
+
+    @GetMapping("/unread-count")
+    @Operation(summary = "Returns the count of unread notifications for the current user")
+    public ResponseEntity<ApiResponse<Long>> unreadCount() {
+        long count = notificationService.countUnread(currentUserId());
+        return ResponseEntity.ok(ApiResponse.success("Unread count retrieved.", count));
+    }
+
     private Long currentUserId() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return principal instanceof ScopeHelper.Claims c ? c.userId() : 0L;
-    }
-
-    private NotificationResponse toResponse(InAppNotification n) {
-        return NotificationResponse.builder()
-                .id(n.getId()).title(n.getTitle()).body(n.getBody())
-                .priority(n.getPriority()).category(n.getCategory()).actionUrl(n.getActionUrl())
-                .referenceType(n.getReferenceType()).referenceId(n.getReferenceId())
-                .read(n.isRead()).readAt(n.getReadAt()).createdAt(n.getCreatedAt()).build();
     }
 }

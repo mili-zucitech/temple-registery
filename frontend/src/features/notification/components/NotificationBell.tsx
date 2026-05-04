@@ -3,27 +3,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { NotificationDropdown } from './NotificationDropdown'
-import { useListNotificationsQuery } from '../notificationApi'
-import { useState, useEffect } from 'react'
+import { useNotifications } from '../hooks/useNotifications'
+import { useState } from 'react'
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
-  const { data, refetch } = useListNotificationsQuery({ page: 0, size: 5 })
-
-  // Calculate unread count
-  const unreadCount = data?.data?.content?.filter((n) => !n.read).length || 0
-
-  // Poll for new notifications every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch()
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [refetch])
+  const { unreadCount, refetch } = useNotifications({ page: 0, size: 5, pollingInterval: 30000 })
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen)
+      if (isOpen) refetch()
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"

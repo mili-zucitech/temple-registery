@@ -5,21 +5,20 @@ import com.templeregistry.dto.request.dc.UnflagTempleProfileRequest;
 import com.templeregistry.dto.request.dc.VerifyTempleProfileRequest;
 import com.templeregistry.dto.response.dc.TempleVerificationResponse;
 import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleVerificationService;
-import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
+import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 /**
  * Implementation of DC temple verification workflow.
@@ -32,9 +31,9 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
 
     private final TempleRepository templeRepository;
     private final JurisdictionGuard jurisdictionGuard;
-    private final NotificationEventPublisher notificationPublisher;
     private final TempleSearchSummaryService summaryService;
     private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
+    private final WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @Override
     @Transactional
@@ -44,33 +43,16 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple temple = loadTempleWithGeo(templeId);
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Verify the temple
-        temple.setVerifiedByDc(true);
-        temple.setVerifiedByDcAt(LocalDateTime.now());
-        temple.setVerifiedByDcUserId(claims.userId());
-
-        // Remove any existing flag when verifying
-        if (temple.isFlaggedByDc()) {
-            temple.setFlaggedByDc(false);
-            temple.setFlaggedByDcAt(null);
-            temple.setFlaggedByDcUserId(null);
-            temple.setDcRejectionReason(null);
-            log.info("Removed existing flag while verifying temple: templeId=[{}]", templeId);
-        }
+        // Verify the temple - set status to VERIFIED
+        temple.setVerificationStatus(VerificationStatus.VERIFIED);
+        temple.setDcRejectionReason(null); // Clear any previous rejection reason
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
+        workflowEngineAdaptor.adaptVerifyTempleProfile(templeId, claims.districtId(), claims.userId());
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleApproved(templeId, claims.userId());
-
-        // Publish notification to Temple Authority (legacy)
-        notificationPublisher.publishTempleVerified(
-                templeId,
-                temple.getName(),
-                claims.userId(),
-                request.getRemarks()
-        );
 
         log.info("Temple profile verified by DC: templeId=[{}] dcUserId=[{}]", templeId, claims.userId());
 
@@ -85,33 +67,16 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple temple = loadTempleWithGeo(templeId);
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Flag the temple
-        temple.setFlaggedByDc(true);
-        temple.setFlaggedByDcAt(LocalDateTime.now());
-        temple.setFlaggedByDcUserId(claims.userId());
+        // Flag the temple - set status to FLAGGED
+        temple.setVerificationStatus(VerificationStatus.FLAGGED);
         temple.setDcRejectionReason(request.getReason());
-
-        // Remove verification when flagging
-        if (temple.isVerifiedByDc()) {
-            temple.setVerifiedByDc(false);
-            temple.setVerifiedByDcAt(null);
-            temple.setVerifiedByDcUserId(null);
-            log.info("Removed verification while flagging temple: templeId=[{}]", templeId);
-        }
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
+        workflowEngineAdaptor.adaptFlagTempleProfile(templeId, claims.districtId(), claims.userId(), request.getReason());
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleFlagged(templeId, claims.userId(), request.getReason());
-
-        // Publish notification to Temple Authority (legacy)
-        notificationPublisher.publishTempleFlagged(
-                templeId,
-                temple.getName(),
-                claims.userId(),
-                request.getReason()
-        );
 
         log.info("Temple profile flagged by DC: templeId=[{}] dcUserId=[{}] reason=[{}]",
                 templeId, claims.userId(), request.getReason());
@@ -127,26 +92,20 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple temple = loadTempleWithGeo(templeId);
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        if (!temple.isFlaggedByDc()) {
+        if (temple.getVerificationStatus() != VerificationStatus.FLAGGED) {
             throw new IllegalStateException("Temple profile is not currently flagged.");
         }
 
-        // Remove flag
-        temple.setFlaggedByDc(false);
-        temple.setFlaggedByDcAt(null);
-        temple.setFlaggedByDcUserId(null);
+        // Remove flag - set status back to UNVERIFIED
+        temple.setVerificationStatus(VerificationStatus.UNVERIFIED);
         temple.setDcRejectionReason(null);
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
+        workflowEngineAdaptor.adaptUnflagTempleProfile(templeId, claims.districtId(), claims.userId());
 
-        // Publish notification to Temple Authority
-        notificationPublisher.publishTempleUnflagged(
-                templeId,
-                temple.getName(),
-                claims.userId(),
-                request.getRemarks()
-        );
+        // Send notification to all TAs for this temple
+        notificationHelper.notifyTempleUnflagged(templeId, claims.userId());
 
         log.info("Temple profile unflagged by DC: templeId=[{}] dcUserId=[{}]", templeId, claims.userId());
 
@@ -175,12 +134,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
                 .templeId(temple.getId())
                 .registrationNumber(temple.getRegistrationNumber())
                 .templeName(temple.getName())
-                .isVerifiedByDc(temple.isVerifiedByDc())
-                .verifiedByDcAt(temple.getVerifiedByDcAt())
-                .verifiedByDcUserId(temple.getVerifiedByDcUserId())
-                .isFlaggedByDc(temple.isFlaggedByDc())
-                .flaggedByDcAt(temple.getFlaggedByDcAt())
-                .flaggedByDcUserId(temple.getFlaggedByDcUserId())
+                .verificationStatus(temple.getVerificationStatus() != null ? temple.getVerificationStatus().name() : null)
                 .dcRejectionReason(temple.getDcRejectionReason())
                 .message(message)
                 .build();

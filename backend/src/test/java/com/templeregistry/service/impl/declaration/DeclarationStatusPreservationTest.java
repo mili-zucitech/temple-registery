@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Preservation-checking tests for the CLARIFICATION_REQUESTED alias fix.
@@ -67,7 +68,6 @@ class DeclarationStatusPreservationTest {
                 templeRepository,
                 Mockito.mock(com.templeregistry.security.OwnershipGuard.class),
                 Mockito.mock(com.templeregistry.security.JurisdictionGuard.class),
-                Mockito.mock(com.templeregistry.util.StatusTransitionValidator.class),
                 Mockito.mock(com.templeregistry.util.AcknowledgementNumberGenerator.class),
                 Mockito.mock(com.templeregistry.service.dc.NotificationEventPublisher.class),
                 paginationUtil,
@@ -89,8 +89,9 @@ class DeclarationStatusPreservationTest {
                 Mockito.mock(com.templeregistry.service.governance.GovernanceEditGuard.class),
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
-                Mockito.mock(com.templeregistry.service.declaration.StateTransitionValidator.class),
-                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class)
+                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngineAdaptor.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class)
         );
 
         // Mock security context so @PreAuthorize doesn't interfere

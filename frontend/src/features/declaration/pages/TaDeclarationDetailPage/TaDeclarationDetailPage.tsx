@@ -14,7 +14,8 @@ import {
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { DeclarationHeader, ClarificationAlert, RejectionAlert } from './components'
+import { DeclarationHeader, ClarificationAlert } from './components'
+import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -179,25 +180,37 @@ export function TaDeclarationDetailPage() {
       />
 
       <Tabs defaultValue="overview" className="w-full">
-        <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm w-fit">
-          <TabsList className="grid grid-cols-3 gap-1 bg-transparent p-0">
-            <TabsTrigger 
-              value="overview" 
+        <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
+          <TabsList className="grid w-full grid-cols-5 gap-1 bg-transparent p-0 lg:w-auto">
+            <TabsTrigger
+              value="overview"
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
             >
               Overview
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="assets"
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
             >
               Assets
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="history"
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
             >
               History
+            </TabsTrigger>
+            <TabsTrigger
+              value="diff"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+            >
+              Diff
+            </TabsTrigger>
+            <TabsTrigger
+              value="governance"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+            >
+              Governance
             </TabsTrigger>
           </TabsList>
         </div>
@@ -229,6 +242,29 @@ export function TaDeclarationDetailPage() {
               onVersionSelect={setCompareVersion}
             />
           </Suspense>
+        </TabsContent>
+
+        <TabsContent value="diff" className="mt-5">
+          <Suspense fallback={<TabLoadingFallback />}>
+            <DiffTab
+              versions={versions}
+              compareVersion={compareVersion}
+              onCompareVersionChange={setCompareVersion}
+              diff={diff}
+              isLoading={diffQuery.isLoading}
+            />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="governance" className="mt-5">
+          {declaration.workflowInstanceId ? (
+            <WorkflowGovernancePanel workflowInstanceId={declaration.workflowInstanceId} />
+          ) : (
+            <EmptyState
+              title="Governance not available"
+              description="This declaration was created before the workflow engine was activated. Submit a new version to enable governance tracking."
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>

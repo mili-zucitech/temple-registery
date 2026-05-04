@@ -54,13 +54,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - The other throws an exception (optimistic locking or state transition violation)
  * - Final status is APPROVED
  *
- * Disabled because H2 does not support TINYINT(1) column definitions used in entities.
+ * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
  */
-@Disabled("Requires MySQL-compatible DB — H2 does not support TINYINT(1) column definitions used in entities")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class DeclarationConcurrencyIT {
+class DeclarationConcurrencyIT extends MySQLContainerBase {
 
     @Autowired
     private DeclarationService declarationService;

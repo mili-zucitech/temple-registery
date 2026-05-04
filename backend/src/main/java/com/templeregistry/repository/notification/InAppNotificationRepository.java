@@ -16,4 +16,6 @@ public interface InAppNotificationRepository extends JpaRepository<InAppNotifica
     @Modifying
     @Query("UPDATE InAppNotification n SET n.isRead = true, n.readAt = CURRENT_TIMESTAMP WHERE n.userId = :userId AND n.isRead = false")
     int markAllRead(Long userId);
+
+    boolean existsByIdempotencyKey(String idempotencyKey);
 }

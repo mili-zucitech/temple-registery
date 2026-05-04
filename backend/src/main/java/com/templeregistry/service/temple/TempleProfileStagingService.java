@@ -41,4 +41,13 @@ public interface TempleProfileStagingService {
 
     /** Paginated history of all staging records for a temple, most recent first. */
     PaginatedResponse<TempleProfileStagingResponse> getHistory(Long templeId, int page, int size);
+
+    /** [P5] Get a specific staging record by ID. */
+    TempleProfileStagingResponse getById(Long id);
+
+    /** [P6] DC requests clarification for a profile update. */
+    void requestClarification(Long templeId, Long stagingId, String message, Long requestedByUserId);
+
+    /** [P6] TA responds to a clarification request. */
+    void respondToClarification(Long templeId, Long threadId, String response, Long respondedByUserId);
 }

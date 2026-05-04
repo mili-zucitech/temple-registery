@@ -3,6 +3,7 @@ package com.templeregistry.governance;
 import com.templeregistry.dto.request.governance.RejectRequest;
 import com.templeregistry.dto.request.governance.SendBackRequest;
 import com.templeregistry.entity.declaration.AssetDeclaration;
+import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.governance.PhysicalVerificationStatus;
 import com.templeregistry.entity.governance.SubmissionStatus;
@@ -58,7 +59,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.DRAFT)
                     .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
-                    .governanceVersion(1L)
                     .build();
 
             trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
@@ -76,7 +76,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SUBMITTED)
                     .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
-                    .governanceVersion(1L)
                     .build();
 
             trust.setSubmissionStatus(SubmissionStatus.APPROVED);
@@ -92,7 +91,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SENT_BACK)
                     .sendBackReason("PAN number is incorrect.")
-                    .governanceVersion(2L)
                     .build();
 
             trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
@@ -116,15 +114,13 @@ class GovernanceWorkflowTest {
         @DisplayName("DRAFT declaration can be submitted → SUBMITTED")
         void draftDeclarationCanBeSubmitted() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.DRAFT)
-                    .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
+                    .status(DeclarationStatus.DRAFT)
                     .physicalVerificationStatus(PhysicalVerificationStatus.NOT_INITIATED)
-                    .governanceVersion(1L)
                     .build();
 
-            decl.setSubmissionStatus(SubmissionStatus.SUBMITTED);
+            decl.setStatus(DeclarationStatus.SUBMITTED);
 
-            assertThat(decl.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
+            assertThat(decl.getStatus()).isEqualTo(DeclarationStatus.SUBMITTED);
             assertThat(decl.getPhysicalVerificationStatus())
                     .isEqualTo(PhysicalVerificationStatus.NOT_INITIATED);
         }
@@ -133,28 +129,25 @@ class GovernanceWorkflowTest {
         @DisplayName("DC can approve declaration when physical verification is NOT_INITIATED (optional)")
         void dcCanApproveWithoutPhysicalVerification() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
+                    .status(DeclarationStatus.SUBMITTED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.NOT_INITIATED)
-                    .governanceVersion(1L)
                     .build();
 
             // NOT_INITIATED does NOT block approval
             assertThat(decl.getPhysicalVerificationStatus())
                     .isNotEqualTo(PhysicalVerificationStatus.VERIFICATION_FAILED);
 
-            decl.setSubmissionStatus(SubmissionStatus.APPROVED);
-            decl.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
+            decl.setStatus(DeclarationStatus.APPROVED);
 
-            assertThat(decl.getSubmissionStatus()).isEqualTo(SubmissionStatus.APPROVED);
+            assertThat(decl.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
         }
 
         @Test
         @DisplayName("DC can approve declaration when physical verification is PHYSICALLY_VERIFIED")
         void dcCanApproveWhenPhysicallyVerified() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
+                    .status(DeclarationStatus.SUBMITTED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.PHYSICALLY_VERIFIED)
-                    .governanceVersion(1L)
                     .build();
 
             boolean isBlocked = decl.getPhysicalVerificationStatus()
@@ -162,8 +155,8 @@ class GovernanceWorkflowTest {
 
             assertThat(isBlocked).isFalse();
 
-            decl.setSubmissionStatus(SubmissionStatus.APPROVED);
-            assertThat(decl.getSubmissionStatus()).isEqualTo(SubmissionStatus.APPROVED);
+            decl.setStatus(DeclarationStatus.APPROVED);
+            assertThat(decl.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
         }
     }
 
@@ -180,7 +173,6 @@ class GovernanceWorkflowTest {
         void dcCanSendBackTrustWithReason() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .governanceVersion(1L)
                     .build();
 
             String reason = "The PAN number format is incorrect. Please verify and resubmit.";
@@ -197,7 +189,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SENT_BACK)
                     .sendBackReason("PAN number is incorrect.")
-                    .governanceVersion(2L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -234,7 +225,6 @@ class GovernanceWorkflowTest {
         void dcCanRejectSubmittedTrust() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .governanceVersion(1L)
                     .build();
 
             trust.setSubmissionStatus(SubmissionStatus.REJECTED);
@@ -249,7 +239,6 @@ class GovernanceWorkflowTest {
         void rejectedTrustCannotBeEdited() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.REJECTED)
-                    .governanceVersion(2L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -265,7 +254,6 @@ class GovernanceWorkflowTest {
         void submittedTrustCannotBeEditedByTa() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .governanceVersion(1L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -288,9 +276,8 @@ class GovernanceWorkflowTest {
         @DisplayName("DC orders physical verification → ORDERED_FOR_PHYSICAL_VERIFICATION")
         void dcOrdersPhysicalVerification() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
+                    .status(DeclarationStatus.SUBMITTED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.NOT_INITIATED)
-                    .governanceVersion(1L)
                     .build();
 
             decl.setPhysicalVerificationStatus(
@@ -318,9 +305,8 @@ class GovernanceWorkflowTest {
         @DisplayName("TA edit after PHYSICALLY_VERIFIED resets physical verification to NOT_INITIATED")
         void taEditAfterPhysicallyVerifiedResetsStatus() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SENT_BACK)
+                    .status(DeclarationStatus.CLARIFICATION_REQUIRED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.PHYSICALLY_VERIFIED)
-                    .governanceVersion(3L)
                     .build();
 
             // Simulate GovernanceEditGuard reset logic
@@ -340,9 +326,8 @@ class GovernanceWorkflowTest {
         @DisplayName("TA edit after VERIFICATION_FAILED resets physical verification to NOT_INITIATED")
         void taEditAfterVerificationFailedResetsStatus() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SENT_BACK)
+                    .status(DeclarationStatus.CLARIFICATION_REQUIRED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED)
-                    .governanceVersion(4L)
                     .build();
 
             if (decl.getPhysicalVerificationStatus() == PhysicalVerificationStatus.PHYSICALLY_VERIFIED
@@ -433,7 +418,7 @@ class GovernanceWorkflowTest {
         @DisplayName("DC can approve when physicalVerificationStatus = NOT_INITIATED")
         void dcCanApproveWhenNotInitiated() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
+                    .status(DeclarationStatus.SUBMITTED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.NOT_INITIATED)
                     .build();
 
@@ -456,7 +441,7 @@ class GovernanceWorkflowTest {
         @DisplayName("DC approval is BLOCKED when physicalVerificationStatus = VERIFICATION_FAILED")
         void dcApprovalBlockedWhenVerificationFailed() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
+                    .status(DeclarationStatus.SUBMITTED)
                     .physicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED)
                     .build();
 
@@ -492,7 +477,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.APPROVED)
                     .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .governanceVersion(2L)
                     .build();
 
             // assertDcCanAct requires SUBMITTED status
@@ -517,12 +501,10 @@ class GovernanceWorkflowTest {
         @DisplayName("Already APPROVED declaration cannot be approved again")
         void alreadyApprovedDeclarationCannotBeApprovedAgain() {
             AssetDeclaration decl = AssetDeclaration.builder()
-                    .submissionStatus(SubmissionStatus.APPROVED)
-                    .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .governanceVersion(3L)
+                    .status(DeclarationStatus.APPROVED)
                     .build();
 
-            boolean canAct = decl.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
+            boolean canAct = decl.getStatus() == DeclarationStatus.SUBMITTED;
 
             assertThat(canAct).isFalse();
         }
@@ -541,7 +523,6 @@ class GovernanceWorkflowTest {
         void draftTrustCannotBeApprovedDirectly() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.DRAFT)
-                    .governanceVersion(1L)
                     .build();
 
             boolean canAct = trust.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
@@ -553,7 +534,6 @@ class GovernanceWorkflowTest {
         void rejectedTrustCannotBeSubmittedAgain() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.REJECTED)
-                    .governanceVersion(2L)
                     .build();
 
             boolean canSubmit = trust.getSubmissionStatus() == SubmissionStatus.DRAFT
@@ -569,7 +549,6 @@ class GovernanceWorkflowTest {
         void approvedTrustCannotBeSentBack() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.APPROVED)
-                    .governanceVersion(2L)
                     .build();
 
             boolean canAct = trust.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
@@ -623,7 +602,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.APPROVED)
                     .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .governanceVersion(2L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -661,7 +639,6 @@ class GovernanceWorkflowTest {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.APPROVED)
                     .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .governanceVersion(2L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -674,12 +651,10 @@ class GovernanceWorkflowTest {
                 trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
                 trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
                 trust.setSendBackReason(null);
-                trust.setGovernanceVersion(trust.getGovernanceVersion() + 1);
             }
 
             assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
             assertThat(trust.getDcDecisionStatus()).isEqualTo(DcDecisionStatus.PENDING_DC_APPROVAL);
-            assertThat(trust.getGovernanceVersion()).isEqualTo(3L);
         }
 
         @Test
@@ -687,7 +662,6 @@ class GovernanceWorkflowTest {
         void rejectedEntityCannotBeEdited() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.REJECTED)
-                    .governanceVersion(2L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -702,7 +676,6 @@ class GovernanceWorkflowTest {
         void submittedEntityCannotBeEdited() {
             Trust trust = Trust.builder()
                     .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .governanceVersion(1L)
                     .build();
 
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
@@ -713,3 +686,4 @@ class GovernanceWorkflowTest {
         }
     }
 }
+

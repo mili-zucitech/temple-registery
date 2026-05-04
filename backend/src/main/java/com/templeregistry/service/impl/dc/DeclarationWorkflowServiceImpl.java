@@ -31,7 +31,7 @@ import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
-import com.templeregistry.util.StatusTransitionValidator;
+import com.templeregistry.util.StatusTransitionValidatorCompat;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
@@ -39,7 +39,6 @@ import com.itextpdf.layout.element.Paragraph;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
@@ -47,22 +46,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Executes DC workflow actions on asset declarations.
- *
- * Each action:
- *  1. Loads declaration with PESSIMISTIC_WRITE lock (prevents concurrent mutations)
- *  2. Loads temple with geo chain (EntityGraph) for district scope assertion
- *  3. Validates status transition
- *  4. Applies state change + persists
- *  5. Persists clarification record (clarify / flag actions)
- *  6. Generates acknowledgement number (approve only)
- *  7. Publishes in-transaction NotificationEvent (propagation=REQUIRED — rolls back with tx)
- *  8. Fires async audit log (fire-and-forget, independent transaction)
- *  9. Calls TempleSearchSummaryService.refresh() in same transaction (2.6)
- *
- * dc_e2e Sections 3.3, 2.6, 2.7, 2.8.
+ * @deprecated Replaced by GovernanceWorkflowServiceImpl which routes all declaration workflow
+ * actions through the canonical WorkflowEngine. This class is kept for reference only and is
+ * excluded from the Spring context. Remove in a future cleanup sprint.
  */
-@Service
+@Deprecated(forRemoval = true)
 @RequiredArgsConstructor
 @Slf4j
 public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowService {
@@ -72,16 +60,16 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
     private final AssetDeclarationVersionRepository versionRepository;
     private final TempleRepository templeRepository;
     private final JurisdictionGuard jurisdictionGuard;
-    private final StatusTransitionValidator transitionValidator;
+    private final StatusTransitionValidatorCompat transitionValidator;
     private final AcknowledgementNumberGenerator ackGenerator;
     private final NotificationEventPublisher notificationPublisher;
+    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final GovernanceAuditService governanceAuditService;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
-    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional
@@ -113,9 +101,6 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyDeclarationApproved(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId());
-
-        notificationPublisher.publish(
-                d.getSubmittedBy(), "DECLARATION_APPROVED", declarationId, "ASSET_DECLARATION");
 
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_APPROVED",
                 "AssetDeclaration", declarationId,
@@ -158,9 +143,6 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyDeclarationRejected(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), request.getRemarks());
-
-        notificationPublisher.publish(
-                d.getSubmittedBy(), "DECLARATION_REJECTED", declarationId, "ASSET_DECLARATION");
 
         auditService.logDataEvent(claims.userId(), claims.role(), "DECLARATION_REJECTED",
                 "AssetDeclaration", declarationId, "status=REJECTED");
@@ -207,9 +189,6 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         // Send notification to all TAs for this temple
         notificationHelper.notifyDeclarationFlagged(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), request.getMessage());
 
-        notificationPublisher.publish(
-                d.getSubmittedBy(), "CLARIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
-
         auditService.logDataEvent(claims.userId(), claims.role(), "CLARIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId,
                 "round=" + d.getClarificationRound());
@@ -217,6 +196,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "QUERY",
                 "Clarification requested (round " + d.getClarificationRound() + "): " + request.getMessage());
 
+        // EC-04: Escalation to Super Admin on round 2
         if (d.getClarificationRound() == 2) {
             userRepository.findAllByRole(UserRole.SUPER_ADMIN).forEach(sa ->
                     notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION", declarationId, "ASSET_DECLARATION"));
@@ -254,9 +234,6 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyDeclarationMarkedForPhysicalVisit(declarationId, d.getTempleId(), d.getFinancialYear(), claims.userId(), null);
-
-        notificationPublisher.publish(
-                d.getSubmittedBy(), "PHYSICAL_VERIFICATION_REQUESTED", declarationId, "ASSET_DECLARATION");
 
         auditService.logDataEvent(claims.userId(), claims.role(), "PHYSICAL_VERIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId, "flagged=true");

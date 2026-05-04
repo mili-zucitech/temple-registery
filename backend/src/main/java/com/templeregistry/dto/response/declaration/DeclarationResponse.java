@@ -1,8 +1,6 @@
 package com.templeregistry.dto.response.declaration;
 
 import com.templeregistry.entity.declaration.DeclarationStatus;
-import com.templeregistry.entity.governance.DcDecisionStatus;
-import com.templeregistry.entity.governance.SubmissionStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -12,7 +10,7 @@ import java.time.LocalDateTime;
 
 /**
  * Declaration response DTO.
- * Governance fields included: submissionStatus, dcDecisionStatus, sendBackReason.
+ * Governance field included: sendBackReason.
  * systemVerificationStatus is EXCLUDED — never returned to any caller via this DTO.
  * physicalVerificationStatus is EXCLUDED — DC-only, returned only via DcGovernanceStatusResponse.
  */
@@ -20,6 +18,8 @@ import java.time.LocalDateTime;
 @Builder
 public class DeclarationResponse {
     private Long id;
+    /** Workflow instance ID — used by frontend WorkflowGovernancePanel */
+    private Long workflowInstanceId;
     private Long templeId;
     private String templeName;
     private Long districtId;
@@ -48,9 +48,6 @@ public class DeclarationResponse {
     private LocalDateTime overdueFlaggedAt;
     private String remarks;
 
-    // ─── 3-Layer Governance Status (TA-safe) ─────────────────────────────────
-    private SubmissionStatus submissionStatus;
-    private DcDecisionStatus dcDecisionStatus;
     /** Free-text reason from DC when status is SENT_BACK. Null otherwise. */
     private String sendBackReason;
 }

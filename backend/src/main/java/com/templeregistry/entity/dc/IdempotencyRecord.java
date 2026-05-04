@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  *
  * dc_e2e Section 4.12b / V15 migration: idempotency_records.
  */
-@Entity
+@Entity(name = "DcIdempotencyRecord")
 @Table(
         name = "idempotency_records",
         indexes = {

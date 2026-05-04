@@ -41,6 +41,7 @@ import {
   useWorkflowActions,
 } from '@/features/dc/dcHooks'
 import type { ClarificationItemResponse } from '@/features/dc/dcTypes'
+import type { DeclarationVersionResponse } from '@/features/declaration/declarationTypes'
 import {
   workflowApproveSchema,
   workflowRejectSchema,

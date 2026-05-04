@@ -9,7 +9,7 @@ import com.templeregistry.entity.dc.IdempotencyRecord;
 import com.templeregistry.exception.ExportQueueFullException;
 import com.templeregistry.exception.RateLimitExceededException;
 import com.templeregistry.repository.dc.ExportJobRecordRepository;
-import com.templeregistry.repository.dc.IdempotencyRecordRepository;
+import com.templeregistry.repository.dc.DcIdempotencyRecordRepository;
 import com.templeregistry.repository.dc.RateRequestLogRepository;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
@@ -54,7 +54,7 @@ public class DcExportServiceImpl implements DcExportService {
 
     private final AsyncExportBean asyncExportBean;
     private final RateRequestLogRepository rateRepository;
-    private final IdempotencyRecordRepository idempotencyRepository;
+    private final DcIdempotencyRecordRepository idempotencyRepository;
     private final ExportJobRecordRepository exportJobRecordRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;

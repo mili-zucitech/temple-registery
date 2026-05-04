@@ -5,7 +5,6 @@ import com.templeregistry.repository.declaration.DeclarationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -14,17 +13,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * Scheduled job that flags overdue declarations daily at 01:00 UTC.
- *
- * A declaration is overdue when:
- * - due_date < today
- * - status is NOT in terminal states (APPROVED, REJECTED, SUPERSEDED)
- * - is_overdue = false (not already flagged)
- *
- * The scheduler sets is_overdue = true and overdue_flagged_at = NOW().
- * It does NOT change the status field.
+ * @deprecated Replaced by OverdueWorkflowScheduler which uses the canonical WorkflowEngine
+ * to raise overdue transitions. This class is excluded from the Spring context.
+ * Remove in a future cleanup sprint.
  */
-@Component
+@Deprecated(forRemoval = true)
 @RequiredArgsConstructor
 @Slf4j
 public class OverdueScheduler {
