@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { Building2, Landmark, Coins, TrendingUp, FileText, Calendar } from 'lucide-react'
 import type { CompleteDeclarationResponse, DeclarationStatus, DeclarationVersionResponse } from '../../../declarationTypes'
-import { ChatPanel } from '@/features/declaration/components/ChatPanel'
 
 interface OverviewTabProps {
   declaration: CompleteDeclarationResponse
@@ -192,13 +191,6 @@ export function OverviewTab({ declaration, versions, activeVersion, onVersionSel
           )}
         </CardContent>
       </Card>
-
-      {/* Unified Chat Panel */}
-      <ChatPanel
-        declarationId={declarationId}
-        declarationStatus={declarationStatus}
-        readonly={false}
-      />
     </div>
   )
 }

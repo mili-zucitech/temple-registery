@@ -239,7 +239,10 @@ public class DeclarationServiceImpl implements DeclarationService {
     public CompleteDeclarationResponse update(Long id, CreateDeclarationRequest request) {
         AssetDeclaration declaration = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
-        if (declaration.getStatus() != DeclarationStatus.DRAFT) {
+        
+        // Allow updates for DRAFT and REJECTED declarations
+        if (declaration.getStatus() != DeclarationStatus.DRAFT && 
+            declaration.getStatus() != DeclarationStatus.REJECTED) {
             throw new com.templeregistry.exception.DeclarationImmutableException(id);
         }
 
@@ -251,10 +254,12 @@ public class DeclarationServiceImpl implements DeclarationService {
         applySummaryFields(declaration, request);
         AssetDeclaration saved = declarationRepository.save(declaration);
 
-        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "AssetDeclaration", saved.getId(),
-                "Updated declaration draft");
-        governanceAuditService.logAction(saved.getId(), "DECLARATION", currentUserId(), "UPDATE_DRAFT",
-                "Updated declaration draft");
+        String action = declaration.getStatus() == DeclarationStatus.REJECTED ? "UPDATE_REJECTED" : "UPDATE_DRAFT";
+        String message = declaration.getStatus() == DeclarationStatus.REJECTED ? 
+                "Updated rejected declaration" : "Updated declaration draft";
+        
+        auditService.logDataEvent(currentUserId(), currentRole(), "UPDATE", "AssetDeclaration", saved.getId(), message);
+        governanceAuditService.logAction(saved.getId(), "DECLARATION", currentUserId(), action, message);
         return buildCompleteResponse(saved);
     }
 

@@ -17,7 +17,7 @@ export interface ActionVisibility {
  * based on its current status and the user's role.
  *
  * Rules (Design Property 8):
- * - TA edit/submit: only for DRAFT
+ * - TA edit/submit: only for DRAFT and REJECTED
  * - TA clarification-respond: only for CLARIFICATION_REQUIRED
  * - DC approve: SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
  * - DC reject: SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
@@ -25,7 +25,7 @@ export interface ActionVisibility {
  * - DC schedule site visit: SUBMITTED, UNDER_REVIEW
  * - DC complete site visit: SITE_VISIT_SCHEDULED
  * - DC verify: SITE_VISIT_COMPLETED
- * - All actions disabled for APPROVED, REJECTED, SUPERSEDED
+ * - All actions disabled for APPROVED, SUPERSEDED
  *
  * @param status - The current declaration status
  * @param userRole - The user's role (TEMPLE_AUTHORITY, DISTRICT_COLLECTOR, SUPER_ADMIN, etc.)
@@ -38,8 +38,8 @@ export function getAvailableActions(
   const isTA = userRole === 'TEMPLE_AUTHORITY'
   const isDC = userRole === 'DISTRICT_COLLECTOR' || userRole === 'SUPER_ADMIN'
 
-  // Terminal statuses where no actions are allowed
-  const isTerminal = status === 'APPROVED' || status === 'REJECTED' || status === 'SUPERSEDED'
+  // Terminal statuses where no actions are allowed (except REJECTED which can be edited)
+  const isTerminal = status === 'APPROVED' || status === 'SUPERSEDED'
 
   if (isTerminal) {
     return {
@@ -56,9 +56,9 @@ export function getAvailableActions(
   }
 
   return {
-    // TA actions
-    canEdit: isTA && status === 'DRAFT',
-    canSubmit: isTA && status === 'DRAFT',
+    // TA actions - allow edit and submit for both DRAFT and REJECTED
+    canEdit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
+    canSubmit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
     canRespondToClarification: isTA && status === 'CLARIFICATION_REQUIRED',
 
     // DC approve: permitted from SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED

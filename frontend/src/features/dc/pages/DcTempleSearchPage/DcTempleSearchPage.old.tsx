@@ -39,7 +39,8 @@ import type { DcTempleSearchItemResponse } from '@/features/dc/dcTypes'
 
 const GRADES = ['A', 'B', 'C'] as const
 
-type DirectoryViewMode = 'list' | 'table'
+type DirectoryViewMode = 'list' | 'table' | 'map'
+type DensityMode = 'comfortable' | 'compact'
 
 const GRADE_SELECTED_COLORS: Record<string, string> = {
   A: 'bg-emerald-600 hover:bg-emerald-700 border-transparent text-white',
@@ -67,7 +68,11 @@ export function DcTempleSearchPage() {
   const role = useAppSelector((s) => s.auth.currentUser?.role)
   const [viewMode, setViewMode] = useState<DirectoryViewMode>(() => {
     const v = localStorage.getItem('dcTempleDirectoryView')
-    return v === 'table' || v === 'list' ? v : 'list'
+    return v === 'table' || v === 'map' || v === 'list' ? v : 'list'
+  })
+  const [density, setDensity] = useState<DensityMode>(() => {
+    const v = localStorage.getItem('dcTempleDirectoryDensity')
+    return v === 'compact' || v === 'comfortable' ? v : 'comfortable'
   })
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const {
@@ -105,6 +110,7 @@ export function DcTempleSearchPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => { localStorage.setItem('dcTempleDirectoryView', viewMode) }, [viewMode])
+  useEffect(() => { localStorage.setItem('dcTempleDirectoryDensity', density) }, [density])
 
   // Debounced keyword
   const [localKeyword, setLocalKeyword] = useState(filters.keyword ?? '')
@@ -662,50 +668,38 @@ export function DcTempleSearchPage() {
         </aside>
 
         {/* ── RIGHT PANEL ──────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3" role="main" aria-label="Temple Search">
+        <div className="flex-1 min-w-0 flex flex-col gap-5" role="main" aria-label="Temple Search">
 
-          {/* Page header with gradient */}
-          <div 
-            className="relative overflow-hidden rounded-xl px-5 py-3.5"
-            style={{
-              background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
-              boxShadow: '0 4px 20px hsl(36 80% 50% / 0.25)'
-            }}
-          >
-            <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15 pointer-events-none" />
-            <div className="absolute right-20 -bottom-10 h-28 w-28 rounded-full bg-white/10 pointer-events-none" />
-            <div className="relative flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 border border-white/30 backdrop-blur-sm">
-                  <Building2 size={20} className="text-white" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-base sm:text-lg font-bold text-white leading-tight">Temples Directory</h1>
-                  <p className="text-[11px] text-white/70 mt-0.5 truncate">
-                    {districtName ? `${districtName} District` : 'Karnataka'} · HR&CE Compliance
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
+          {/* Page header row */}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Temples</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {districtName ? `${districtName} District` : 'Karnataka'} · HR&CE Compliance Dashboard
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               {/* Mobile filter trigger (< lg) */}
               <Button
+                variant="outline"
                 size="sm"
-                className="gap-1.5 lg:hidden relative bg-white/25 border border-white/30 hover:bg-white/40 text-white"
+                className="gap-1.5 lg:hidden relative"
                 onClick={() => setDrawerOpen(true)}
                 aria-label={activeFilterCount > 0 ? `Filters (${activeFilterCount} active)` : 'Open filters'}
               >
                 <SlidersHorizontal size={14} aria-hidden />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-orange-600 text-[10px] font-bold flex items-center justify-center leading-none">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center leading-none">
                     {activeFilterCount}
                   </span>
                 )}
               </Button>
               {/* Export */}
               <Button
+                variant="outline"
                 size="sm"
-                className="gap-1.5 bg-white/25 border border-white/30 hover:bg-white/40 text-white"
+                className="gap-1.5"
                 onClick={handleExport}
                 disabled={total === 0 || isFetching || exporting}
                 aria-label="Export current search results as CSV"
@@ -713,7 +707,6 @@ export function DcTempleSearchPage() {
                 <Download size={14} aria-hidden />
                 <span className="hidden sm:inline">{exporting ? 'Exporting…' : 'Export'}</span>
               </Button>
-              </div>
             </div>
           </div>
 
@@ -742,7 +735,7 @@ export function DcTempleSearchPage() {
               )}
             </span>
             <div className="flex items-center gap-2">
-              {/* View mode */}
+              {/* View mode + density */}
               <div className="hidden sm:flex items-center gap-1" role="toolbar" aria-label="Directory view controls">
                 <button
                   type="button"
@@ -773,6 +766,32 @@ export function DcTempleSearchPage() {
                 >
                   <List size={12} aria-hidden />
                   <span className="hidden md:inline">Table</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('map')}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors border',
+                    viewMode === 'map'
+                      ? 'border-primary/40 bg-primary/5 text-primary'
+                      : 'border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                  aria-pressed={viewMode === 'map'}
+                  title="Map view"
+                >
+                  <MapPin size={12} aria-hidden />
+                  <span className="hidden md:inline">Map</span>
+                </button>
+
+                <div className="w-px h-5 bg-border mx-1" aria-hidden />
+
+                <button
+                  type="button"
+                  onClick={() => setDensity((d) => (d === 'compact' ? 'comfortable' : 'compact'))}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  title="Toggle density"
+                >
+                  <span className="tabular-nums">{density === 'compact' ? 'Compact' : 'Comfort'}</span>
                 </button>
               </div>
 
@@ -894,7 +913,21 @@ export function DcTempleSearchPage() {
               </div>
             ) : (
               <>
-                {viewMode === 'table' ? (
+                {viewMode === 'map' ? (
+                  <div className="rounded-lg border border-border bg-card p-8 text-center">
+                    <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                      <MapPin size={20} className="text-muted-foreground" aria-hidden />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">Map view is coming next</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      We’ll add clustered markers and risk coloring once pin coordinates are available for all temples.
+                    </p>
+                    <div className="mt-4 flex justify-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setViewMode('list')}>Use list</Button>
+                      <Button variant="outline" size="sm" onClick={() => setViewMode('table')}>Use table</Button>
+                    </div>
+                  </div>
+                ) : viewMode === 'table' ? (
                   <div className={cn('rounded-lg border border-border bg-card overflow-hidden', isFetching && 'opacity-50 pointer-events-none')}>
                     {/* Bulk toolbar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
@@ -974,7 +1007,7 @@ export function DcTempleSearchPage() {
                             ? ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL
                             : ROUTE_PATHS.DC_TEMPLE_DETAIL
                           return (
-                            <tr key={t.templeId} className="text-sm">
+                            <tr key={t.templeId} className={cn(density === 'compact' ? 'text-xs' : 'text-sm')}>
                               <td className="px-3 py-2">
                                 <input
                                   type="checkbox"
@@ -1034,7 +1067,7 @@ export function DcTempleSearchPage() {
                     className={cn(
                       'transition-opacity duration-200',
                       isFetching && 'opacity-50 pointer-events-none',
-                      'space-y-2',
+                      density === 'compact' ? 'space-y-1.5' : 'space-y-2',
                     )}
                     role="list"
                     aria-label="Temple search results"
@@ -1117,49 +1150,41 @@ function ComplianceStrip({ dashboard, isLoading, gradeCount }: ComplianceStripPr
   const tiles = [
     {
       key: 'total',
-      icon: <Building2 size={12} className="text-blue-600" aria-hidden />,
+      icon: <Building2 size={16} className="text-primary" aria-hidden />,
       label: 'Total Temples',
       value: dashboard?.totalTemples,
-      valueClass: 'text-blue-600',
-      bgClass: 'bg-blue-500/10 border-blue-500/30',
-      iconBg: 'bg-blue-500/10',
+      valueClass: 'text-foreground',
       urgent: false,
     },
     {
       key: 'overdue',
-      icon: <AlertTriangle size={12} className="text-red-600" aria-hidden />,
+      icon: <AlertTriangle size={16} className="text-destructive" aria-hidden />,
       label: 'Overdue',
       value: dashboard?.overdueDeclarations,
-      valueClass: 'text-red-600',
-      bgClass: 'bg-red-500/10 border-red-500/30',
-      iconBg: 'bg-red-500/10',
+      valueClass: 'text-destructive',
       urgent: (dashboard?.overdueDeclarations ?? 0) > 0,
     },
     {
       key: 'pending',
-      icon: <Clock size={12} className="text-amber-600" aria-hidden />,
+      icon: <Clock size={16} className="text-amber-500" aria-hidden />,
       label: 'Pending Review',
       value: dashboard?.pendingDeclarations,
       valueClass: 'text-amber-600',
-      bgClass: 'bg-amber-500/10 border-amber-500/30',
-      iconBg: 'bg-amber-500/10',
       urgent: false,
     },
     {
       key: 'profiles',
-      icon: <CheckCircle2 size={12} className="text-emerald-600" aria-hidden />,
+      icon: <CheckCircle2 size={16} className="text-sky-500" aria-hidden />,
       label: 'Profile Reviews',
       value: dashboard?.pendingProfileReviews,
-      valueClass: 'text-emerald-600',
-      bgClass: 'bg-emerald-500/10 border-emerald-500/30',
-      iconBg: 'bg-emerald-500/10',
+      valueClass: 'text-sky-600',
       urgent: false,
     },
   ]
 
   return (
     <div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+      className="grid grid-cols-2 sm:grid-cols-4 gap-3"
       role="region"
       aria-label="District compliance overview"
     >
@@ -1167,36 +1192,35 @@ function ComplianceStrip({ dashboard, isLoading, gradeCount }: ComplianceStripPr
         <div
           key={tile.key}
           className={cn(
-            'relative overflow-hidden rounded-lg border backdrop-blur-sm px-2.5 py-2 flex flex-col gap-1 transition-all duration-300 hover:shadow-md',
-            tile.bgClass,
+            'relative overflow-hidden rounded-xl border bg-card/60 backdrop-blur-md px-5 py-4 flex flex-col gap-2 transition-all duration-300 hover:shadow-lg',
+            tile.urgent ? 'border-destructive/40 bg-gradient-to-br from-destructive/10 to-transparent' : 'border-white/10 hover:border-white/20',
           )}
         >
-          <div className="flex items-center gap-1.5 z-10">
-            <div className={cn('p-1 rounded-md', tile.iconBg)}>
-              {tile.icon}
-            </div>
-            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none" aria-hidden />
+          <div className="flex items-center gap-2 z-10">
+            {tile.icon}
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
               {tile.label}
             </span>
           </div>
           {isLoading ? (
-            <Skeleton className="h-5 w-10 mt-0.5" />
+            <Skeleton className="h-7 w-14 mt-0.5" />
           ) : (
-            <span className={cn('text-lg font-bold tabular-nums leading-none', tile.valueClass)}>
+            <span className={cn('text-2xl font-bold tabular-nums leading-none', tile.valueClass)}>
               {tile.value?.toLocaleString() ?? '—'}
             </span>
           )}
           {tile.key === 'total' && !isLoading && Object.keys(gradeCount).length > 0 && (
-            <div className="flex gap-1 flex-wrap mt-0.5">
+            <div className="flex gap-1.5 flex-wrap mt-0.5">
               {(['A', 'B', 'C'] as const).map((g) =>
                 gradeCount[g] !== undefined ? (
                   <span
                     key={g}
                     className={cn(
-                      'text-[8px] font-bold px-1 py-0.5 rounded',
-                      g === 'A' && 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30',
-                      g === 'B' && 'bg-amber-500/20 text-amber-700 border border-amber-500/30',
-                      g === 'C' && 'bg-orange-500/20 text-orange-700 border border-orange-500/30',
+                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-sm',
+                      g === 'A' && 'bg-emerald-100 text-emerald-700',
+                      g === 'B' && 'bg-amber-100 text-amber-700',
+                      g === 'C' && 'bg-orange-100 text-orange-700',
                     )}
                   >
                     {g}: {gradeCount[g].toLocaleString()}
