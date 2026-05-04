@@ -1,6 +1,6 @@
 package com.templeregistry.util;
 
-import com.templeregistry.exception.IllegalStatusTransitionException;
+import com.templeregistry.service.workflow.TransitionRuleRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -9,7 +9,8 @@ import static org.assertj.core.api.Assertions.*;
 
 class StatusTransitionValidatorTest {
 
-    private final StatusTransitionValidator validator = new StatusTransitionValidator();
+    private final TransitionRuleRegistry registry = new TransitionRuleRegistry();
+    private final StatusTransitionValidator validator = new StatusTransitionValidator(registry);
 
     @Test
     void should_allow_DRAFT_to_SUBMITTED() {
@@ -39,18 +40,18 @@ class StatusTransitionValidatorTest {
     @Test
     void should_throw_when_REJECTED_state_is_mutated() {
         assertThatThrownBy(() -> validator.validateDeclarationTransition("REJECTED", "SUBMITTED"))
-                .isInstanceOf(IllegalStatusTransitionException.class);
+                .isInstanceOf(com.templeregistry.exception.WorkflowException.class);
     }
 
     @Test
     void should_throw_when_APPROVED_state_transitions_further() {
         assertThatThrownBy(() -> validator.validateDeclarationTransition("APPROVED", "REJECTED"))
-                .isInstanceOf(IllegalStatusTransitionException.class);
+                .isInstanceOf(com.templeregistry.exception.WorkflowException.class);
     }
 
     @Test
     void should_throw_when_DRAFT_jumps_directly_to_APPROVED() {
         assertThatThrownBy(() -> validator.validateDeclarationTransition("DRAFT", "APPROVED"))
-                .isInstanceOf(IllegalStatusTransitionException.class);
+                .isInstanceOf(com.templeregistry.exception.WorkflowException.class);
     }
 }

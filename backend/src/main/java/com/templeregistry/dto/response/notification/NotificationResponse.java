@@ -14,6 +14,7 @@ public class NotificationResponse {
     private String actionUrl;
     private String referenceType;
     private Long referenceId;
+    private Long workflowInstanceId;
     private boolean read;
     private LocalDateTime readAt;
     private LocalDateTime createdAt;

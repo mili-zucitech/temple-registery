@@ -57,7 +57,7 @@ public class TrustController {
     @Operation(summary = "Update trust registration")
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public ResponseEntity<ApiResponse<TrustResponse>> update(
-            @PathVariable Long id, @Valid @RequestBody CreateTrustRequest rq) {
+            @PathVariable Long id, @Valid @RequestBody UpdateTrustRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Trust updated.", trustService.update(id, rq)));
     }
 

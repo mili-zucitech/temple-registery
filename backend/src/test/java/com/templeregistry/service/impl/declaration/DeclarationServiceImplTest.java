@@ -53,6 +53,8 @@ class DeclarationServiceImplTest {
     @Mock com.templeregistry.service.audit.GovernanceAuditService governanceAuditService;
     @Mock com.templeregistry.service.dc.NotificationEventPublisher notificationPublisher;
     @Mock com.templeregistry.repository.auth.UserRepository userRepository;
+    @Mock com.templeregistry.service.notification.NotificationHelper notificationHelper;
+    @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @InjectMocks DeclarationServiceImpl declarationService;
 
@@ -75,34 +77,15 @@ class DeclarationServiceImplTest {
     }
 
     @Test
-    void should_submitDeclaration_when_status_is_DRAFT() {
-        when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
-        doNothing().when(ownershipGuard).assertOwnsTemple(anyLong());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
-        when(declarationRepository.save(any())).thenReturn(draftDeclaration);
-        lenient().when(userRepository.findAllByRoleAndDistrictId(any(), anyLong())).thenReturn(java.util.List.of());
-        when(snapshotService.capture(any(), any())).thenReturn(null);
-
-        declarationService.submit(1L);
-
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.SUBMITTED);
-        assertThat(draftDeclaration.getSubmittedAt()).isNotNull();
+    void should_throw_UnsupportedOperationException_when_calling_legacy_submit() {
+        assertThatThrownBy(() -> declarationService.submit(1L))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
-    void should_approveDeclaration_and_setAcknowledgementNumber() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
-        when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
-        doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
-        when(ackGenerator.generate()).thenReturn("ACK-2024-001");
-        when(declarationRepository.save(any())).thenReturn(draftDeclaration);
-
-        declarationService.approve(1L);
-
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
-        assertThat(draftDeclaration.getAcknowledgementNumber()).isEqualTo("ACK-2024-001");
-        assertThat(draftDeclaration.getReviewedAt()).isNotNull();
+    void should_throw_UnsupportedOperationException_when_calling_legacy_approve() {
+        assertThatThrownBy(() -> declarationService.approve(1L))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -114,31 +97,14 @@ class DeclarationServiceImplTest {
     }
 
     @Test
-    void should_requestClarification_when_status_is_SUBMITTED() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
-        when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
-        doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
-        when(declarationRepository.save(any())).thenReturn(draftDeclaration);
-        when(clarificationRepository.save(any())).thenReturn(null);
-
-        declarationService.requestClarification(1L, new ClarificationRequest("Please clarify land documents."));
-
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
-        verify(clarificationRepository).save(any());
+    void should_throw_UnsupportedOperationException_when_calling_legacy_requestClarification() {
+        assertThatThrownBy(() -> declarationService.requestClarification(1L, new ClarificationRequest("Please clarify land documents.")))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
-    void should_rejectDeclaration_with_reason_logged_as_clarification() {
-        draftDeclaration.setStatus(DeclarationStatus.SUBMITTED);
-        when(declarationRepository.findById(1L)).thenReturn(Optional.of(draftDeclaration));
-        doNothing().when(jurisdictionGuard).assertSameDistrict(anyLong());
-        doNothing().when(transitionValidator).validateDeclarationTransition(anyString(), anyString());
-        when(declarationRepository.save(any())).thenReturn(draftDeclaration);
-
-        declarationService.reject(1L, new ClarificationRequest("Insufficient documentation."));
-
-        assertThat(draftDeclaration.getStatus()).isEqualTo(DeclarationStatus.REJECTED);
-        verify(clarificationRepository).save(any());
+    void should_throw_UnsupportedOperationException_when_calling_legacy_reject() {
+        assertThatThrownBy(() -> declarationService.reject(1L, new ClarificationRequest("Insufficient documentation.")))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 }

@@ -71,9 +71,12 @@ class GovernanceDeclarationWorkflowTest {
     @Mock ObjectMapper objectMapper;
     @Mock UserRepository userRepository;
     @Mock com.templeregistry.service.declaration.StateTransitionValidator stateTransitionValidator;
-    @Mock com.templeregistry.service.declaration.SnapshotService snapshotService;
-    @Mock com.templeregistry.service.audit.DeclarationAuditLogService declarationAuditLogService;
     @Mock com.templeregistry.service.declaration.AcknowledgementService acknowledgementService;
+    @Mock com.templeregistry.service.workflow.WorkflowEngine workflowEngine;
+    @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
+    @Mock com.templeregistry.repository.workflow.WorkflowInstanceRepository workflowInstanceRepository;
+    @Mock com.templeregistry.service.workflow.VersionService versionService;
+    @Mock com.templeregistry.service.clarification.ClarificationEngine clarificationEngine;
 
     @InjectMocks
     GovernanceWorkflowServiceImpl workflowService;
@@ -98,16 +101,20 @@ class GovernanceDeclarationWorkflowTest {
         temple.setId(1L);
 
         dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+
+        // Standard workflow instance stub
+        com.templeregistry.entity.workflow.WorkflowInstance instance = com.templeregistry.entity.workflow.WorkflowInstance.builder()
+            .id(500L).lockVersion(1L).districtId(10L).build();
+        lenient().when(workflowInstanceRepository.findByEntityTypeAndEntityId(any(), any()))
+            .thenReturn(Optional.of(instance));
     }
 
     // ── Approve ───────────────────────────────────────────────────────────────
 
     @Test
     void should_approveDeclaration_and_generateAcknowledgementNumber_when_statusIsPendingReview() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
-        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         lenient().when(acknowledgementService.generate(any(), any())).thenReturn("ACK-2024-0042");
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
@@ -118,17 +125,17 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(result.getAcknowledgementNumber()).isEqualTo("ACK-2024-0042");
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
         assertThat(pendingDeclaration.getReviewedAt()).isNotNull();
-        verify(notificationPublisher).publish(eq(99L), eq("DECLARATION_APPROVED"), eq(42L), anyString());
+        
+        verify(versionService).snapshot(eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION), eq(42L), anyInt(), any(), eq(5L), isNull());
         verify(summaryService).refresh(1L);
     }
 
     @Test
     void should_blockApproval_when_physicalVerificationFailed() {
         pendingDeclaration.setPhysicalVerificationStatus(PhysicalVerificationStatus.VERIFICATION_FAILED);
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
 
         assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
                 .isInstanceOf(IllegalStatusTransitionException.class)
@@ -140,7 +147,7 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_throwEntityNotFoundException_when_declarationDoesNotExist_onApprove() {
-        when(declarationRepository.findByIdWithLock(999L)).thenReturn(Optional.empty());
+        lenient().when(declarationRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> workflowService.approveDeclaration(999L, new WorkflowApproveRequest(), dcClaims))
                 .isInstanceOf(EntityNotFoundException.class);
@@ -152,10 +159,9 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_rejectDeclaration_and_setStatusToRejected_when_statusIsPendingReview() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowRejectRequest request = new WorkflowRejectRequest();
@@ -166,7 +172,8 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(result.getNewStatus()).isEqualTo("REJECTED");
         assertThat(result.getAcknowledgementNumber()).isNull();
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.REJECTED);
-        verify(notificationPublisher).publish(eq(99L), eq("DECLARATION_REJECTED"), eq(42L), anyString());
+        
+        verify(versionService).snapshot(eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION), eq(42L), anyInt(), any(), eq(5L), isNull());
         verify(summaryService).refresh(1L);
         verify(ackGenerator, never()).generate();
     }
@@ -176,10 +183,9 @@ class GovernanceDeclarationWorkflowTest {
     @Test
     void should_requestClarification_and_incrementClarificationRound_when_statusIsPendingReview() {
         pendingDeclaration.setClarificationRound(0);
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
@@ -191,15 +197,15 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(result.getNewStatus()).isEqualTo("CLARIFICATION_REQUIRED");
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
         assertThat(pendingDeclaration.getClarificationRound()).isEqualTo(1);
-        verify(clarificationRepository).save(any());
-        verify(notificationPublisher).publish(eq(99L), eq("CLARIFICATION_REQUESTED"), eq(42L), anyString());
+        
+        verify(clarificationEngine).requestClarification(eq(500L), any(), eq(5L));
         verify(summaryService).refresh(1L);
     }
 
     @Test
     void should_throwClarificationLimitExceeded_when_roundAlreadyAtMax() {
         pendingDeclaration.setClarificationRound(3);
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
 
@@ -215,10 +221,9 @@ class GovernanceDeclarationWorkflowTest {
     @Test
     void should_notifySuperAdmins_when_clarificationRoundReachesTwo() {
         pendingDeclaration.setClarificationRound(1);
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
         User sa1 = User.builder().role(UserRole.SUPER_ADMIN).username("sa1").build();
         sa1.setId(1000L);
@@ -240,10 +245,9 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_markDeclarationUnderReview_when_statusIsPendingReview() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         WorkflowActionResponse result = workflowService.markUnderReview(42L, dcClaims);
@@ -256,10 +260,9 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_flagDeclaration_for_physicalVerification_when_statusIsPendingReview() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
@@ -269,18 +272,49 @@ class GovernanceDeclarationWorkflowTest {
 
         assertThat(result.getNewStatus()).isEqualTo("SITE_VISIT_SCHEDULED");
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.SITE_VISIT_SCHEDULED);
-        verify(notificationPublisher).publish(eq(99L), eq("PHYSICAL_VERIFICATION_REQUESTED"), eq(42L), anyString());
         verify(summaryService).refresh(1L);
+    }
+
+    // ── Send-Back regression ──────────────────────────────────────────────────
+
+    @Test
+    void should_callAdaptSendBack_not_adaptReject_when_sendBackDeclarationInvoked() {
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+
+        com.templeregistry.dto.request.dc.DcClarifyRequest req = new com.templeregistry.dto.request.dc.DcClarifyRequest();
+        setField(req, "message", "Documents incomplete.");
+
+        workflowService.sendBackDeclaration(42L, req, dcClaims);
+
+        verify(workflowEngineAdaptor).adaptSendBack(
+                eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION),
+                eq(42L), eq(10L), eq(5L), anyString());
+        verify(workflowEngineAdaptor, never()).adaptReject(any(), anyLong(), anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void should_propagateEntityNotFoundException_when_workflowInstanceMissingOnApprove() {
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
+        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
+        when(workflowInstanceRepository.findByEntityTypeAndEntityId(any(), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
+                .isInstanceOf(EntityNotFoundException.class);
+
+        verify(declarationRepository, never()).save(any());
     }
 
     // ── District scope ────────────────────────────────────────────────────────
 
     @Test
     void should_callAssertDistrictScope_with_templeAndClaims_on_approve() {
-        when(declarationRepository.findByIdWithLock(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(temple, dcClaims);
-        doNothing().when(stateTransitionValidator).validate(any(), any());
         lenient().when(acknowledgementService.generate(any(), any())).thenReturn("ACK-X");
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 

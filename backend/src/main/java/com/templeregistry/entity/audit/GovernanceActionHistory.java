@@ -25,6 +25,12 @@ public class GovernanceActionHistory {
     @Column(name = "entity_type", nullable = false, length = 64)
     private String entityType;
 
+    @Column(name = "workflow_instance_id")
+    private Long workflowInstanceId;
+
+    @Column(name = "workflow_transition_id")
+    private Long workflowTransitionId;
+
     @Column(name = "dc_user_id", nullable = false)
     private Long dcUserId;
 

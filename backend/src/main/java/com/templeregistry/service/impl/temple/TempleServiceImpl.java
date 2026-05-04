@@ -6,7 +6,6 @@ import com.templeregistry.dto.response.temple.*;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TemplePhoto;
 import com.templeregistry.entity.temple.TempleProfileStaging;
-import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
@@ -53,7 +52,6 @@ public class TempleServiceImpl implements TempleService {
     private final JurisdictionGuard jurisdictionGuard;
     private final OwnershipGuard ownershipGuard;
     private final TempleSearchSummaryService summaryService;
-    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
 
     @Override
     @Transactional(readOnly = true)
@@ -100,9 +98,6 @@ public class TempleServiceImpl implements TempleService {
         Temple temple = templeMapper.fromCreateRequest(request);
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(saved.getId());
-        
-        // Send notification to all DCs in this district
-        notificationHelper.notifyTempleCreated(saved.getId(), saved.getCreatedBy());
         
         log.info("Temple created: id=[{}], reg=[{}]", saved.getId(), saved.getRegistrationNumber());
         return templeMapper.toTempleResponse(saved);
@@ -153,12 +148,6 @@ public class TempleServiceImpl implements TempleService {
                 .assetDeclarationStatus(dto.getAssetDeclarationStatus())
                 .status(dto.getStatus())
                 .verificationStatus(dto.getVerificationStatus())
-                .isVerifiedByDc(dto.isVerifiedByDc())
-                .verifiedByDcAt(dto.getVerifiedByDcAt())
-                .verifiedByDcUserId(dto.getVerifiedByDcUserId())
-                .isFlaggedByDc(dto.isFlaggedByDc())
-                .flaggedByDcAt(dto.getFlaggedByDcAt())
-                .flaggedByDcUserId(dto.getFlaggedByDcUserId())
                 .dcRejectionReason(dto.getDcRejectionReason())
                 .build();
         }
@@ -174,9 +163,6 @@ public class TempleServiceImpl implements TempleService {
         applyUpdates(temple, request);
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(saved.getId());
-        
-        // Send notification to all DCs in this district
-        notificationHelper.notifyTempleUpdated(saved.getId(), saved.getUpdatedBy());
         
         log.info("Temple updated: id=[{}]", saved.getId());
         return templeMapper.toTempleResponse(saved);
@@ -244,9 +230,9 @@ public class TempleServiceImpl implements TempleService {
         TempleProfileStaging staging = stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
                         templeId,
                         List.of(
-                                TempleProfileStagingStatus.DRAFT,
-                                TempleProfileStagingStatus.PENDING_REVIEW,
-                                TempleProfileStagingStatus.APPROVED))
+                                com.templeregistry.entity.workflow.WorkflowStatus.DRAFT,
+                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                                com.templeregistry.entity.workflow.WorkflowStatus.APPROVED))
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
 
         return TempleResponse.builder()

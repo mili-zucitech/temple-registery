@@ -13,6 +13,8 @@ import { exportApi } from '@/features/export/exportApi'
 import { adminApi } from '@/features/admin/adminApi'
 import { dcApi } from '@/features/dc/dcApi'
 import { governanceApi } from '@/features/governance/governanceApi'
+import { workflowApi } from '@/features/governance/workflowApi'
+import { governanceV2Api } from '@/features/governance/governanceV2Api'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 
 /** Global RTK Query error logger middleware */
@@ -53,6 +55,8 @@ export const store = configureStore({
       adminApi.middleware,
       dcApi.middleware,
       governanceApi.middleware,
+      workflowApi.middleware,
+      governanceV2Api.middleware,
     ),
 })
 

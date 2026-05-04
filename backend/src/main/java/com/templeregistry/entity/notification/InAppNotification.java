@@ -54,4 +54,25 @@ public class InAppNotification {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "requires_acknowledgement", nullable = false)
+    @Builder.Default
+    private boolean requiresAcknowledgement = false;
+
+    @Column(name = "acknowledged_at")
+    private LocalDateTime acknowledgedAt;
+
+    @Column(name = "acknowledged_by")
+    private Long acknowledgedBy;
+
+    @Column(name = "idempotency_key", length = 255, unique = true)
+    private String idempotencyKey;
+
+    /**
+     * Links this notification to a WorkflowInstance.
+     * Used by the frontend to deep-link from the bell icon to the WorkflowGovernancePanel.
+     * Populated by createInAppNotification() in NotificationServiceImpl.
+     */
+    @Column(name = "workflow_instance_id")
+    private Long workflowInstanceId;
 }

@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +31,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserProfileService userProfileService;
+    private final Environment environment;
 
     @PostMapping("/login")
     @Operation(summary = "Step 1: Authenticate with username+password. Returns MFA challenge or sets auth cookies directly when MFA is disabled.")
@@ -119,7 +122,7 @@ public class AuthController {
                            String path, int maxAge) {
         Cookie cookie = new Cookie(name, value);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // TODO: set true in production (HTTPS only)
+        cookie.setSecure(!environment.acceptsProfiles(Profiles.of("dev", "local")));
         cookie.setPath(path);
         cookie.setMaxAge(maxAge);
         response.addCookie(cookie);

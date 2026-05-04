@@ -56,13 +56,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Snapshot created at respondToClarification and approve
  * - Status transitions correctly at each step
  *
- * Disabled because H2 does not support TINYINT(1) column definitions used in entities.
+ * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
  */
-@Disabled("Requires MySQL-compatible DB — H2 does not support TINYINT(1) column definitions used in entities")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class DeclarationClarificationIT {
+class DeclarationClarificationIT extends MySQLContainerBase {
 
     @Autowired
     private DeclarationService declarationService;

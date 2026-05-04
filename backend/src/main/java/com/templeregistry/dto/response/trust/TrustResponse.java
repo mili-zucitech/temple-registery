@@ -14,6 +14,8 @@ import java.time.LocalDate;
 @Getter @Builder
 public class TrustResponse {
     private Long id;
+    /** Workflow instance ID — used by frontend WorkflowGovernancePanel */
+    private Long workflowInstanceId;
     private Long templeId;
     private String trustName;
     private TrustType trustType;
@@ -26,12 +28,10 @@ public class TrustResponse {
     private String bankBranch;
     private BigDecimal annualIncome;
     private TrustStatus status;
-    @JsonProperty("isActive")
-    private boolean isActive;
+    @JsonProperty("active")
+    private boolean active;
     private LocalDate dissolvedAt;
     private String dissolutionReason;
-    @JsonProperty("isVerifiedByDc")
-    private boolean isVerifiedByDc;
     private String dcFlagReason;
     private SubmissionStatus submissionStatus;
     private DcDecisionStatus dcDecisionStatus;

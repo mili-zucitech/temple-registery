@@ -22,7 +22,19 @@ const mockClarify       = vi.fn()
 const mockFlagPhysical  = vi.fn()
 const mockMarkRead      = vi.fn()
 const mockMarkAllRead   = vi.fn()
+// ─── Mock notificationApi module (canonical notification hooks) ──────────────────────
 
+vi.mock('@/features/notification/notificationApi', () => ({
+  notificationApi: {
+    reducerPath: 'notificationApi',
+    reducer: (s = {}) => s,
+    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+  },
+  useListNotificationsQuery: vi.fn(),
+  useGetUnreadCountQuery:     vi.fn(),
+  useMarkReadMutation:        vi.fn(),
+  useMarkAllReadMutation:     vi.fn(),
+}))
 // ─── Mock dcApi module ────────────────────────────────────────────────────────
 
 vi.mock('@/features/dc/dcApi', () => ({
@@ -37,10 +49,6 @@ vi.mock('@/features/dc/dcApi', () => ({
   },
   useGetDcDashboardQuery:              vi.fn(),
   useSearchDcTemplesQuery:             vi.fn(),
-  useGetDcNotificationsQuery:          vi.fn(),
-  useGetDcUnreadCountQuery:            vi.fn(),
-  useMarkNotificationReadMutation:     vi.fn(),
-  useMarkAllNotificationsReadMutation: vi.fn(),
   useApproveProfileMutation:           vi.fn(),
   useRejectProfileMutation:            vi.fn(),
   useGetDcTempleProfileQuery:          vi.fn(),
@@ -89,10 +97,6 @@ import {
 } from '@/features/dc/dcHooks'
 import {
   useGetDcDashboardQuery,
-  useGetDcNotificationsQuery,
-  useGetDcUnreadCountQuery,
-  useMarkNotificationReadMutation,
-  useMarkAllNotificationsReadMutation,
   useSearchDcTemplesQuery,
 } from '@/features/dc/dcApi'
 import {
@@ -103,6 +107,12 @@ import {
   useMarkUnderReviewDeclarationMutation,
 } from '@/features/governance/governanceApi'
 import { useScheduleSiteVisitMutation } from '@/features/declaration/declarationApi'
+import {
+  useListNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkReadMutation,
+  useMarkAllReadMutation,
+} from '@/features/notification/notificationApi'
 
 // ─── Test wrappers ────────────────────────────────────────────────────────────
 
@@ -191,23 +201,23 @@ describe('useDcNotifications', () => {
   ]
 
   beforeEach(() => {
-    vi.mocked(useGetDcNotificationsQuery).mockReturnValue({
+    vi.mocked(useListNotificationsQuery).mockReturnValue({
       data: { success: true, message: 'OK', data: { content: mockNotifications, page: 0, size: 10, totalElements: 2, totalPages: 1, last: true } },
       isLoading: false,
       isError: false,
-    } as ReturnType<typeof useGetDcNotificationsQuery>)
+    } as ReturnType<typeof useListNotificationsQuery>)
 
-    vi.mocked(useGetDcUnreadCountQuery).mockReturnValue({
+    vi.mocked(useGetUnreadCountQuery).mockReturnValue({
       data: { success: true, message: 'OK', data: 1 },
       isLoading: false,
       isError: false,
-    } as ReturnType<typeof useGetDcUnreadCountQuery>)
+    } as ReturnType<typeof useGetUnreadCountQuery>)
 
-    vi.mocked(useMarkNotificationReadMutation).mockReturnValue(
-      [mockMarkRead, { isLoading: false }] as ReturnType<typeof useMarkNotificationReadMutation>
+    vi.mocked(useMarkReadMutation).mockReturnValue(
+      [mockMarkRead, { isLoading: false }] as ReturnType<typeof useMarkReadMutation>
     )
-    vi.mocked(useMarkAllNotificationsReadMutation).mockReturnValue(
-      [mockMarkAllRead, { isLoading: false }] as ReturnType<typeof useMarkAllNotificationsReadMutation>
+    vi.mocked(useMarkAllReadMutation).mockReturnValue(
+      [mockMarkAllRead, { isLoading: false }] as ReturnType<typeof useMarkAllReadMutation>
     )
   })
 

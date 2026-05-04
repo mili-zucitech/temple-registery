@@ -65,9 +65,11 @@ app:
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:
-    key: "TempleRegistryDevelopmentKey2024"
+    # 32-byte dev key — ONLY safe in local/dev profile, never used in staging or prod
+    key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
   hmac:
-    key: "TempleRegistryHmacKey2024!!CHANGE"
+    # 32-byte dev key — ONLY safe in local/dev profile, never used in staging or prod
+    key: ${APP_HMAC_KEY:TempleRegHmacDev32ByteKey!Repl!!}
   storage:
     base-dir: ./uploads
   base-url: ${APP_BASE_URL:http://localhost:3000}
@@ -78,3 +80,8 @@ logging:
     org.springframework.security: INFO
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: WARN
+
+management:
+  health:
+    mail:
+      enabled: false

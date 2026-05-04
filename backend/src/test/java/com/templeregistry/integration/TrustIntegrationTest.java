@@ -44,12 +44,13 @@ import org.junit.jupiter.api.Disabled;
  *
  * To enable: remove @Disabled and ensure a MySQL-compatible DB is available via
  * Testcontainers or application-test.yml pointing to a real DB.
+ *
+ * Now uses {@link MySQLContainerBase} for automatic Testcontainers MySQL setup.
  */
-@Disabled("Requires MySQL-compatible DB — H2 does not support TINYINT(1) column definitions used in entities")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class TrustIntegrationTest {
+class TrustIntegrationTest extends MySQLContainerBase {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
