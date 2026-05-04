@@ -1,4 +1,4 @@
-import { useListNotificationsQuery, useMarkAllReadMutation } from '../notificationApi'
+import { useNotificationDropdown } from '../hooks/useNotificationDropdown'
 import { NotificationCard } from './NotificationCard'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -10,19 +10,8 @@ interface NotificationDropdownProps {
 }
 
 export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
-  const { data, isLoading } = useListNotificationsQuery({ page: 0, size: 5 })
-  const [markAllRead, { isLoading: isMarkingAllRead }] = useMarkAllReadMutation()
-
-  const notifications = data?.data?.content || []
-  const hasUnread = notifications.some((n) => !n.read)
-
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllRead().unwrap()
-    } catch (error) {
-      console.error('Failed to mark all as read:', error)
-    }
-  }
+  const { notifications, hasUnread, isLoading, isError, isMarkingAllRead, refetch, handleMarkAllRead } =
+    useNotificationDropdown()
 
   return (
     <div className="flex flex-col">
@@ -52,6 +41,13 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
         {isLoading ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : isError ? (
+          <div className="p-8 text-center text-muted-foreground">
+            <p className="text-sm">Failed to load notifications.</p>
+            <Button variant="ghost" size="sm" className="mt-2" onClick={() => refetch()}>
+              Retry
+            </Button>
           </div>
         ) : notifications.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">

@@ -1,783 +1,288 @@
 package com.templeregistry.service.notification;
 
-import com.templeregistry.entity.temple.Temple;
-import com.templeregistry.repository.temple.TempleRepository;
-import com.templeregistry.event.temple.*;
-import com.templeregistry.event.trust.*;
-import com.templeregistry.event.employee.*;
-import com.templeregistry.event.contractor.*;
-import com.templeregistry.event.declaration.*;
-import com.templeregistry.event.document.*;
-import lombok.RequiredArgsConstructor;
+import com.templeregistry.entity.workflow.WorkflowAction;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.entity.workflow.WorkflowStatus;
+import com.templeregistry.event.workflow.GovernanceDomainEvent;
+import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
+import com.templeregistry.service.notification.impl.NotificationRouter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Helper service for publishing notifications with dynamic recipient resolution.
- * Simplifies notification integration - just call the appropriate method.
+ * TEMPORARY COMPATIBILITY SHIM - Phase 5A Stabilization
+ * 
+ * This class provides backward compatibility by delegating to the new event-driven architecture.
+ * All methods now properly publish GovernanceDomainEvent via ApplicationEventPublisher.
+ * 
+ * SAFETY FEATURES:
+ * - Transaction-aware routing: checks if transaction active before publishing
+ * - WorkflowInstance correlation: resolves workflowInstanceId from (entityType, entityId)
+ * - Fallback delivery: routes directly to NotificationRouter if no transaction
+ * 
+ * MIGRATION PATH:
+ * - Phase 5A: Shim delegates to NotificationRouter (current)
+ * - Phase 5B: Migrate all callers to direct WorkflowEngine usage
+ * - Phase 5C: Delete this shim
+ * 
+ * DO NOT ADD NEW USAGES OF THIS CLASS.
+ * DO NOT EXTEND THIS CLASS.
+ * 
+ * @deprecated Use WorkflowEngine for state transitions. This shim will be removed in Phase 5B.
  */
-@Service
-@RequiredArgsConstructor
+@Deprecated(forRemoval = true)
+@Component
 @Slf4j
 public class NotificationHelper {
-
-    private final ApplicationContext applicationContext;
-    private final NotificationEventPublisher eventPublisher;
+    
+    private final ApplicationEventPublisher eventPublisher;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
+    private final NotificationRouter notificationRouter;
     private final NotificationRecipientResolver recipientResolver;
-    private final TempleRepository templeRepository;
 
-    // ==================== TEMPLE PROFILE NOTIFICATIONS ====================
-
-    /**
-     * Notify DCs when TA creates a temple profile.
-     */
-    public void notifyTempleCreated(Long templeId, Long createdByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new TempleProfileCreatedEvent(
-            applicationContext,
-            templeId,
-            temple.getName(),
-            createdByUserId,
-            temple.getDistrictId()
-        ));
-        log.info("Published TempleProfileCreatedEvent for temple: {} to {} DC(s)", templeId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA updates a temple profile.
-     */
-    public void notifyTempleUpdated(Long templeId, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new TempleProfileUpdatedEvent(
-            applicationContext,
-            templeId,
-            temple.getName(),
-            updatedByUserId,
-            temple.getDistrictId()
-        ));
-        log.info("Published TempleProfileUpdatedEvent for temple: {} to {} DC(s)", templeId, dcIds.length);
-    }
-
-    /**
-     * Notify TAs when DC approves a temple profile.
-     */
-    public void notifyTempleApproved(Long templeId, Long dcUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TempleProfileApprovedEvent(
-            applicationContext,
-            templeId,
-            temple.getName(),
-            dcUserId,
-            dcName,
-            taIds[0]  // Primary TA
-        ));
-        log.info("Published TempleProfileApprovedEvent for temple: {} to {} TA(s)", templeId, taIds.length);
-    }
-
-    /**
-     * Notify TAs when DC rejects a temple profile.
-     */
-    public void notifyTempleRejected(Long templeId, Long dcUserId, String reason) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TempleProfileRejectedEvent(
-            applicationContext,
-            templeId,
-            temple.getName(),
-            dcUserId,
-            dcName,
-            taIds[0],  // Primary TA
-            reason
-        ));
-        log.info("Published TempleProfileRejectedEvent for temple: {} to {} TA(s)", templeId, taIds.length);
-    }
-
-    /**
-     * Notify TAs when DC flags a temple profile for clarification.
-     */
-    public void notifyTempleFlagged(Long templeId, Long dcUserId, String message) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TempleProfileFlaggedEvent(
-            applicationContext,
-            templeId,
-            temple.getName(),
-            dcUserId,
-            dcName,
-            taIds[0],  // Primary TA
-            message
-        ));
-        log.info("Published TempleProfileFlaggedEvent for temple: {} to {} TA(s)", templeId, taIds.length);
-    }
-
-    // ==================== TRUST NOTIFICATIONS ====================
-
-    /**
-     * Notify DCs when TA submits trust data.
-     */
-    public void notifyTrustSubmitted(Long trustId, Long templeId, String trustName, Long submittedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        // Use first DC for now (events need refactoring for multiple recipients)
-        eventPublisher.publish(new TrustDataSubmittedEvent(
-            applicationContext,
-            trustId,
-            temple.getName(),
-            trustName,
-            submittedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published TrustDataSubmittedEvent for trust: {} to {} DC(s)", trustId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA updates trust data.
-     */
-    public void notifyTrustUpdated(Long trustId, Long templeId, String trustName, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new TrustDataUpdatedEvent(
-            applicationContext,
-            trustId,
-            temple.getName(),
-            trustName,
-            updatedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published TrustDataUpdatedEvent for trust: {} to {} DC(s)", trustId, dcIds.length);
-    }
-
-    /**
-     * Notify TAs when DC approves trust data.
-     */
-    public void notifyTrustApproved(Long trustId, Long templeId, String trustName, Long dcUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TrustDataApprovedEvent(
-            applicationContext,
-            trustId,
-            temple.getName(),
-            trustName,
-            dcUserId,
-            dcName,
-            taIds[0]
-        ));
-        log.info("Published TrustDataApprovedEvent for trust: {} to {} TA(s)", trustId, taIds.length);
-    }
-
-    /**
-     * Notify TAs when DC rejects trust data.
-     */
-    public void notifyTrustRejected(Long trustId, Long templeId, String trustName, Long dcUserId, String reason) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TrustDataRejectedEvent(
-            applicationContext,
-            trustId,
-            temple.getName(),
-            trustName,
-            dcUserId,
-            dcName,
-            taIds[0],
-            reason
-        ));
-        log.info("Published TrustDataRejectedEvent for trust: {} to {} TA(s)", trustId, taIds.length);
-    }
-
-    /**
-     * Notify TAs when DC flags trust data for clarification.
-     */
-    public void notifyTrustFlagged(Long trustId, Long templeId, String trustName, Long dcUserId, String message) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        eventPublisher.publish(new TrustDataFlaggedEvent(
-            applicationContext,
-            trustId,
-            temple.getName(),
-            trustName,
-            dcUserId,
-            dcName,
-            taIds[0],
-            message
-        ));
-        log.info("Published TrustDataFlaggedEvent for trust: {} to {} TA(s)", trustId, taIds.length);
-    }
-
-    // ==================== EMPLOYEE NOTIFICATIONS ====================
-
-    /**
-     * Notify DCs when TA creates an employee.
-     */
-    public void notifyEmployeeCreated(Long employeeId, Long templeId, String employeeName, String designation, Long createdByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new EmployeeCreatedEvent(
-            applicationContext,
-            employeeId,
-            temple.getName(),
-            employeeName,
-            designation,
-            createdByUserId,
-            dcIds[0]
-        ));
-        log.info("Published EmployeeCreatedEvent for employee: {} to {} DC(s)", employeeId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA updates an employee.
-     */
-    public void notifyEmployeeUpdated(Long employeeId, Long templeId, String employeeName, String designation, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new EmployeeUpdatedEvent(
-            applicationContext,
-            employeeId,
-            temple.getName(),
-            employeeName,
-            designation,
-            updatedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published EmployeeUpdatedEvent for employee: {} to {} DC(s)", employeeId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA deletes an employee.
-     */
-    public void notifyEmployeeDeleted(Long employeeId, Long templeId, String employeeName, String designation, Long deletedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new EmployeeDeletedEvent(
-            applicationContext,
-            employeeId,
-            temple.getName(),
-            employeeName,
-            designation,
-            deletedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published EmployeeDeletedEvent for employee: {} to {} DC(s)", employeeId, dcIds.length);
-    }
-
-    // ==================== CONTRACTOR NOTIFICATIONS ====================
-
-    /**
-     * Notify DCs when TA creates a contractor.
-     */
-    public void notifyContractorCreated(Long contractorId, Long templeId, String contractorName, String serviceType, Long createdByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new ContractorCreatedEvent(
-            applicationContext,
-            contractorId,
-            temple.getName(),
-            contractorName,
-            serviceType,
-            createdByUserId,
-            dcIds[0]
-        ));
-        log.info("Published ContractorCreatedEvent for contractor: {} to {} DC(s)", contractorId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA updates a contractor.
-     */
-    public void notifyContractorUpdated(Long contractorId, Long templeId, String contractorName, String serviceType, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new ContractorUpdatedEvent(
-            applicationContext,
-            contractorId,
-            temple.getName(),
-            contractorName,
-            serviceType,
-            updatedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published ContractorUpdatedEvent for contractor: {} to {} DC(s)", contractorId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA deletes a contractor.
-     */
-    public void notifyContractorDeleted(Long contractorId, Long templeId, String contractorName, String serviceType, Long deletedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new ContractorDeletedEvent(
-            applicationContext,
-            contractorId,
-            temple.getName(),
-            contractorName,
-            serviceType,
-            deletedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published ContractorDeletedEvent for contractor: {} to {} DC(s)", contractorId, dcIds.length);
-    }
-
-    // ==================== DECLARATION NOTIFICATIONS ====================
-
-    /**
-     * Notify DCs when TA submits a declaration.
-     */
-    public void notifyDeclarationSubmitted(Long declarationId, Long templeId, String financialYear, Long submittedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new DeclarationSubmittedEvent(
-            applicationContext,
-            declarationId,
-            temple.getName(),
-            submittedByUserId,
-            dcIds[0],
-            parseFinancialYear(financialYear)
-        ));
-        log.info("Published DeclarationSubmittedEvent for declaration: {} to {} DC(s)", declarationId, dcIds.length);
+    public NotificationHelper(
+            ApplicationEventPublisher eventPublisher,
+            WorkflowInstanceRepository workflowInstanceRepository,
+            @Lazy NotificationRouter notificationRouter,
+            NotificationRecipientResolver recipientResolver) {
+        this.eventPublisher = eventPublisher;
+        this.workflowInstanceRepository = workflowInstanceRepository;
+        this.notificationRouter = notificationRouter;
+        this.recipientResolver = recipientResolver;
     }
     
-    private Integer parseFinancialYear(String financialYear) {
-        if (financialYear == null || financialYear.isBlank()) {
-            return null;
-        }
-        // Extract first year from format "2024-25" -> 2024
-        try {
-            return Integer.parseInt(financialYear.split("-")[0]);
-        } catch (Exception e) {
-            log.warn("Failed to parse financial year: {}", financialYear);
-            return null;
-        }
+    // Temple notifications
+    public void notifyTempleCreated(Long templeId, Long createdBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleCreated() called - migrate to WorkflowEngine");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.SUBMIT, 
+            WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, createdBy, "TA", templeId, null, Map.of());
+    }
+    
+    public void notifyTempleUpdated(Long templeId, Long updatedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleUpdated() called - migrate to WorkflowEngine");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.EDIT_APPROVED,
+            WorkflowStatus.APPROVED, WorkflowStatus.UPDATED_AFTER_APPROVAL, updatedBy, "TA", templeId, null, Map.of());
+    }
+    
+    public void notifyTempleApproved(Long templeId, Long dcUserId) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleApproved() called - migrate to WorkflowEngine");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.APPROVE,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.APPROVED, dcUserId, "DC", templeId, null, Map.of());
+    }
+    
+    public void notifyTempleFlagged(Long templeId, Long dcUserId, String reason) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleFlagged() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.REQUEST_CLARIFICATION,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.CLARIFICATION_REQUESTED, dcUserId, "DC", templeId, null, metadata);
+    }
+    
+    public void notifyTempleUnflagged(Long templeId, Long dcUserId) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleUnflagged() called - migrate to WorkflowEngine");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.RESPOND_CLARIFICATION,
+            WorkflowStatus.CLARIFICATION_REQUESTED, WorkflowStatus.CLARIFICATION_RESPONDED, dcUserId, "DC", templeId, null, Map.of());
+    }
+    
+    public void notifyTempleRejected(Long templeId, Long dcUserId, String reason) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTempleRejected() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.TEMPLE_PROFILE, templeId, WorkflowAction.REJECT,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.REJECTED, dcUserId, "DC", templeId, null, metadata);
+    }
+    
+    // Trust notifications
+    public void notifyTrustSubmitted(Long trustId, Long templeId, String trustName, Long submittedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTrustSubmitted() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        publishEvent(WorkflowEntityType.TRUST, trustId, WorkflowAction.SUBMIT,
+            WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, submittedBy, "TA", templeId, null, metadata);
+    }
+    
+    public void notifyTrustApproved(Long trustId, Long templeId, String trustName, Long dcUserId) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTrustApproved() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        publishEvent(WorkflowEntityType.TRUST, trustId, WorkflowAction.APPROVE,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.APPROVED, dcUserId, "DC", templeId, null, metadata);
+    }
+    
+    public void notifyTrustRejected(Long trustId, Long templeId, String trustName, Long dcUserId, String reason) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTrustRejected() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.TRUST, trustId, WorkflowAction.REJECT,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.REJECTED, dcUserId, "DC", templeId, null, metadata);
+    }
+    
+    public void notifyTrustFlagged(Long trustId, Long templeId, String trustName, Long dcUserId, String reason) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTrustFlagged() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.TRUST, trustId, WorkflowAction.REQUEST_CLARIFICATION,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.CLARIFICATION_REQUESTED, dcUserId, "DC", templeId, null, metadata);
     }
 
-    /**
-     * Notify DCs when TA updates a declaration.
-     */
-    public void notifyDeclarationUpdated(Long declarationId, Long templeId, String financialYear, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new DeclarationUpdatedEvent(
-            applicationContext,
-            declarationId,
-            temple.getName(),
-            updatedByUserId,
-            dcIds[0],
-            parseFinancialYear(financialYear)
-        ));
-        log.info("Published DeclarationUpdatedEvent for declaration: {} to {} DC(s)", declarationId, dcIds.length);
+    public void notifyTrustUpdated(Long trustId, Long templeId, String trustName, Long updatedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyTrustUpdated() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        publishEvent(WorkflowEntityType.TRUST, trustId, WorkflowAction.EDIT_APPROVED,
+            WorkflowStatus.APPROVED, WorkflowStatus.UPDATED_AFTER_APPROVAL, updatedBy, "TA", templeId, null, metadata);
     }
 
-    /**
-     * Notify TAs when DC approves a declaration.
-     */
+    // Board Member notifications
+    public void notifyBoardMemberAdded(Long memberId, Long templeId, String trustName, String memberName, Long addedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyBoardMemberAdded() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        metadata.put("memberName", memberName != null ? memberName : "");
+        publishEvent(WorkflowEntityType.BOARD_MEMBER, memberId, WorkflowAction.SUBMIT,
+            WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, addedBy, "TA", templeId, null, metadata);
+    }
+
+    public void notifyBoardMemberUpdated(Long memberId, Long templeId, String trustName, String memberName, Long updatedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyBoardMemberUpdated() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        metadata.put("memberName", memberName != null ? memberName : "");
+        publishEvent(WorkflowEntityType.BOARD_MEMBER, memberId, WorkflowAction.EDIT_APPROVED,
+            WorkflowStatus.APPROVED, WorkflowStatus.UPDATED_AFTER_APPROVAL, updatedBy, "TA", templeId, null, metadata);
+    }
+
+    public void notifyBoardMemberRemoved(Long memberId, Long templeId, String trustName, String memberName, Long removedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyBoardMemberRemoved() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("trustName", trustName != null ? trustName : "");
+        metadata.put("memberName", memberName != null ? memberName : "");
+        // Use a generic "REMOVE" action or similar
+        publishEvent(WorkflowEntityType.BOARD_MEMBER, memberId, WorkflowAction.REJECT,
+            WorkflowStatus.APPROVED, WorkflowStatus.REJECTED, removedBy, "TA", templeId, null, metadata);
+    }
+    
+    // Declaration notifications
+    public void notifyDeclarationSubmitted(Long declarationId, Long templeId, String financialYear, Long submittedBy) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyDeclarationSubmitted() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("financialYear", financialYear != null ? financialYear : "");
+        publishEvent(WorkflowEntityType.DECLARATION, declarationId, WorkflowAction.SUBMIT,
+            WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, submittedBy, "TA", templeId, null, metadata);
+    }
+    
     public void notifyDeclarationApproved(Long declarationId, Long templeId, String financialYear, Long dcUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        // Publish one event per TA to ensure all TAs receive notification
-        for (Long taId : taIds) {
-            eventPublisher.publish(new DeclarationApprovedEvent(
-                applicationContext,
-                declarationId,
-                temple.getName(),
-                dcUserId,
-                dcName,
-                taId,
-                parseFinancialYear(financialYear)
-            ));
-        }
-        log.info("Published DeclarationApprovedEvent for declaration: {} to {} TA(s)", declarationId, taIds.length);
+        log.warn("[DEPRECATED] NotificationHelper.notifyDeclarationApproved() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("financialYear", financialYear != null ? financialYear : "");
+        publishEvent(WorkflowEntityType.DECLARATION, declarationId, WorkflowAction.APPROVE,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.APPROVED, dcUserId, "DC", templeId, null, metadata);
     }
-
-    /**
-     * Notify TAs when DC rejects a declaration.
-     */
+    
     public void notifyDeclarationRejected(Long declarationId, Long templeId, String financialYear, Long dcUserId, String reason) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        // Publish one event per TA to ensure all TAs receive notification
-        for (Long taId : taIds) {
-            eventPublisher.publish(new DeclarationRejectedEvent(
-                applicationContext,
-                declarationId,
-                temple.getName(),
-                dcUserId,
-                dcName,
-                taId,
-                reason,
-                parseFinancialYear(financialYear)
-            ));
-        }
-        log.info("Published DeclarationRejectedEvent for declaration: {} to {} TA(s)", declarationId, taIds.length);
+        log.warn("[DEPRECATED] NotificationHelper.notifyDeclarationRejected() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("financialYear", financialYear != null ? financialYear : "");
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.DECLARATION, declarationId, WorkflowAction.REJECT,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.REJECTED, dcUserId, "DC", templeId, null, metadata);
     }
-
-    /**
-     * Notify TAs when DC flags a declaration for clarification.
-     */
-    public void notifyDeclarationFlagged(Long declarationId, Long templeId, String financialYear, Long dcUserId, String message) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        // Publish one event per TA to ensure all TAs receive notification
-        for (Long taId : taIds) {
-            eventPublisher.publish(new DeclarationFlaggedEvent(
-                applicationContext,
-                declarationId,
-                temple.getName(),
-                dcUserId,
-                dcName,
-                taId,
-                message,
-                parseFinancialYear(financialYear)
-            ));
-        }
-        log.info("Published DeclarationFlaggedEvent for declaration: {} to {} TA(s)", declarationId, taIds.length);
+    
+    public void notifyDeclarationFlagged(Long declarationId, Long templeId, String financialYear, Long dcUserId, String reason) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyDeclarationFlagged() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("financialYear", financialYear != null ? financialYear : "");
+        metadata.put("reason", reason != null ? reason : "");
+        publishEvent(WorkflowEntityType.DECLARATION, declarationId, WorkflowAction.REQUEST_CLARIFICATION,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.CLARIFICATION_REQUESTED, dcUserId, "DC", templeId, null, metadata);
     }
-
-    /**
-     * Notify TAs when DC marks a declaration for physical visit.
-     */
-    public void notifyDeclarationMarkedForPhysicalVisit(Long declarationId, Long templeId, String financialYear, Long dcUserId, java.time.LocalDate scheduledDate) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] taIds = recipientResolver.getTempleAuthorityIds(templeId);
-        if (taIds.length == 0) {
-            log.warn("No TAs found for temple: {}", templeId);
-            return;
-        }
-
-        String dcName = recipientResolver.getUserFullName(dcUserId);
-
-        // Publish one event per TA to ensure all TAs receive notification
-        for (Long taId : taIds) {
-            eventPublisher.publish(new DeclarationMarkedForPhysicalVisitEvent(
-                applicationContext,
-                declarationId,
-                temple.getName(),
-                dcUserId,
-                dcName,
-                taId,
-                scheduledDate,
-                parseFinancialYear(financialYear)
-            ));
-        }
-        log.info("Published DeclarationMarkedForPhysicalVisitEvent for declaration: {} to {} TA(s)", declarationId, taIds.length);
+    
+    public void notifyDeclarationMarkedForPhysicalVisit(Long declarationId, Long templeId, String financialYear, Long dcUserId, String notes) {
+        log.warn("[DEPRECATED] NotificationHelper.notifyDeclarationMarkedForPhysicalVisit() called - migrate to WorkflowEngine");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("financialYear", financialYear != null ? financialYear : "");
+        metadata.put("notes", notes != null ? notes : "");
+        publishEvent(WorkflowEntityType.DECLARATION, declarationId, WorkflowAction.SCHEDULE_SITE_VISIT,
+            WorkflowStatus.UNDER_REVIEW, WorkflowStatus.UNDER_REVIEW, dcUserId, "DC", templeId, null, metadata);
     }
-
-    // ==================== DOCUMENT NOTIFICATIONS ====================
-
+    
+    // ─── Helper Method ────────────────────────────────────────────────────────
+    
     /**
-     * Notify DCs when TA uploads a document.
+     * Publishes GovernanceDomainEvent with transaction-aware routing and workflowInstanceId correlation.
+     * 
+     * SAFETY FEATURES:
+     * 1. Transaction Safety: Checks if transaction active before publishing
+     *    - If TX active: publish event → listener fires AFTER_COMMIT
+     *    - If NO TX: route directly to NotificationRouter (fallback)
+     * 
+     * 2. WorkflowInstance Correlation: Resolves workflowInstanceId from (entityType, entityId)
+     *    - Queries workflow_instance table
+     *    - If found: populates workflowInstanceId + districtId
+     *    - If not found: logs warning, still publishes (best-effort)
+     * 
+     * 3. Guaranteed Delivery: Event never dropped
+     *    - Transactional path: AFTER_COMMIT listener
+     *    - Non-transactional path: direct routing
      */
-    public void notifyDocumentUploaded(Long documentId, Long templeId, String documentType, String documentName, Long uploadedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
+    private void publishEvent(WorkflowEntityType entityType, Long entityId, WorkflowAction action,
+                              WorkflowStatus fromStatus, WorkflowStatus toStatus,
+                              Long actorId, String actorRole, Long templeId, Long districtId,
+                              Map<String, Object> metadata) {
+        
+        // ── Step 1: Resolve workflowInstanceId ────────────────────────────────
+        Long workflowInstanceId = null;
+        Long resolvedDistrictId = districtId;
+        
+        try {
+            WorkflowInstance instance = workflowInstanceRepository
+                .findByEntityTypeAndEntityId(entityType, entityId)
+                .orElse(null);
+            
+            if (instance != null) {
+                workflowInstanceId = instance.getId();
+                resolvedDistrictId = instance.getDistrictId(); // Use workflow instance's districtId
+                log.debug("[NotificationHelper] Resolved workflowInstanceId={} for {}/{}",
+                    workflowInstanceId, entityType, entityId);
+            } else {
+                log.warn("[NotificationHelper] NO WorkflowInstance found for {}/{} - event will have null workflowInstanceId",
+                    entityType, entityId);
+            }
+        } catch (Exception e) {
+            log.error("[NotificationHelper] Failed to resolve workflowInstanceId for {}/{}: {}",
+                entityType, entityId, e.getMessage());
+            // Continue with null workflowInstanceId - best-effort delivery
         }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
+        
+        // ── Step 2: Build event ────────────────────────────────────────────────
+        GovernanceDomainEvent event = GovernanceDomainEvent.workflowTransition(
+            entityType, entityId, workflowInstanceId,
+            action, fromStatus, toStatus, null, null,
+            actorId, actorRole, templeId, resolvedDistrictId,
+            null, // no idempotency key in legacy calls
+            metadata
+        );
+        
+        // ── Step 3: Transaction-aware routing ──────────────────────────────────
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // Normal path: publish event, listener fires AFTER_COMMIT
+            eventPublisher.publishEvent(event);
+            log.debug("[NotificationHelper] Event published (transactional): {}/{}/{} workflowInstanceId={}",
+                entityType, action, entityId, workflowInstanceId);
+        } else {
+            // Fallback path: route directly to NotificationRouter
+            log.warn("[NotificationHelper] NO TRANSACTION ACTIVE - routing directly: {}/{}/{} workflowInstanceId={}",
+                entityType, action, entityId, workflowInstanceId);
+            notificationRouter.route(event);
         }
-
-        eventPublisher.publish(new DocumentUploadedEvent(
-            applicationContext,
-            documentId,
-            temple.getName(),
-            documentType,
-            documentName,
-            uploadedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published DocumentUploadedEvent for document: {} to {} DC(s)", documentId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA updates a document.
-     */
-    public void notifyDocumentUpdated(Long documentId, Long templeId, String documentType, String documentName, Long updatedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new DocumentUpdatedEvent(
-            applicationContext,
-            documentId,
-            temple.getName(),
-            documentType,
-            documentName,
-            updatedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published DocumentUpdatedEvent for document: {} to {} DC(s)", documentId, dcIds.length);
-    }
-
-    /**
-     * Notify DCs when TA deletes a document.
-     */
-    public void notifyDocumentDeleted(Long documentId, Long templeId, String documentType, String documentName, Long deletedByUserId) {
-        Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple == null) {
-            log.warn("Cannot send notification: Temple not found: {}", templeId);
-            return;
-        }
-
-        Long[] dcIds = recipientResolver.getDistrictCollectorIds(temple.getDistrictId());
-        if (dcIds.length == 0) {
-            log.warn("No DCs found for district: {}", temple.getDistrictId());
-            return;
-        }
-
-        eventPublisher.publish(new DocumentDeletedEvent(
-            applicationContext,
-            documentId,
-            temple.getName(),
-            documentType,
-            documentName,
-            deletedByUserId,
-            dcIds[0]
-        ));
-        log.info("Published DocumentDeletedEvent for document: {} to {} DC(s)", documentId, dcIds.length);
     }
 }

@@ -71,8 +71,6 @@ public class TempleFullProfileResponse {
         private String bankName;
         private String bankBranch;
         private BigDecimal annualIncome;
-        @JsonProperty("isVerifiedByDc")
-        private boolean isVerifiedByDc;
         private String dcFlagReason;
         private String reviewStatus;
         private List<String> validationIssues;
@@ -98,10 +96,8 @@ public class TempleFullProfileResponse {
         private LocalDate appointmentDate;
         private LocalDate tenureEndDate;
         private String address;
-        @JsonProperty("isCurrent")
-        private boolean isCurrent;
-        @JsonProperty("isVerifiedByDc")
-        private boolean isVerifiedByDc;
+        @JsonProperty("current")
+        private boolean current;
         private String dcFlagReason;
     }
 

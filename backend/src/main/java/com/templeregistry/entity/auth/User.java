@@ -75,4 +75,12 @@ public class User extends BaseEntity {
     @Builder.Default
     @Column(name = "aadhaar_verified", nullable = false)
     private boolean aadhaarVerified = false;
+
+    /** SHA-256 hash of the single-use password-reset token. Null when no reset is pending. */
+    @Column(name = "password_reset_token_hash", length = 64)
+    private String passwordResetTokenHash;
+
+    /** Expiry timestamp for the pending reset token. */
+    @Column(name = "password_reset_expires_at")
+    private LocalDateTime passwordResetTokenExpiresAt;
 }

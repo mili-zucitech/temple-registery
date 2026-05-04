@@ -4,7 +4,7 @@ import type { ApiResponse, PaginatedResponse } from '@/types'
 
 export type NotificationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 export type NotificationCategory = 'SUBMISSION' | 'APPROVAL' | 'REJECTION' | 'CLARIFICATION' | 'SITE_VISIT' | 'REMINDER' | 'OVERDUE' | 'DOCUMENT' | 'SYSTEM'
-export type ModuleType = 'TEMPLE' | 'TRUST' | 'EMPLOYEE' | 'CONTRACTOR' | 'DECLARATION' | 'DOCUMENT' | 'SYSTEM'
+export type ModuleType = 'TEMPLE' | 'TRUST' | 'EMPLOYEE' | 'CONTRACTOR' | 'DECLARATION' | 'DOCUMENT' | 'FINANCE' | 'SYSTEM'
 
 export interface NotificationResponse {
   id: number
@@ -15,6 +15,7 @@ export interface NotificationResponse {
   actionUrl?: string
   referenceType?: string
   referenceId?: number
+  workflowInstanceId?: number
   read: boolean
   readAt?: string
   createdAt: string
@@ -57,6 +58,11 @@ export const notificationApi = createApi({
       query: () => ({ url: '/notifications/read-all', method: 'POST' }),
       invalidatesTags: ['Notification'],
     }),
+
+    getUnreadCount: builder.query<ApiResponse<number>, void>({
+      query: () => '/notifications/unread-count',
+      providesTags: ['Notification'],
+    }),
     
     getPreferences: builder.query<ApiResponse<NotificationPreferenceResponse[]>, void>({
       query: () => '/notification-preferences',
@@ -78,6 +84,7 @@ export const {
   useListNotificationsQuery,
   useMarkReadMutation,
   useMarkAllReadMutation,
+  useGetUnreadCountQuery,
   useGetPreferencesQuery,
   useUpdatePreferencesMutation,
 } = notificationApi

@@ -51,14 +51,26 @@ public interface GovernanceWorkflowService {
      * Generates acknowledgement number on approval.
      */
     WorkflowActionResponse approveDeclaration(Long declarationId, WorkflowApproveRequest request,
-                                               ScopeHelper.Claims claims);
+                                               ScopeHelper.Claims claims,
+                                               String idempotencyKey);
+
+    default WorkflowActionResponse approveDeclaration(Long declarationId, WorkflowApproveRequest request,
+                                                      ScopeHelper.Claims claims) {
+        return approveDeclaration(declarationId, request, claims, null);
+    }
 
     /** DC sends back an Asset Declaration with mandatory free-text reason. */
     void sendBackDeclaration(Long declarationId, SendBackRequest request);
 
     /** DC rejects an Asset Declaration (terminal). */
     WorkflowActionResponse rejectDeclaration(Long declarationId, WorkflowRejectRequest request,
-                                              ScopeHelper.Claims claims);
+                                              ScopeHelper.Claims claims,
+                                              String idempotencyKey);
+
+    default WorkflowActionResponse rejectDeclaration(Long declarationId, WorkflowRejectRequest request,
+                                                     ScopeHelper.Claims claims) {
+        return rejectDeclaration(declarationId, request, claims, null);
+    }
 
     /**
      * DC requests clarification on a declaration.
@@ -66,7 +78,13 @@ public interface GovernanceWorkflowService {
      * Max 3 clarification rounds; escalates to SUPER_ADMIN on round 2.
      */
     WorkflowActionResponse requestClarification(Long declarationId, DcClarifyRequest request,
-                                                 ScopeHelper.Claims claims);
+                                                 ScopeHelper.Claims claims,
+                                                 String idempotencyKey);
+
+    default WorkflowActionResponse requestClarification(Long declarationId, DcClarifyRequest request,
+                                                        ScopeHelper.Claims claims) {
+        return requestClarification(declarationId, request, claims, null);
+    }
 
     /**
      * DC marks a declaration as under active review.
@@ -79,7 +97,13 @@ public interface GovernanceWorkflowService {
      * Transitions SUBMITTED / UNDER_REVIEW → SITE_VISIT_SCHEDULED.
      */
     WorkflowActionResponse flagPhysicalVerification(Long declarationId, DcClarifyRequest request,
-                                                     ScopeHelper.Claims claims);
+                                                     ScopeHelper.Claims claims,
+                                                     String idempotencyKey);
+
+    default WorkflowActionResponse flagPhysicalVerification(Long declarationId, DcClarifyRequest request,
+                                                            ScopeHelper.Claims claims) {
+        return flagPhysicalVerification(declarationId, request, claims, null);
+    }
 
     /**
      * DC schedules a site visit for a declaration.

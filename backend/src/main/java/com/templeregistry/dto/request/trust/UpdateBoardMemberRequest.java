@@ -29,10 +29,10 @@ public class UpdateBoardMemberRequest {
      * Set to false to mark the member as resigned/retired (historical).
      * When false, tenureEndDate is mandatory (VAL-014).
      */
-    private Boolean isCurrent;
+    private Boolean current;
 
     /**
-     * Cessation date — mandatory when isCurrent = false (VAL-014).
+     * Cessation date — mandatory when current = false (VAL-014).
      * Maps to tenure_end_date column.
      */
     private LocalDate tenureEndDate;

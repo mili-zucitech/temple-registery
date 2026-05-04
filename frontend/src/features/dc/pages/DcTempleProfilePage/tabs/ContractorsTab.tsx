@@ -11,15 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
-import { deriveModuleStatus, type ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import type { ContractorResponse } from '@/features/dc/dcTypes'
 
 interface ContractorsTabProps {
   contractors: ContractorResponse[]
-  canAct?: boolean
-  onVerifyContractors?: () => void
-  onFlagContractors?: (reason: string) => void
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -63,7 +58,7 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
  * Contractor changes are effective immediately on TA save.
  * DC views this as a read-only reference panel.
  */
-export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFlagContractors }: ContractorsTabProps) {
+export function ContractorsTab({ contractors }: ContractorsTabProps) {
   const [page, setPage] = useState(0)
   const [selectedContractor, setSelectedContractor] = useState<ContractorResponse | null>(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
@@ -71,18 +66,6 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFla
   const pageSize = 10
   const totalPages = Math.ceil(contractors.length / pageSize)
   const paginatedContractors = contractors.slice(page * pageSize, (page + 1) * pageSize)
-
-  const moduleStatus: ModuleVerificationStatus = useMemo(() => {
-    if (contractors.length === 0) return 'PENDING'
-    if (contractors.some(c => c.dcFlagReason)) return 'FLAGGED'
-    if (contractors.every(c => c.isVerifiedByDc)) return 'VERIFIED'
-    return 'PENDING'
-  }, [contractors])
-
-  const moduleFlagReason = useMemo(
-    () => contractors.find(c => c.dcFlagReason)?.dcFlagReason ?? null,
-    [contractors]
-  )
 
   const openDetailDialog = (contractor: ContractorResponse) => {
     setSelectedContractor(contractor)
@@ -147,7 +130,6 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFla
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedContractors.map((c) => {
-                    const itemStatus = deriveModuleStatus(c.isVerifiedByDc, c.dcFlagReason)
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-4">
@@ -227,40 +209,6 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFla
               </div>
             )}
 
-            {/* ── Module-level oversight block ─────────────────────────────── */}
-            {/* ONE block for the whole Contractors module. Shown ONLY when PENDING. */}
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              {moduleStatus === 'PENDING' && (
-                <GovernanceActionPanel
-                  entityName="Contractors Module"
-                  isVerified={false}
-                  flagReason={null}
-                  canAct={canAct}
-                  onVerify={onVerifyContractors}
-                  onFlag={onFlagContractors}
-                />
-              )}
-              {moduleStatus === 'VERIFIED' && (
-                <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-5 py-4">
-                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-800">Contractors module verified</p>
-                    <p className="text-xs text-emerald-700/70 mt-0.5">All contractor engagements have been audited and approved.</p>
-                  </div>
-                </div>
-              )}
-              {moduleStatus === 'FLAGGED' && (
-                <div className="rounded-xl border border-red-100 bg-red-50/40 px-5 py-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <Flag size={16} className="text-red-600 shrink-0" />
-                    <p className="text-sm font-semibold text-red-800">Contractors module flagged</p>
-                  </div>
-                  {moduleFlagReason && (
-                    <p className="text-xs text-red-700 pl-7">{moduleFlagReason}</p>
-                  )}
-                </div>
-              )}
-            </div>
           </>
         )}
       </SectionCard>
@@ -434,53 +382,6 @@ export function ContractorsTab({ contractors, canAct, onVerifyContractors, onFla
                 )}
               </div>
 
-              {/* Verification Status */}
-              {selectedContractor.isVerifiedByDc !== undefined && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-primary" />
-                    Verification Status
-                  </h4>
-                  <div>
-                    {selectedContractor.isVerifiedByDc ? (
-                      <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-100">
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-green-900">Verified by DC</p>
-                          <p className="text-xs text-green-700 mt-0.5">This contractor has been verified and approved</p>
-                        </div>
-                      </div>
-                    ) : selectedContractor.dcFlagReason ? (
-                      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100">
-                            <Flag className="h-5 w-5 text-red-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-red-900">Flagged by DC</p>
-                            <p className="text-xs text-red-700 mt-0.5">Issues identified during review</p>
-                          </div>
-                        </div>
-                        <div className="ml-13 pl-3 border-l-2 border-red-200">
-                          <p className="text-xs text-red-800">{selectedContractor.dcFlagReason}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-yellow-100">
-                          <div className="h-2.5 w-2.5 rounded-full bg-yellow-600 animate-pulse" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-yellow-900">Pending Review</p>
-                          <p className="text-xs text-yellow-700 mt-0.5">Awaiting DC verification</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </DialogContent>

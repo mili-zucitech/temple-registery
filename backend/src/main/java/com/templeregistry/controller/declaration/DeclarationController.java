@@ -12,10 +12,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.core.io.Resource;
 
 import java.util.List;
 
@@ -57,11 +60,18 @@ public class DeclarationController {
         return ResponseEntity.ok(ApiResponse.success("Declaration updated.", declarationService.update(id, rq)));
     }
 
+    /**
+     * @deprecated Use POST /api/v1/governance/declarations/{id}/submit instead.
+     * This endpoint is removed to prevent dual-path workflow mutation.
+     * DeclarationController handles CRUD only. GovernanceWorkflowController handles workflow.
+     */
+    @Deprecated(forRemoval = true)
     @PostMapping("/api/v1/declarations/{id}/submit")
-    @Operation(summary = "Submit declaration for DC review (DRAFT → SUBMITTED)")
+    @Operation(summary = "[DEPRECATED] Use /api/v1/governance/declarations/{id}/submit",
+               description = "This endpoint is deprecated. Use the governance workflow endpoint instead.")
     public ResponseEntity<ApiResponse<Void>> submit(@PathVariable Long id) {
-        declarationService.submit(id);
-        return ResponseEntity.ok(ApiResponse.success("Declaration submitted."));
+        return ResponseEntity.status(HttpStatus.GONE)
+            .body(ApiResponse.error("This endpoint is deprecated. Use POST /api/v1/governance/declarations/" + id + "/submit", "ENDPOINT_DEPRECATED"));
     }
 
     @PostMapping("/api/v1/declarations/{id}/resubmit")
@@ -87,6 +97,16 @@ public class DeclarationController {
     public ResponseEntity<ApiResponse<AcknowledgementResponse>> getAcknowledgement(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Acknowledgement URL generated.",
                 declarationService.getAcknowledgement(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/acknowledgement/download")
+    @Operation(summary = "Download APPROVED declaration acknowledgement PDF")
+    public ResponseEntity<Resource> downloadAcknowledgement(@PathVariable Long id) {
+        Resource resource = declarationService.downloadAcknowledgement(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"ACK_DECLARATION_" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
     }
 
     @GetMapping("/api/v1/declarations/{id}/diff")

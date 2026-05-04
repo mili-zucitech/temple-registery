@@ -23,7 +23,7 @@ public class HmacUtil {
 
     private final byte[] keyBytes;
 
-    public HmacUtil(@Value("${app.hmac.key:TempleRegistryHmacKey2024!!CHANGE}") String hmacKey) {
+    public HmacUtil(@Value("${app.hmac.key}") String hmacKey) {
         this.keyBytes = hmacKey.getBytes(StandardCharsets.UTF_8);
         if (this.keyBytes.length < 32) {
             throw new IllegalArgumentException("HMAC key must be at least 32 bytes.");

@@ -18,8 +18,8 @@ import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.audit.GovernanceAuditService;
-import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.dc.TempleProfileWorkflowService;
+import com.templeregistry.service.notification.NotificationHelper;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
@@ -65,7 +65,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private final TempleProfileHistoryRepository historyRepository;
     private final TempleRepository templeRepository;
     private final JurisdictionGuard jurisdictionGuard;
-    private final NotificationEventPublisher notificationPublisher;
+    private final NotificationHelper notificationHelper;
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final GovernanceAuditService governanceAuditService;
@@ -149,7 +149,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                     }
                 });
 
-        notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_APPROVED", staging.getTempleId(), "TEMPLE_PROFILE");
+        notificationHelper.notifyTempleApproved(staging.getTempleId(), claims.userId());
         auditService.logDataEvent(claims.userId(), claims.role(), "APPROVE", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Approved version " + staging.getVersionNumber());
         
@@ -184,7 +184,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         staging.setReviewComment(request.getReason());
         stagingRepository.save(staging);
 
-        notificationPublisher.publish(staging.getSubmittedBy(), "PROFILE_REJECTED", staging.getTempleId(), "TEMPLE_PROFILE");
+        notificationHelper.notifyTempleRejected(staging.getTempleId(), claims.userId(), request.getReason());
         auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Rejected version " + staging.getVersionNumber() + ": " + request.getReason());
         

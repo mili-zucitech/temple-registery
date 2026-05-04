@@ -51,13 +51,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Status at each step: SUBMITTED → SITE_VISIT_SCHEDULED → SITE_VISIT_COMPLETED → VERIFIED → APPROVED
  * - Snapshot count = 5 (submit + scheduleSiteVisit + completeSiteVisit + verify + approve)
  *
- * Disabled because H2 does not support TINYINT(1) column definitions used in entities.
+ * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
  */
-@Disabled("Requires MySQL-compatible DB — H2 does not support TINYINT(1) column definitions used in entities")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class DeclarationSiteVisitIT {
+class DeclarationSiteVisitIT extends MySQLContainerBase {
 
     @Autowired
     private DeclarationService declarationService;

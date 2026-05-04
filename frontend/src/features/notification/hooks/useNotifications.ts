@@ -1,18 +1,40 @@
-import { useListNotificationsQuery } from '../notificationApi'
+import { useGetUnreadCountQuery, useListNotificationsQuery } from '../notificationApi'
 import { useEffect } from 'react'
+import { useAppSelector, useAppDispatch } from '@/app/store'
+import { useWorkflowSse } from '@/features/governance/useWorkflowSse'
+import { notificationApi } from '../notificationApi'
 
 export function useNotifications(options?: { page?: number; size?: number; pollingInterval?: number }) {
   const { page = 0, size = 10, pollingInterval = 30000 } = options || {}
+  const dispatch = useAppDispatch()
+  const userId = useAppSelector((state) => state.auth.currentUser?.id ?? null)
 
   const { data, isLoading, error, refetch } = useListNotificationsQuery(
     { page, size },
     {
-      pollingInterval, // Poll every 30 seconds by default
+      pollingInterval,
     }
   )
 
+  const { data: unreadData } = useGetUnreadCountQuery(undefined, {
+    pollingInterval,
+  })
+
+  useWorkflowSse({
+    userId,
+    enabled: Boolean(userId),
+    onNotification: () => {
+      dispatch(notificationApi.util.invalidateTags(['Notification']))
+    },
+  })
+
+  useEffect(() => {
+    if (!userId) return
+    dispatch(notificationApi.util.invalidateTags(['Notification']))
+  }, [dispatch, userId])
+
   const notifications = data?.data?.content || []
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = unreadData?.data ?? notifications.filter((n) => !n.read).length
   const totalElements = data?.data?.totalElements || 0
   const totalPages = data?.data?.totalPages || 0
 

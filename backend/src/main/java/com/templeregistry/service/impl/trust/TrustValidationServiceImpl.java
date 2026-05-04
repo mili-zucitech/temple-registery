@@ -5,6 +5,7 @@ import com.templeregistry.dto.request.trust.CreateBoardMeetingRequest;
 import com.templeregistry.dto.request.trust.CreateTrustRequest;
 import com.templeregistry.dto.request.trust.SubmitTrustFinancialRequest;
 import com.templeregistry.dto.request.trust.UpdateBoardMemberRequest;
+import com.templeregistry.dto.request.trust.UpdateTrustRequest;
 import com.templeregistry.entity.trust.BoardMember;
 import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.exception.DuplicateResourceException;
@@ -60,6 +61,35 @@ public class TrustValidationServiceImpl implements TrustValidationService {
                     throw new DuplicateResourceException("Trust registration number already exists.");
                 });
 
+    }
+
+    @Override
+    public void validateTrustUpdateRequest(UpdateTrustRequest request, Long existingTrustId) {
+        if (request.getDateOfRegistration() != null && request.getDateOfRegistration().isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Date of registration cannot be in the future.");
+        }
+        requireText(request.getRegisteringAuthority(), "Registering authority is required.");
+        requireText(request.getBankName(), "Bank name is required.");
+        requireText(request.getBankBranch(), "Bank branch is required.");
+
+        // PAN and bank account are optional on update — only validate format if provided
+        if (request.getPanNumber() != null && !request.getPanNumber().isBlank()) {
+            String normalizedPan = request.getPanNumber().trim().toUpperCase(Locale.ROOT);
+            if (!PAN_PATTERN.matcher(normalizedPan).matches()) {
+                throw new IllegalArgumentException("PAN format is invalid.");
+            }
+        }
+        if (request.getBankAccountNumber() != null && !request.getBankAccountNumber().isBlank()) {
+            if (!BANK_ACCOUNT_PATTERN.matcher(request.getBankAccountNumber().trim()).matches()) {
+                throw new IllegalArgumentException("Bank account number must contain only digits.");
+            }
+        }
+
+        trustRepository.findByTrustRegistrationNumberIgnoreCase(request.getRegistrationNumber().trim())
+                .filter(existing -> !existing.getId().equals(existingTrustId))
+                .ifPresent(existing -> {
+                    throw new DuplicateResourceException("Trust registration number already exists.");
+                });
     }
 
     @Override

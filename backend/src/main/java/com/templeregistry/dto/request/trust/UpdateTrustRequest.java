@@ -35,7 +35,12 @@ public class UpdateTrustRequest {
     @NotNull(message = "Trust type is required")
     private TrustType trustType;
 
-    @NotBlank(message = "Bank account number is required")
+    /** Optional — omit or leave blank to keep the existing PAN on record. */
+    @Pattern(regexp = "^$|^[A-Z]{5}[0-9]{4}[A-Z]$", message = "Invalid PAN format (e.g. ABCDE1234F)")
+    private String panNumber;
+
+    /** Optional — omit or leave blank to keep the existing bank account on record. */
+    @Pattern(regexp = "^$|^\\d{6,32}$", message = "Bank account must be 6–32 digits")
     private String bankAccountNumber;
 
     @NotBlank(message = "Bank name is required")

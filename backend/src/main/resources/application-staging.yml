@@ -1,0 +1,40 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    repair-on-migrate: true
+
+  mail:
+    enabled: true
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    from: ${EMAIL_FROM:noreply@templeregistry.gov.in}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+app:
+  encryption:
+    key: ${APP_ENCRYPTION_KEY}
+  hmac:
+    key: ${APP_HMAC_KEY}
+  base-url: ${APP_BASE_URL}
+
+logging:
+  level:
+    root: INFO
+    com.templeregistry: INFO
+    org.springframework.security: INFO

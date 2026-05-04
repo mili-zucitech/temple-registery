@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Loader2, Bell, Mail, Save } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 interface PreferenceState {
   moduleType: ModuleType
@@ -38,6 +39,10 @@ const moduleLabels: Record<ModuleType, { label: string; description: string }> =
   DOCUMENT: {
     label: 'Documents',
     description: 'Notifications about document uploads',
+  },
+  FINANCE: {
+    label: 'Finance',
+    description: 'Notifications about finance submissions and approvals',
   },
   SYSTEM: {
     label: 'System Notifications',
@@ -79,10 +84,9 @@ export function NotificationPreferencesPage() {
     try {
       await updatePreferences({ preferences }).unwrap()
       setHasChanges(false)
-      // Show success message (you can add a toast here)
-    } catch (error) {
-      console.error('Failed to update preferences:', error)
-      // Show error message (you can add a toast here)
+      toast.success('Preferences saved')
+    } catch {
+      toast.error('Failed to save preferences. Please try again.')
     }
   }
 

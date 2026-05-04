@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,10 +12,11 @@ import {
   useListBoardMeetingsQuery, useCreateBoardMeetingMutation, useUploadMeetingMinutesMutation,
 } from '@/features/trust/trustApi'
 import {
-  createTrustSchema, createBoardMemberSchema, updateBoardMemberSchema, submitTrustFinancialSchema, createBoardMeetingSchema,
+  createTrustSchema, updateTrustSchema, createBoardMemberSchema, updateBoardMemberSchema, submitTrustFinancialSchema, createBoardMeetingSchema,
   TRUST_TYPES,
-  type CreateTrustRequest, type CreateBoardMemberRequest, type UpdateBoardMemberRequest, type SubmitTrustFinancialRequest, type CreateBoardMeetingRequest,
+  type CreateTrustRequest, type UpdateTrustRequest, type CreateBoardMemberRequest, type UpdateBoardMemberRequest, type SubmitTrustFinancialRequest, type CreateBoardMeetingRequest,
 } from '@/features/trust/trustTypes'
+import { mapBoardMemberToForm } from '@/features/trust/trustMappers'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
@@ -30,6 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { Building2, Users, Calendar, TrendingUp, Plus, Edit, Trash2, FileText, Eye, User, Phone, MapPin, Shield, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
 
 const MEMBERS_PAGE_SIZE = 10
 
@@ -40,11 +42,27 @@ function formatInr(value?: number | null) {
   return `₹${value.toLocaleString('en-IN')}`
 }
 
-function trustReviewStatus(trust: { isVerifiedByDc?: boolean; dcFlagReason?: string | null } | null) {
-  if (!trust) return 'PENDING'
+function trustReviewStatus(trust: {
+  submissionStatus?: string | null
+  dcDecisionStatus?: string | null
+  isVerifiedByDc?: boolean
+  dcFlagReason?: string | null
+  sendBackReason?: string | null
+} | null) {
+  if (!trust) return 'DRAFT'
+
+  const submission = String(trust.submissionStatus ?? '').toUpperCase()
+  if (submission === 'APPROVED') return 'APPROVED'
+  if (submission === 'SUBMITTED') return 'UNDER_REVIEW'
+  if (submission === 'SENT_BACK') return 'CLARIFICATION_REQUIRED'
+  if (submission === 'REJECTED') return 'REJECTED'
+
   if (trust.isVerifiedByDc) return 'APPROVED'
-  if (trust.dcFlagReason) return 'FLAGGED'
-  return 'PENDING'
+  if (trust.dcFlagReason || trust.sendBackReason || trust.dcDecisionStatus === 'REJECTED_BY_DC') {
+    return 'CLARIFICATION_REQUIRED'
+  }
+  if (trust.dcDecisionStatus === 'PENDING_DC_APPROVAL') return 'UNDER_REVIEW'
+  return 'DRAFT'
 }
 
 export function TaTrustPage() {
@@ -80,6 +98,12 @@ export function TaTrustPage() {
     { skip: !trust?.id || tab !== 'meetings' }
   )
 
+  const reviewStatus = useMemo(() => trustReviewStatus(trust), [trust])
+  const allCurrentMembers = useMemo(() => membersData?.data?.current ?? [], [membersData])
+  const allPastMembers = useMemo(() => membersData?.data?.past ?? [], [membersData])
+  const financials = useMemo(() => financialsData?.data ?? [], [financialsData])
+  const meetings = useMemo(() => meetingsData?.data?.content ?? [], [meetingsData])
+
   const [createTrust, { isLoading: creating }] = useCreateTrustMutation()
   const [updateTrust, { isLoading: updating }] = useUpdateTrustMutation()
   const [addMember, { isLoading: addingMember }] = useAddBoardMemberMutation()
@@ -90,15 +114,15 @@ export function TaTrustPage() {
   const [uploadMeetingMinutes, { isLoading: uploadingMinutes }] = useUploadMeetingMinutesMutation()
 
   const trustForm = useForm<CreateTrustRequest>({
-    resolver: zodResolver(createTrustSchema),
+    resolver: zodResolver(trust ? updateTrustSchema : createTrustSchema),
     values: {
       trustName: trust?.trustName ?? '',
       trustType: (trust?.trustType as CreateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
       registrationNumber: trust?.registrationNumber ?? '',
       registeringAuthority: trust?.registeringAuthority ?? '',
       dateOfRegistration: trust?.dateOfRegistration ?? '',
-      panNumber: '',        // Never pre-fill — raw PAN is not returned by the API
-      bankAccountNumber: '', // Never pre-fill — raw account is not returned by the API
+      panNumber: '',        // Raw PAN is never returned by the API — user must re-enter to change
+      bankAccountNumber: '', // Raw account is never returned by the API — user must re-enter to change
       bankName: trust?.bankName ?? '',
       bankBranch: trust?.bankBranch ?? '',
       annualIncome: trust?.annualIncome ?? null,  // null keeps the input controlled (renders as '')
@@ -128,14 +152,18 @@ export function TaTrustPage() {
     defaultValues: { meetingDate: '', agenda: '' },
   })
 
-  const onSaveTrust = async (values: CreateTrustRequest) => {
+  const onSaveTrust = async (values: CreateTrustRequest | UpdateTrustRequest) => {
     if (!templeId) return
     try {
       if (trust) {
-        await updateTrust({ trustId: trust.id, body: values }).unwrap()
+        // Strip empty sensitive fields — empty means "keep existing value"
+        const body: Partial<CreateTrustRequest> = { ...values }
+        if (!body.panNumber) delete body.panNumber
+        if (!body.bankAccountNumber) delete body.bankAccountNumber
+        await updateTrust({ trustId: trust.id, body }).unwrap()
         toast.success('Trust details updated')
       } else {
-        await createTrust({ templeId, body: values }).unwrap()
+        await createTrust({ templeId, body: values as CreateTrustRequest }).unwrap()
         toast.success('Trust registered successfully')
       }
       setShowTrustForm(false)
@@ -148,6 +176,23 @@ export function TaTrustPage() {
     resolver: zodResolver(updateBoardMemberSchema),
     defaultValues: { fullName: '', designation: '', contactNumber: '', address: '', tenureEndDate: '', isCurrent: undefined },
   })
+
+  // Pre-fill the update form when editingMemberId changes
+  useEffect(() => {
+    if (editingMemberId !== null) {
+      // Find the member from the current lists
+      const allMembers = [...allCurrentMembers, ...allPastMembers]
+      const memberToEdit = allMembers.find(m => m.id === editingMemberId)
+      
+      if (memberToEdit) {
+        const formValues = mapBoardMemberToForm(memberToEdit)
+        updateMemberForm.reset(formValues)
+      }
+    } else {
+      // Reset form when closing edit mode
+      updateMemberForm.reset()
+    }
+  }, [editingMemberId, allCurrentMembers, allPastMembers, updateMemberForm])
 
   const onAddMember = async (values: CreateBoardMemberRequest) => {
     if (!trust?.id) return
@@ -223,11 +268,6 @@ export function TaTrustPage() {
     }
   }
 
-  const reviewStatus = trustReviewStatus(trust)
-  const allCurrentMembers = membersData?.data?.current ?? []
-  const allPastMembers = membersData?.data?.past ?? []
-  const financials = financialsData?.data ?? []
-  const meetings = meetingsData?.data?.content ?? []
 
   // Pagination for members
   const displayMembers = memberTab === 'current' ? allCurrentMembers : allPastMembers
@@ -290,33 +330,40 @@ export function TaTrustPage() {
       ) : (
         <Tabs value={tab} onValueChange={(value) => { setTab(value); setPage(0) }} className="w-full">
           <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
-            <TabsList className="grid w-full grid-cols-4 gap-1 bg-transparent p-0 lg:w-auto">
-              <TabsTrigger 
+            <TabsList className="grid w-full grid-cols-5 gap-1 bg-transparent p-0 lg:w-auto">
+              <TabsTrigger
                 value="details"
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
               >
                 Trust Details
               </TabsTrigger>
-              <TabsTrigger 
-                value="board" 
+              <TabsTrigger
+                value="board"
                 disabled={!trust}
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
               >
                 Board Members
               </TabsTrigger>
-              <TabsTrigger 
-                value="meetings" 
+              <TabsTrigger
+                value="meetings"
                 disabled={!trust}
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
               >
                 Meetings
               </TabsTrigger>
-              <TabsTrigger 
-                value="financials" 
+              <TabsTrigger
+                value="financials"
                 disabled={!trust}
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
               >
                 Financials
+              </TabsTrigger>
+              <TabsTrigger
+                value="governance"
+                disabled={!trust}
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                Governance
               </TabsTrigger>
             </TabsList>
           </div>
@@ -353,10 +400,10 @@ export function TaTrustPage() {
                           <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={trustForm.control} name="panNumber" render={({ field }) => (
-                          <FormItem><FormLabel>PAN Number *</FormLabel><FormControl><Input {...field} className="uppercase" /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>PAN Number *</FormLabel><FormControl><Input {...field} className="uppercase" placeholder={trust?.maskedPanNumber ?? 'e.g. ABCDE1234F'} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={trustForm.control} name="bankAccountNumber" render={({ field }) => (
-                          <FormItem><FormLabel>Bank Account Number *</FormLabel><FormControl><Input inputMode="numeric" {...field} /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>Bank Account Number *</FormLabel><FormControl><Input inputMode="numeric" {...field} placeholder={trust?.maskedBankAccountNumber ?? 'Enter account number'} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={trustForm.control} name="bankName" render={({ field }) => (
                           <FormItem><FormLabel>Bank Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -735,6 +782,17 @@ export function TaTrustPage() {
                   </table>
                 </div>
               )
+            )}
+          </TabsContent>
+
+          <TabsContent value="governance" className="mt-5 animate-in fade-in-50 duration-300">
+            {trust?.workflowInstanceId ? (
+              <WorkflowGovernancePanel workflowInstanceId={trust.workflowInstanceId} />
+            ) : (
+              <EmptyState
+                title="Governance not available"
+                description="This trust was created before the workflow engine was activated. Update and resubmit to enable governance tracking."
+              />
             )}
           </TabsContent>
         </Tabs>

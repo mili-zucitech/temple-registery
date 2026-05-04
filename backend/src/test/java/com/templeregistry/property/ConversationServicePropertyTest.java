@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Property-based tests for ConversationServiceImpl and DeclarationServiceImpl.
@@ -83,7 +84,6 @@ class ConversationServicePropertyTest {
                 templeRepository,
                 Mockito.mock(com.templeregistry.security.OwnershipGuard.class),
                 Mockito.mock(com.templeregistry.security.JurisdictionGuard.class),
-                Mockito.mock(com.templeregistry.util.StatusTransitionValidator.class),
                 Mockito.mock(com.templeregistry.util.AcknowledgementNumberGenerator.class),
                 Mockito.mock(com.templeregistry.service.dc.NotificationEventPublisher.class),
                 paginationUtil,
@@ -105,8 +105,9 @@ class ConversationServicePropertyTest {
                 Mockito.mock(com.templeregistry.service.governance.GovernanceEditGuard.class),
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
-                Mockito.mock(com.templeregistry.service.declaration.StateTransitionValidator.class),
-                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class)
+                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngineAdaptor.class),
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class)
         );
     }
 

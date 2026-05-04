@@ -13,12 +13,14 @@ import {
   useGetDcDeclarationDetailQuery,
   useApproveProfileMutation,
   useRejectProfileMutation,
-  useGetDcNotificationsQuery,
-  useGetDcUnreadCountQuery,
-  useMarkNotificationReadMutation,
-  useMarkAllNotificationsReadMutation,
   useGetDcContextQuery,
 } from './dcApi'
+import {
+  useListNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkReadMutation,
+  useMarkAllReadMutation,
+} from '@/features/notification/notificationApi'
 import {
   useApproveDeclarationMutation,
   useRejectDeclarationMutation,
@@ -475,7 +477,7 @@ export function useWorkflowActions() {
             duration: 10000,
             action: {
               label: 'Download Letter',
-              onClick: () => window.open(`${API_BASE}/dc/declarations/${declarationId}/acknowledgement`, '_blank', 'noopener,noreferrer'),
+              onClick: () => window.open(`${API_BASE}/declarations/${declarationId}/acknowledgement/download`, '_blank', 'noopener,noreferrer'),
             },
           })
         } else {
@@ -651,19 +653,19 @@ export function useDcNotifications(page = 0, size = 10) {
     data: listData,
     isLoading: listLoading,
     isError: listError,
-  } = useGetDcNotificationsQuery(
+  } = useListNotificationsQuery(
     { page, size },
     { pollingInterval: 60_000 },
   )
 
   const {
     data: countData,
-  } = useGetDcUnreadCountQuery(undefined, {
+  } = useGetUnreadCountQuery(undefined, {
     pollingInterval: 60_000,
   })
 
-  const [markRead] = useMarkNotificationReadMutation()
-  const [markAllRead] = useMarkAllNotificationsReadMutation()
+  const [markRead] = useMarkReadMutation()
+  const [markAllRead] = useMarkAllReadMutation()
 
   const onMarkRead = useCallback(
     async (id: number) => {

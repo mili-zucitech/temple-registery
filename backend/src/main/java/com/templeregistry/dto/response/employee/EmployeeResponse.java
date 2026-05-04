@@ -22,7 +22,7 @@ public class EmployeeResponse {
     private String mobile;
     private String address;
     private EmployeeStatus status;
-    private Boolean isHereditary;
+    private Boolean hereditary;
     private LocalDate dateOfLeaving;
 
     // Audit

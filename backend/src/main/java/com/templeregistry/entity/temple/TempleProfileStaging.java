@@ -26,16 +26,17 @@ import java.time.LocalDateTime;
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class TempleProfileStaging extends BaseEntity {
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    @Builder.Default
+    private TempleProfileStagingStatus status = TempleProfileStagingStatus.DRAFT;
+
+    @Column(name = "version_number", nullable = false)
+    @Builder.Default
+    private Integer versionNumber = 1;
+
     @Column(name = "temple_id", nullable = false)
     private Long templeId;
-
-    /** Business version counter. Increments on each new submission after rejection. Not an optimistic lock. */
-    @Column(name = "version", nullable = false)
-    private int versionNumber;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    private TempleProfileStagingStatus status;
 
     @Column(name = "phone", length = 15)
     private String phone;
@@ -84,18 +85,19 @@ public class TempleProfileStaging extends BaseEntity {
     @Column(name = "historical_significance", columnDefinition = "TEXT")
     private String historicalSignificance;
 
-    @Column(name = "submitted_at")
-    private LocalDateTime submittedAt;
-
-    @Column(name = "submitted_by")
-    private Long submittedBy;
+    @Column(name = "review_comment", columnDefinition = "TEXT")
+    private String reviewComment;
 
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 
+    /**
+     * Compatibility field used by tests/DTO mapping that still reference submittedAt.
+     * Canonical submission timestamp is tracked in workflow_instance.submitted_at.
+     */
+    @Transient
+    private LocalDateTime submittedAt;
+
     @Column(name = "reviewed_by")
     private Long reviewedBy;
-
-    @Column(name = "review_comment", columnDefinition = "TEXT")
-    private String reviewComment;
 }

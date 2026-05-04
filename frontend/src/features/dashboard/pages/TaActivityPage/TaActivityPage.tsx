@@ -1,11 +1,7 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import {
-  useListNotificationsQuery,
-  useMarkReadMutation,
-  useMarkAllReadMutation,
-  type NotificationResponse,
-} from '@/features/notification/notificationApi'
+import { type NotificationResponse } from '@/features/notification/notificationApi'
+import { useTaActivity } from './useTaActivity'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -147,17 +143,11 @@ function ActivitySkeletonItem() {
 export function TaActivityPage() {
   const { page, pageSize, goToPage } = usePagination()
 
-  const { data, isLoading, isError } = useListNotificationsQuery({ page, size: pageSize })
-  const [markRead, { isLoading: isMarking }] = useMarkReadMutation()
-  const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllReadMutation()
-
-  const notifications = data?.data?.content ?? []
-  const totalPages    = data?.data?.totalPages ?? 0
-  const totalElements = data?.data?.totalElements ?? 0
-  const unreadCount   = notifications.filter((n) => !n.read).length
-
-  const handleMarkRead  = (id: number) => markRead(id)
-  const handleMarkAll   = () => markAllRead()
+  const {
+    notifications, totalPages, totalElements, unreadCount,
+    isLoading, isError, isMarking, isMarkingAll,
+    markRead: handleMarkRead, markAllRead: handleMarkAll,
+  } = useTaActivity(page, pageSize)
 
   return (
     <motion.div
