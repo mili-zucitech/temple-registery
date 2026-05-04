@@ -1,6 +1,5 @@
-
 import { Outlet, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from './Sidebar/Sidebar'
 import { TopBar } from './TopBar/TopBar'
 
@@ -33,11 +32,34 @@ export function AppShell() {
   const { pathname } = useLocation()
   const title = PAGE_TITLES[pathname] ?? 'Temple Registry'
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Load collapsed state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebarCollapsed')
+    if (saved !== null) {
+      setSidebarCollapsed(saved === 'true')
+    }
+  }, [])
+
+  // Save collapsed state to localStorage
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const newValue = !prev
+      localStorage.setItem('sidebarCollapsed', String(newValue))
+      return newValue
+    })
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar for desktop/tablet, drawer for mobile */}
-      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      <Sidebar 
+        open={sidebarOpen} 
+        setOpen={setSidebarOpen}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapsed}
+      />
       {/* Overlay for mobile drawer */}
       {sidebarOpen && (
         <div

@@ -110,8 +110,13 @@ export function GovernanceActionPanel({
             <Button
               size="sm"
               onClick={() => { setNotes(''); setVerifyOpen(true) }}
-              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-10 shadow-sm"
+              className="flex-1 h-10 font-semibold text-xs tracking-button shadow-md hover:shadow-lg transition-all hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+                color: 'white'
+              }}
             >
+              <CheckCircle2 size={14} className="mr-1.5" />
               Verify Now
             </Button>
           )}
@@ -119,8 +124,9 @@ export function GovernanceActionPanel({
             size="sm"
             variant="outline"
             onClick={() => { setNotes(''); setFlagOpen(true) }}
-            className="flex-1 border-border font-bold h-10 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/20"
+            className="flex-1 border-red-200 font-semibold h-10 text-xs tracking-button hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-all"
           >
+            <Flag size={14} className="mr-1.5" />
             Flag Issue
           </Button>
         </div>
@@ -149,7 +155,11 @@ export function GovernanceActionPanel({
             <AlertDialogAction 
               onClick={handleVerify} 
               disabled={isSubmitting}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              className="font-semibold shadow-md hover:shadow-lg transition-all hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+                color: 'white'
+              }}
             >
               {isSubmitting ? 'Verifying...' : 'Verify Now'}
             </AlertDialogAction>
