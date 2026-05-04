@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 public class TempleProfileStagingResponse {
 
     private Long id;
+    /** Workflow instance ID — used by frontend WorkflowGovernancePanel */
+    private Long workflowInstanceId;
     private Long templeId;
     private int versionNumber;
 

@@ -286,6 +286,7 @@ export interface DeclarationResponse {
 }
 
 export interface CompleteDeclarationResponse extends DeclarationResponse {
+  workflowInstanceId?: number | null
   acknowledgedAt?: string | null
   clarificationRound?: number | null
   agriculturalLands: AgriLandItemResponse[]

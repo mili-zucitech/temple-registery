@@ -49,7 +49,7 @@ export const declarationApi = createApi({
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     submitDeclaration: builder.mutation<ApiResponse<void>, number>({
-      query: (id) => ({ url: `/declarations/${id}/submit`, method: 'POST' }),
+      query: (id) => ({ url: `/governance/declarations/${id}/submit`, method: 'POST' }),
       invalidatesTags: (_r, _e, id) => [{ type: 'Declaration', id }, 'Declaration'],
     }),
     // DC actions — all routed through governance controller

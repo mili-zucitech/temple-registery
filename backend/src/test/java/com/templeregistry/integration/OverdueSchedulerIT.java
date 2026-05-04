@@ -49,13 +49,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - overdueFlaggedAt is non-null
  * - status is still SUBMITTED (unchanged)
  *
- * Disabled because H2 does not support TINYINT(1) column definitions used in entities.
+ * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
  */
-@Disabled("Requires MySQL-compatible DB — H2 does not support TINYINT(1) column definitions used in entities")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class OverdueSchedulerIT {
+class OverdueSchedulerIT extends MySQLContainerBase {
 
     @Autowired
     private DeclarationService declarationService;

@@ -14,6 +14,8 @@ import java.util.List;
 public class CompleteDeclarationResponse {
     // Basic declaration info
     private Long id;
+    /** Workflow instance ID — used by frontend WorkflowGovernancePanel */
+    private Long workflowInstanceId;
     private Long templeId;
     private String templeName;
     private Long districtId;
@@ -26,7 +28,7 @@ public class CompleteDeclarationResponse {
     private LocalDateTime reviewedAt;
     private LocalDateTime acknowledgedAt;
     private Integer clarificationRound;
-    private Boolean isOverdue;
+    private Boolean overdue;
     private LocalDateTime overdueFlaggedAt;
     private Long reviewedBy;
     private String remarks;

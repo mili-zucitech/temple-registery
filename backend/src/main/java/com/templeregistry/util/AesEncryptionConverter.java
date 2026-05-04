@@ -29,7 +29,7 @@ public class AesEncryptionConverter implements AttributeConverter<String, String
 
     private final byte[] keyBytes;
 
-    public AesEncryptionConverter(@Value("${app.encryption.key:CHANGE_THIS_KEY_IN_PROD_32BYTES!!}") String encryptionKey) {
+    public AesEncryptionConverter(@Value("${app.encryption.key}") String encryptionKey) {
         this.keyBytes = encryptionKey.getBytes();
         if (this.keyBytes.length != 32) {
             throw new IllegalArgumentException("AES encryption key must be exactly 32 bytes (256 bits).");

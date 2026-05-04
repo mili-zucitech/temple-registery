@@ -22,6 +22,18 @@ export const createTrustSchema = z.object({
   annualIncome: z.number().nonnegative().nullable().optional(),
 })
 
+/** Used when editing an existing trust — PAN and bank account are optional (leave blank to keep existing). */
+export const updateTrustSchema = createTrustSchema.extend({
+  panNumber: z.union([
+    z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Invalid PAN format'),
+    z.literal(''),
+  ]),
+  bankAccountNumber: z.union([
+    z.string().regex(/^\d{6,32}$/, 'Bank account must be numeric'),
+    z.literal(''),
+  ]),
+})
+
 export const createBoardMemberSchema = z.object({
   fullName: z.string().min(1, 'Name is required').max(200),
   aadhaarNumber: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits'),
@@ -62,6 +74,7 @@ export const createBoardMeetingSchema = z.object({
 })
 
 export type CreateTrustRequest = z.infer<typeof createTrustSchema>
+export type UpdateTrustRequest = z.infer<typeof updateTrustSchema>
 export type CreateBoardMemberRequest = z.infer<typeof createBoardMemberSchema>
 export type UpdateBoardMemberRequest = z.infer<typeof updateBoardMemberSchema>
 export type SubmitTrustFinancialRequest = z.infer<typeof submitTrustFinancialSchema>
@@ -72,6 +85,7 @@ export type CreateBoardMeetingRequest = z.infer<typeof createBoardMeetingSchema>
 export interface TrustResponse {
   id: number
   templeId: number
+  workflowInstanceId?: number | null
   trustName: string
   trustType: TrustType
   registrationNumber: string
@@ -87,6 +101,9 @@ export interface TrustResponse {
   status?: string
   isVerifiedByDc?: boolean
   dcFlagReason?: string | null
+  submissionStatus?: string | null
+  dcDecisionStatus?: string | null
+  sendBackReason?: string | null
 }
 
 export interface BoardMemberResponse {

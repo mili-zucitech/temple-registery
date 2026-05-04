@@ -32,7 +32,7 @@ public interface TrustMapper {
     @Mapping(target = "dissolutionReason", ignore = true)
     void updateFromRequest(UpdateTrustRequest request, @MappingTarget Trust trust);
 
-    @Mapping(target = "isActive", expression = "java(trust.getStatus() == TrustStatus.ACTIVE)")
+    @Mapping(target = "active", expression = "java(trust.getStatus() == TrustStatus.ACTIVE)")
     @Mapping(target = "dissolvedAt", source = "dissolutionDate")
     TrustResponse toTrustResponse(Trust trust);
 

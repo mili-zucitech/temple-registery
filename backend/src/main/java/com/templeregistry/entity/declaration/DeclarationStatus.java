@@ -23,5 +23,18 @@ public enum DeclarationStatus {
     REJECTED,
     OVERDUE,
     /** Older version superseded when a newer version for the same temple+year reaches APPROVED. */
-    SUPERSEDED
+    SUPERSEDED;
+
+    /**
+     * Resolves a status string, supporting legacy aliases.
+     * "CLARIFICATION_REQUESTED" resolves to CLARIFICATION_REQUIRED.
+     */
+    public static DeclarationStatus fromValue(String value) {
+        if (value == null) return null;
+        String upper = value.toUpperCase();
+        if ("CLARIFICATION_REQUESTED".equals(upper)) {
+            return CLARIFICATION_REQUIRED;
+        }
+        return DeclarationStatus.valueOf(upper);
+    }
 }

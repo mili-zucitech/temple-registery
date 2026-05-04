@@ -238,7 +238,7 @@ export function TaDashboardPage() {
         ? `Status: ${latestDeclaration.status}${latestDeclaration.submittedAt ? ' · ' + fmtDate(latestDeclaration.submittedAt) : ''}`
         : 'Not filed',
       status: latestDeclaration?.status === 'APPROVED' ? 'complete'
-            : (latestDeclaration?.status === 'SUBMITTED' || latestDeclaration?.status === 'CLARIFICATION_REQUESTED') ? 'pending'
+            : (latestDeclaration?.status === 'SUBMITTED' || latestDeclaration?.status === 'CLARIFICATION_REQUIRED') ? 'pending'
             : latestDeclaration?.status === 'REJECTED'  ? 'rejected'
             : 'incomplete',
       to: ROUTE_PATHS.TA_DECLARATIONS,
@@ -262,7 +262,7 @@ export function TaDashboardPage() {
 
   // ── Declaration status counts ──────────────────────────────────────────────
   const approvedCount = declarations.filter(d => d.status === 'APPROVED').length
-  const pendingCount  = declarations.filter(d => d.status === 'SUBMITTED' || d.status === 'CLARIFICATION_REQUESTED').length
+  const pendingCount  = declarations.filter(d => d.status === 'SUBMITTED' || d.status === 'CLARIFICATION_REQUIRED').length
   const rejectedCount = declarations.filter(d => d.status === 'REJECTED').length
   const draftCount    = declarations.filter(d => d.status === 'DRAFT').length
 
@@ -614,7 +614,7 @@ export function TaDashboardPage() {
                 const iconStatus: ChecklistStatus =
                   dec.status === 'APPROVED'  ? 'complete' :
                   dec.status === 'REJECTED'  ? 'rejected' :
-                  (dec.status === 'SUBMITTED' || dec.status === 'CLARIFICATION_REQUESTED') ? 'pending' :
+                  (dec.status === 'SUBMITTED' || dec.status === 'CLARIFICATION_REQUIRED') ? 'pending' :
                   'incomplete'
                 return (
                   <button
@@ -631,7 +631,7 @@ export function TaDashboardPage() {
                     <StatusIcon status={iconStatus} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">Declaration #{String(dec.id).padStart(4, '0')}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(dec.submittedAt)}</p>
+                      <p className="text-xs text-muted-foreground">{fmtDate(dec.submittedAt ?? undefined)}</p>
                     </div>
                     <StatusBadge status={dec.status} />
                     <ChevronRight size={14} className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors flex-shrink-0" />

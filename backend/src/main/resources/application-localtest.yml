@@ -1,0 +1,81 @@
+# =============================================================================
+# application-localtest.yml — Lightweight local smoke-test profile
+#
+# Purpose: Fast startup (target < 45 s) for workflow smoke tests.
+#          Disables all heavy seeders, bulk data, verbose logging, and
+#          background schedulers that are not needed for a quick run.
+#
+# Activate with:  --spring.profiles.active=localtest
+# Or in IDE run config: SPRING_PROFILES_ACTIVE=localtest
+# =============================================================================
+
+spring:
+  # ── Database ────────────────────────────────────────────────────────────────
+  datasource:
+    # Reuse the same TiDB connection; only pool sizing changes.
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 3          # Fewer connections = faster pool init
+      connection-timeout: 10000
+      idle-timeout: 120000
+      max-lifetime: 300000
+      keepalive-time: 60000
+
+  # ── JPA / Hibernate ─────────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: update              # Schema sync only — no full rebuild
+    show-sql: false                 # No SQL noise in console
+    properties:
+      hibernate:
+        format_sql: false
+        # Skip statistics collection — saves ~200 ms per query batch
+        generate_statistics: false
+
+  # ── Flyway ──────────────────────────────────────────────────────────────────
+  flyway:
+    enabled: false                  # ddl-auto:update handles schema; skip 60-migration replay
+
+  # ── Mail ────────────────────────────────────────────────────────────────────
+  mail:
+    host: localhost
+    port: 25
+    properties:
+      mail:
+        smtp:
+          connectiontimeout: 500
+          timeout: 500
+          writetimeout: 500
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.templeregistry: INFO
+    org.springframework: WARN
+    org.springframework.security: WARN
+    org.springframework.boot: WARN
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.flywaydb: WARN
+    com.zaxxer.hikari: WARN
+
+# ── Application feature flags ─────────────────────────────────────────────────
+app:
+  seed:
+    enabled: false                  # Disables all heavy seed loaders (see @Profile / flag guards)
+  notification:
+    email-enabled: false            # No real email dispatch during smoke tests
+  scheduling:
+    enabled: false                  # Disables @Scheduled background jobs (see ConditionalOnProperty)
+
+# ── Actuator (optional — useful for startup timing) ───────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,startup
+  endpoint:
+    startup:
+      enabled: true

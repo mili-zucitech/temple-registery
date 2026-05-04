@@ -20,15 +20,12 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
 
   flyway:
-    enabled: false   # Flyway disabled — ddl-auto: update manages schema
-    validate-on-migrate: false
+    enabled: true
+    validate-on-migrate: true
     repair-on-migrate: true
 
   security:
@@ -49,19 +46,20 @@ app:
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
   encryption:
-    key: "TempleRegistryDevelopmentKey2024"
+    key: ${APP_ENCRYPTION_KEY}
   hmac:
-    key: "TempleRegistryHmacKey2024!!CHANGE"
+    key: ${APP_HMAC_KEY}
   storage:
     base-dir: ./uploads
-  base-url: http://localhost:5173
+  base-url: ${APP_BASE_URL}
   notification:
     email-enabled: true
 
 spring.mail:
+  enabled: ${SPRING_MAIL_ENABLED:false}
   host: smtp.gmail.com
   port: 587
-  username: ${EMAIL_USERNAME:noreply@templeregistry.gov.in}
+  username: ${EMAIL_USERNAME}
   password: ${EMAIL_PASSWORD:}
   properties:
     mail:
@@ -76,6 +74,17 @@ spring.mail:
 
 logging:
   level:
+    root: DEBUG
     com.templeregistry: DEBUG
-    org.springframework.security: INFO
+    org.springframework: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.boot: DEBUG
+    org.hibernate: DEBUG
     org.hibernate.SQL: DEBUG
+
+debug: true
+
+management:
+  health:
+    mail:
+      enabled: ${SPRING_MAIL_ENABLED:false}

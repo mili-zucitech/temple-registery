@@ -61,17 +61,20 @@ import com.templeregistry.service.declaration.DeclarationService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.util.AcknowledgementNumberGenerator;
 import com.templeregistry.util.PaginationUtil;
-import com.templeregistry.util.StatusTransitionValidator;
 import com.templeregistry.service.declaration.SnapshotService;
 import com.templeregistry.service.audit.DeclarationAuditLogService;
 import com.templeregistry.service.audit.AuditActionType;
-import com.templeregistry.service.declaration.StateTransitionValidator;
+import com.templeregistry.service.workflow.ActionContext;
+import com.templeregistry.service.workflow.WorkflowActionRequest;
+import com.templeregistry.service.workflow.WorkflowEngine;
+import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowAction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -86,6 +89,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -103,7 +107,6 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final TempleRepository templeRepository;
     private final OwnershipGuard ownershipGuard;
     private final JurisdictionGuard jurisdictionGuard;
-    private final StatusTransitionValidator transitionValidator;
     private final AcknowledgementNumberGenerator ackGenerator;
     private final NotificationEventPublisher notificationPublisher;
     private final PaginationUtil paginationUtil;
@@ -125,8 +128,9 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final GovernanceEditGuard governanceEditGuard;
     private final SnapshotService snapshotService;
     private final DeclarationAuditLogService declarationAuditLogService;
-    private final StateTransitionValidator stateTransitionValidator;
     private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
+    private final WorkflowEngineAdaptor workflowEngineAdaptor;
+    private final WorkflowEngine workflowEngine;
 
     @Override
     @Transactional(readOnly = true)
@@ -217,6 +221,11 @@ public class DeclarationServiceImpl implements DeclarationService {
         applySummaryFields(saved, request);
         saved = declarationRepository.save(saved);
 
+        // ── Workflow Engine: initiate governance instance on creation ──────────
+        workflowEngineAdaptor.ensureInitiated(
+            WorkflowEntityType.DECLARATION, saved.getId(),
+            templeId, temple.getDistrictId(), currentUserId());
+
         auditService.logDataEvent(currentUserId(), currentRole(), "CREATE", "AssetDeclaration", saved.getId(),
                 "Created asset declaration draft");
         governanceAuditService.logAction(saved.getId(), "DECLARATION", currentUserId(), "CREATE_DRAFT",
@@ -262,28 +271,11 @@ public class DeclarationServiceImpl implements DeclarationService {
     @Transactional
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public void submit(Long id) {
-        AssetDeclaration declaration = findOrThrow(id);
-        ownershipGuard.assertOwnsTemple(declaration.getTempleId());
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.SUBMITTED);
-
-        declaration.setStatus(DeclarationStatus.SUBMITTED);
-        declaration.setSubmittedAt(LocalDateTime.now());
-        declaration.setSubmittedBy(currentUserId());
-        declaration.setOverdue(false);
-        declaration.setOverdueFlaggedAt(null);
-        declarationRepository.save(declaration);
-
-        snapshotService.capture(declaration, currentUserId());
-
-        // Send notification to all DCs in this district
-        notificationHelper.notifyDeclarationSubmitted(declaration.getId(), declaration.getTempleId(), declaration.getFinancialYear(), currentUserId());
-
-        notifyDistrictReviewers(declaration, "DECLARATION_SUBMITTED");
-        declarationAuditLogService.log(declaration.getId(), AuditActionType.SUBMIT, currentUserId(), currentRole(), null);
-        auditService.logDataEvent(currentUserId(), currentRole(), "SUBMIT", "AssetDeclaration", declaration.getId(),
-                "Submitted declaration for review");
-        governanceAuditService.logAction(declaration.getId(), "DECLARATION", currentUserId(), "SUBMIT",
-                "Submitted declaration version " + declaration.getVersionNumber() + " for review");
+        // Canonical path: GovernanceWorkflowServiceImpl.submitDeclaration() is the single source of truth.
+        // This method is kept for interface compatibility but throws to prevent dual-path mutation.
+        throw new UnsupportedOperationException(
+            "Use POST /api/v1/governance/declarations/{id}/submit. " +
+            "DeclarationServiceImpl.submit() is removed to prevent dual-path workflow mutation.");
     }
 
     @Override
@@ -293,13 +285,28 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration declaration = findOrThrow(id);
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
 
-        stateTransitionValidator.validate(declaration.getStatus(), DeclarationStatus.CLARIFICATION_RESPONDED);
-
         clarificationRepository.save(DeclarationClarification.builder()
                 .declarationId(id)
                 .direction(ClarificationDirection.TEMPLE_TO_DC)
                 .message(request.getMessage())
                 .authorId(actorId)
+                .build());
+
+        Long workflowInstanceId = workflowEngineAdaptor.findState(WorkflowEntityType.DECLARATION, id)
+            .map(wi -> wi.getId())
+            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance for DECLARATION", id));
+
+        workflowEngine.execute(
+            workflowInstanceId,
+            WorkflowActionRequest.builder()
+                .action(WorkflowAction.RESPOND_CLARIFICATION)
+                .comment(request.getMessage())
+                .idempotencyKey(UUID.randomUUID().toString())
+                .build(),
+            ActionContext.builder()
+                .actorId(actorId)
+                .actorRole("TA")
+                .ownedTempleIds(Set.of(declaration.getTempleId()))
                 .build());
 
         declaration.setStatus(DeclarationStatus.CLARIFICATION_RESPONDED);
@@ -318,72 +325,32 @@ public class DeclarationServiceImpl implements DeclarationService {
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public void approve(Long id) {
-        AssetDeclaration declaration = findOrThrow(id);
-        jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.APPROVED.name());
-        declaration.setStatus(DeclarationStatus.APPROVED);
-        declaration.setReviewedAt(LocalDateTime.now());
-        declaration.setReviewedBy(currentUserId());
-        declaration.setAcknowledgementNumber(ackGenerator.generate());
-        declarationRepository.save(declaration);
+        throw new UnsupportedOperationException(
+            "Use POST /api/v1/governance/declarations/{id}/approve instead.");
     }
 
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public void reject(Long id, ClarificationRequest reason) {
-        AssetDeclaration declaration = findOrThrow(id);
-        jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.REJECTED.name());
-        declaration.setStatus(DeclarationStatus.REJECTED);
-        declaration.setReviewedAt(LocalDateTime.now());
-        declaration.setReviewedBy(currentUserId());
-        declaration.setReviewComment(reason.getMessage());
-        declarationRepository.save(declaration);
-        clarificationRepository.save(DeclarationClarification.builder()
-                .declarationId(id)
-                .direction(ClarificationDirection.DC_TO_TEMPLE)
-                .message(reason.getMessage())
-                .authorId(currentUserId())
-                .build());
+        throw new UnsupportedOperationException(
+            "Use POST /api/v1/governance/declarations/{id}/reject instead.");
     }
 
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public void requestClarification(Long id, ClarificationRequest request) {
-        AssetDeclaration declaration = findOrThrow(id);
-        jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.CLARIFICATION_REQUIRED.name());
-        declaration.setStatus(DeclarationStatus.CLARIFICATION_REQUIRED);
-        declaration.setClarificationRound(declaration.getClarificationRound() + 1);
-        declaration.setReviewComment(request.getMessage());
-        declarationRepository.save(declaration);
-        clarificationRepository.save(DeclarationClarification.builder()
-                .declarationId(id)
-                .direction(ClarificationDirection.DC_TO_TEMPLE)
-                .message(request.getMessage())
-                .authorId(currentUserId())
-                .build());
+        throw new UnsupportedOperationException(
+            "Use POST /api/v1/governance/declarations/{id}/clarify instead.");
     }
 
     @Override
     @Transactional
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     public void flagPhysicalVerification(Long id, FlagPhysicalVerificationRequest request) {
-        AssetDeclaration declaration = findOrThrow(id);
-        jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
-        transitionValidator.validateDeclarationTransition(declaration.getStatus().name(), DeclarationStatus.SITE_VISIT_SCHEDULED.name());
-        declaration.setStatus(DeclarationStatus.SITE_VISIT_SCHEDULED);
-        declaration.setReviewComment(request.getNotes());
-        declarationRepository.save(declaration);
-        clarificationRepository.save(DeclarationClarification.builder()
-                .declarationId(id)
-                .direction(ClarificationDirection.DC_TO_TEMPLE)
-                .message(request.getNotes())
-                .sectionName("PHYSICAL_VERIFICATION")
-                .authorId(currentUserId())
-                .build());
+        throw new UnsupportedOperationException(
+            "Use POST /api/v1/governance/declarations/{id}/flag-physical instead.");
     }
 
     @Override
@@ -445,6 +412,11 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .authorId(currentUserId())
                 .build());
 
+        // ── Workflow Engine: initiate governance instance for the new resubmitted version ──
+        workflowEngineAdaptor.ensureInitiated(
+            WorkflowEntityType.DECLARATION, saved.getId(),
+            saved.getTempleId(), saved.getDistrictId(), currentUserId());
+
         notifyDistrictReviewers(saved, "DECLARATION_RESUBMITTED");
         auditService.logDataEvent(currentUserId(), currentRole(), "RESUBMIT", "AssetDeclaration", saved.getId(),
                 "Resubmitted declaration as a new version");
@@ -472,6 +444,21 @@ public class DeclarationServiceImpl implements DeclarationService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
+    public org.springframework.core.io.Resource downloadAcknowledgement(Long id) {
+        AssetDeclaration declaration = findOrThrow(id);
+        assertAccess(declaration);
+        if (declaration.getStatus() != DeclarationStatus.APPROVED) {
+            throw new IllegalStateException("Acknowledgement is only available for APPROVED declarations.");
+        }
+        if (declaration.getAcknowledgementDocFilePath() == null || declaration.getAcknowledgementDocFilePath().isBlank()) {
+            throw new IllegalStateException("Acknowledgement document is not available for declaration id=" + id);
+        }
+        return fileStorageService.loadAsResource(declaration.getAcknowledgementDocFilePath());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
     public List<DeclarationDiffResponse> getDiff(Long id, Integer compareToVersion) {
         AssetDeclaration current = findOrThrow(id);
         assertAccess(current);
@@ -479,8 +466,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         AssetDeclaration baseline = null;
         if (compareToVersion != null) {
             baseline = declarationRepository.findByTempleIdAndFinancialYearAndVersionNumber(
-                            current.getTempleId(), current.getFinancialYear(), compareToVersion)
-                    .orElseThrow(() -> new EntityNotFoundException("AssetDeclaration version", compareToVersion.longValue()));
+                    current.getTempleId(), current.getFinancialYear(), compareToVersion).orElse(null);
         } else {
             baseline = declarationRepository.findAllByTempleIdAndFinancialYearOrderByVersionNumberDesc(
                             current.getTempleId(), current.getFinancialYear())
@@ -550,8 +536,6 @@ public class DeclarationServiceImpl implements DeclarationService {
     public void forceDraft(Long id) {
         AssetDeclaration declaration = findOrThrow(id);
         declaration.setStatus(DeclarationStatus.DRAFT);
-        declaration.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.DRAFT);
-        declaration.setDcDecisionStatus(com.templeregistry.entity.governance.DcDecisionStatus.PENDING_DC_APPROVAL);
         declarationRepository.save(declaration);
     }
 
@@ -586,7 +570,6 @@ public class DeclarationServiceImpl implements DeclarationService {
     }
 
     @Override
-    @Scheduled(cron = "0 5 0 1 4 *")
     @Transactional
     public void flagOverdue() {
         LocalDate today = LocalDate.now();
@@ -698,6 +681,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         String templeName = templeRepository.findById(declaration.getTempleId()).map(Temple::getName).orElse(null);
         return CompleteDeclarationResponse.builder()
                 .id(declaration.getId())
+                .workflowInstanceId(workflowEngineAdaptor.getWorkflowInstanceId(
+                    WorkflowEntityType.DECLARATION, declaration.getId()))
                 .templeId(declaration.getTempleId())
                 .templeName(templeName)
                 .districtId(declaration.getDistrictId())
@@ -711,7 +696,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .reviewedBy(declaration.getReviewedBy())
                 .acknowledgedAt(declaration.getAcknowledgedAt())
                 .clarificationRound(declaration.getClarificationRound())
-                .isOverdue(declaration.isOverdue())
+                .overdue(declaration.isOverdue())
                 .overdueFlaggedAt(declaration.getOverdueFlaggedAt())
                 .remarks(declaration.getReviewComment())
                 .annualIncome(declaration.getAnnualIncome())
@@ -760,6 +745,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 : templeRepository.findById(declaration.getTempleId()).map(Temple::getName).orElse(null);
         return DeclarationResponse.builder()
                 .id(declaration.getId())
+                .workflowInstanceId(workflowEngineAdaptor.getWorkflowInstanceId(
+                    WorkflowEntityType.DECLARATION, declaration.getId()))
                 .templeId(declaration.getTempleId())
                 .templeName(templeName)
                 .districtId(declaration.getDistrictId())

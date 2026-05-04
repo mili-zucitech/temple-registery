@@ -17,5 +17,5 @@ public class CreateEmployeeRequest {
     @Size(max = 50) private String salaryGrade;
     @Size(max = 15) private String mobile;
     private String address;
-    private boolean isHereditary;
+    private boolean hereditary;
 }
