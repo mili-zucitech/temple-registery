@@ -182,4 +182,50 @@ public class ExportServiceImpl implements ExportService {
         Object p = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return (ScopeHelper.Claims) p;
     }
+
+    // ─── Evidence Pack ────────────────────────────────────────────────────────
+
+    @Override
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','DISTRICT_COLLECTOR','DC_STAFF','AUDITOR')")
+    @Transactional(readOnly = true)
+    public byte[] generateEvidencePack(Long templeId, Long actorId) {
+        Temple temple = templeRepository.findById(templeId)
+                .orElseThrow(() -> new com.templeregistry.exception.EntityNotFoundException("Temple", templeId));
+
+        try (ByteArrayOutputStream zipBaos = new ByteArrayOutputStream();
+             java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(zipBaos)) {
+
+            // Temple profile summary
+            addJsonEntry(zip, "temple_profile.json", toJson(temple));
+
+            // Declarations (non-draft, last 100)
+            List<AssetDeclaration> declarations = declarationRepository.findAllByTempleId(
+                    templeId, PageRequest.of(0, 100)).getContent();
+            addJsonEntry(zip, "declarations.json", toJson(declarations));
+
+            zip.finish();
+            auditService.logDataEvent(actorId, "N/A", "GENERATE_EVIDENCE_PACK",
+                    "TEMPLE", templeId, "templeId=" + templeId);
+            log.info("Evidence pack generated for templeId={} by actorId={}", templeId, actorId);
+            return zipBaos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to generate evidence pack for templeId=" + templeId, e);
+        }
+    }
+
+    private void addJsonEntry(java.util.zip.ZipOutputStream zip, String name, String json) throws IOException {
+        zip.putNextEntry(new java.util.zip.ZipEntry(name));
+        zip.write(json.getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper()
+                    .findAndRegisterModules()
+                    .writeValueAsString(obj);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return "{}";
+        }
+    }
 }

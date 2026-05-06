@@ -19,6 +19,7 @@ import { USER_ROLES } from '@/constants/roles'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
+import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -95,6 +96,9 @@ export function DcDeclarationDetailPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER) && (
+        <ReadOnlyBanner message="You are viewing this declaration in read-only mode. Approval, rejection, and clarification actions are not available." />
+      )}
       <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/8 via-card to-secondary/10 shadow-soft-xl">
         <CardContent className="space-y-5 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

@@ -325,21 +325,17 @@ SELECT
         'Sub-Registrar, Dharwad', 'Sub-Registrar, Kalaburagi')
                                                         AS registering_authority,
     DATE_SUB(CURDATE(), INTERVAL (t.id % 22 + 1) YEAR)  AS date_of_registration,
-    CONCAT('AABCT', LPAD(t.id % 10000, 4, '0'), 'Z', (1 + t.id % 9))
-                                                        AS trust_pan_number,
-    CONCAT(
-        ELT(1 + (t.id % 5),
-            'State Bank of India', 'Canara Bank', 'Karnataka Bank',
-            'Union Bank of India', 'Bank of Baroda'),
-        ', ',
-        ELT(1 + (t.id % 5),
-            'Main Branch Mysuru', 'Bengaluru City Branch', 'Dharwad Branch',
-            'Kalaburagi Branch', 'Hubballi Branch')
-    )                                                   AS bank_name_and_branch,
+    'PENDING'                                           AS trust_pan_number,
+    CONCAT(ELT(1 + (t.id % 5),
+        'State Bank of India', 'Canara Bank', 'Karnataka Bank',
+        'Union Bank of India', 'Bank of Baroda'),
+        ' - ', ELT(1 + (t.id % 5),
+        'Main Branch Mysuru', 'Bengaluru City Branch', 'Dharwad Branch',
+        'Kalaburagi Branch', 'Hubballi Branch'))        AS bank_name_and_branch,
     ROUND((t.id % 200 + 50) * 10000, 2)                AS annual_income,
     0, @ts, @ts, @sys, @sys
 FROM temples t
-WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND t.trust_registered = 1
   AND t.is_deleted = 0
   AND NOT EXISTS (
@@ -350,8 +346,8 @@ WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
 -- SECTION 4: BOARD MEMBERS FOR NEW TRUSTS (3 per trust: Chair + Treasurer + Member)
 -- =============================================================================
 INSERT INTO board_members (
-    trust_id, full_name, designation,
-    appointment_date, tenure_end_date, contact_number,
+    trust_id, name, designation,
+    date_of_joining, cessation_date, phone,
     is_current, is_deleted, created_at, updated_at, created_by, updated_by
 )
 -- Chairperson
@@ -361,16 +357,16 @@ SELECT
         'Rama Rao', 'Gopala Krishnaswamy', 'Venkatesh Iyengar', 'Narasimha Murthy',
         'Srinivasa Acharya', 'Lakshmipathi Rao', 'Rangaswamy Gowda', 'Anantha Raju',
         'Subbanna Naidu', 'Krishnaraj Wodeyar', 'Parameshwara Bhat', 'Shivaswamy')
-                                                               AS full_name,
+                                                               AS name,
     'Chairperson',
-    DATE_SUB(CURDATE(), INTERVAL (tr.id % 6 + 1) YEAR)         AS appointment_date,
-    DATE_ADD(CURDATE(), INTERVAL (6 - tr.id % 6) YEAR)         AS tenure_end_date,
-    CONCAT('97', LPAD((tr.id * 11 + 1000000) % 100000000, 8, '0')) AS contact_number,
+    DATE_SUB(CURDATE(), INTERVAL (tr.id % 6 + 1) YEAR)         AS date_of_joining,
+    DATE_ADD(CURDATE(), INTERVAL (6 - tr.id % 6) YEAR)         AS cessation_date,
+    CONCAT('97', LPAD((tr.id * 11 + 1000000) % 100000000, 8, '0')) AS phone,
     1, 0, @ts, @ts, @sys, @sys
 FROM trusts tr
 WHERE tr.temple_id IN (
     SELECT t.id FROM temples t
-    WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+    WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
 )
 AND tr.is_deleted = 0
 
@@ -391,7 +387,7 @@ SELECT
 FROM trusts tr
 WHERE tr.temple_id IN (
     SELECT t.id FROM temples t
-    WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+    WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
 )
 AND tr.is_deleted = 0
 
@@ -411,7 +407,7 @@ SELECT
 FROM trusts tr
 WHERE tr.temple_id IN (
     SELECT t.id FROM temples t
-    WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+    WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
 )
 AND tr.is_deleted = 0;
 
@@ -441,7 +437,7 @@ SELECT
 FROM trusts tr
 WHERE tr.temple_id IN (
     SELECT t.id FROM temples t
-    WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+    WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
 )
 AND tr.is_deleted = 0;
 
@@ -517,7 +513,7 @@ SELECT
     IF(t.asset_declaration_status = 'CLARIFICATION_REQUESTED', 1, 0),
     0, 0, @ts, @ts, @sys, @sys
 FROM temples t
-WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND t.is_deleted = 0;
 
 -- =============================================================================
@@ -534,7 +530,7 @@ SELECT
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
 WHERE ad.status = 'APPROVED'
-  AND t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+  AND COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND ad.agricultural_land_acres > 0;
 
 -- Precious metals
@@ -548,7 +544,7 @@ SELECT
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
 WHERE ad.status = 'APPROVED'
-  AND t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+  AND COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND ad.gold_grams > 0;
 
 -- Silver metals
@@ -562,7 +558,7 @@ SELECT
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
 WHERE ad.status = 'APPROVED'
-  AND t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+  AND COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND ad.silver_grams > 0;
 
 -- Vehicles
@@ -576,7 +572,7 @@ SELECT
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
 WHERE ad.status = 'APPROVED'
-  AND t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+  AND COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND ad.vehicles_count > 0;
 
 -- Equipment
@@ -592,7 +588,7 @@ SELECT
 FROM asset_declarations ad
 JOIN temples t ON t.id = ad.temple_id
 WHERE ad.status IN ('APPROVED', 'PENDING_REVIEW')
-  AND t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020';
+  AND COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020';
 
 -- =============================================================================
 -- SECTION 8: COMPREHENSIVE EMPLOYEE COVERAGE — ALL TEMPLES
@@ -663,7 +659,6 @@ SELECT
         'Siddappa Nayak', 'Ramappa Wali'),
     'ADMINISTRATIVE',
     ELT(1 + (t.id % 3), 'Executive Officer', 'Accounts Officer', 'Office Manager'),
-    DATE_SUB(CURDATE(), INTERVAL (t.id % 10 + 1) YEAR),
     CONCAT('99', LPAD((t.id * 9 + 5000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -677,8 +672,7 @@ WHERE t.is_deleted = 0
 -- ── SECURITY for every temple ─────────────────────────────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    joining_date, mobile,
-    status, is_deleted, created_at, updated_at, created_by, updated_by
+    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -687,7 +681,6 @@ SELECT
         'Nanjappa', 'Muniraju', 'Siddappa', 'Ramaiah', 'Lokaiah'),
     'SECURITY',
     'Security Guard',
-    DATE_SUB(CURDATE(), INTERVAL (t.id % 7 + 1) YEAR),
     CONCAT('88', LPAD((t.id * 7 + 6000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -701,8 +694,7 @@ WHERE t.is_deleted = 0
 -- ── MAINTENANCE (all temples) ─────────────────────────────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    joining_date, mobile,
-    status, is_deleted, created_at, updated_at, created_by, updated_by
+    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -711,7 +703,6 @@ SELECT
         'Venkatesh', 'Nagaraju', 'Hanumaiah'),
     'MAINTENANCE',
     ELT(1 + (t.id % 3), 'Gardener', 'Cleaner', 'Maintenance Worker'),
-    DATE_SUB(CURDATE(), INTERVAL (t.id % 5 + 1) YEAR),
     CONCAT('87', LPAD((t.id * 19 + 7000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -725,8 +716,7 @@ WHERE t.is_deleted = 0
 -- ── SECOND SECURITY GUARD for Grade A temples ─────────────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    joining_date, mobile,
-    status, is_deleted, created_at, updated_at, created_by, updated_by
+    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -735,7 +725,6 @@ SELECT
         'Maraiah', 'Karibasappa', 'Hanumanthappa'),
     'SECURITY',
     'Night Security Guard',
-    DATE_SUB(CURDATE(), INTERVAL (t.id % 3 + 1) YEAR),
     CONCAT('86', LPAD((t.id * 23 + 8000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -794,7 +783,7 @@ INSERT INTO documents (
 )
 SELECT
     'TEMPLE', t.id,
-    CONCAT('registration_cert_', IFNULL(t.registration_number, CAST(t.id AS CHAR)), '.pdf'),
+    CONCAT('registration_cert_', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '.pdf'),
     CONCAT('temples/', t.id, '/docs/registration_cert.pdf'),
     'application/pdf',
     ROUND(45000 + (t.id % 100) * 800),
@@ -816,7 +805,7 @@ INSERT INTO documents (
 )
 SELECT
     'TEMPLE', t.id,
-    CONCAT('land_document_', IFNULL(t.registration_number, CAST(t.id AS CHAR)), '.pdf'),
+    CONCAT('land_document_', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '.pdf'),
     CONCAT('temples/', t.id, '/docs/land_document.pdf'),
     'application/pdf',
     ROUND(80000 + (t.id % 50) * 2000),
@@ -838,7 +827,7 @@ INSERT INTO documents (
 )
 SELECT
     'TEMPLE', t.id,
-    CONCAT('trust_deed_', IFNULL(t.registration_number, CAST(t.id AS CHAR)), '.pdf'),
+    CONCAT('trust_deed_', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '.pdf'),
     CONCAT('temples/', t.id, '/docs/trust_deed.pdf'),
     'application/pdf',
     ROUND(60000 + (t.id % 70) * 1500),
@@ -860,7 +849,7 @@ INSERT INTO documents (
 )
 SELECT
     'TEMPLE', t.id,
-    CONCAT('audit_report_2024_25_', IFNULL(t.registration_number, CAST(t.id AS CHAR)), '.pdf'),
+    CONCAT('audit_report_2024_25_', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '.pdf'),
     CONCAT('temples/', t.id, '/docs/audit_report_2024_25.pdf'),
     'application/pdf',
     ROUND(120000 + (t.id % 80) * 3000),
@@ -883,7 +872,7 @@ INSERT INTO documents (
 )
 SELECT
     'TEMPLE', t.id,
-    CONCAT('contractor_agreement_', IFNULL(t.registration_number, CAST(t.id AS CHAR)), '.pdf'),
+    CONCAT('contractor_agreement_', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '.pdf'),
     CONCAT('temples/', t.id, '/docs/contractor_agreement.pdf'),
     'application/pdf',
     ROUND(35000 + (t.id % 40) * 1000),
@@ -912,7 +901,7 @@ SELECT
     'CREATE',
     'TEMPLE',
     t.id,
-    CONCAT('{"action":"CREATE","registrationNumber":"', t.registration_number,
+    CONCAT('{"action":"CREATE","registrationNumber":"', COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))),
            '","name":"', REPLACE(t.name, '"', '\\"'),
            '","districtId":', t.district_id, '}'),
     t.created_at
@@ -987,7 +976,7 @@ SELECT
     'TEMPLE',
     t.id,
     CONCAT('{"action":"SUSPEND","reason":"Pending compliance review","registrationNumber":"',
-           t.registration_number, '"}'),
+           COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))), '"}'),
     DATE_SUB(@ts, INTERVAL 30 DAY)
 FROM temples t
 WHERE t.status = 'SUSPENDED' AND t.is_deleted = 0
@@ -1011,7 +1000,7 @@ INSERT IGNORE INTO temple_search_summary (
 SELECT
     t.id,
     t.name,
-    t.registration_number,
+    COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))),
     t.grade,
     t.primary_deity,
     t.tradition,
@@ -1044,7 +1033,7 @@ SELECT
     t.updated_at
 FROM temples t
 JOIN districts d ON d.id = t.district_id
-WHERE t.registration_number BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
+WHERE COALESCE(t.registration_number, CONCAT('TMP-KA-', LPAD(t.id, 6, '0'))) BETWEEN 'TMP-KA-000761' AND 'TMP-KA-001020'
   AND t.is_deleted = 0;
 
 -- ── Backfill lat/lng in search summary for all temples ────────────────────────

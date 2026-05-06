@@ -88,27 +88,30 @@ class NotificationBugConditionExplorationTest {
     @Test
     void test1_4_notifyDcOfSubmissionDoesNotUseHardcoded0L() {
         Class<?> clazz = GovernanceWorkflowServiceImpl.class;
-        boolean hasRecipientResolver = Arrays.stream(clazz.getDeclaredFields())
-                .anyMatch(f -> f.getType().equals(com.templeregistry.service.notification.NotificationRecipientResolver.class));
-        assertThat(hasRecipientResolver)
-                .as("FIX 1.4: GovernanceWorkflowServiceImpl must inject NotificationRecipientResolver " +
-                    "to resolve actual DC user IDs instead of hardcoded 0L.")
+        // Since Phase 3, GovernanceWorkflowServiceImpl uses event-driven notification via NotificationEventPublisher
+        // (not NotificationHelper directly). Verify the publisher is present.
+        boolean hasNotificationPublisher = Arrays.stream(clazz.getDeclaredFields())
+                .anyMatch(f -> f.getType().equals(com.templeregistry.service.dc.NotificationEventPublisher.class));
+        assertThat(hasNotificationPublisher)
+                .as("FIX 1.4: GovernanceWorkflowServiceImpl must inject NotificationEventPublisher " +
+                    "for event-driven notification (replaces legacy NotificationHelper).")
                 .isTrue();
     }
 
     /**
      * Test 1.5 - Validates: Requirements 1.5
      * GovernanceWorkflowServiceImpl.notifyTaOfDecision() must use NotificationRecipientResolver (not 0L).
-     * After fix: GovernanceWorkflowServiceImpl has notificationHelper AND recipientResolver injected.
+     * After fix: GovernanceWorkflowServiceImpl has notificationPublisher injected.
      */
     @Test
     void test1_5_notifyTaOfDecisionDoesNotUseHardcoded0L() {
         Class<?> clazz = GovernanceWorkflowServiceImpl.class;
-        boolean hasRecipientResolver = Arrays.stream(clazz.getDeclaredFields())
-                .anyMatch(f -> f.getType().equals(com.templeregistry.service.notification.NotificationRecipientResolver.class));
-        assertThat(hasRecipientResolver)
-                .as("FIX 1.5: GovernanceWorkflowServiceImpl must inject NotificationRecipientResolver " +
-                    "to resolve actual TA user IDs instead of hardcoded 0L.")
+        // Since Phase 3, GovernanceWorkflowServiceImpl uses event-driven notification
+        boolean hasNotificationPublisher = Arrays.stream(clazz.getDeclaredFields())
+                .anyMatch(f -> f.getType().equals(com.templeregistry.service.dc.NotificationEventPublisher.class));
+        assertThat(hasNotificationPublisher)
+                .as("FIX 1.5: GovernanceWorkflowServiceImpl must inject NotificationEventPublisher " +
+                    "for event-driven notification (replaces legacy NotificationHelper).")
                 .isTrue();
     }
 

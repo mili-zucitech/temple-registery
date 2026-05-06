@@ -32,7 +32,7 @@ import java.time.LocalDateTime;
 @RequestMapping("/api/v1/dc/export")
 @RequiredArgsConstructor
 @Tag(name = "DC Export", description = "District-scoped export of temples and declarations")
-@PreAuthorize(RoleConstants.IS_DC_ROLE)
+@PreAuthorize(RoleConstants.CAN_READ_ALL)
 public class DcExportController {
 
     private final DcExportService dcExportService;

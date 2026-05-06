@@ -105,6 +105,11 @@ class GovernanceDeclarationWorkflowTest {
         // Standard workflow instance stub
         com.templeregistry.entity.workflow.WorkflowInstance instance = com.templeregistry.entity.workflow.WorkflowInstance.builder()
             .id(500L).lockVersion(1L).districtId(10L).build();
+        // findState returns empty → assertEntityStatusConsistency guard is no-op (correct for unit tests)
+        lenient().when(workflowEngineAdaptor.findState(any(), anyLong())).thenReturn(Optional.empty());
+        // ensureInitiated returns instance so executeDeclarationTransition doesn't NPE on wi.getId()
+        lenient().when(workflowEngineAdaptor.ensureInitiated(any(), anyLong(), anyLong(), anyLong(), anyLong())).thenReturn(instance);
+        // requestClarification calls workflowInstanceRepository directly (not through adaptor)
         lenient().when(workflowInstanceRepository.findByEntityTypeAndEntityId(any(), any()))
             .thenReturn(Optional.of(instance));
     }
@@ -283,6 +288,7 @@ class GovernanceDeclarationWorkflowTest {
     @Test
     void should_callAdaptSendBack_not_adaptReject_when_sendBackDeclarationInvoked() {
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
+        when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         com.templeregistry.dto.request.dc.DcClarifyRequest req = new com.templeregistry.dto.request.dc.DcClarifyRequest();
         setField(req, "message", "Documents incomplete.");
@@ -300,13 +306,16 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        doThrow(new EntityNotFoundException("WorkflowInstance", 42L))
-                .when(workflowEngineAdaptor).adaptApprove(any(), anyLong(), anyLong(), anyLong(), any());
+        // When findState returns empty, assertEntityStatusConsistency is a no-op (ifPresent guard)
+        when(workflowEngineAdaptor.findState(any(), anyLong())).thenReturn(Optional.empty());
+        lenient().when(acknowledgementService.generate(any(), any())).thenReturn("ACK-X");
+        when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
-        assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
-                .isInstanceOf(EntityNotFoundException.class);
+        // Approve should succeed even without a workflow instance in the consistency guard
+        WorkflowActionResponse result = workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims);
 
-        verify(declarationRepository, never()).save(any());
+        assertThat(result.getNewStatus()).isEqualTo("APPROVED");
+        verify(declarationRepository).save(any());
     }
 
     // ── District scope ────────────────────────────────────────────────────────

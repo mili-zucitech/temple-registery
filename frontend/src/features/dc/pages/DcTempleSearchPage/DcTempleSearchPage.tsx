@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -28,6 +29,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
 import { useAppSelector } from '@/app/store'
+import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
 import { useDcTempleSearch, useDcDashboard } from '@/features/dc/dcHooks'
 import { useExportTemplesMutation } from '@/features/dc/dcApi'
 import { useGeoHierarchy } from '@/features/geo/geoHooks'
@@ -89,15 +91,31 @@ export function DcTempleSearchPage() {
   } = useDcTempleSearch()
 
   const [exportTemples, { isLoading: exporting }] = useExportTemplesMutation()
-  const handleExport = () => exportTemples({
-    body: {
-      format: 'CSV',
-      districtId: filters.districtId,
-      grade: filters.grade?.join(','),
-      tradition: filters.tradition,
-      trustRegistered: filters.trustRegistered,
-    },
-  })
+  const handleExport = async () => {
+    try {
+      const result = await exportTemples({
+        body: {
+          format: 'CSV',
+          districtId: filters.districtId,
+          grade: filters.grade?.join(','),
+          tradition: filters.tradition,
+          trustRegistered: filters.trustRegistered,
+        },
+      }).unwrap()
+      if (result.data?.status === 'SYNC_COMPLETE' && result.data?.downloadUrl) {
+        const a = document.createElement('a')
+        a.href = result.data.downloadUrl
+        a.download = 'temples-export.csv'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } else if (result.data?.status === 'ASYNC_ACCEPTED') {
+        toast.success('Export is being prepared. You will be notified when it is ready to download.')
+      }
+    } catch {
+      toast.error('Export failed. Please try again.')
+    }
+  }
 
   const { dashboard, isLoading: dashLoading } = useDcDashboard()
 
@@ -617,6 +635,9 @@ export function DcTempleSearchPage() {
 
   return (
     <>
+      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER) && (
+        <ReadOnlyBanner message="You are browsing temples in read-only mode. No actions can be performed from this view." />
+      )}
       {/* Mobile filter drawer — slides in from the left, renders the same filterSidebarContent
           used by the desktop sidebar. This ensures identical filter logic across breakpoints. */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -972,6 +993,8 @@ export function DcTempleSearchPage() {
                             : 'bg-emerald-500/10 text-emerald-700'
                           const detailPath = role === USER_ROLES.AUDITOR
                             ? ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL
+                            : role === USER_ROLES.VIEWER
+                            ? ROUTE_PATHS.VIEWER_TEMPLE_DETAIL
                             : ROUTE_PATHS.DC_TEMPLE_DETAIL
                           return (
                             <tr key={t.templeId} className="text-sm">
@@ -1050,6 +1073,8 @@ export function DcTempleSearchPage() {
                         onView={() => {
                           const detailPath = role === USER_ROLES.AUDITOR
                             ? ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL
+                            : role === USER_ROLES.VIEWER
+                            ? ROUTE_PATHS.VIEWER_TEMPLE_DETAIL
                             : ROUTE_PATHS.DC_TEMPLE_DETAIL
                           navigate(detailPath.replace(':templeId', String(temple.templeId)))
                         }}

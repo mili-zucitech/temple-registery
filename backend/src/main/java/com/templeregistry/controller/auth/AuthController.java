@@ -125,6 +125,7 @@ public class AuthController {
         cookie.setSecure(!environment.acceptsProfiles(Profiles.of("dev", "local")));
         cookie.setPath(path);
         cookie.setMaxAge(maxAge);
+        cookie.setAttribute("SameSite", "Strict");
         response.addCookie(cookie);
     }
 

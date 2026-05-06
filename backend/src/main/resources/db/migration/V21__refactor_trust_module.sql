@@ -3,6 +3,8 @@
 -- Drops old trust_registrations and re-creates as 'trusts' with new schema.
 -- Re-creates board_members with new schema.
 
+SET FOREIGN_KEY_CHECKS = 0;
+
 DROP TABLE IF EXISTS board_members;
 DROP TABLE IF EXISTS trust_registrations;
 
@@ -33,12 +35,12 @@ CREATE TABLE trusts (
 CREATE TABLE board_members (
     id                   BIGINT       NOT NULL AUTO_INCREMENT,
     trust_id             BIGINT       NOT NULL,
-    name                 VARCHAR(200) NOT NULL,
+    full_name            VARCHAR(200) NOT NULL,
     designation          VARCHAR(150) NOT NULL,
-    phone                VARCHAR(15)  NOT NULL,
-    email                VARCHAR(100),
-    date_of_joining      DATE         NOT NULL,
-    cessation_date       DATE,
+    contact_number       VARCHAR(15),
+    address              TEXT,
+    appointment_date     DATE,
+    tenure_end_date      DATE,
     is_current           TINYINT(1)   NOT NULL DEFAULT 1,
     is_deleted           TINYINT(1)   NOT NULL DEFAULT 0,
     created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -49,3 +51,5 @@ CREATE TABLE board_members (
     INDEX idx_bm_trust_id (trust_id),
     CONSTRAINT fk_bm_trust_new FOREIGN KEY (trust_id) REFERENCES trusts (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

@@ -25,6 +25,10 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class Trust extends BaseEntity {
 
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
+
     @Column(name = "temple_id", nullable = false)
     private Long templeId;
 

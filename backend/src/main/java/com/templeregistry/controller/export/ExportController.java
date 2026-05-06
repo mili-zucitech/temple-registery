@@ -3,7 +3,9 @@ package com.templeregistry.controller.export;
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.export.ExportService;
+import org.springframework.security.core.context.SecurityContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -42,6 +44,23 @@ public class ExportController {
         return ResponseEntity.ok()
                 .headers(buildHeaders(rq.getFormat(), filename))
                 .body(data);
+    }
+
+    @GetMapping("/evidence-pack/{templeId}")
+    @Operation(summary = "Download evidence pack ZIP for a temple (AUDITOR/SUPER_ADMIN)")
+    public ResponseEntity<byte[]> evidencePack(@PathVariable Long templeId) {
+        Long actorId = currentUserId();
+        byte[] zip = exportService.generateEvidencePack(templeId, actorId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/zip"));
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename("evidence-pack-temple-" + templeId + ".zip").build());
+        return ResponseEntity.ok().headers(headers).body(zip);
+    }
+
+    private Long currentUserId() {
+        Object p = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return p instanceof ScopeHelper.Claims c ? c.userId() : 0L;
     }
 
     private HttpHeaders buildHeaders(String format, String filename) {
