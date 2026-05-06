@@ -1,9 +1,11 @@
 package com.templeregistry.service.impl.governance;
 
+import com.templeregistry.dto.response.governance.EntityVersionResponse;
 import com.templeregistry.dto.response.governance.WorkflowHistoryResponse;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.workflow.WorkflowTransition;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.versioning.EntityVersionRepository;
 import com.templeregistry.repository.workflow.WorkflowTransitionRepository;
 import com.templeregistry.service.governance.WorkflowHistoryService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class WorkflowHistoryServiceImpl implements WorkflowHistoryService {
 
     private final WorkflowTransitionRepository transitionRepo;
     private final UserRepository userRepo;
+    private final EntityVersionRepository entityVersionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -98,5 +101,31 @@ public class WorkflowHistoryServiceImpl implements WorkflowHistoryService {
             case "WITHDRAW"              -> "Withdrawn";
             default                      -> action.replace("_", " ");
         };
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EntityVersionResponse> getEntityVersions(String entityType, Long entityId) {
+        return entityVersionRepository
+                .findAll()
+                .stream()
+                .filter(ev -> entityType.equalsIgnoreCase(ev.getEntityType())
+                           && entityId.equals(ev.getEntityId())
+                           && !ev.isDeleted())
+                .sorted((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()))
+                .map(ev -> EntityVersionResponse.builder()
+                        .id(ev.getId())
+                        .entityType(ev.getEntityType())
+                        .entityId(ev.getEntityId())
+                        .workflowInstanceId(ev.getWorkflowInstance() != null ? ev.getWorkflowInstance().getId() : null)
+                        .versionNumber(ev.getVersionNumber())
+                        .status(ev.getStatus() != null ? ev.getStatus().name() : null)
+                        .snapshotJson(ev.getSnapshotJson())
+                        .diffJson(ev.getDiffJson())
+                        .createdByUserId(ev.getCreatedByUserId())
+                        .approvedByUserId(ev.getApprovedByUserId())
+                        .createdAt(ev.getCreatedAt())
+                        .build())
+                .toList();
     }
 }

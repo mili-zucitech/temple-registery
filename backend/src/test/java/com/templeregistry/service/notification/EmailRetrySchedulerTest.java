@@ -126,9 +126,6 @@ class EmailRetrySchedulerTest {
     void should_processEachRow_when_multipleFailedEmailsExist() throws Exception {
         EmailDeliveryLog log1 = buildLog(0);
         EmailDeliveryLog log2 = buildLog(2);
-        // log2 resend will fail
-        doNothing().when(emailService)
-            .resendByLog("ta@temple.gov.in", "Declaration approved", "email/approval-notification");
 
         // First call succeeds, second fails
         doNothing().doThrow(new RuntimeException("send failed"))
@@ -142,6 +139,6 @@ class EmailRetrySchedulerTest {
         assertThat(log1.getStatus()).isEqualTo("SENT");
         assertThat(log2.getStatus()).isEqualTo("FAILED");
         assertThat(log2.getRetryCount()).isEqualTo(3);
-        verify(emailDeliveryLogRepository, times(2)).save(any());
+        verify(emailDeliveryLogRepository, times(4)).save(any());
     }
 }

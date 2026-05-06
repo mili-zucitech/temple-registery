@@ -5,11 +5,13 @@
 -- ============================================================
 
 ALTER TABLE temples
-    ADD COLUMN website VARCHAR(500) NULL AFTER photo_url,
-    ADD COLUMN linked_institutions JSON NULL AFTER languages_of_worship,
-    ADD COLUMN annual_festivals TEXT NULL AFTER linked_institutions,
-    ADD COLUMN landmark VARCHAR(500) NULL AFTER annual_festivals,
-    ADD COLUMN historical_significance TEXT NULL AFTER landmark,
-    ADD COLUMN bank_name VARCHAR(100) NULL AFTER historical_significance,
-    ADD COLUMN bank_ifsc VARCHAR(11) NULL AFTER bank_name;
+    ADD COLUMN IF NOT EXISTS photo_url VARCHAR(1000) NULL,
+    ADD COLUMN IF NOT EXISTS languages_of_worship VARCHAR(500) NULL,
+    ADD COLUMN IF NOT EXISTS website VARCHAR(500) NULL,
+    ADD COLUMN IF NOT EXISTS linked_institutions JSON NULL,
+    ADD COLUMN IF NOT EXISTS annual_festivals TEXT NULL,
+    ADD COLUMN IF NOT EXISTS landmark VARCHAR(500) NULL,
+    ADD COLUMN IF NOT EXISTS historical_significance TEXT NULL,
+    ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100) NULL,
+    ADD COLUMN IF NOT EXISTS bank_ifsc VARCHAR(11) NULL;
 

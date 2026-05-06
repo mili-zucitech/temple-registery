@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { TempleGradeBadge } from '@/components/data-display/StatusBadge/TempleGradeBadge'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
+import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -179,6 +180,9 @@ export function DcTempleProfilePage() {
 
   return (
     <div className="animate-in fade-in duration-500">
+      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER) && (
+        <ReadOnlyBanner message="You are viewing this temple profile in read-only mode. Verification, flagging, and approval actions are not available." />
+      )}
       {/* Tabs must wrap TabsList — so we wrap the whole content including the header */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
 

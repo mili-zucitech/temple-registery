@@ -22,15 +22,15 @@ class StatusTransitionValidatorTest {
     @CsvSource({
             "SUBMITTED, APPROVED",
             "SUBMITTED, REJECTED",
-            "SUBMITTED, CLARIFICATION_REQUIRED",
-            "SUBMITTED, SITE_VISIT_SCHEDULED",
+            "SUBMITTED, CLARIFICATION_REQUESTED",
             "SUBMITTED, UNDER_REVIEW",
-            "CLARIFICATION_REQUIRED, CLARIFICATION_RESPONDED",
+            "CLARIFICATION_REQUESTED, CLARIFICATION_RESPONDED",
             "CLARIFICATION_RESPONDED, UNDER_REVIEW",
-            "SITE_VISIT_SCHEDULED, SITE_VISIT_COMPLETED",
-            "SITE_VISIT_COMPLETED, VERIFIED",
-            "VERIFIED, APPROVED",
-            "VERIFIED, REJECTED"
+            "CLARIFICATION_RESPONDED, APPROVED",
+            "CLARIFICATION_RESPONDED, REJECTED",
+            "UNDER_REVIEW, APPROVED",
+            "UNDER_REVIEW, REJECTED",
+            "UNDER_REVIEW, CLARIFICATION_REQUESTED"
     })
     void should_allow_valid_transitions(String from, String to) {
         assertThatCode(() -> validator.validateDeclarationTransition(from, to))

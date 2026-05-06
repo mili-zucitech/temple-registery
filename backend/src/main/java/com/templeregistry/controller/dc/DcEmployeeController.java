@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/employees")
 @RequiredArgsConstructor
 @Tag(name = "DC Employees", description = "Employee review and approval for DC portal")
-@PreAuthorize(RoleConstants.IS_DC_ROLE)
+@PreAuthorize(RoleConstants.CAN_READ_ALL)
 public class DcEmployeeController {
 
     private final EmployeeService employeeService;
@@ -44,6 +44,7 @@ public class DcEmployeeController {
     }
 
     @PostMapping("/{id}/approve")
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
     @Operation(summary = "Approve employee record")
     public ResponseEntity<ApiResponse<EmployeeResponse>> approve(
             @PathVariable Long id,
@@ -53,6 +54,7 @@ public class DcEmployeeController {
     }
 
     @PostMapping("/{id}/reject")
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
     @Operation(summary = "Reject employee record")
     public ResponseEntity<ApiResponse<EmployeeResponse>> reject(
             @PathVariable Long id,

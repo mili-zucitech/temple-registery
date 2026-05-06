@@ -13,6 +13,8 @@ import { dcApi } from '@/features/dc/dcApi'
 import { governanceApi } from '@/features/governance/governanceApi'
 import { workflowApi } from '@/features/governance/workflowApi'
 import { governanceV2Api } from '@/features/governance/governanceV2Api'
+import { auditorApi } from '@/features/auditor/auditorApi'
+import { viewerApi } from '@/features/viewer/viewerApi'
 import authReducer from '@/features/auth/authSlice'
 import templeReducer from '@/features/temple-profile/hooks/templeSlice'
 import declarationReducer from '@/features/declaration/declarationSlice'
@@ -36,6 +38,8 @@ export const rootReducer = combineReducers({
   [governanceApi.reducerPath]: governanceApi.reducer,
   [workflowApi.reducerPath]: workflowApi.reducer,
   [governanceV2Api.reducerPath]: governanceV2Api.reducer,
+  [auditorApi.reducerPath]: auditorApi.reducer,
+  [viewerApi.reducerPath]: viewerApi.reducer,
 
   // UI slices
   auth: authReducer,

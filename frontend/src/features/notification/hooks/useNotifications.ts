@@ -7,7 +7,7 @@ import { notificationApi } from '../notificationApi'
 export function useNotifications(options?: { page?: number; size?: number; pollingInterval?: number }) {
   const { page = 0, size = 10, pollingInterval = 30000 } = options || {}
   const dispatch = useAppDispatch()
-  const userId = useAppSelector((state) => state.auth.currentUser?.id ?? null)
+  const userId = useAppSelector((state) => state.auth.currentUser?.userId ?? null)
 
   const { data, isLoading, error, refetch } = useListNotificationsQuery(
     { page, size },

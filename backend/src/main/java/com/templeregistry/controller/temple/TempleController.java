@@ -138,7 +138,7 @@ public class TempleController {
 
     @GetMapping("/{templeId}/profile/staging/active")
     @Operation(summary = "Get the active (DRAFT or SUBMITTED) staging record, or null if none")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> getActiveStaging(
             @PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Active staging retrieved.",
@@ -147,7 +147,7 @@ public class TempleController {
 
     @GetMapping("/{templeId}/profile/history")
     @Operation(summary = "Paginated history of all profile staging versions (most recent first)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<PaginatedResponse<TempleProfileStagingResponse>>> getHistory(
             @PathVariable Long templeId,
             @RequestParam(defaultValue = "0") int page,
@@ -161,7 +161,7 @@ public class TempleController {
      */
     @GetMapping("/{templeId}/profile/current")
     @Operation(summary = "Get the current approved temple profile (registration contact details)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<TempleResponse>> getCurrentProfile(@PathVariable Long templeId) {
         TempleResponse response = templeService.getCurrentProfile(templeId);
         return ResponseEntity.ok(ApiResponse.success("Current temple profile retrieved.", response));
