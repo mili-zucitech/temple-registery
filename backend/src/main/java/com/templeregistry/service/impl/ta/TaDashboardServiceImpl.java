@@ -15,10 +15,7 @@ import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.dc.TempleProfileCurrent;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
-import com.templeregistry.entity.workflow.WorkflowEntityType;
-import com.templeregistry.entity.workflow.WorkflowInstance;
-import com.templeregistry.entity.workflow.WorkflowStatus;
-import com.templeregistry.service.workflow.WorkflowEngine;
+import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
 import com.templeregistry.repository.auth.UserRepository;
@@ -58,7 +55,6 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     private final TempleMapper templeMapper;
     private final NotificationEventPublisher notificationPublisher;
     private final UserRepository userRepository;
-    private final WorkflowEngine workflowEngine;
 
     // ─── Dashboard aggregation ───────────────────────────────────────────────
 
@@ -71,18 +67,13 @@ public class TaDashboardServiceImpl implements TaDashboardService {
 
         Temple temple = findTempleOrThrow(templeId);
         Optional<TempleProfileStaging> latestStaging =
-                stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(templeId, 
-                    List.of(WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED));
+                stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId);
 
-        WorkflowInstance instance = latestStaging.isPresent() ? 
-            workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, latestStaging.get().getId()) : null;
-
-        String profileStatus = deriveProfileStatus(instance, currentRepository.existsByTempleId(templeId));
-        List<String> pendingActions = computePendingActions(instance, currentRepository.existsByTempleId(templeId));
-
-        // Only show 'Profile Published' if latest staging is APPROVED or SUPERSEDED
-        boolean isProfilePublished = instance != null &&
-            (instance.getStatus() == WorkflowStatus.APPROVED);
+        boolean hasApprovedProfile = currentRepository.existsByTempleId(templeId);
+        String profileStatus = latestStaging
+                .map(s -> stagingStatusToDisplayString(s.getStatus()))
+                .orElse(hasApprovedProfile ? "APPROVED" : "NOT_CREATED");
+        List<String> pendingActions = computePendingActions(latestStaging.orElse(null), hasApprovedProfile);
 
         return TaDashboardResponse.builder()
             .temple(TaDashboardResponse.TempleBasicInfo.builder()
@@ -182,19 +173,17 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     public TaProfileStatusResponse getProfileStatus(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
         Optional<TempleProfileStaging> latest =
-                stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(claims.templeId(),
-                    List.of(WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED));
+                stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(claims.templeId());
 
         if (latest.isEmpty()) {
             return TaProfileStatusResponse.builder().status("NOT_CREATED").build();
         }
 
         TempleProfileStaging s = latest.get();
-        WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
-        
         return TaProfileStatusResponse.builder()
-                .status(instance.getStatus().name())
-                .submittedAt(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
+                .status(stagingStatusToDisplayString(s.getStatus()))
+                .submittedAt(s.getSubmittedAt())
+                .reviewComment(s.getReviewComment())
                 .build();
     }
 
@@ -236,25 +225,23 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     public TaActivityResponse getActivitySummary(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
         Optional<TempleProfileStaging> latest =
-                stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(claims.templeId(),
-                    List.of(WorkflowStatus.DRAFT, WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED));
+                stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(claims.templeId());
 
         if (latest.isEmpty()) {
             return TaActivityResponse.builder().build();
         }
 
         TempleProfileStaging s = latest.get();
-        WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
-        
         String lastReviewAction = null;
-        if (instance.getStatusUpdatedAt() != null) {
-            lastReviewAction = (instance.getStatus() == WorkflowStatus.APPROVED) ? "APPROVED" : "REJECTED";
+        if (s.getReviewedAt() != null) {
+            if (s.getStatus() == TempleProfileStagingStatus.APPROVED) lastReviewAction = "APPROVED";
+            else if (s.getStatus() == TempleProfileStagingStatus.REJECTED) lastReviewAction = "REJECTED";
         }
 
         return TaActivityResponse.builder()
                 .lastProfileUpdate(s.getUpdatedAt())
-                .lastSubmission(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
-                .lastReviewedAt(instance.getStatusUpdatedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getStatusUpdatedAt(), java.time.ZoneId.systemDefault()) : null)
+                .lastSubmission(s.getSubmittedAt())
+                .lastReviewedAt(s.getReviewedAt())
                 .lastReviewAction(lastReviewAction)
                 .build();
     }
@@ -270,30 +257,28 @@ public class TaDashboardServiceImpl implements TaDashboardService {
      * Derives the dashboard profileStatus string from the latest staging record and
      * whether an approved profile already exists.
      */
-    private String deriveProfileStatus(WorkflowInstance instance, boolean hasApprovedProfile) {
-        if (instance == null) {
-            return hasApprovedProfile ? "APPROVED" : "NOT_CREATED";
-        }
-        return instance.getStatus().name();
+    private String stagingStatusToDisplayString(TempleProfileStagingStatus status) {
+        if (status == null) return "NOT_CREATED";
+        return switch (status) {
+            case PENDING_REVIEW -> "SUBMITTED"; // DECISION-01: displayed as SUBMITTED in API
+            default -> status.name();
+        };
     }
 
     /**
      * Derives the list of actionable items shown in the dashboard pending-actions panel.
      */
-    private List<String> computePendingActions(WorkflowInstance instance, boolean hasApprovedProfile) {
+    private List<String> computePendingActions(TempleProfileStaging staging, boolean hasApprovedProfile) {
         List<String> actions = new ArrayList<>();
-        if (instance == null) {
+        if (staging == null) {
             if (!hasApprovedProfile) {
                 actions.add("Complete and submit your temple profile");
             }
             return actions;
         }
-        switch (instance.getStatus()) {
-            case DRAFT    -> {
-                if (!hasApprovedProfile) actions.add("Submit profile for DC approval");
-                else actions.add("Submit pending profile update for DC review");
-            }
-            default -> { /* SUBMITTED / APPROVED — no action needed */ }
+        if (staging.getStatus() == TempleProfileStagingStatus.DRAFT) {
+            if (!hasApprovedProfile) actions.add("Submit profile for DC approval");
+            else actions.add("Submit pending profile update for DC review");
         }
         return actions;
     }

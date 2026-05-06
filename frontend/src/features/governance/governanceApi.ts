@@ -67,8 +67,8 @@ export const governanceApi = createApi({
 
     // ─── DECLARATION ──────────────────────────────────────────────────────────
 
-    submitDeclaration: builder.mutation<ApiResponse<void>, number>({
-      query: (declarationId) => ({ url: `/governance/declarations/${declarationId}/submit`, method: 'POST' }),
+    withdrawDeclaration: builder.mutation<ApiResponse<void>, number>({
+      query: (declarationId) => ({ url: `/governance/declarations/${declarationId}/withdraw`, method: 'POST' }),
       invalidatesTags: (_r, _e, declarationId) => [{ type: 'GovernanceDeclaration', id: declarationId }],
     }),
 
@@ -200,7 +200,7 @@ export const {
   useSendBackTrustMutation,
   useRejectTrustMutation,
   // Declaration
-  useSubmitDeclarationMutation,
+  useWithdrawDeclarationMutation,
   useApproveDeclarationMutation,
   useSendBackDeclarationMutation,
   useRejectDeclarationMutation,

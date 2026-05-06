@@ -223,8 +223,8 @@ class PreservationPropertyTest {
 
         // Verify all 12 DeclarationStatus values are valid
         assertThat(DeclarationStatus.values())
-                .as("DeclarationStatus must have exactly 12 values")
-                .hasSize(12);
+                .as("DeclarationStatus must have exactly 13 values")
+                .hasSize(13);
 
         // Verify valid workflow transitions
         switch (status) {
@@ -285,11 +285,13 @@ class PreservationPropertyTest {
             case REJECTED:
             case OVERDUE:
             case SUPERSEDED:
+            case WITHDRAWN:
                 // Terminal or special states
                 assertThat(status)
                         .as("Declaration in terminal or special state")
                         .isIn(DeclarationStatus.APPROVED, DeclarationStatus.REJECTED,
-                                DeclarationStatus.OVERDUE, DeclarationStatus.SUPERSEDED);
+                                DeclarationStatus.OVERDUE, DeclarationStatus.SUPERSEDED,
+                                DeclarationStatus.WITHDRAWN);
                 break;
         }
 
@@ -555,19 +557,15 @@ class PreservationPropertyTest {
      */
     @Test
     void property2_8_optimisticLockingIsConfigured() throws Exception {
-        // Verify Trust has governanceVersion field for optimistic locking
-        assertThat(hasField(Trust.class, "governanceVersion"))
-                .as("Trust must have governanceVersion field for optimistic locking")
-                .isTrue();
-
-        // Verify AssetDeclaration has lockVersion field for optimistic locking
+        // Verify AssetDeclaration has lockVersion field for optimistic locking (@Version)
         assertThat(hasField(AssetDeclaration.class, "lockVersion"))
                 .as("AssetDeclaration must have lockVersion field for optimistic locking")
                 .isTrue();
 
-        // Verify AssetDeclaration also has governanceVersion for governance state changes
-        assertThat(hasField(AssetDeclaration.class, "governanceVersion"))
-                .as("AssetDeclaration must have governanceVersion field for governance state locking")
+        // Note: Trust.governanceVersion and AssetDeclaration.governanceVersion were removed
+        // in V62/V69 migrations. OptimisticLocking for Trust is handled at the service layer.
+        assertThat(hasField(Trust.class, "id"))
+                .as("Trust must extend BaseEntity")
                 .isTrue();
     }
 

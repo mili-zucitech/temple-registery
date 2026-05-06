@@ -66,9 +66,10 @@ export function TaDocumentsPage() {
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
+  const ownerType = 'TEMPLE' as const
 
-  const { data, isLoading, isError } = useListDocumentsQuery(
-    { ownerType: 'TEMPLE', ownerId: templeId!, page, size: DEFAULT_PAGE_SIZE },
+  const { data, isLoading, isError, refetch } = useListDocumentsQuery(
+    { ownerType, ownerId: templeId!, page, size: DEFAULT_PAGE_SIZE },
     { skip: !templeId }
   )
 
@@ -85,7 +86,7 @@ export function TaDocumentsPage() {
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('ownerType', 'TEMPLE')
+    formData.append('ownerType', ownerType)
     formData.append('ownerId', String(templeId))
     if (labelInput.trim()) formData.append('documentLabel', labelInput.trim())
 
@@ -138,7 +139,7 @@ export function TaDocumentsPage() {
       <EmptyState
         title="Failed to load documents"
         description="Unable to fetch document data. Please try again."
-        action={{ label: 'Retry', onClick: () => window.location.reload() }}
+        action={{ label: 'Retry', onClick: () => refetch() }}
       />
     )
   }

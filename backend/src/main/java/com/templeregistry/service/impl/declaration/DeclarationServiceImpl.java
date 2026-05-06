@@ -128,7 +128,6 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final GovernanceEditGuard governanceEditGuard;
     private final SnapshotService snapshotService;
     private final DeclarationAuditLogService declarationAuditLogService;
-    private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
     private final WorkflowEngine workflowEngine;
 

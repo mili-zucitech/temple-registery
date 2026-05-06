@@ -1,6 +1,5 @@
 package com.templeregistry.dto.response.temple;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.templeregistry.entity.temple.ReligiousTradition;
 import com.templeregistry.entity.temple.TempleGrade;
@@ -27,7 +26,10 @@ public class TempleResponse {
     private String pinCode;
     private Long hobliId;
     private Long talukId;
+    private Long cityId;
+    private String cityName;
     private Long districtId;
+    private String districtName;
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String contactName;
@@ -48,6 +50,5 @@ public class TempleResponse {
     private String assetDeclarationStatus;
     private String status;
     private String verificationStatus;
-    @JsonIgnore
     private String dcRejectionReason;
 }

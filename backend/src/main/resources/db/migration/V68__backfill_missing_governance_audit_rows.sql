@@ -8,7 +8,7 @@
 
 INSERT IGNORE INTO governance_action_history
     (entity_id, entity_type, workflow_instance_id, workflow_transition_id,
-     dc_user_id, action, comment, actor_role, governance_version)
+     dc_user_id, action, comment, actor_role)
 SELECT
     wi.entity_id,
     wi.entity_type                              AS entity_type,
@@ -17,8 +17,7 @@ SELECT
     COALESCE(wt.actor_id, 0)                    AS dc_user_id,
     wt.action                                   AS action,
     wt.comment                                  AS comment,
-    wt.actor_role                               AS actor_role,
-    1                                           AS governance_version
+    wt.actor_role                               AS actor_role
 FROM workflow_transitions wt
 JOIN workflow_instances wi ON wi.id = wt.workflow_instance_id
 LEFT JOIN governance_action_history gah ON gah.workflow_transition_id = wt.id

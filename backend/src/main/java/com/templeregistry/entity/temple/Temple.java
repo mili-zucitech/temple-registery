@@ -77,6 +77,9 @@ public class Temple extends BaseEntity {
     @Column(name = "taluk_id")
     private Long talukId;
 
+    @Column(name = "city_id")
+    private Long cityId;
+
     @Column(name = "district_id", nullable = false)
     private Long districtId;
 

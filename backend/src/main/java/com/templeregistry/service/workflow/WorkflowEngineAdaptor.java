@@ -76,7 +76,7 @@ public class WorkflowEngineAdaptor {
      * Idempotent — if already SUBMITTED, logs and returns without error.
      */
     @Transactional
-    public void adaptSubmit(WorkflowEntityType entityType, Long entityId,
+    public boolean adaptSubmit(WorkflowEntityType entityType, Long entityId,
                               Long templeId, Long districtId, Long actorId) {
         WorkflowInstance instance = ensureInitiated(entityType, entityId, templeId, districtId, actorId);
 
@@ -94,9 +94,11 @@ public class WorkflowEngineAdaptor {
             }
 
             execute(instance.getId(), action, actorId, templeId, null, null, null);
+            return true;
         } else {
             log.debug("[WorkflowAdaptor] Skip adapt-submit — instance={} already in status={}",
                 instance.getId(), instance.getStatus());
+            return false;
         }
     }
 

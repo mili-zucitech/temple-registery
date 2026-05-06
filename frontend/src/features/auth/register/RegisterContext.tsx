@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react'
 import type { Step1Data, Step3Data, Step4Data, WizardState } from './registerTypes'
+import type { GeoSelection } from '@/features/geo/geoTypes'
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,7 @@ type WizardAction =
   | { type: 'SAVE_STEP1'; payload: Step1Data }
   | { type: 'SAVE_STEP3'; payload: Omit<Step3Data, 'confirmPassword'> }
   | { type: 'SAVE_STEP4'; payload: Step4Data }
+  | { type: 'SAVE_STEP4_GEO'; payload: GeoSelection }
   | { type: 'SAVE_USER_ID'; payload: number }
   | { type: 'RESET' }
 
@@ -21,6 +23,7 @@ const initialState: WizardState = {
   tempToken: null,
   step3: null,
   step4: null,
+  step4GeoSelection: null,
   userId: null,
   recoveryCodes: [],
 }
@@ -35,6 +38,8 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, step3: action.payload }
     case 'SAVE_STEP4':
       return { ...state, step4: action.payload }
+    case 'SAVE_STEP4_GEO':
+      return { ...state, step4GeoSelection: action.payload }
     case 'SAVE_USER_ID':
       return { ...state, userId: action.payload }
     case 'RESET':
@@ -54,6 +59,7 @@ interface WizardContextValue {
   saveStep1: (data: Step1Data) => void
   saveStep3: (data: Omit<Step3Data, 'confirmPassword'>) => void
   saveStep4: (data: Step4Data) => void
+  saveStep4Geo: (data: GeoSelection) => void
   saveUserId: (id: number) => void
   reset: () => void
 }
@@ -89,6 +95,10 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
     dispatch({ type: 'SAVE_STEP4', payload: data })
   }, [])
 
+  const saveStep4Geo = useCallback((data: GeoSelection) => {
+    dispatch({ type: 'SAVE_STEP4_GEO', payload: data })
+  }, [])
+
   const saveUserId = useCallback((id: number) => {
     dispatch({ type: 'SAVE_USER_ID', payload: id })
   }, [])
@@ -105,6 +115,7 @@ export function RegisterWizardProvider({ children }: { children: React.ReactNode
     saveStep1,
     saveStep3,
     saveStep4,
+    saveStep4Geo,
     saveUserId,
     reset,
   }

@@ -398,10 +398,19 @@ export interface TempleFullProfileResponse {
     validationIssues: string[]
   }
   trustFinancials: TrustFinancialSummary[]
+  boardMeetings: BoardMeetingSummary[]
   employees: EmployeeSummary[]
   contractors: ContractorResponse[]
   declarations: DeclarationSummary[]
   currentProfile: ProfileCurrentResponse | null
+}
+
+export interface BoardMeetingSummary {
+  id: number
+  meetingDate: string
+  agenda: string | null
+  minutesDocumentId: number | null
+  createdAt: string
 }
 
 export interface BoardMemberSummary {

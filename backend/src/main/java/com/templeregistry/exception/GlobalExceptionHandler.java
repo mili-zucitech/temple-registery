@@ -203,6 +203,20 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.validationError("Request validation failed.", errors));
     }
 
+    @ExceptionHandler(com.templeregistry.exception.WorkflowException.class)
+    public ResponseEntity<ApiResponse<Void>> handleWorkflowException(com.templeregistry.exception.WorkflowException ex) {
+        log.warn("Workflow transition error: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage(), "WORKFLOW_TRANSITION_ERROR"));
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        log.warn("Message not readable: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Invalid request body: " + ex.getMostSpecificCause().getMessage(), "INVALID_REQUEST"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);

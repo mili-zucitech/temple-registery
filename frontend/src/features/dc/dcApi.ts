@@ -121,9 +121,9 @@ export const dcApi = createApi({
 
     verifyTemple: builder.mutation<ApiResponse<void>, { id: number; body: DcVerifyRequest }>({
       query: ({ id, body }) => ({
-        url: `/dc/compliance/temples/${id}/verify`,
+        url: `/dc/temples/${id}/verify`,
         method: 'POST',
-        body,
+        body: { remarks: body.notes },
       }),
       onQueryStarted: async ({ id: templeId }, { dispatch, queryFulfilled }) => {
         const patchResult = dispatch(
@@ -144,7 +144,7 @@ export const dcApi = createApi({
 
     flagTemple: builder.mutation<ApiResponse<void>, { id: number; body: DcFlagRequest }>({
       query: ({ id, body }) => ({
-        url: `/dc/compliance/temples/${id}/flag`,
+        url: `/dc/temples/${id}/flag`,
         method: 'POST',
         body,
       }),
@@ -153,6 +153,29 @@ export const dcApi = createApi({
           dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
             if (draft?.data?.temple) {
               draft.data.temple.verificationStatus = 'FLAGGED'
+            }
+          })
+        )
+        try {
+          await queryFulfilled
+        } catch {
+          patchResult.undo()
+        }
+      },
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
+    }),
+
+    unflagTemple: builder.mutation<ApiResponse<void>, { id: number; remarks?: string }>({
+      query: ({ id, remarks }) => ({
+        url: `/dc/temples/${id}/unflag`,
+        method: 'POST',
+        body: { remarks },
+      }),
+      onQueryStarted: async ({ id: templeId }, { dispatch, queryFulfilled }) => {
+        const patchResult = dispatch(
+          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
+            if (draft?.data?.temple) {
+              draft.data.temple.verificationStatus = 'ACTIVE'
             }
           })
         )
@@ -308,6 +331,7 @@ export const {
   useExportDeclarationsMutation,
   useVerifyTempleMutation,
   useFlagTempleMutation,
+  useUnflagTempleMutation,
   useVerifyTrustMutation,
   useFlagTrustMutation,
 } = dcApi

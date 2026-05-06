@@ -18,6 +18,7 @@ export function AuditLogPage() {
   const authQuery = useListAuthEventsQuery({ page, size: DEFAULT_PAGE_SIZE }, { skip: activeTab !== 'auth' })
 
   const isLoading = activeTab === 'mutation' ? mutationQuery.isLoading : authQuery.isLoading
+  const refetch = activeTab === 'mutation' ? mutationQuery.refetch : authQuery.refetch
   const isError = activeTab === 'mutation' ? mutationQuery.isError : authQuery.isError
   const data = activeTab === 'mutation' ? mutationQuery.data : authQuery.data
 
@@ -26,7 +27,7 @@ export function AuditLogPage() {
   const totalElements = data?.data?.totalElements ?? 0
 
   if (isError) {
-    return <EmptyState title="Failed to load audit log" action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+    return <EmptyState title="Failed to load audit log" action={{ label: 'Retry', onClick: () => refetch() }} />
   }
 
   return (

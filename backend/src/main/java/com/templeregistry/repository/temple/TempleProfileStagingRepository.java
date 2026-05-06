@@ -31,9 +31,16 @@ public interface TempleProfileStagingRepository extends JpaRepository<TempleProf
             Long templeId, java.util.List<com.templeregistry.entity.workflow.WorkflowStatus> statuses);
 
     /** Returns the latest staging record in a specific status. */
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status = :status")
-    Optional<TempleProfileStaging> findFirstByTempleIdAndStatus(
-            Long templeId, com.templeregistry.entity.workflow.WorkflowStatus status);
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status = :status ORDER BY wi.versionNumber DESC")
+    org.springframework.data.domain.Page<TempleProfileStaging> findAllByTempleIdAndStatus(
+            Long templeId, com.templeregistry.entity.workflow.WorkflowStatus status, Pageable pageable);
+
+    default Optional<TempleProfileStaging> findFirstByTempleIdAndStatus(
+            Long templeId, com.templeregistry.entity.workflow.WorkflowStatus status) {
+        return findAllByTempleIdAndStatus(templeId, status, PageRequest.of(0, 1))
+                .stream()
+                .findFirst();
+    }
 
         default Optional<TempleProfileStaging> findFirstByTempleIdAndStatus(
                         Long templeId, TempleProfileStagingStatus status) {

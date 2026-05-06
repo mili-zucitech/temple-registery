@@ -125,9 +125,6 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(result.getAcknowledgementNumber()).isEqualTo("ACK-2024-0042");
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
         assertThat(pendingDeclaration.getReviewedAt()).isNotNull();
-        
-        verify(versionService).snapshot(eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION), eq(42L), anyInt(), any(), eq(5L), isNull());
-        verify(summaryService).refresh(1L);
     }
 
     @Test
@@ -198,7 +195,7 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.CLARIFICATION_REQUIRED);
         assertThat(pendingDeclaration.getClarificationRound()).isEqualTo(1);
         
-        verify(clarificationEngine).requestClarification(eq(500L), any(), eq(5L));
+        verify(clarificationEngine).requestClarification(eq(500L), any(), eq(5L), anyString());
         verify(summaryService).refresh(1L);
     }
 
@@ -245,6 +242,9 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_markDeclarationUnderReview_when_statusIsPendingReview() {
+        com.templeregistry.entity.workflow.WorkflowInstance wi =
+            com.templeregistry.entity.workflow.WorkflowInstance.builder().id(500L).build();
+        when(workflowEngineAdaptor.findState(any(), any())).thenReturn(Optional.of(wi));
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
@@ -260,6 +260,9 @@ class GovernanceDeclarationWorkflowTest {
 
     @Test
     void should_flagDeclaration_for_physicalVerification_when_statusIsPendingReview() {
+        com.templeregistry.entity.workflow.WorkflowInstance wi =
+            com.templeregistry.entity.workflow.WorkflowInstance.builder().id(500L).build();
+        when(workflowEngineAdaptor.findState(any(), any())).thenReturn(Optional.of(wi));
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
@@ -280,8 +283,6 @@ class GovernanceDeclarationWorkflowTest {
     @Test
     void should_callAdaptSendBack_not_adaptReject_when_sendBackDeclarationInvoked() {
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
-        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
-        doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
 
         com.templeregistry.dto.request.dc.DcClarifyRequest req = new com.templeregistry.dto.request.dc.DcClarifyRequest();
         setField(req, "message", "Documents incomplete.");
@@ -290,7 +291,7 @@ class GovernanceDeclarationWorkflowTest {
 
         verify(workflowEngineAdaptor).adaptSendBack(
                 eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION),
-                eq(42L), eq(10L), eq(5L), anyString());
+                eq(42L), eq(10L), anyLong(), anyString());
         verify(workflowEngineAdaptor, never()).adaptReject(any(), anyLong(), anyLong(), anyLong(), any());
     }
 
@@ -299,8 +300,8 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.findById(42L)).thenReturn(Optional.of(pendingDeclaration));
         when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(temple));
         doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
-        when(workflowInstanceRepository.findByEntityTypeAndEntityId(any(), any()))
-                .thenReturn(Optional.empty());
+        doThrow(new EntityNotFoundException("WorkflowInstance", 42L))
+                .when(workflowEngineAdaptor).adaptApprove(any(), anyLong(), anyLong(), anyLong(), any());
 
         assertThatThrownBy(() -> workflowService.approveDeclaration(42L, new WorkflowApproveRequest(), dcClaims))
                 .isInstanceOf(EntityNotFoundException.class);

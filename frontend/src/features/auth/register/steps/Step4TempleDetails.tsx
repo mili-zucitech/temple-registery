@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { MapPin } from 'lucide-react'
@@ -38,8 +38,8 @@ function isOutsideIndia(lat: number, lon: number): boolean {
 }
 
 export function Step4TempleDetails() {
-  const { state, saveStep4, nextStep, prevStep } = useWizard()
-  const [geoSelection, setGeoSelection] = useState<GeoSelection>({})
+  const { state, saveStep4, saveStep4Geo, nextStep, prevStep } = useWizard()
+  const [geoSelection, setGeoSelection] = useState<GeoSelection>(state.step4GeoSelection ?? {})
   const [gpsWarning, setGpsWarning] = useState<string | null>(null)
 
   const form = useForm<Step4Data>({
@@ -55,16 +55,17 @@ export function Step4TempleDetails() {
       pincode: state.step4?.pincode ?? '',
       gpsLatitude: state.step4?.gpsLatitude ?? null,
       gpsLongitude: state.step4?.gpsLongitude ?? null,
+      yearEstablished: state.step4?.yearEstablished ?? null,
     },
     mode: 'onBlur',
   })
 
-  const handleGeoChange = (sel: GeoSelection) => {
+  const handleGeoChange = useCallback((sel: GeoSelection) => {
     setGeoSelection(sel)
     if (sel.hobliId) {
       form.setValue('hobliId', sel.hobliId, { shouldValidate: true })
     }
-  }
+  }, [form])
 
   const handleLocationChange = (lat: number, lon: number) => {
     form.setValue('gpsLatitude', lat, { shouldDirty: true })
@@ -91,6 +92,9 @@ export function Step4TempleDetails() {
 
   const onSubmit = (values: Step4Data) => {
     saveStep4(values)
+    if (Object.keys(geoSelection).length > 0) {
+      saveStep4Geo(geoSelection)
+    }
     nextStep()
   }
 
@@ -161,7 +165,7 @@ export function Step4TempleDetails() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Temple Grade *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select grade" />
@@ -184,7 +188,7 @@ export function Step4TempleDetails() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Religious Tradition *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select tradition" />
@@ -201,6 +205,30 @@ export function Step4TempleDetails() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="yearEstablished"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Year of Establishment</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="e.g. 1850"
+                      className="max-w-xs"
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        field.onChange(val === '' ? null : Number(val))
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </fieldset>
 
           {/* Section: Location */}

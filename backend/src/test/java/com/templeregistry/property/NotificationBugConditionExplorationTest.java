@@ -88,14 +88,8 @@ class NotificationBugConditionExplorationTest {
     @Test
     void test1_4_notifyDcOfSubmissionDoesNotUseHardcoded0L() {
         Class<?> clazz = GovernanceWorkflowServiceImpl.class;
-        boolean hasNotificationHelper = Arrays.stream(clazz.getDeclaredFields())
-                .anyMatch(f -> f.getType().equals(NotificationHelper.class));
         boolean hasRecipientResolver = Arrays.stream(clazz.getDeclaredFields())
                 .anyMatch(f -> f.getType().equals(com.templeregistry.service.notification.NotificationRecipientResolver.class));
-        assertThat(hasNotificationHelper)
-                .as("FIX 1.4: GovernanceWorkflowServiceImpl.notifyDcOfSubmission() must use notificationHelper. " +
-                    "NotificationHelper field must be present.")
-                .isTrue();
         assertThat(hasRecipientResolver)
                 .as("FIX 1.4: GovernanceWorkflowServiceImpl must inject NotificationRecipientResolver " +
                     "to resolve actual DC user IDs instead of hardcoded 0L.")
@@ -110,14 +104,8 @@ class NotificationBugConditionExplorationTest {
     @Test
     void test1_5_notifyTaOfDecisionDoesNotUseHardcoded0L() {
         Class<?> clazz = GovernanceWorkflowServiceImpl.class;
-        boolean hasNotificationHelper = Arrays.stream(clazz.getDeclaredFields())
-                .anyMatch(f -> f.getType().equals(NotificationHelper.class));
         boolean hasRecipientResolver = Arrays.stream(clazz.getDeclaredFields())
                 .anyMatch(f -> f.getType().equals(com.templeregistry.service.notification.NotificationRecipientResolver.class));
-        assertThat(hasNotificationHelper)
-                .as("FIX 1.5: GovernanceWorkflowServiceImpl.notifyTaOfDecision() must use notificationHelper. " +
-                    "NotificationHelper field must be present.")
-                .isTrue();
         assertThat(hasRecipientResolver)
                 .as("FIX 1.5: GovernanceWorkflowServiceImpl must inject NotificationRecipientResolver " +
                     "to resolve actual TA user IDs instead of hardcoded 0L.")

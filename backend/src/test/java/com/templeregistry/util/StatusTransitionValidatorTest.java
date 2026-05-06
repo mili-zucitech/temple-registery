@@ -18,24 +18,22 @@ class StatusTransitionValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    @ParameterizedTest
-    @CsvSource({
+        @ParameterizedTest
+        @CsvSource({
             "SUBMITTED, APPROVED",
             "SUBMITTED, REJECTED",
-            "SUBMITTED, CLARIFICATION_REQUIRED",
-            "SUBMITTED, SITE_VISIT_SCHEDULED",
+            "SUBMITTED, CLARIFICATION_REQUESTED",
             "SUBMITTED, UNDER_REVIEW",
-            "CLARIFICATION_REQUIRED, CLARIFICATION_RESPONDED",
-            "CLARIFICATION_RESPONDED, UNDER_REVIEW",
-            "SITE_VISIT_SCHEDULED, SITE_VISIT_COMPLETED",
-            "SITE_VISIT_COMPLETED, VERIFIED",
-            "VERIFIED, APPROVED",
-            "VERIFIED, REJECTED"
-    })
-    void should_allow_valid_transitions(String from, String to) {
+            "CLARIFICATION_REQUESTED, CLARIFICATION_RESPONDED",
+            "CLARIFICATION_RESPONDED, UNDER_REVIEW"
+        })
+        void should_allow_valid_transitions(String from, String to) {
         assertThatCode(() -> validator.validateDeclarationTransition(from, to))
-                .doesNotThrowAnyException();
-    }
+            .doesNotThrowAnyException();
+        }
+
+        // Site visit transitions are now handled as sub-statuses within UNDER_REVIEW, not as top-level statuses.
+        // Add a separate test for sub-status logic if needed.
 
     @Test
     void should_throw_when_REJECTED_state_is_mutated() {

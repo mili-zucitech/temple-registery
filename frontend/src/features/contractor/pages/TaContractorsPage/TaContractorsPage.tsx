@@ -65,7 +65,7 @@ export function TaContractorsPage() {
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
 
-  const { data, isLoading, isError } = useListContractorsQuery(
+  const { data, isLoading, isError, refetch } = useListContractorsQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
     { skip: !templeId }
   )
@@ -105,7 +105,7 @@ export function TaContractorsPage() {
       <EmptyState
         title="Failed to load contractors"
         description="Unable to fetch contractor data. Please try again."
-        action={{ label: 'Retry', onClick: () => window.location.reload() }}
+        action={{ label: 'Retry', onClick: () => refetch() }}
       />
     )
   }
