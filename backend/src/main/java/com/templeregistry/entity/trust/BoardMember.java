@@ -19,6 +19,10 @@ import java.time.LocalDate;
 @Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class BoardMember extends BaseEntity {
 
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
+
     @Column(name = "trust_id", nullable = false) private Long trustId;
 
     @Column(name = "full_name", nullable = false, length = 200) private String fullName;

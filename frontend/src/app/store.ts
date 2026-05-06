@@ -16,8 +16,10 @@ import { governanceApi } from '@/features/governance/governanceApi'
 import { workflowApi } from '@/features/governance/workflowApi'
 import { governanceV2Api } from '@/features/governance/governanceV2Api'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
+import { auditorApi } from '@/features/auditor/auditorApi'
+import { viewerApi } from '@/features/viewer/viewerApi'
 
-/** Global RTK Query error logger middleware */
+/** Global RTK Query error logger middleware — handles 4xx and 5xx */
 const rtkQueryErrorLogger =
   () =>
   (next: (action: unknown) => unknown) =>
@@ -30,8 +32,18 @@ const rtkQueryErrorLogger =
       (action as { type: string }).type.endsWith('/rejected')
     ) {
       const payload = (action as { payload?: { status?: number; data?: { message?: string } } }).payload
-      if (payload?.status && payload.status >= 500) {
-        console.error('[API Error]', payload)
+      if (payload?.status) {
+        if (payload.status === 401) {
+          // Auth failure — logged at debug level; redirect handled in baseQueryWithReauth
+          console.warn('[API Auth]', payload.status, payload.data?.message)
+        } else if (payload.status === 403) {
+          // Permission denied — surfaced as warning for observability
+          console.warn('[API Forbidden]', payload.status, payload.data?.message)
+        } else if (payload.status >= 400 && payload.status < 500) {
+          console.warn('[API Client Error]', payload.status, payload.data?.message)
+        } else if (payload.status >= 500) {
+          console.error('[API Server Error]', payload)
+        }
       }
     }
     return next(action)
@@ -57,6 +69,8 @@ export const store = configureStore({
       governanceApi.middleware,
       workflowApi.middleware,
       governanceV2Api.middleware,
+      auditorApi.middleware,
+      viewerApi.middleware,
     ),
 })
 

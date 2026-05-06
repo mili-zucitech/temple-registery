@@ -45,6 +45,7 @@ export function DeclarationListPage() {
 
   const isDC = role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF || role === USER_ROLES.SUPER_ADMIN
   const isAuditor = role === USER_ROLES.AUDITOR
+  const isViewer = role === USER_ROLES.VIEWER
   const isTA = role === USER_ROLES.TEMPLE_AUTHORITY
 
   const [page, setPage] = useState(0)
@@ -56,7 +57,7 @@ export function DeclarationListPage() {
 
   const dcQuery = useListAllDeclarationsQuery(
     { page, size: DEFAULT_PAGE_SIZE, status: statusFilter || undefined, financialYear: fyFilter || undefined },
-    { skip: !isDC && !isAuditor },
+    { skip: !isDC && !isAuditor && !isViewer },
   )
 
   const taQuery = useListDeclarationsQuery(
@@ -217,7 +218,7 @@ export function DeclarationListPage() {
               isTA={isTA}
               isDC={isDC}
               isAuditor={isAuditor}
-              onOpen={() => navigate(resolveDeclarationRoute({ declaration, isTA, isDC, isAuditor }))}
+              onOpen={() => navigate(resolveDeclarationRoute({ declaration, isTA, isDC, isAuditor, isViewer }))}
             />
           ))}
         </div>
@@ -447,14 +448,17 @@ function resolveDeclarationRoute({
   isTA,
   isDC,
   isAuditor,
+  isViewer,
 }: {
   declaration: DeclarationResponse
   isTA: boolean
   isDC: boolean
   isAuditor: boolean
+  isViewer: boolean
 }) {
   if (isDC) return ROUTE_PATHS.DC_DECLARATION_DETAIL.replace(':id', String(declaration.id))
   if (isAuditor) return ROUTE_PATHS.AUDITOR_DECLARATION_DETAIL.replace(':id', String(declaration.id))
+  if (isViewer) return ROUTE_PATHS.VIEWER_DECLARATION_DETAIL.replace(':id', String(declaration.id))
   if (isTA) {
     // Allow editing for both DRAFT and REJECTED statuses
     return (declaration.status === 'DRAFT' || declaration.status === 'REJECTED')

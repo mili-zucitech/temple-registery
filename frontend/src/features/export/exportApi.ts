@@ -21,7 +21,17 @@ export const exportApi = createApi({
         responseHandler: (response) => response.blob(),
       }),
     }),
+    downloadEvidencePack: builder.query<Blob, number>({
+      query: (templeId) => ({
+        url: `/export/evidence-pack/${templeId}`,
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
   }),
 })
 
-export const { useExportTemplesMutation, useExportDeclarationsMutation } = exportApi
+export const {
+  useExportTemplesMutation,
+  useExportDeclarationsMutation,
+  useDownloadEvidencePackQuery,
+} = exportApi

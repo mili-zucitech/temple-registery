@@ -11,25 +11,27 @@
 
 -- ─── EMPLOYEES ───────────────────────────────────────────────────────────────
 
+DROP INDEX IF EXISTS idx_employees_submission_status ON employees;
+DROP INDEX IF EXISTS idx_employees_dc_decision_status ON employees;
+
 ALTER TABLE employees
-    DROP INDEX idx_employees_submission_status,
-    DROP INDEX idx_employees_dc_decision_status,
-    DROP COLUMN submission_status,
-    DROP COLUMN system_verification_status,
-    DROP COLUMN dc_decision_status,
-    DROP COLUMN send_back_reason,
-    DROP COLUMN governance_version;
+    DROP COLUMN IF EXISTS submission_status,
+    DROP COLUMN IF EXISTS system_verification_status,
+    DROP COLUMN IF EXISTS dc_decision_status,
+    DROP COLUMN IF EXISTS send_back_reason,
+    DROP COLUMN IF EXISTS governance_version;
 
 -- ─── CONTRACTORS ─────────────────────────────────────────────────────────────
 
+DROP INDEX IF EXISTS idx_contractors_submission_status ON contractors;
+DROP INDEX IF EXISTS idx_contractors_dc_decision_status ON contractors;
+
 ALTER TABLE contractors
-    DROP INDEX idx_contractors_submission_status,
-    DROP INDEX idx_contractors_dc_decision_status,
-    DROP COLUMN submission_status,
-    DROP COLUMN system_verification_status,
-    DROP COLUMN dc_decision_status,
-    DROP COLUMN send_back_reason,
-    DROP COLUMN governance_version;
+    DROP COLUMN IF EXISTS submission_status,
+    DROP COLUMN IF EXISTS system_verification_status,
+    DROP COLUMN IF EXISTS dc_decision_status,
+    DROP COLUMN IF EXISTS send_back_reason,
+    DROP COLUMN IF EXISTS governance_version;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PART 2: Update contractors table with enums and multiple documents support
@@ -38,7 +40,7 @@ ALTER TABLE contractors
 ALTER TABLE contractors ADD COLUMN IF NOT EXISTS document_ids TEXT;
 
 UPDATE contractors 
-SET document_ids = CAST(document_id AS TEXT) 
+SET document_ids = CAST(document_id AS CHAR) 
 WHERE document_id IS NOT NULL AND (document_ids IS NULL OR document_ids = '');
 
 UPDATE contractors SET service_type = 'CIVIL_WORKS' 

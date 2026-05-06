@@ -1,5 +1,6 @@
 package com.templeregistry.service.governance;
 
+import com.templeregistry.dto.response.governance.EntityVersionResponse;
 import com.templeregistry.dto.response.governance.WorkflowHistoryResponse;
 
 import java.util.List;
@@ -19,4 +20,10 @@ public interface WorkflowHistoryService {
      * Get condensed summary for WorkflowEnvelope.auditSummary.
      */
     WorkflowHistoryResponse.Summary getHistorySummary(Long workflowInstanceId);
+
+    /**
+     * Get all versions of an entity by type and ID.
+     * Accessible to CAN_READ_ALL (including AUDITOR).
+     */
+    List<EntityVersionResponse> getEntityVersions(String entityType, Long entityId);
 }

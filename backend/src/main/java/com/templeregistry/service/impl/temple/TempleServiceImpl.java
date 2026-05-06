@@ -7,6 +7,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TemplePhoto;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleSearchSummary;
+import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
@@ -17,6 +18,7 @@ import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.temple.TempleService;
@@ -52,6 +54,7 @@ public class TempleServiceImpl implements TempleService {
     private final JurisdictionGuard jurisdictionGuard;
     private final OwnershipGuard ownershipGuard;
     private final TempleSearchSummaryService summaryService;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -346,5 +349,64 @@ public class TempleServiceImpl implements TempleService {
             temple.setPhotoUrl(newPrimary.getFilePath());
         }
         templeRepository.save(temple);
+    }
+
+    // ─── SUPER_ADMIN lifecycle ─────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    public void suspendTemple(Long templeId, String reason, Long actorUserId) {
+        Temple temple = findOrThrow(templeId);
+        assertLifecycleTransition(temple.getStatus(), TempleStatus.SUSPENDED, templeId);
+        temple.setStatus(TempleStatus.SUSPENDED);
+        templeRepository.save(temple);
+        auditService.logDataEvent(actorUserId, "SUPER_ADMIN", "SUSPEND_TEMPLE", "TEMPLE", templeId, reason);
+        log.info("Temple [{}] SUSPENDED by userId={} — reason: {}", templeId, actorUserId, reason);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    public void reactivateTemple(Long templeId, String reason, Long actorUserId) {
+        Temple temple = findOrThrow(templeId);
+        assertLifecycleTransition(temple.getStatus(), TempleStatus.ACTIVE, templeId);
+        temple.setStatus(TempleStatus.ACTIVE);
+        templeRepository.save(temple);
+        auditService.logDataEvent(actorUserId, "SUPER_ADMIN", "REACTIVATE_TEMPLE", "TEMPLE", templeId, reason);
+        log.info("Temple [{}] REACTIVATED by userId={} — reason: {}", templeId, actorUserId, reason);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    public void freezeTemple(Long templeId, String reason, Long actorUserId) {
+        Temple temple = findOrThrow(templeId);
+        assertLifecycleTransition(temple.getStatus(), TempleStatus.FROZEN, templeId);
+        temple.setStatus(TempleStatus.FROZEN);
+        templeRepository.save(temple);
+        auditService.logDataEvent(actorUserId, "SUPER_ADMIN", "FREEZE_TEMPLE", "TEMPLE", templeId, reason);
+        log.info("Temple [{}] FROZEN by userId={} — reason: {}", templeId, actorUserId, reason);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    public void archiveTemple(Long templeId, String reason, Long actorUserId) {
+        Temple temple = findOrThrow(templeId);
+        assertLifecycleTransition(temple.getStatus(), TempleStatus.ARCHIVED, templeId);
+        temple.setStatus(TempleStatus.ARCHIVED);
+        templeRepository.save(temple);
+        auditService.logDataEvent(actorUserId, "SUPER_ADMIN", "ARCHIVE_TEMPLE", "TEMPLE", templeId, reason);
+        log.info("Temple [{}] ARCHIVED by userId={} — reason: {}", templeId, actorUserId, reason);
+    }
+
+    private void assertLifecycleTransition(TempleStatus current, TempleStatus target, Long templeId) {
+        if (current == TempleStatus.ARCHIVED) {
+            throw new IllegalStateException("Temple [" + templeId + "] is ARCHIVED and cannot transition to " + target);
+        }
+        if (current == target) {
+            throw new IllegalStateException("Temple [" + templeId + "] is already in status " + target);
+        }
     }
 }

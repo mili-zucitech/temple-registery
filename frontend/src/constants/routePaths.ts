@@ -39,6 +39,9 @@ export const ROUTE_PATHS = {
   ADMIN_AUDIT: '/admin/audit',
   ADMIN_GEO: '/admin/geo',
   ADMIN_TOOLS: '/admin/tools',
+  ADMIN_TEMPLE_GOVERNANCE: '/admin/temple-governance',
+  ADMIN_SYSTEM_CONFIG: '/admin/system-config',
+  ADMIN_NOTIFICATION_RULES: '/admin/notification-rules',
 
   // Auditor
   AUDITOR_DASHBOARD: '/auditor/dashboard',
@@ -46,6 +49,20 @@ export const ROUTE_PATHS = {
   AUDITOR_TEMPLE_DETAIL: '/auditor/temples/:templeId',
   AUDITOR_DECLARATIONS: '/auditor/declarations',
   AUDITOR_DECLARATION_DETAIL: '/auditor/declarations/:id',
+  AUDITOR_OBSERVATIONS: '/auditor/observations',
+  AUDITOR_OBSERVATION_DETAIL: '/auditor/observations/:id',
+  AUDITOR_AUDIT_TRAIL: '/auditor/audit-trail',
+  AUDITOR_COMPLIANCE: '/auditor/compliance',
+
+  // Viewer (State Government / Audit Bodies — read-only)
+  VIEWER_DASHBOARD: '/viewer/dashboard',
+  VIEWER_TEMPLES: '/viewer/temples',
+  VIEWER_TEMPLE_DETAIL: '/viewer/temples/:templeId',
+  VIEWER_DECLARATIONS: '/viewer/declarations',
+  VIEWER_DECLARATION_DETAIL: '/viewer/declarations/:id',
+  VIEWER_COMPLIANCE: '/viewer/compliance',
+  VIEWER_AUDIT_TRAIL: '/viewer/audit-trail',
+  VIEWER_EXPORT: '/viewer/export',
 
   // Notifications (all authenticated users)
   NOTIFICATIONS: '/notifications',

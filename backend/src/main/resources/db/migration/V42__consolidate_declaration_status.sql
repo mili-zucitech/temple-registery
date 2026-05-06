@@ -23,8 +23,9 @@ ALTER TABLE asset_declarations
     ) NOT NULL DEFAULT 'DRAFT';
 
 -- 3. Add UNIQUE constraint on acknowledgement_number (if not already present)
-ALTER TABLE asset_declarations
-    ADD CONSTRAINT IF NOT EXISTS uq_decl_ack_number UNIQUE (acknowledgement_number);
+SET @idx := (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='asset_declarations' AND CONSTRAINT_NAME='uq_decl_ack_number');
+SET @s := IF(@idx = 0, 'CREATE UNIQUE INDEX uq_decl_ack_number ON asset_declarations(acknowledgement_number)', 'SELECT 1');
+PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
 
 -- 4. Add actor_role column to governance_action_history (if not already present)
 ALTER TABLE governance_action_history

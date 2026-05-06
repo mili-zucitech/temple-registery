@@ -64,7 +64,18 @@ DEALLOCATE PREPARE stmt_add_idx_rc_user_available;
 
 -- -----------------------------------------------------------------------------
 -- V20 compatibility: trust_registrations.date_of_registration
+-- NOTE: trust_registrations was dropped and replaced by 'trusts' in V21.
+-- On a fresh DB this table no longer exists, so all blocks below are no-ops.
+-- The table-existence flag is the outer guard; the column-existence flag is the
+-- inner guard for environments that still have the old table (partial upgrades).
 -- -----------------------------------------------------------------------------
+SET @has_tr_table := (
+    SELECT COUNT(*)
+    FROM information_schema.TABLES
+    WHERE table_schema = @schema_name
+      AND table_name = 'trust_registrations'
+);
+
 SET @has_tr_date_of_registration := (
     SELECT COUNT(*)
     FROM information_schema.columns
@@ -73,7 +84,7 @@ SET @has_tr_date_of_registration := (
       AND column_name = 'date_of_registration'
 );
 SET @sql_add_tr_date_of_registration := IF(
-    @has_tr_date_of_registration = 0,
+    @has_tr_table > 0 AND @has_tr_date_of_registration = 0,
     'ALTER TABLE trust_registrations ADD COLUMN date_of_registration DATE NULL',
     'SELECT 1'
 );
@@ -89,7 +100,7 @@ SET @has_tr_registered_date := (
       AND column_name = 'registered_date'
 );
 SET @sql_backfill_tr_date_of_registration := IF(
-    @has_tr_registered_date > 0,
+    @has_tr_table > 0 AND @has_tr_registered_date > 0,
     'UPDATE trust_registrations SET date_of_registration = COALESCE(date_of_registration, registered_date) WHERE date_of_registration IS NULL',
     'SELECT 1'
 );

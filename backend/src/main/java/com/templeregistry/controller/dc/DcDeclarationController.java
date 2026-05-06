@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/declarations")
 @RequiredArgsConstructor
 @Tag(name = "DC Declarations", description = "District-scoped declaration listing and detail for the DC portal")
-@PreAuthorize(RoleConstants.IS_DC_ROLE)
+@PreAuthorize(RoleConstants.CAN_READ_ALL)
 public class DcDeclarationController {
 
     private final DcTempleProfileService dcTempleProfileService;

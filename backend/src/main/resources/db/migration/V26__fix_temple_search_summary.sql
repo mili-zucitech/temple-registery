@@ -6,6 +6,40 @@
 -- This migration backfills all null/zero columns from the source tables.
 -- =============================================================================
 
+SET @sc := DATABASE();
+
+-- Ensure temples has the extended columns (added by Hibernate in incremental envs)
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='registration_number');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN registration_number VARCHAR(50) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='primary_deity');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN primary_deity VARCHAR(150) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='year_established');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN year_established INT NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='village_town');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN village_town VARCHAR(150) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='alias_name');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN alias_name VARCHAR(255) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='contact_designation');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN contact_designation VARCHAR(150) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='contact_mobile');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN contact_mobile VARCHAR(15) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temples' AND column_name='history');
+SET @s := IF(@x=0,'ALTER TABLE temples ADD COLUMN history TEXT NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+
+-- Ensure temple_search_summary has the extended columns
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='registration_number');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN registration_number VARCHAR(50) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='primary_deity');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN primary_deity VARCHAR(150) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='hobli_id');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN hobli_id BIGINT NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='taluk_id');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN taluk_id BIGINT NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='asset_declaration_status');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN asset_declaration_status VARCHAR(32) NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+SET @x := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=@sc AND table_name='temple_search_summary' AND column_name='year_established');
+SET @s := IF(@x=0,'ALTER TABLE temple_search_summary ADD COLUMN year_established INT NULL','SELECT 1'); PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+
 -- ── Step 1: Sync core temple fields + city_id from districts ─────────────────
 UPDATE temple_search_summary tss
 JOIN temples t ON t.id = tss.temple_id
@@ -41,7 +75,7 @@ SET
 
 -- ── Step 3: Sync trust and declaration approval flags ─────────────────────────
 UPDATE temple_search_summary tss
-LEFT JOIN trust_registrations tr ON tr.temple_id = tss.temple_id AND tr.is_deleted = 0
+LEFT JOIN trusts tr ON tr.temple_id = tss.temple_id AND tr.is_deleted = 0
 SET
     tss.has_active_trust         = IF(tss.trust_registered = 1 AND tr.id IS NOT NULL, 1, 0),
     tss.has_approved_declaration = IF(tss.asset_declaration_status = 'APPROVED', 1, 0);

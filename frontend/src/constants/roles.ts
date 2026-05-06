@@ -4,6 +4,7 @@ export const USER_ROLES = {
   DC_STAFF: 'DC_STAFF',
   TEMPLE_AUTHORITY: 'TEMPLE_AUTHORITY',
   AUDITOR: 'AUDITOR',
+  VIEWER: 'VIEWER',
 } as const
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]

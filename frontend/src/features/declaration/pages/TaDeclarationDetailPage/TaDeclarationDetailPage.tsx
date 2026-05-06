@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   useGetDeclarationQuery,
   useGetDeclarationVersionsQuery,
+  useGetDeclarationDiffQuery,
 } from '../../declarationApi'
 import {
   resubmitDeclarationSchema,
@@ -14,7 +15,7 @@ import {
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { DeclarationHeader, ClarificationAlert } from './components'
+import { DeclarationHeader, ClarificationAlert, RejectionAlert } from './components'
 import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
 
 // Lazy load tab components for code splitting
@@ -26,6 +27,9 @@ const AssetsTab = lazy(() =>
 )
 const HistoryTab = lazy(() =>
   import('./components/HistoryTab').then((module) => ({ default: module.HistoryTab }))
+)
+const DiffTab = lazy(() =>
+  import('./components/DiffTab').then((module) => ({ default: module.DiffTab }))
 )
 
 // Loading fallback component
@@ -112,6 +116,12 @@ export function TaDeclarationDetailPage() {
   const versions = versionsQuery.data?.data ?? []
   const [compareVersion, setCompareVersion] = useState<number | undefined>(undefined)
 
+  const diffQuery = useGetDeclarationDiffQuery(
+    { id, compareToVersion: compareVersion },
+    { skip: !isValid || !id }
+  )
+  const diff = diffQuery.data?.data ?? []
+
   useEffect(() => {
     if (!compareVersion && versions.length > 1) {
       setCompareVersion(versions[1].versionNumber)
@@ -176,7 +186,7 @@ export function TaDeclarationDetailPage() {
       <RejectionAlert 
         status={declaration.status} 
         declarationId={declaration.id}
-        rejectionReason={declaration.rejectionReason}
+        rejectionReason={declaration.rejectionReason ?? undefined}
       />
 
       <Tabs defaultValue="overview" className="w-full">

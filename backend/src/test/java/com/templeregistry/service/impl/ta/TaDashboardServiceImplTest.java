@@ -15,6 +15,9 @@ import com.templeregistry.entity.temple.TempleGrade;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.JurisdictionAccessDeniedException;
 import com.templeregistry.mapper.temple.TempleMapper;
 import com.templeregistry.repository.auth.UserRepository;
@@ -27,6 +30,7 @@ import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.service.dc.NotificationEventPublisher;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.temple.TempleProfileStagingService;
+import com.templeregistry.service.workflow.WorkflowEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,12 +38,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,6 +66,7 @@ class TaDashboardServiceImplTest {
     @Mock TempleMapper templeMapper;
     @Mock NotificationEventPublisher notificationPublisher;
     @Mock UserRepository userRepository;
+    @Mock WorkflowEngine workflowEngine;
 
     @InjectMocks TaDashboardServiceImpl taDashboardService;
 
@@ -87,10 +96,13 @@ class TaDashboardServiceImplTest {
                 .templeId(TEMPLE_ID)
                 .status(TempleProfileStagingStatus.APPROVED)
                 .build();
+        approvedStaging.setId(100L);
         when(templeRepository.findById(TEMPLE_ID)).thenReturn(Optional.of(activeTemple));
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.of(approvedStaging));
         when(currentRepository.existsByTempleId(TEMPLE_ID)).thenReturn(true);
+        lenient().when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 100L))
+                .thenReturn(WorkflowInstance.builder().id(100L).status(WorkflowStatus.APPROVED).build());
 
         TaDashboardResponse result = taDashboardService.getDashboard(claims);
 
@@ -103,7 +115,7 @@ class TaDashboardServiceImplTest {
     @Test
     void should_returnDashboardWithPendingActions_when_noDraftExists() {
         when(templeRepository.findById(TEMPLE_ID)).thenReturn(Optional.of(activeTemple));
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.empty());
         when(currentRepository.existsByTempleId(TEMPLE_ID)).thenReturn(false);
 
@@ -277,7 +289,7 @@ class TaDashboardServiceImplTest {
 
     @Test
     void should_returnEmptyActivity_when_noStagingRecordExists() {
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.empty());
 
         TaActivityResponse result = taDashboardService.getActivitySummary(claims);
@@ -297,13 +309,22 @@ class TaDashboardServiceImplTest {
                 .submittedAt(now.minusDays(2))
                 .reviewedAt(now.minusDays(1))
                 .build();
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        staging.setId(200L);
+        Instant submittedInstant = now.minusDays(2).atZone(ZoneId.systemDefault()).toInstant();
+        Instant reviewedInstant = now.minusDays(1).atZone(ZoneId.systemDefault()).toInstant();
+        WorkflowInstance wi = WorkflowInstance.builder()
+                .id(200L).status(WorkflowStatus.APPROVED)
+                .submittedAt(submittedInstant)
+                .statusUpdatedAt(reviewedInstant)
+                .build();
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.of(staging));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 200L)).thenReturn(wi);
 
         TaActivityResponse result = taDashboardService.getActivitySummary(claims);
 
-        assertThat(result.getLastSubmission()).isEqualTo(now.minusDays(2));
-        assertThat(result.getLastReviewedAt()).isEqualTo(now.minusDays(1));
+        assertThat(result.getLastSubmission()).isEqualTo(LocalDateTime.ofInstant(submittedInstant, ZoneId.systemDefault()));
+        assertThat(result.getLastReviewedAt()).isEqualTo(LocalDateTime.ofInstant(reviewedInstant, ZoneId.systemDefault()));
         assertThat(result.getLastReviewAction()).isEqualTo("APPROVED");
     }
 
@@ -316,8 +337,15 @@ class TaDashboardServiceImplTest {
                 .status(TempleProfileStagingStatus.PENDING_REVIEW)
                 .submittedAt(LocalDateTime.now())
                 .build();
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        staging.setId(300L);
+        Instant submittedInstant = LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant();
+        WorkflowInstance wi = WorkflowInstance.builder()
+                .id(300L).status(WorkflowStatus.SUBMITTED)
+                .submittedAt(submittedInstant)
+                .build();
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.of(staging));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 300L)).thenReturn(wi);
 
         TaProfileStatusResponse result = taDashboardService.getProfileStatus(claims);
 
@@ -335,8 +363,13 @@ class TaDashboardServiceImplTest {
                 .reviewComment("Contact person name is missing")
                 .submittedAt(LocalDateTime.now().minusDays(3))
                 .build();
-        when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(TEMPLE_ID))
+        staging.setId(400L);
+        WorkflowInstance wi = WorkflowInstance.builder()
+                .id(400L).status(WorkflowStatus.REJECTED)
+                .build();
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(TEMPLE_ID), anyList()))
                 .thenReturn(Optional.of(staging));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 400L)).thenReturn(wi);
 
         TaProfileStatusResponse result = taDashboardService.getProfileStatus(claims);
 
