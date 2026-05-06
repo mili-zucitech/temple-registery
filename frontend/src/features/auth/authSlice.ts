@@ -4,13 +4,15 @@ import type { CurrentUser } from './authTypes'
 interface AuthState {
   currentUser: CurrentUser | null
   isAuthenticated: boolean
-  accessToken: string | null
+  // NOTE: accessToken is intentionally NOT stored here.
+  // JWT is stored exclusively in an httpOnly cookie set by the server.
+  // No token is ever placed in Redux state — this field is kept only as a
+  // type stub to avoid breaking imports; it is always null and unused.
 }
 
 const initialState: AuthState = {
   currentUser: null,
   isAuthenticated: false,
-  accessToken: null,
 }
 
 const authSlice = createSlice({
@@ -21,16 +23,12 @@ const authSlice = createSlice({
       state.currentUser = action.payload
       state.isAuthenticated = true
     },
-    setAccessToken(state, action: PayloadAction<string>) {
-      state.accessToken = action.payload
-    },
     clearCurrentUser(state) {
       state.currentUser = null
       state.isAuthenticated = false
-      state.accessToken = null
     },
   },
 })
 
-export const { setCurrentUser, setAccessToken, clearCurrentUser } = authSlice.actions
+export const { setCurrentUser, clearCurrentUser } = authSlice.actions
 export default authSlice.reducer

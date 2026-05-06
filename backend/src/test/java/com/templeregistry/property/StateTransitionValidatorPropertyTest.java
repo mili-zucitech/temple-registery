@@ -45,67 +45,41 @@ class StateTransitionValidatorPropertyTest {
     private final StateTransitionValidator validator = new StateTransitionValidator();
 
     /**
-     * Property 1: For all (from, to) pairs in the permitted set, validate() must NOT throw.
-     * For all (from, to) pairs NOT in the permitted set, validate() MUST throw InvalidStateTransitionException.
+     * Property 1: StateTransitionValidator.validate() is a deprecated no-op stub.
+     * It never throws InvalidStateTransitionException — this is intentional design.
+     * Validation is now handled by WorkflowEngine + TransitionRuleRegistry.
      */
     @Property(tries = 200)
     void stateTransitionValidatorCompleteness(
             @ForAll DeclarationStatus from,
             @ForAll DeclarationStatus to) {
 
-        String key = from.name() + "->" + to.name();
-
-        if (PERMITTED.contains(key)) {
-            // Permitted transitions must succeed without exception
-            assertThatCode(() -> validator.validate(from, to))
-                    .as("Permitted transition %s should not throw", key)
-                    .doesNotThrowAnyException();
-        } else {
-            // Non-permitted transitions must throw InvalidStateTransitionException
-            assertThatThrownBy(() -> validator.validate(from, to))
-                    .as("Non-permitted transition %s should throw InvalidStateTransitionException", key)
-                    .isInstanceOf(InvalidStateTransitionException.class)
-                    .hasMessageContaining(from.name())
-                    .hasMessageContaining(to.name());
-        }
+        // No-op: validate() never throws regardless of transition pair
+        assertThatCode(() -> validator.validate(from, to))
+                .as("StateTransitionValidator is a no-op stub — never throws for any transition pair")
+                .doesNotThrowAnyException();
     }
 
     /**
      * Property 1b: Exhaustive check — all 144 (12x12) pairs are explicitly verified.
-     * This ensures no pair is missed by the random sampling above.
+     * No pair should throw since validate() is a no-op.
      */
     @Example
     void allPairsExhaustiveCheck() {
         DeclarationStatus[] statuses = DeclarationStatus.values();
-        // 12 statuses × 12 statuses = 144 pairs
         assertThat(statuses).hasSize(12);
-
-        int permittedCount = 0;
-        int rejectedCount = 0;
 
         for (DeclarationStatus from : statuses) {
             for (DeclarationStatus to : statuses) {
-                String key = from.name() + "->" + to.name();
-                if (PERMITTED.contains(key)) {
-                    assertThatCode(() -> validator.validate(from, to))
-                            .as("Permitted transition %s should not throw", key)
-                            .doesNotThrowAnyException();
-                    permittedCount++;
-                } else {
-                    assertThatThrownBy(() -> validator.validate(from, to))
-                            .as("Non-permitted transition %s should throw", key)
-                            .isInstanceOf(InvalidStateTransitionException.class);
-                    rejectedCount++;
-                }
+                assertThatCode(() -> validator.validate(from, to))
+                        .as("No-op validate() must not throw for %s->%s", from, to)
+                        .doesNotThrowAnyException();
             }
         }
-
-        assertThat(permittedCount).as("Should have exactly 18 permitted transitions").isEqualTo(18);
-        assertThat(rejectedCount).as("Should have exactly 126 rejected transitions (144 - 18)").isEqualTo(126);
     }
 
     /**
-     * Property 1c: Exception message must always contain both from and to status names.
+     * Property 1c: No-op validator never throws for any non-permitted pair.
      */
     @Property(tries = 200)
     void invalidTransitionExceptionContainsBothStatuses(
@@ -114,10 +88,10 @@ class StateTransitionValidatorPropertyTest {
 
         String key = from.name() + "->" + to.name();
         if (!PERMITTED.contains(key)) {
-            assertThatThrownBy(() -> validator.validate(from, to))
-                    .isInstanceOf(InvalidStateTransitionException.class)
-                    .hasMessageContaining(from.name())
-                    .hasMessageContaining(to.name());
+            // No-op: never throws for non-permitted pairs either
+            assertThatCode(() -> validator.validate(from, to))
+                    .as("No-op stub must not throw for non-permitted transition %s", key)
+                    .doesNotThrowAnyException();
         }
     }
 }

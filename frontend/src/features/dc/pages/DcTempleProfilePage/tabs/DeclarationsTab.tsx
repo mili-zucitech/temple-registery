@@ -220,10 +220,10 @@ function ModernDeclarationCard({
                   <span>Filed: {new Date(declaration.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
               )}
-              {declaration.totalAssetValue != null && (
+              {(declaration.agriculturalLandValue != null || declaration.buildingsValue != null) && (
                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
                   <IndianRupee size={12} />
-                  <span>{formatCurrency(declaration.totalAssetValue)}</span>
+                  <span>{formatCurrency((declaration.agriculturalLandValue ?? 0) + (declaration.buildingsValue ?? 0) + (declaration.financialAssetsValue ?? 0) + (declaration.otherMovableValue ?? 0))}</span>
                 </div>
               )}
             </div>

@@ -2,18 +2,21 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Search, FileText, Users, Building2,
-  ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw, ChevronLeft, ChevronRight
+  ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw, ChevronLeft, ChevronRight,
+  Eye, ShieldCheck, History, Bell, AlertTriangle
 } from 'lucide-react'
 import { useLogout } from '@/features/auth/authHooks'
 import { useAppSelector } from '@/app/store'
 import { USER_ROLES } from '@/constants/roles'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { Button } from '@/components/ui/button'
+import { useGetStatewideDashboardQuery } from '@/features/admin/adminApi'
 
 interface NavItem {
   label: string
   to: string
   icon: React.ReactNode
+  badge?: number
 }
 
 function getDcNavItems(): NavItem[] {
@@ -39,13 +42,21 @@ function getTaNavItems(): NavItem[] {
   ]
 }
 
-function getAdminNavItems(): NavItem[] {
+function getAdminNavItems(pendingCount?: number): NavItem[] {
   return [
     { label: 'Dashboard', to: ROUTE_PATHS.ADMIN_DASHBOARD, icon: <LayoutDashboard size={16} /> },
-    { label: 'Users', to: ROUTE_PATHS.ADMIN_USERS, icon: <Users size={16} /> },
+    { label: 'Users', to: ROUTE_PATHS.ADMIN_USERS, icon: <Users size={16} />, badge: undefined },
+    { label: 'Temple Governance', to: ROUTE_PATHS.ADMIN_TEMPLE_GOVERNANCE, icon: <AlertTriangle size={16} /> },
+    { label: 'Admin Tools', to: ROUTE_PATHS.ADMIN_TOOLS, icon: <RefreshCw size={16} />, badge: pendingCount && pendingCount > 0 ? pendingCount : undefined },
     { label: 'Audit Logs', to: ROUTE_PATHS.ADMIN_AUDIT, icon: <Shield size={16} /> },
     { label: 'Geo Master', to: ROUTE_PATHS.ADMIN_GEO, icon: <Settings size={16} /> },
-    { label: 'Admin Tools', to: ROUTE_PATHS.ADMIN_TOOLS, icon: <RefreshCw size={16} /> },
+    { label: 'System Config', to: ROUTE_PATHS.ADMIN_SYSTEM_CONFIG, icon: <Settings size={16} /> },
+    { label: 'Notification Rules', to: ROUTE_PATHS.ADMIN_NOTIFICATION_RULES, icon: <Bell size={16} /> },
+    // Data access — SA can also navigate DC/Auditor pages
+    { label: 'Temple Search', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
+    { label: 'Declarations', to: ROUTE_PATHS.DC_DECLARATIONS, icon: <ClipboardList size={16} /> },
+    { label: 'Export', to: ROUTE_PATHS.DC_EXPORT, icon: <Download size={16} /> },
+    { label: 'Compliance', to: ROUTE_PATHS.AUDITOR_COMPLIANCE, icon: <ShieldCheck size={16} /> },
   ]
 }
 
@@ -54,6 +65,20 @@ function getAuditorNavItems(): NavItem[] {
     { label: 'Dashboard', to: ROUTE_PATHS.AUDITOR_DASHBOARD, icon: <LayoutDashboard size={16} /> },
     { label: 'Temples', to: ROUTE_PATHS.AUDITOR_TEMPLES, icon: <Building2 size={16} /> },
     { label: 'Declarations', to: ROUTE_PATHS.AUDITOR_DECLARATIONS, icon: <ClipboardList size={16} /> },
+    { label: 'Observations', to: ROUTE_PATHS.AUDITOR_OBSERVATIONS, icon: <Eye size={16} /> },
+    { label: 'Compliance', to: ROUTE_PATHS.AUDITOR_COMPLIANCE, icon: <ShieldCheck size={16} /> },
+    { label: 'Audit Trail', to: ROUTE_PATHS.AUDITOR_AUDIT_TRAIL, icon: <History size={16} /> },
+  ]
+}
+
+function getViewerNavItems(): NavItem[] {
+  return [
+    { label: 'Dashboard', to: ROUTE_PATHS.VIEWER_DASHBOARD, icon: <LayoutDashboard size={16} /> },
+    { label: 'Temples', to: ROUTE_PATHS.VIEWER_TEMPLES, icon: <Building2 size={16} /> },
+    { label: 'Declarations', to: ROUTE_PATHS.VIEWER_DECLARATIONS, icon: <ClipboardList size={16} /> },
+    { label: 'Compliance', to: ROUTE_PATHS.VIEWER_COMPLIANCE, icon: <ShieldCheck size={16} /> },
+    { label: 'Audit Trail', to: ROUTE_PATHS.VIEWER_AUDIT_TRAIL, icon: <History size={16} /> },
+    { label: 'Export', to: ROUTE_PATHS.VIEWER_EXPORT, icon: <Download size={16} /> },
   ]
 }
 
@@ -71,11 +96,17 @@ export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarP
   const currentUser = useAppSelector((s) => s.auth.currentUser)
   const role = currentUser?.role
 
+  const { data: dashData } = useGetStatewideDashboardQuery(undefined, { skip: role !== USER_ROLES.SUPER_ADMIN })
+  const pendingCount = role === USER_ROLES.SUPER_ADMIN
+    ? ((dashData?.data?.totalPendingDeclarations ?? 0) + (dashData?.data?.totalPendingProfileReviews ?? 0))
+    : 0
+
   let navItems: NavItem[] = []
   if (role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF) navItems = getDcNavItems()
   else if (role === USER_ROLES.TEMPLE_AUTHORITY) navItems = getTaNavItems()
-  else if (role === USER_ROLES.SUPER_ADMIN) navItems = getAdminNavItems()
+  else if (role === USER_ROLES.SUPER_ADMIN) navItems = getAdminNavItems(pendingCount)
   else if (role === USER_ROLES.AUDITOR) navItems = getAuditorNavItems()
+  else if (role === USER_ROLES.VIEWER) navItems = getViewerNavItems()
 
   // Prevent body scroll when sidebar drawer is open on mobile
   useEffect(() => {
@@ -171,6 +202,12 @@ export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarP
                 )}>
                   {item.label}
                 </span>
+                {/* Pending badge */}
+                {item.badge && !collapsed && (
+                  <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1 tabular-nums">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
                 {/* Active indicator dot */}
                 <div className={cn(
                   "rounded-full bg-white transition-all duration-200 flex-shrink-0",

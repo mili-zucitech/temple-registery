@@ -165,6 +165,7 @@ export function getDashboardPath(role?: string): string {
   if (role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF) return ROUTE_PATHS.DC_DASHBOARD
   if (role === USER_ROLES.TEMPLE_AUTHORITY) return ROUTE_PATHS.TA_DASHBOARD
   if (role === USER_ROLES.AUDITOR) return ROUTE_PATHS.AUDITOR_DASHBOARD
+  if (role === USER_ROLES.VIEWER) return ROUTE_PATHS.VIEWER_DASHBOARD
   return ROUTE_PATHS.LOGIN
 }
 

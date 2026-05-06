@@ -23,7 +23,7 @@ public class ContractorController {
     private final ContractorService contractorService;
 
     @GetMapping("/temples/{templeId}/contractors")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<PaginatedResponse<ContractorResponse>>> list(
             @PathVariable Long templeId,
             @RequestParam(defaultValue = "0") int page,
@@ -41,7 +41,7 @@ public class ContractorController {
     }
 
     @GetMapping("/contractors/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<ContractorResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Contractor retrieved.", contractorService.getById(id)));
     }

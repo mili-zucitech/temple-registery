@@ -33,7 +33,7 @@ import type { DeclarationStatus } from '../declarationTypes'
 const TA_ROLE = 'TEMPLE_AUTHORITY'
 const DC_ROLE = 'DISTRICT_COLLECTOR'
 
-const TERMINAL_STATUSES: DeclarationStatus[] = ['APPROVED', 'REJECTED', 'SUPERSEDED']
+const TERMINAL_STATUSES: DeclarationStatus[] = ['APPROVED', 'SUPERSEDED']
 
 const DC_APPROVE_REJECT_STATUSES: DeclarationStatus[] = [
   'SUBMITTED',
@@ -71,9 +71,9 @@ describe('Property 8: getAvailableActions button visibility', () => {
           }
 
           // ─── TA rules ──────────────────────────────────────────────────────
-          // edit/submit: enabled ONLY for DRAFT
-          expect(actions.canEdit, `canEdit for TA, status=${status}`).toBe(isTA && status === 'DRAFT')
-          expect(actions.canSubmit, `canSubmit for TA, status=${status}`).toBe(isTA && status === 'DRAFT')
+          // edit/submit: enabled for DRAFT and REJECTED (REJECTED allows resubmission)
+          expect(actions.canEdit, `canEdit for TA, status=${status}`).toBe(isTA && (status === 'DRAFT' || status === 'REJECTED'))
+          expect(actions.canSubmit, `canSubmit for TA, status=${status}`).toBe(isTA && (status === 'DRAFT' || status === 'REJECTED'))
 
           // clarification-respond: enabled ONLY for CLARIFICATION_REQUIRED
           expect(
@@ -119,12 +119,16 @@ describe('Property 8: getAvailableActions button visibility', () => {
 
   // ─── Deterministic spot-checks for key rules ──────────────────────────────
 
-  it('TA: edit and submit are enabled only for DRAFT', () => {
+  it('TA: edit and submit are enabled only for DRAFT and REJECTED', () => {
     const draft = getAvailableActions('DRAFT', TA_ROLE)
     expect(draft.canEdit).toBe(true)
     expect(draft.canSubmit).toBe(true)
 
-    for (const status of DECLARATION_STATUSES.filter((s) => s !== 'DRAFT')) {
+    const rejected = getAvailableActions('REJECTED', TA_ROLE)
+    expect(rejected.canEdit).toBe(true)
+    expect(rejected.canSubmit).toBe(true)
+
+    for (const status of DECLARATION_STATUSES.filter((s) => s !== 'DRAFT' && s !== 'REJECTED')) {
       const actions = getAvailableActions(status, TA_ROLE)
       expect(actions.canEdit, `canEdit should be false for TA with status=${status}`).toBe(false)
       expect(actions.canSubmit, `canSubmit should be false for TA with status=${status}`).toBe(false)
@@ -192,7 +196,7 @@ describe('Property 8: getAvailableActions button visibility', () => {
     }
   })
 
-  it('ALL actions are disabled for terminal statuses (APPROVED, REJECTED, SUPERSEDED)', () => {
+  it('ALL actions are disabled for terminal statuses (APPROVED, SUPERSEDED)', () => {
     for (const status of TERMINAL_STATUSES) {
       for (const role of [TA_ROLE, DC_ROLE]) {
         const actions = getAvailableActions(status, role)

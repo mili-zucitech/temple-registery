@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import com.templeregistry.security.RoleConstants;
+
 @RestController
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
 @Tag(name = "Conversation", description = "Unified declaration chat trail")
 public class ConversationController {
 

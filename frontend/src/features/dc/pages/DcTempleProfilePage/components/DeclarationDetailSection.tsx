@@ -133,12 +133,12 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={land.id}
                     index={index}
                     label="Agricultural Land"
-                    value={formatCurrency(land.value)}
+                    value={formatCurrency(land.estimatedValueInr)}
                   >
                     <DetailField icon={<Hash size={12} />} label="Survey No." value={land.surveyNumber} />
-                    <DetailField icon={<MapPin size={12} />} label="Location" value={land.location} />
-                    <DetailField icon={<Ruler size={12} />} label="Area" value={land.acres ? `${land.acres} acres` : null} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(land.value)} />
+                    <DetailField icon={<MapPin size={12} />} label="Village" value={land.village} />
+                    <DetailField icon={<Ruler size={12} />} label="Area" value={land.areaAcres ? `${land.areaAcres} acres` : null} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(land.estimatedValueInr)} />
                   </AssetCard>
                 ))}
               </div>
@@ -163,12 +163,12 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={building.id}
                     index={index}
                     label="Building"
-                    value={formatCurrency(building.value)}
+                    value={formatCurrency(building.valuationInr ?? building.estimatedValueInr)}
                   >
                     <DetailField icon={<MapPin size={12} />} label="Location" value={building.location} />
-                    <DetailField icon={<Ruler size={12} />} label="Area" value={building.sqft ? `${building.sqft} sq ft` : null} />
-                    <DetailField icon={<FileText size={12} />} label="Type" value={building.buildingType} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(building.value)} />
+                    <DetailField icon={<Ruler size={12} />} label="Area" value={(building.totalAreaSqft ?? building.totalSqft) ? `${building.totalAreaSqft ?? building.totalSqft} sq ft` : null} />
+                    <DetailField icon={<FileText size={12} />} label="Type" value={building.structureType} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(building.valuationInr ?? building.estimatedValueInr)} />
                   </AssetCard>
                 ))}
               </div>
@@ -222,11 +222,11 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={land.id}
                     index={index}
                     label="Other Land"
-                    value={formatCurrency(land.value)}
+                    value={formatCurrency(land.estimatedValueInr)}
                   >
                     <DetailField icon={<MapPin size={12} />} label="Location" value={land.location} />
                     <DetailField icon={<FileText size={12} />} label="Description" value={land.description} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(land.value)} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Value" value={formatCurrency(land.estimatedValueInr)} />
                   </AssetCard>
                 ))}
               </div>
@@ -271,11 +271,11 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={metal.id}
                     index={index}
                     label="Precious Metal"
-                    value={metal.grams ? `${metal.grams}g` : '—'}
+                    value={metal.weightGrams ? `${metal.weightGrams}g` : '—'}
                   >
                     <DetailField icon={<FileText size={12} />} label="Description" value={metal.itemDescription} className="col-span-2" />
                     <DetailField icon={<Coins size={12} />} label="Metal Type" value={metal.metalType} />
-                    <DetailField icon={<Ruler size={12} />} label="Weight" value={metal.grams ? `${metal.grams} grams` : null} />
+                    <DetailField icon={<Ruler size={12} />} label="Weight" value={metal.weightGrams ? `${metal.weightGrams} grams` : null} />
                   </AssetCard>
                 ))}
               </div>
@@ -300,11 +300,11 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={artifact.id}
                     index={index}
                     label="Artifact"
-                    value={formatCurrency(artifact.estimatedValue)}
+                    value={formatCurrency(artifact.estimatedValueInr ?? artifact.approximateValueInr)}
                   >
                     <DetailField icon={<FileText size={12} />} label="Description" value={artifact.itemDescription} className="col-span-2" />
-                    <DetailField icon={<FileText size={12} />} label="Type" value={artifact.artifactType} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(artifact.estimatedValue)} />
+                    <DetailField icon={<FileText size={12} />} label="Material" value={artifact.material} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(artifact.estimatedValueInr ?? artifact.approximateValueInr)} />
                   </AssetCard>
                 ))}
               </div>
@@ -329,12 +329,12 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={vehicle.id}
                     index={index}
                     label="Vehicle"
-                    value={formatCurrency(vehicle.estimatedValue)}
+                    value={formatCurrency(vehicle.estimatedValueInr)}
                   >
                     <DetailField icon={<Hash size={12} />} label="Registration" value={vehicle.registrationNumber} />
                     <DetailField icon={<FileText size={12} />} label="Type" value={vehicle.vehicleType} />
-                    <DetailField icon={<Calendar size={12} />} label="Year" value={vehicle.yearOfManufacture?.toString()} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(vehicle.estimatedValue)} />
+                    <DetailField icon={<Calendar size={12} />} label="Year" value={vehicle.year?.toString()} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(vehicle.estimatedValueInr)} />
                   </AssetCard>
                 ))}
               </div>
@@ -359,10 +359,10 @@ export function DeclarationDetailSection({ declaration }: DeclarationDetailSecti
                     key={item.id}
                     index={index}
                     label="Equipment"
-                    value={formatCurrency(item.estimatedValue)}
+                    value={formatCurrency(item.estimatedValueInr)}
                   >
                     <DetailField icon={<FileText size={12} />} label="Name" value={item.itemName} />
-                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(item.estimatedValue)} />
+                    <DetailField icon={<IndianRupee size={12} />} label="Est. Value" value={formatCurrency(item.estimatedValueInr)} />
                   </AssetCard>
                 ))}
               </div>

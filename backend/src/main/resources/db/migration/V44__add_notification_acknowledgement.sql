@@ -2,17 +2,16 @@
 -- and create notification_action_log table
 
 ALTER TABLE in_app_notifications
-    ADD COLUMN requires_acknowledgement BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN acknowledged_at TIMESTAMP NULL,
-    ADD COLUMN acknowledged_by BIGINT NULL,
-    ADD COLUMN idempotency_key VARCHAR(255) NULL;
+    ADD COLUMN IF NOT EXISTS requires_acknowledgement BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS acknowledged_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255) NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ian_idempotency_key
-    ON in_app_notifications (idempotency_key)
-    WHERE idempotency_key IS NOT NULL;
+    ON in_app_notifications (idempotency_key);
 
 CREATE TABLE IF NOT EXISTS notification_action_log (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     notification_id BIGINT NOT NULL,
     action_type VARCHAR(50) NOT NULL,
     performed_by BIGINT NOT NULL,
