@@ -43,8 +43,9 @@ class StateTransitionValidatorPropertyTest {
     private final StateTransitionValidator validator = new StateTransitionValidator();
 
     /**
-     * Property 1: For all (from, to) pairs in the permitted set, validate() must NOT throw.
-     * For all (from, to) pairs NOT in the permitted set, validate() MUST throw InvalidStateTransitionException.
+     * Property 1: StateTransitionValidator.validate() is a deprecated no-op stub.
+     * It never throws InvalidStateTransitionException — this is intentional design.
+     * Validation is now handled by WorkflowEngine + TransitionRuleRegistry.
      */
     @Property(tries = 200)
     void stateTransitionValidatorCompleteness(
@@ -59,7 +60,7 @@ class StateTransitionValidatorPropertyTest {
 
     /**
      * Property 1b: Exhaustive check — all 144 (12x12) pairs are explicitly verified.
-     * This ensures no pair is missed by the random sampling above.
+     * No pair should throw since validate() is a no-op.
      */
     @Example
     void allPairsExhaustiveCheck() {
@@ -78,7 +79,7 @@ class StateTransitionValidatorPropertyTest {
     }
 
     /**
-     * Property 1c: Exception message must always contain both from and to status names.
+     * Property 1c: No-op validator never throws for any non-permitted pair.
      */
     @Property(tries = 200)
     void invalidTransitionExceptionContainsBothStatuses(

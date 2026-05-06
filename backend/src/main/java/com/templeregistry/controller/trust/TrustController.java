@@ -32,7 +32,7 @@ public class TrustController {
 
     @GetMapping("/temples/{templeId}/trusts")
     @Operation(summary = "List trust registrations for a temple")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<List<TrustResponse>>> listByTemple(@PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Trusts retrieved.", trustService.listByTemple(templeId)));
     }
@@ -48,7 +48,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{id}")
     @Operation(summary = "Get trust detail")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<TrustResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Trust retrieved.", trustService.getById(id)));
     }
@@ -63,7 +63,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{trustId}/board-members")
     @Operation(summary = "List board members (current and past)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<BoardMemberGroupResponse>> listBoardMembers(
             @PathVariable Long trustId,
             @RequestParam(required = false) Boolean current) {
@@ -91,7 +91,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{trustId}/financials")
     @Operation(summary = "List all submitted financial years for a trust")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<List<TrustFinancialResponse>>> listFinancials(
             @PathVariable Long trustId) {
         return ResponseEntity.ok(ApiResponse.success("Financials retrieved.",
@@ -131,7 +131,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{trustId}/meetings")
     @Operation(summary = "List board meetings for a trust (paginated, most recent first)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<PaginatedResponse<BoardMeetingResponse>>> listBoardMeetings(
             @PathVariable Long trustId,
             @RequestParam(defaultValue = "0") int page,
@@ -142,7 +142,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{trustId}/meetings/{meetingId}")
     @Operation(summary = "Get a single board meeting by ID")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<ApiResponse<BoardMeetingResponse>> getBoardMeeting(
             @PathVariable Long trustId, @PathVariable Long meetingId) {
         return ResponseEntity.ok(ApiResponse.success("Board meeting retrieved.",
@@ -162,7 +162,7 @@ public class TrustController {
 
     @GetMapping("/trusts/{trustId}/meetings/{meetingId}/minutes/download")
     @Operation(summary = "Download meeting minutes PDF")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public ResponseEntity<Resource> downloadMeetingMinutes(
             @PathVariable Long trustId,
             @PathVariable Long meetingId) {

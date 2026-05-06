@@ -25,9 +25,14 @@ class StatusTransitionValidatorTest {
             "SUBMITTED, CLARIFICATION_REQUESTED",
             "SUBMITTED, UNDER_REVIEW",
             "CLARIFICATION_REQUESTED, CLARIFICATION_RESPONDED",
-            "CLARIFICATION_RESPONDED, UNDER_REVIEW"
-        })
-        void should_allow_valid_transitions(String from, String to) {
+            "CLARIFICATION_RESPONDED, UNDER_REVIEW",
+            "CLARIFICATION_RESPONDED, APPROVED",
+            "CLARIFICATION_RESPONDED, REJECTED",
+            "UNDER_REVIEW, APPROVED",
+            "UNDER_REVIEW, REJECTED",
+            "UNDER_REVIEW, CLARIFICATION_REQUESTED"
+    })
+    void should_allow_valid_transitions(String from, String to) {
         assertThatCode(() -> validator.validateDeclarationTransition(from, to))
             .doesNotThrowAnyException();
         }

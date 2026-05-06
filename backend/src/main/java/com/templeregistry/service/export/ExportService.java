@@ -18,4 +18,13 @@ public interface ExportService {
      * @return raw bytes of the generated file
      */
     byte[] exportDeclarations(ExportDeclarationsRequest request);
+
+    /**
+     * Generate a ZIP evidence pack for a single temple.
+     * Bundles: temple profile, trust, board members, employees, contractors,
+     * declarations, documents list, workflow history, governance history, audit events.
+     * Accessible to CAN_READ_ALL (AUDITOR + SUPER_ADMIN).
+     * @return raw bytes of the ZIP file
+     */
+    byte[] generateEvidencePack(Long templeId, Long actorId);
 }

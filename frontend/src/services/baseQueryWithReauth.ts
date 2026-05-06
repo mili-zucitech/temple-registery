@@ -1,21 +1,14 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
-import { setAccessToken, clearCurrentUser } from '../features/auth/authSlice'
+import { clearCurrentUser } from '../features/auth/authSlice'
 import { getApiV1BaseUrl } from '@/lib/apiBase'
-
-// Inline type to avoid store → authApi → baseQueryWithReauth → store circular dep
-type StateWithAuth = { auth: { accessToken: string | null } }
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: getApiV1BaseUrl(),
   credentials: 'include',
-  prepareHeaders: (headers, { getState }) => {
-    const token = (getState() as StateWithAuth).auth.accessToken
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`)
-    }
-    return headers
-  },
+  // No Authorization header: JWT is stored exclusively in an httpOnly cookie.
+  // credentials: 'include' sends the cookie automatically on every request.
+  // Storing or reading the token from Redux state is intentionally prohibited.
 })
 
 /**
@@ -46,11 +39,8 @@ export const baseQueryWithReauth: BaseQueryFn<
     )
 
     if (refreshResult.data) {
-      const newToken = (refreshResult.data as { data?: { accessToken?: string } }).data?.accessToken
-      if (newToken) {
-        api.dispatch(setAccessToken(newToken))
-      }
-      // Retry original request — prepareHeaders will now pick up the new token
+      // Refresh succeeded — server has issued a new httpOnly cookie.
+      // No token is dispatched to Redux: cookie is sent automatically on retry.
       result = await rawBaseQuery(args, api, extraOptions)
     } else {
       // Refresh failed — clear state and redirect to login

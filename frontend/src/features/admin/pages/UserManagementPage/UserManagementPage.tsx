@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { Users, Plus, Edit2 } from 'lucide-react'
 import { UserFormDialog } from '../../components/UserFormDialog/UserFormDialog'
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog/ConfirmDialog'
 
 export function UserManagementPage() {
   const [page, setPage] = useState(0)
@@ -24,8 +25,11 @@ export function UserManagementPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserAdminResponse | null>(null)
+  const [confirmStatusUser, setConfirmStatusUser] = useState<UserAdminResponse | null>(null)
+  const [showInactiveOnly, setShowInactiveOnly] = useState(false)
 
-  const users = data?.data?.content ?? []
+  const allUsers = data?.data?.content ?? []
+  const users = showInactiveOnly ? allUsers.filter((u) => !u.active) : allUsers
   const totalPages = data?.data?.totalPages ?? 0
   const totalElements = data?.data?.totalElements ?? 0
 
@@ -38,8 +42,10 @@ export function UserManagementPage() {
         await activate(user.id).unwrap()
         toast.success(`User ${user.username} activated`)
       }
+      setConfirmStatusUser(null)
     } catch {
       toast.error('Failed to update user status')
+      setConfirmStatusUser(null)
     }
   }
 
@@ -75,7 +81,18 @@ export function UserManagementPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{totalElements.toLocaleString()} user(s)</p>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-muted-foreground">{totalElements.toLocaleString()} user(s)</p>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showInactiveOnly}
+              onChange={(e) => setShowInactiveOnly(e.target.checked)}
+              className="rounded border-border"
+            />
+            Show inactive only
+          </label>
+        </div>
         <Button onClick={handleCreate} className="gap-2">
           <Plus size={16} /> Create User
         </Button>
@@ -116,8 +133,10 @@ export function UserManagementPage() {
                       {user.aadhaarVerified ? 'Verified' : 'Pending'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
+                  <td className="px-4 py-3 text-xs">
+                    {user.lastLoginAt
+                      ? <span className="text-muted-foreground">{new Date(user.lastLoginAt).toLocaleString()}</span>
+                      : <span className="text-amber-600 font-medium">Never</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -127,7 +146,7 @@ export function UserManagementPage() {
                       <Button
                         variant={user.active ? 'destructive' : 'outline'}
                         size="sm"
-                        onClick={() => toggleUserStatus(user)}
+                        onClick={() => setConfirmStatusUser(user)}
                         disabled={deactivating || activating}
                       >
                         {user.active ? 'Deactivate' : 'Activate'}
@@ -155,6 +174,20 @@ export function UserManagementPage() {
         user={selectedUser}
         onSubmit={handleFormSubmit}
         isLoading={creating || updating}
+      />
+
+      <ConfirmDialog
+        open={confirmStatusUser !== null}
+        onOpenChange={(open) => { if (!open) setConfirmStatusUser(null) }}
+        title={confirmStatusUser?.active ? `Deactivate ${confirmStatusUser?.fullName}?` : `Activate ${confirmStatusUser?.fullName}?`}
+        description={
+          confirmStatusUser?.active
+            ? `This will prevent ${confirmStatusUser?.username} from logging in. The action is logged and reversible.`
+            : `This will restore login access for ${confirmStatusUser?.username}. The action is logged.`
+        }
+        confirmLabel={confirmStatusUser?.active ? 'Deactivate' : 'Activate'}
+        confirmVariant={confirmStatusUser?.active ? 'destructive' : 'default'}
+        onConfirm={() => confirmStatusUser && toggleUserStatus(confirmStatusUser)}
       />
     </div>
   )

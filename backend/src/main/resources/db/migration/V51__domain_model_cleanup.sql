@@ -10,6 +10,9 @@
 -- verificationStatus enum is the single source of truth
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Drop composite index before dropping constituent columns
+DROP INDEX IF EXISTS idx_temples_dc_verification ON temples;
+
 -- Check and drop is_verified_by_dc column
 SET @column_exists_1 = (
     SELECT COUNT(*) FROM information_schema.COLUMNS

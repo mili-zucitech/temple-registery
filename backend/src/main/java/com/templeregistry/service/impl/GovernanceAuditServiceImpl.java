@@ -7,6 +7,8 @@ import com.templeregistry.repository.audit.GovernanceActionRepository;
 import com.templeregistry.service.audit.GovernanceAuditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,5 +64,11 @@ public class GovernanceAuditServiceImpl implements GovernanceAuditService {
     @Transactional(readOnly = true)
     public List<GovernanceActionHistory> getHistoryForEntity(String entityType, Long entityId) {
         return governanceActionRepository.findByEntityTypeAndEntityIdOrderByTimestampDesc(entityType, entityId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<GovernanceActionHistory> getAllHistory(Pageable pageable) {
+        return governanceActionRepository.findAll(pageable);
     }
 }

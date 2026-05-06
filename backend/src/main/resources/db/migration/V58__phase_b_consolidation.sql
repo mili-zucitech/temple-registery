@@ -28,9 +28,19 @@ ALTER TABLE email_delivery_logs
 -- Note: physical uncomment of above lines scheduled for V60 post frontend migration.
 
 -- ─── Add index for workflowInstanceId lookups on trust and declaration ───────
+-- NOTE: 'trust_data' is an obsolete name; the canonical table is 'trusts' (see V21, V57).
+-- V57 already added idx_trusts_workflow_instance on trusts.workflow_instance_id.
+-- This block adds a complementary covering index under a distinct name; both are
+-- guarded with IF NOT EXISTS so re-runs are safe.
 
 ALTER TABLE trusts
     ADD INDEX IF NOT EXISTS idx_trust_wf_instance_id (workflow_instance_id);
 
-ALTER TABLE asset_declarations
-    ADD INDEX IF NOT EXISTS idx_decl_wf_instance_id (workflow_instance_id);
+SET @tbl_decl_58 = (
+    SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asset_declarations'
+);
+SET @sql = IF(@tbl_decl_58 > 0,
+    'ALTER TABLE asset_declarations ADD INDEX IF NOT EXISTS idx_decl_wf_instance_id (workflow_instance_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
