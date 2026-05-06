@@ -105,12 +105,14 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
 
         // Canonical: WorkflowEngine validates and transitions
-        workflowEngineAdaptor.adaptSubmit(
+        boolean transitioned = workflowEngineAdaptor.adaptSubmit(
             WorkflowEntityType.TRUST, trustId,
             trust.getTempleId(), districtIdForTrust(trust), currentUserId());
 
-        // [P2] Snapshot the domain entity (not the workflow instance)
-        versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
+        // [P2] Snapshot the domain entity only if a new transition occurred
+        if (transitioned) {
+            versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
+        }
 
         // Keep legacy status in sync during transition period
         trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
@@ -198,12 +200,14 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         ownershipGuard.assertOwnsTemple(declaration.getTempleId());
 
         // Canonical: WorkflowEngine validates and transitions
-        workflowEngineAdaptor.adaptSubmit(
+        boolean transitioned = workflowEngineAdaptor.adaptSubmit(
             WorkflowEntityType.DECLARATION, declarationId,
             declaration.getTempleId(), declaration.getDistrictId(), currentUserId());
 
-        // [P2] Snapshot the domain entity (replacing legacy snapshotService)
-        versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, currentUserId(), null);
+        // [P2] Snapshot the domain entity only if a new transition occurred
+        if (transitioned) {
+            versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, currentUserId(), null);
+        }
 
         // Keep legacy status in sync
         declaration.setSubmittedBy(currentUserId());
@@ -666,6 +670,39 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                         .occurredAt(h.getOccurredAt())
                         .build())
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public void withdrawDeclaration(Long declarationId) {
+        AssetDeclaration declaration = loadDeclaration(declarationId);
+        ownershipGuard.assertOwnsTemple(declaration.getTempleId());
+
+        if (!DeclarationStatus.SUBMITTED.equals(declaration.getStatus())
+                && !DeclarationStatus.CLARIFICATION_REQUIRED.equals(declaration.getStatus())) {
+            throw new IllegalStatusTransitionException(
+                    "Declaration [" + declarationId + "] cannot be withdrawn. Current status: "
+                    + declaration.getStatus() + ". Only SUBMITTED or CLARIFICATION_REQUIRED declarations can be withdrawn.");
+        }
+
+        WorkflowInstance wi = workflowEngineAdaptor.findState(WorkflowEntityType.DECLARATION, declarationId)
+                .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance for Declaration", declarationId));
+
+        workflowEngine.execute(wi.getId(),
+                WorkflowActionRequest.builder()
+                        .action(WorkflowAction.WITHDRAW)
+                        .idempotencyKey(UUID.randomUUID().toString())
+                        .build(),
+                ActionContext.builder()
+                        .actorId(currentUserId())
+                        .actorRole("TEMPLE_AUTHORITY")
+                        .build());
+
+        declaration.setStatus(DeclarationStatus.WITHDRAWN);
+        declarationRepository.save(declaration);
+
+        log.info("Declaration [{}] withdrawn by userId={}", declarationId, currentUserId());
     }
 
     // =========================================================================

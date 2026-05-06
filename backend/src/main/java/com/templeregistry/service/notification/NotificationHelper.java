@@ -8,6 +8,7 @@ import com.templeregistry.event.workflow.GovernanceDomainEvent;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.service.notification.impl.NotificationRouter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;

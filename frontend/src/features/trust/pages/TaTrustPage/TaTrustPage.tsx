@@ -11,6 +11,7 @@ import {
   useListFinancialsQuery, useSubmitFinancialMutation,
   useListBoardMeetingsQuery, useCreateBoardMeetingMutation, useUploadMeetingMinutesMutation,
 } from '@/features/trust/trustApi'
+import { useSubmitTrustMutation } from '@/features/governance/governanceApi'
 import {
   createTrustSchema, updateTrustSchema, createBoardMemberSchema, updateBoardMemberSchema, submitTrustFinancialSchema, createBoardMeetingSchema,
   TRUST_TYPES,
@@ -28,6 +29,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { Building2, Users, Calendar, TrendingUp, Plus, Edit, Trash2, FileText, Eye, User, Phone, MapPin, Shield, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -106,6 +118,7 @@ export function TaTrustPage() {
 
   const [createTrust, { isLoading: creating }] = useCreateTrustMutation()
   const [updateTrust, { isLoading: updating }] = useUpdateTrustMutation()
+  const [submitTrust, { isLoading: submittingTrust }] = useSubmitTrustMutation()
   const [addMember, { isLoading: addingMember }] = useAddBoardMemberMutation()
   const [updateMember, { isLoading: updatingMember }] = useUpdateBoardMemberMutation()
   const [deleteBoardMember, { isLoading: deletingMember }] = useDeleteBoardMemberMutation()
@@ -307,6 +320,40 @@ export function TaTrustPage() {
                 <Plus size={16} className="mr-2" />
                 Register Trust
               </Button>
+            )}
+            {trust && reviewStatus === 'DRAFT' && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
+                    Submit for DC Review
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Submit Trust for DC Review?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will submit your trust registration and board details to the District
+                      Collector for review. You will not be able to edit until DC responds.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={submittingTrust}
+                      onClick={async () => {
+                        try {
+                          await submitTrust(trust.id).unwrap()
+                          toast.success('Trust submitted for DC review.')
+                        } catch {
+                          toast.error('Could not submit trust. Please try again.')
+                        }
+                      }}
+                    >
+                      {submittingTrust ? 'Submitting…' : 'Yes, submit'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
 

@@ -3,6 +3,7 @@ import type { DeclarationStatus } from './declarationTypes'
 export interface ActionVisibility {
   canEdit: boolean
   canSubmit: boolean
+  canWithdraw: boolean
   canRespondToClarification: boolean
   canApprove: boolean
   canReject: boolean
@@ -19,13 +20,14 @@ export interface ActionVisibility {
  * Rules (Design Property 8):
  * - TA edit/submit: only for DRAFT and REJECTED
  * - TA clarification-respond: only for CLARIFICATION_REQUIRED
+ * - TA withdraw: SUBMITTED or CLARIFICATION_REQUIRED (before DC acts)
  * - DC approve: SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
  * - DC reject: SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
  * - DC request clarification: SUBMITTED, UNDER_REVIEW
  * - DC schedule site visit: SUBMITTED, UNDER_REVIEW
  * - DC complete site visit: SITE_VISIT_SCHEDULED
  * - DC verify: SITE_VISIT_COMPLETED
- * - All actions disabled for APPROVED, SUPERSEDED
+ * - All actions disabled for APPROVED, SUPERSEDED, WITHDRAWN, OVERDUE (terminal)
  *
  * @param status - The current declaration status
  * @param userRole - The user's role (TEMPLE_AUTHORITY, DISTRICT_COLLECTOR, SUPER_ADMIN, etc.)
@@ -38,49 +40,66 @@ export function getAvailableActions(
   const isTA = userRole === 'TEMPLE_AUTHORITY'
   const isDC = userRole === 'DISTRICT_COLLECTOR' || userRole === 'SUPER_ADMIN'
 
-  // Terminal statuses where no actions are allowed (except REJECTED which can be edited)
-  const isTerminal = status === 'APPROVED' || status === 'SUPERSEDED'
+  const noActions: ActionVisibility = {
+    canEdit: false,
+    canSubmit: false,
+    canWithdraw: false,
+    canRespondToClarification: false,
+    canApprove: false,
+    canReject: false,
+    canRequestClarification: false,
+    canScheduleSiteVisit: false,
+    canCompleteSiteVisit: false,
+    canVerify: false,
+  }
 
-  if (isTerminal) {
-    return {
-      canEdit: false,
-      canSubmit: false,
-      canRespondToClarification: false,
-      canApprove: false,
-      canReject: false,
-      canRequestClarification: false,
-      canScheduleSiteVisit: false,
-      canCompleteSiteVisit: false,
-      canVerify: false,
-    }
+  // Terminal statuses where no further actions are allowed
+  if (
+    status === 'APPROVED' ||
+    status === 'SUPERSEDED' ||
+    status === 'WITHDRAWN' ||
+    status === 'OVERDUE'
+  ) {
+    return noActions
   }
 
   return {
-    // TA actions - allow edit and submit for both DRAFT and REJECTED
+    // TA actions
     canEdit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
     canSubmit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
-    canRespondToClarification: isTA && status === 'CLARIFICATION_REQUIRED',
+    canWithdraw: isTA && (status === 'SUBMITTED' || status === 'CLARIFICATION_REQUIRED'),
+    canRespondToClarification:
+      isTA &&
+      (status === 'CLARIFICATION_REQUIRED' ||
+        status === 'CLARIFICATION_RESPONDED' ||
+        status === 'RESUBMITTED'),
 
-    // DC approve: permitted from SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
-    // (per state machine: these statuses have APPROVED as a valid next state)
+    // DC approve: permitted from SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED, RE_APPROVED
     canApprove:
       isDC &&
       (status === 'SUBMITTED' ||
         status === 'UNDER_REVIEW' ||
         status === 'CLARIFICATION_RESPONDED' ||
-        status === 'VERIFIED'),
+        status === 'RESUBMITTED' ||
+        status === 'VERIFIED' ||
+        status === 'RE_APPROVED' ||
+        status === 'UPDATED_AFTER_APPROVAL'),
 
-    // DC reject: permitted from SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
-    // (per state machine: these statuses have REJECTED as a valid next state)
+    // DC reject: same statuses as approve
     canReject:
       isDC &&
       (status === 'SUBMITTED' ||
         status === 'UNDER_REVIEW' ||
         status === 'CLARIFICATION_RESPONDED' ||
-        status === 'VERIFIED'),
+        status === 'RESUBMITTED' ||
+        status === 'VERIFIED' ||
+        status === 'RE_APPROVED' ||
+        status === 'UPDATED_AFTER_APPROVAL'),
 
-    // DC request clarification: only from SUBMITTED or UNDER_REVIEW
-    canRequestClarification: isDC && (status === 'SUBMITTED' || status === 'UNDER_REVIEW'),
+    // DC request clarification: SUBMITTED, UNDER_REVIEW, RESUBMITTED
+    canRequestClarification:
+      isDC &&
+      (status === 'SUBMITTED' || status === 'UNDER_REVIEW' || status === 'RESUBMITTED'),
 
     // DC site visit flow
     canScheduleSiteVisit: isDC && (status === 'SUBMITTED' || status === 'UNDER_REVIEW'),

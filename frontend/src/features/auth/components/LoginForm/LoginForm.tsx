@@ -28,7 +28,7 @@ export function LoginForm() {
 
   function fillDevUser(username: string) {
     form.setValue('username', username)
-    form.setValue('password', 'password123')
+    // Password intentionally not pre-filled — enter it manually in dev
   }
 
   return (

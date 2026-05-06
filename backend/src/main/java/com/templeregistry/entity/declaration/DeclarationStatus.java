@@ -23,7 +23,9 @@ public enum DeclarationStatus {
     REJECTED,
     OVERDUE,
     /** Older version superseded when a newer version for the same temple+year reaches APPROVED. */
-    SUPERSEDED;
+    SUPERSEDED,
+    /** TA has withdrawn the submission before DC acted. Terminal state. */
+    WITHDRAWN;
 
     /**
      * Resolves a status string, supporting legacy aliases.

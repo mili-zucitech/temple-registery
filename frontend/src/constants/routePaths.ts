@@ -13,6 +13,7 @@ export const ROUTE_PATHS = {
   DC_DECLARATIONS: '/dc/declarations',
   DC_DECLARATION_DETAIL: '/dc/declarations/:id',
   DC_EXPORT: '/dc/export',
+  DC_WORKFLOW_DASHBOARD: '/dc/workflow',
 
   // Temple Authority
   TA_DASHBOARD: '/ta/dashboard',

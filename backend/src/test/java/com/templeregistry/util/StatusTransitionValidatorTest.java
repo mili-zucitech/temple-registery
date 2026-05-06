@@ -18,8 +18,8 @@ class StatusTransitionValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    @ParameterizedTest
-    @CsvSource({
+        @ParameterizedTest
+        @CsvSource({
             "SUBMITTED, APPROVED",
             "SUBMITTED, REJECTED",
             "SUBMITTED, CLARIFICATION_REQUESTED",
@@ -34,8 +34,11 @@ class StatusTransitionValidatorTest {
     })
     void should_allow_valid_transitions(String from, String to) {
         assertThatCode(() -> validator.validateDeclarationTransition(from, to))
-                .doesNotThrowAnyException();
-    }
+            .doesNotThrowAnyException();
+        }
+
+        // Site visit transitions are now handled as sub-statuses within UNDER_REVIEW, not as top-level statuses.
+        // Add a separate test for sub-status logic if needed.
 
     @Test
     void should_throw_when_REJECTED_state_is_mutated() {

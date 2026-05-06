@@ -44,6 +44,7 @@ import {
 import {
   useVerifyTempleMutation,
   useFlagTempleMutation,
+  useUnflagTempleMutation,
   useVerifyTrustMutation,
   useFlagTrustMutation,
 } from '@/features/dc/dcApi'
@@ -112,6 +113,7 @@ export function DcTempleProfilePage() {
 
   const [verifyTemple] = useVerifyTempleMutation()
   const [flagTemple] = useFlagTempleMutation()
+  const [unflagTemple, { isLoading: isUnflagging }] = useUnflagTempleMutation()
   const [verifyTrust, { isLoading: verifyingTrust }] = useVerifyTrustMutation()
   const [flagTrust, { isLoading: flaggingTrust }] = useFlagTrustMutation()
 
@@ -268,7 +270,24 @@ export function DcTempleProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                {/* Removed Verify Record and Flag Issue buttons as per new workflow. */}
+                {temple.verificationStatus === 'FLAGGED' && canAct && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-white/30 text-white hover:bg-white/20 bg-transparent"
+                    onClick={async () => {
+                      try {
+                        await unflagTemple({ id }).unwrap()
+                        toast.success('Temple flag removed.')
+                      } catch {
+                        toast.error('Failed to remove flag. Please try again.')
+                      }
+                    }}
+                    disabled={isUnflagging}
+                  >
+                    {isUnflagging ? 'Removing flag…' : '🏳 Remove Flag'}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -372,6 +391,7 @@ export function DcTempleProfilePage() {
               trust={trust}
               boardMembers={boardMembers}
               trustFinancials={profile.trustFinancials}
+              boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
               onVerifyTrust={async (trustId, notes) => {
                 try {

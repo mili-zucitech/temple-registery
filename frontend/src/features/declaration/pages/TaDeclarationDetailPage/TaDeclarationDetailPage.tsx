@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -12,11 +13,26 @@ import {
   type CompleteDeclarationResponse,
   type ResubmitDeclarationRequest,
 } from '../../declarationTypes'
+import { getAvailableActions } from '../../declarationPermissions'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { DeclarationHeader, ClarificationAlert, RejectionAlert } from './components'
+import { DeclarationHeader, ClarificationAlert, RejectionAlert, DiffTab } from './components'
 import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
+import { useWithdrawDeclarationMutation } from '@/features/governance/governanceApi'
+import type { RootState } from '@/store'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -109,9 +125,11 @@ export function TaDeclarationDetailPage() {
   const navigate = useNavigate()
   const id = Number(rawId)
   const isValid = Number.isFinite(id) && id > 0
+  const userRole = useSelector((state: RootState) => state.auth.user?.role ?? '')
 
   const declarationQuery = useGetDeclarationQuery(id, { skip: !isValid })
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
+  const [withdrawDeclaration, { isLoading: isWithdrawing }] = useWithdrawDeclarationMutation()
   const declaration = declarationQuery.data?.data
   const versions = versionsQuery.data?.data ?? []
   const [compareVersion, setCompareVersion] = useState<number | undefined>(undefined)
@@ -181,6 +199,56 @@ export function TaDeclarationDetailPage() {
       
       {/* Show clarification alert if clarification is required */}
       <ClarificationAlert status={declaration.status} />
+
+      {/* Site visit visibility banner */}
+      {declaration.status === 'SITE_VISIT_SCHEDULED' && (
+        <div className="flex items-start gap-3 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+          <span className="mt-0.5 text-lg leading-none">📅</span>
+          <div>
+            <p className="font-semibold">A site visit has been scheduled by the DC.</p>
+            <p className="mt-0.5 text-purple-700">Please ensure the premises are accessible. You will be contacted directly for the exact date and time.</p>
+          </div>
+        </div>
+      )}
+      {declaration.status === 'SITE_VISIT_COMPLETED' && (
+        <div className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+          <span className="mt-0.5 text-lg leading-none">✅</span>
+          <div>
+            <p className="font-semibold">Site visit completed.</p>
+            <p className="mt-0.5 text-indigo-700">The DC is reviewing the findings. You will be notified of the outcome.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw button — visible to TA when status allows it */}
+      {getAvailableActions(declaration.status, userRole).canWithdraw && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10">
+              Withdraw Declaration
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Withdraw Declaration?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will withdraw your declaration from DC review. You can create a new draft
+                if you wish to resubmit. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isWithdrawing}
+                onClick={() => withdrawDeclaration(declaration.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isWithdrawing ? 'Withdrawing…' : 'Yes, withdraw'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       
       {/* Show rejection alert if declaration is rejected */}
       <RejectionAlert 

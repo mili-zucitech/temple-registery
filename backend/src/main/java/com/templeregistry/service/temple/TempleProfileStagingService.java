@@ -50,4 +50,11 @@ public interface TempleProfileStagingService {
 
     /** [P6] TA responds to a clarification request. */
     void respondToClarification(Long templeId, Long threadId, String response, Long respondedByUserId);
+
+    /**
+     * Soft-delete a DRAFT staging record. Only allowed when status = DRAFT.
+     * Throws IllegalStateException if the staging is not in DRAFT status.
+     * Throws EntityNotFoundException if the staging does not belong to the given templeId.
+     */
+    void deleteDraftStaging(Long templeId, Long stagingId);
 }

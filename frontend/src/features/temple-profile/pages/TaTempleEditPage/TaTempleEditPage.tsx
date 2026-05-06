@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -40,6 +40,9 @@ export function TaTempleEditPage() {
   } = useTempleProfile()
 
   const [showConfirm, setShowConfirm] = useState(false)
+  // Track whether the form has been initialized from server data so photo uploads
+  // don't trigger a form.reset() via the isLoading refetch cycle.
+  const isFormInitialized = useRef(false)
 
   // ✅ ADD THIS HELPER AT TOP (important)
   const normalizeToCommaString = (value: unknown): string => {
@@ -70,10 +73,10 @@ export function TaTempleEditPage() {
 
   // Redirect if profile is under review (no editing allowed)
   useEffect(() => {
-    if (!isLoading && profileStatus === 'SUBMITTED') {
+    if (!isLoading && temple?.verificationStatus === 'UNDER_REVIEW') {
       navigate(ROUTE_PATHS.TA_TEMPLE, { replace: true })
     }
-  }, [isLoading, profileStatus, navigate])
+  }, [isLoading, temple?.verificationStatus , navigate])
 
   const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
@@ -97,12 +100,29 @@ export function TaTempleEditPage() {
   })
 
   // Prefill logic: staging → current → temple contact
+  // Guard: only run once after initial load; photo uploads must not re-trigger this.
   useEffect(() => {
+    if (form.formState.isDirty) {
+      return
+    }
+    // Do not re-init if form is already initialized and loading is just from a refetch.
+    if (isFormInitialized.current) {
+      return
+    }
+
     if (!isLoading && temple) {
       const source = stagingProfile || temple
 
+      // Resolve phone: staging.phone takes priority; fall back to temple.contactMobile.
+      // Normalize by stripping any +91 or 0 prefix so the field always holds a plain 10-digit number.
+      const rawPhone =
+        (source as any).phone ??
+        (source as any).contactMobile ??
+        ''
+      const normalizedPhone = String(rawPhone ?? '').replace(/^\+91/, '').replace(/^0/, '').trim()
+
       form.reset({
-        phone: (source as any).contactMobile ?? (source as any).phone ?? '',
+        phone: normalizedPhone,
         email: (source as any).contactEmail ?? (source as any).email ?? '',
         website: (source as any).website ?? '',
 
@@ -135,11 +155,15 @@ export function TaTempleEditPage() {
           (source as any).photoFilePath ??
           '',
       })
+      isFormInitialized.current = true
     }
-  }, [isLoading, temple, stagingProfile, form])
+  }, [isLoading, temple, stagingProfile, form, form.formState.isDirty])
 
   const onSaveDraft = async (data: TaProfileStagingFormValues) => {
     await handleSave(data)
+    // Reset this page's own form instance so isDirty becomes false and the
+    // Submit button re-enables without requiring a manual page refresh.
+    form.reset(data)
   }
 
   const onSubmitClick = () => {
@@ -423,7 +447,12 @@ export function TaTempleEditPage() {
                 <FormItem className="sm:col-span-2">
                   <FormLabel>Account Number</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Account Number" type="password" />
+                    <Input
+                      {...field}
+                      placeholder="Account Number"
+                      type="password"
+                      autoComplete="new-password"
+                    />
                   </FormControl>
                   <p className="text-xs text-muted-foreground mt-1">
                     {(stagingProfile as any)?.bankAccountMasked

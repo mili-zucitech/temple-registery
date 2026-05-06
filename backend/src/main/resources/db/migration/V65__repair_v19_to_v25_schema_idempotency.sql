@@ -64,24 +64,26 @@ DEALLOCATE PREPARE stmt_add_idx_rc_user_available;
 
 -- -----------------------------------------------------------------------------
 -- V20 compatibility: trust_registrations.date_of_registration
--- NOTE: trust_registrations was dropped and replaced by 'trusts' in V21.
--- On a fresh DB this table no longer exists, so all blocks below are no-ops.
--- The table-existence flag is the outer guard; the column-existence flag is the
--- inner guard for environments that still have the old table (partial upgrades).
+-- NOTE: trust_registrations was dropped in V21 and replaced by 'trusts'.
+-- If the table no longer exists, all checks below are safely no-ops.
 -- -----------------------------------------------------------------------------
-SET @has_tr_table := (
+-- Check whether trust_registrations TABLE itself still exists
+SET @trust_reg_table_exists := (
     SELECT COUNT(*)
-    FROM information_schema.TABLES
+    FROM information_schema.tables
     WHERE table_schema = @schema_name
       AND table_name = 'trust_registrations'
 );
 
-SET @has_tr_date_of_registration := (
-    SELECT COUNT(*)
-    FROM information_schema.columns
-    WHERE table_schema = @schema_name
-      AND table_name = 'trust_registrations'
-      AND column_name = 'date_of_registration'
+-- If table doesn't exist, treat as if the column already exists (no ALTER needed).
+SET @has_tr_date_of_registration := IF(
+    @trust_reg_table_exists = 0,
+    1,
+    (SELECT COUNT(*)
+     FROM information_schema.columns
+     WHERE table_schema = @schema_name
+       AND table_name = 'trust_registrations'
+       AND column_name = 'date_of_registration')
 );
 SET @sql_add_tr_date_of_registration := IF(
     @has_tr_table > 0 AND @has_tr_date_of_registration = 0,
@@ -92,12 +94,15 @@ PREPARE stmt_add_tr_date_of_registration FROM @sql_add_tr_date_of_registration;
 EXECUTE stmt_add_tr_date_of_registration;
 DEALLOCATE PREPARE stmt_add_tr_date_of_registration;
 
-SET @has_tr_registered_date := (
-    SELECT COUNT(*)
-    FROM information_schema.columns
-    WHERE table_schema = @schema_name
-      AND table_name = 'trust_registrations'
-      AND column_name = 'registered_date'
+-- registered_date backfill — also guarded: no-op if table doesn't exist
+SET @has_tr_registered_date := IF(
+    @trust_reg_table_exists = 0,
+    0,
+    (SELECT COUNT(*)
+     FROM information_schema.columns
+     WHERE table_schema = @schema_name
+       AND table_name = 'trust_registrations'
+       AND column_name = 'registered_date')
 );
 SET @sql_backfill_tr_date_of_registration := IF(
     @has_tr_table > 0 AND @has_tr_registered_date > 0,

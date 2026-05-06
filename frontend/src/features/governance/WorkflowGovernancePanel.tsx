@@ -49,9 +49,7 @@ export const WorkflowGovernancePanel: React.FC<WorkflowGovernancePanelProps> = (
   const [activeTab, setActiveTab] = useState<Tab>('actions')
   const [isExpanded, setIsExpanded] = useState(!compact)
 
-  const { data: state, isLoading, refetch } = useGetWorkflowStateQuery(workflowInstanceId, {
-    pollingInterval: 30_000, // refresh every 30s as SSE fallback
-  })
+  const { data: state, isLoading, refetch } = useGetWorkflowStateQuery(workflowInstanceId)
 
   const showClarificationBadge =
     state?.status === 'CLARIFICATION_REQUESTED' ||

@@ -67,6 +67,7 @@ export interface TempleResponse {
 
   // ── Geo hierarchy (IDs only; resolve names via geoApi) ──
   districtId: number
+  districtName?: string
   talukId?: number
   hobliId?: number
 
@@ -97,6 +98,8 @@ export interface TempleResponse {
 
   trustRegistered: boolean
   assetDeclarationStatus?: string
+  verificationStatus?: 'UNVERIFIED' | 'UNDER_REVIEW' | 'VERIFIED' | 'FLAGGED' | 'ACTIVE'
+  dcRejectionReason?: string | null
 
   /** All media (photos, PDFs, etc.) linked to this temple. */
   media?: DocumentResponse[]
@@ -178,7 +181,7 @@ export interface TempleProfileStagingResponse {
 
 // ─── TA Self-Service Profile (endpoints at /api/v1/ta/profile) ────────────────
 
-export type TaProfileStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+export type TaProfileStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'FLAGGED'
 
 /** 
  * Backend API request for profile staging.

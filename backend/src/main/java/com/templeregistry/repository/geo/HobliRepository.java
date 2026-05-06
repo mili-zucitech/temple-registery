@@ -14,10 +14,10 @@ public interface HobliRepository extends JpaRepository<Hobli, Long> {
     List<Hobli> findAllByTalukId(Long talukId);
 
     /**
-     * Fetches hobli with its taluk and district in a single JOIN FETCH query.
-     * Required by RegistrationServiceImpl to resolve districtId and talukId
+     * Fetches hobli with its full geo chain (taluk → district → city) in a single query.
+     * Required by RegistrationServiceImpl to resolve districtId, talukId and cityId
      * during temple creation without N+1 lazy-load traversal.
      */
-    @EntityGraph(attributePaths = {"taluk", "taluk.district"})
+    @EntityGraph(attributePaths = {"taluk", "taluk.district", "taluk.district.city"})
     Optional<Hobli> findWithGeoById(Long id);
 }

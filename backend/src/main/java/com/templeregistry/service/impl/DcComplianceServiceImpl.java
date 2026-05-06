@@ -112,6 +112,13 @@ public class DcComplianceServiceImpl implements DcComplianceService {
         Temple temple = loadTempleWithGeo(trust.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
+        // Guard: DC can only flag a trust that has been submitted — flagging a DRAFT trust
+        // would cause adaptSendBack to fail with an invalid-transition error from WorkflowEngine.
+        if (trust.getSubmissionStatus() == com.templeregistry.entity.governance.SubmissionStatus.DRAFT) {
+            throw new IllegalStateException(
+                    "Trust must be submitted before DC can flag it. Current status: DRAFT");
+        }
+
         workflowEngineAdaptor.ensureInitiated(
             WorkflowEntityType.TRUST,
             id,

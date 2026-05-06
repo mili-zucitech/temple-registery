@@ -7,13 +7,14 @@ import com.templeregistry.dto.response.dc.TempleVerificationResponse;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleVerificationService;
+import com.templeregistry.service.temple.TempleProfileStagingService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
-import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,10 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DcTempleVerificationServiceImpl implements DcTempleVerificationService {
 
     private final TempleRepository templeRepository;
+    private final TempleProfileStagingRepository profileStagingRepository;
+    private final TempleProfileStagingService stagingService;
     private final JurisdictionGuard jurisdictionGuard;
     private final TempleSearchSummaryService summaryService;
     private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
-    private final WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @Override
     @Transactional
@@ -43,15 +45,35 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple temple = loadTempleWithGeo(templeId);
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Verify the temple - set status to VERIFIED
+        // Auto-approve any pending SUBMITTED staging — DC verification of the temple
+        // implies acceptance of the currently-staged profile data. Without this, TA
+        // would be permanently blocked from creating new drafts after DC uses the direct
+        // verify path instead of the staging approval workflow.
+        profileStagingRepository
+                .findFirstByTempleIdAndStatus(templeId,
+                        com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED)
+                .ifPresent(staging -> {
+                    try {
+                        stagingService.approve(templeId, staging.getId());
+                        log.info("Auto-approved SUBMITTED staging [{}] on temple verify: templeId=[{}]",
+                                staging.getId(), templeId);
+                    } catch (IllegalStateException e) {
+                        // Staging may already have been resolved (race condition) — log and continue.
+                        log.warn("Could not auto-approve staging [{}] during verify (already resolved?): {}",
+                                staging.getId(), e.getMessage());
+                    }
+                });
+
+        // Reload temple to pick up any field promotions from the staging approval above.
+        temple = templeRepository.findWithGeoById(templeId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Temple not found with id: " + templeId, "TEMPLE_NOT_FOUND"));
+
         temple.setVerificationStatus(VerificationStatus.VERIFIED);
-        temple.setDcRejectionReason(null); // Clear any previous rejection reason
+        temple.setDcRejectionReason(null);
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
-        workflowEngineAdaptor.adaptVerifyTempleProfile(templeId, claims.districtId(), claims.userId());
-
-        // Send notification to all TAs for this temple
         notificationHelper.notifyTempleApproved(templeId, claims.userId());
 
         log.info("Temple profile verified by DC: templeId=[{}] dcUserId=[{}]", templeId, claims.userId());
@@ -73,7 +95,6 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
-        workflowEngineAdaptor.adaptFlagTempleProfile(templeId, claims.districtId(), claims.userId(), request.getReason());
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleFlagged(templeId, claims.userId(), request.getReason());
@@ -102,7 +123,6 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
 
         Temple saved = templeRepository.save(temple);
         summaryService.refresh(templeId);
-        workflowEngineAdaptor.adaptUnflagTempleProfile(templeId, claims.districtId(), claims.userId());
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleUnflagged(templeId, claims.userId());

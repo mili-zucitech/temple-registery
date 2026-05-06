@@ -149,4 +149,11 @@ public interface GovernanceWorkflowService {
      * DC-only — must NEVER be called from a TA-accessible endpoint.
      */
     List<PhysicalVerificationHistoryResponse> getPhysicalVerificationHistory(Long declarationId);
+
+    /**
+     * TA withdraws a submitted declaration.
+     * Only allowed when status = SUBMITTED (PENDING_REVIEW) or CLARIFICATION_REQUESTED.
+     * Transitions to WITHDRAWN (terminal state).
+     */
+    void withdrawDeclaration(Long declarationId);
 }

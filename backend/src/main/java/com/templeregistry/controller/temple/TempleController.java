@@ -97,8 +97,7 @@ public class TempleController {
     /* â”€â”€ Temple Profile Staging Workflow (TA â†’ DC approval) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @PostMapping("/{templeId}/profile/staging")
-    @Operation(summary = "Create or update a DRAFT profile staging record (TA/SA)")
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    @Operation(summary = "Create or update a DRAFT profile staging record (TA/SA)")    @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> createOrUpdateDraft(
             @PathVariable Long templeId,
             @Valid @RequestBody CreateTempleProfileStagingRequest request) {
@@ -114,6 +113,16 @@ public class TempleController {
             @PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Profile submitted for review.",
                 stagingService.submitForReview(templeId)));
+    }
+
+    @DeleteMapping("/{templeId}/profile/staging/{stagingId}")
+    @Operation(summary = "Delete a DRAFT profile staging record (TA only). Only allowed when status = DRAFT.")
+    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
+    public ResponseEntity<ApiResponse<Void>> deleteDraftStaging(
+            @PathVariable Long templeId,
+            @PathVariable Long stagingId) {
+        stagingService.deleteDraftStaging(templeId, stagingId);
+        return ResponseEntity.ok(ApiResponse.success("Draft staging deleted.", null));
     }
 
     @PostMapping("/{templeId}/profile/approve/{stagingId}")

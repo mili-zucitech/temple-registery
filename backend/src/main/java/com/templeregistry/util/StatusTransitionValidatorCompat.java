@@ -5,6 +5,7 @@ import com.templeregistry.exception.WorkflowException;
 import com.templeregistry.service.workflow.TransitionRuleRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Component;
  * @deprecated Validation is now handled by WorkflowEngine. This shim will be removed in Phase 5B.
  */
 @Deprecated(forRemoval = true)
+@ConditionalOnProperty(name = "app.legacy.enabled", havingValue = "true", matchIfMissing = false)
 @Component
 @Slf4j
 @RequiredArgsConstructor

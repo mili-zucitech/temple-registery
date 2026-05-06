@@ -10,6 +10,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -50,6 +51,9 @@ public class TempleFullProfileResponse {
     // Declarations (most recent first)
     private List<DeclarationResponse> declarations;
 
+    // Board meeting history for the primary trust
+    private List<BoardMeetingSummary> boardMeetings;
+
     // Current approved profile (null if no approved profile yet)
     private ProfileCurrentResponse currentProfile;
 
@@ -73,6 +77,7 @@ public class TempleFullProfileResponse {
         private BigDecimal annualIncome;
         private String dcFlagReason;
         private String reviewStatus;
+        private boolean isVerifiedByDc;
         private List<String> validationIssues;
         private String financialStatus;
     }
@@ -99,6 +104,16 @@ public class TempleFullProfileResponse {
         @JsonProperty("current")
         private boolean current;
         private String dcFlagReason;
+    }
+
+    @Getter
+    @Builder
+    public static class BoardMeetingSummary {
+        private Long id;
+        private LocalDate meetingDate;
+        private String agenda;
+        private Long minutesDocumentId;
+        private LocalDateTime createdAt;
     }
 
     @Getter

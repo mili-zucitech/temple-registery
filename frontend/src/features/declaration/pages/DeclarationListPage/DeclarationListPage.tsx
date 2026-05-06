@@ -100,7 +100,7 @@ export function DeclarationListPage() {
       <EmptyState
         title="Unable to load declarations"
         description="We could not fetch the declaration registry right now."
-        action={{ label: 'Retry', onClick: () => window.location.reload() }}
+        action={{ label: 'Retry', onClick: () => query.refetch() }}
       />
     )
   }

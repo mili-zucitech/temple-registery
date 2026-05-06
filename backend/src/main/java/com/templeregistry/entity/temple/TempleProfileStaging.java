@@ -31,6 +31,10 @@ public class TempleProfileStaging extends BaseEntity {
     @Builder.Default
     private TempleProfileStagingStatus status = TempleProfileStagingStatus.DRAFT;
 
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Integer version = 1;
+
     @Column(name = "version_number", nullable = false)
     @Builder.Default
     private Integer versionNumber = 1;

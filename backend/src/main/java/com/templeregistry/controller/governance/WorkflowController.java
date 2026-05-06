@@ -1,17 +1,19 @@
 package com.templeregistry.controller.governance;
 
+import com.templeregistry.common.ApiResponse;
 import com.templeregistry.dto.response.workflow.WorkflowEnvelope;
 import com.templeregistry.entity.workflow.*;
 import com.templeregistry.repository.workflow.WorkflowTransitionRepository;
+import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.clarification.*;
 import com.templeregistry.service.workflow.*;
 import com.templeregistry.service.notification.impl.SseNotificationService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
@@ -52,7 +54,8 @@ public class WorkflowController {
 
     @GetMapping("/{instanceId}")
     @Operation(summary = "Get workflow state and available actions for a workflow instance")
-    public ResponseEntity<WorkflowStateResponse> getState(
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public ResponseEntity<ApiResponse<WorkflowStateResponse>> getState(
             @PathVariable Long instanceId,
             Authentication auth) {
 
@@ -61,14 +64,16 @@ public class WorkflowController {
         List<AvailableAction> actions = workflowEngine.getAvailableActions(instanceId, context);
         ClarificationSummary clarification = clarificationEngine.getSummary(instanceId);
 
-        return ResponseEntity.ok(WorkflowStateResponse.from(instance, actions, clarification));
+        return ResponseEntity.ok(ApiResponse.success("Workflow state retrieved.",
+                WorkflowStateResponse.from(instance, actions, clarification)));
     }
 
     // ─── Execute Action ───────────────────────────────────────────────────────
 
     @PostMapping("/{instanceId}/action")
     @Operation(summary = "Execute a workflow action (submit, approve, reject, etc.)")
-    public ResponseEntity<WorkflowTransitionResult> executeAction(
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','DISTRICT_COLLECTOR','DC_STAFF','TEMPLE_AUTHORITY')")
+    public ResponseEntity<ApiResponse<WorkflowTransitionResult>> executeAction(
             @PathVariable Long instanceId,
             @Valid @RequestBody WorkflowActionHttpRequest body,
             Authentication auth) {
@@ -82,14 +87,15 @@ public class WorkflowController {
             .build();
 
         WorkflowTransitionResult result = workflowEngine.execute(instanceId, request, context);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success("Action executed.", result));
     }
 
     // ─── Clarification ────────────────────────────────────────────────────────
 
     @PostMapping("/{instanceId}/clarification")
     @Operation(summary = "DC opens a new clarification round")
-    public ResponseEntity<?> requestClarification(
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<?>> requestClarification(
             @PathVariable Long instanceId,
             @Valid @RequestBody ClarificationHttpRequest body,
             Authentication auth) {
@@ -102,12 +108,13 @@ public class WorkflowController {
             .build();
 
         var thread = clarificationEngine.requestClarification(instanceId, request, ctx.getActorId(), null);
-        return ResponseEntity.ok(thread);
+        return ResponseEntity.ok(ApiResponse.success("Clarification requested.", thread));
     }
 
     @PostMapping("/{instanceId}/clarification/{threadId}/respond")
     @Operation(summary = "TA responds to a clarification thread")
-    public ResponseEntity<?> respond(
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public ResponseEntity<ApiResponse<?>> respond(
             @PathVariable Long instanceId,
             @PathVariable Long threadId,
             @Valid @RequestBody ClarificationResponseHttpRequest body,
@@ -121,11 +128,12 @@ public class WorkflowController {
             .build();
 
         var message = clarificationEngine.respond(threadId, response, ctx.getActorId());
-        return ResponseEntity.ok(message);
+        return ResponseEntity.ok(ApiResponse.success("Clarification response submitted.", message));
     }
 
     @PostMapping("/{instanceId}/clarification/{threadId}/resolve")
     @Operation(summary = "DC resolves a clarification thread")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
     public ResponseEntity<Void> resolve(
             @PathVariable Long instanceId,
             @PathVariable Long threadId,
@@ -138,15 +146,18 @@ public class WorkflowController {
 
     @GetMapping("/{instanceId}/clarification")
     @Operation(summary = "Get all clarification threads for a workflow instance")
-    public ResponseEntity<?> getClarificationThreads(@PathVariable Long instanceId) {
-        return ResponseEntity.ok(clarificationEngine.getThreads(instanceId));
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public ResponseEntity<ApiResponse<?>> getClarificationThreads(@PathVariable Long instanceId) {
+        return ResponseEntity.ok(ApiResponse.success("Clarification threads retrieved.",
+                clarificationEngine.getThreads(instanceId)));
     }
 
     // ─── Audit History ────────────────────────────────────────────────────────
 
     @GetMapping("/{instanceId}/history")
     @Operation(summary = "Get full audit trail for a workflow instance")
-    public ResponseEntity<List<WorkflowTransitionHistoryResponse>> getHistory(
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public ResponseEntity<ApiResponse<List<WorkflowTransitionHistoryResponse>>> getHistory(
             @PathVariable Long instanceId) {
 
         List<com.templeregistry.entity.workflow.WorkflowTransition> transitions =
@@ -168,14 +179,15 @@ public class WorkflowController {
             ))
             .toList();
 
-        return ResponseEntity.ok(history);
+        return ResponseEntity.ok(ApiResponse.success("Workflow history retrieved.", history));
     }
 
     // ─── Dashboard ────────────────────────────────────────────────────────────
 
     @GetMapping("/dashboard")
     @Operation(summary = "DC unified review queue — all modules, all statuses (API v2)")
-    public ResponseEntity<Page<WorkflowInstance>> getDashboard(
+    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<WorkflowInstanceSummaryDto>>> getDashboard(
             @RequestParam(required = false) Long districtId,
             @RequestParam(required = false) Long templeId,
             @RequestParam(required = false) List<WorkflowEntityType> entityTypes,
@@ -195,14 +207,18 @@ public class WorkflowController {
             .build();
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "statusUpdatedAt"));
-        return ResponseEntity.ok(workflowEngine.findForDashboard(filter, pageable));
+        org.springframework.data.domain.Page<WorkflowInstanceSummaryDto> result =
+            workflowEngine.findForDashboard(filter, pageable)
+                .map(WorkflowInstanceSummaryDto::from);
+        return ResponseEntity.ok(ApiResponse.success("Workflow dashboard retrieved.", result));
     }
 
     // ─── Counts (for badge counts) ────────────────────────────────────────────
 
     @GetMapping("/count/pending")
     @Operation(summary = "Get count of pending items for badge display")
-    public ResponseEntity<BadgeCountResponse> getPendingCount(
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<BadgeCountResponse>> getPendingCount(
             @RequestParam(required = false) Long districtId,
             @RequestParam(required = false) Long templeId,
             Authentication auth) {
@@ -217,13 +233,14 @@ public class WorkflowController {
             count = workflowEngine.countPendingForTemple(templeId);
         }
 
-        return ResponseEntity.ok(new BadgeCountResponse(count));
+        return ResponseEntity.ok(ApiResponse.success("Pending count retrieved.", new BadgeCountResponse(count)));
     }
 
     // ─── SSE Stream ───────────────────────────────────────────────────────────
 
     @GetMapping(value = "/notifications/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Subscribe to real-time notification stream via SSE")
+    @PreAuthorize("isAuthenticated()")
     public SseEmitter subscribeToNotifications(Authentication auth) {
         ActionContext ctx = actionContextResolver.resolve(auth);
         return sseService.subscribe(ctx.getActorId());
@@ -251,6 +268,45 @@ public class WorkflowController {
     ) {}
 
     public record BadgeCountResponse(long pendingCount) {}
+
+    /**
+     * Safe DTO for dashboard queries — never exposes raw WorkflowInstance entity.
+     */
+    public record WorkflowInstanceSummaryDto(
+        Long id,
+        String entityType,
+        Long entityId,
+        String status,
+        String subStatus,
+        Long templeId,
+        Long districtId,
+        Long createdByUserId,
+        String currentActorRole,
+        String statusUpdatedAt,
+        String submittedAt,
+        String deadlineAt,
+        Long lockVersion,
+        int versionNumber
+    ) {
+        static WorkflowInstanceSummaryDto from(WorkflowInstance wi) {
+            return new WorkflowInstanceSummaryDto(
+                wi.getId(),
+                wi.getEntityType() != null ? wi.getEntityType().name() : null,
+                wi.getEntityId(),
+                wi.getStatus() != null ? wi.getStatus().name() : null,
+                wi.getSubStatus(),
+                wi.getTempleId(),
+                wi.getDistrictId(),
+                wi.getCreatedByUserId(),
+                wi.getCurrentActorRole(),
+                wi.getStatusUpdatedAt() != null ? wi.getStatusUpdatedAt().toString() : null,
+                wi.getSubmittedAt() != null ? wi.getSubmittedAt().toString() : null,
+                wi.getDeadlineAt() != null ? wi.getDeadlineAt().toString() : null,
+                wi.getLockVersion(),
+                wi.getVersionNumber()
+            );
+        }
+    }
 
     public record WorkflowTransitionHistoryResponse(
         Long id,
