@@ -6,6 +6,7 @@ export const DECLARATION_STATUSES = [
   'UNDER_REVIEW',
   'CLARIFICATION_REQUIRED',
   'CLARIFICATION_RESPONDED',
+  'RESUBMITTED',
   'SITE_VISIT_SCHEDULED',
   'SITE_VISIT_COMPLETED',
   'VERIFIED',
@@ -13,6 +14,9 @@ export const DECLARATION_STATUSES = [
   'REJECTED',
   'OVERDUE',
   'SUPERSEDED',
+  'WITHDRAWN',
+  'RE_APPROVED',
+  'UPDATED_AFTER_APPROVAL',
 ] as const
 
 export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
@@ -24,6 +28,7 @@ export const DECLARATION_STATUS_LABELS: Record<DeclarationStatus, string> = {
   UNDER_REVIEW: 'Under Review',
   CLARIFICATION_REQUIRED: 'Clarification Required',
   CLARIFICATION_RESPONDED: 'Clarification Responded',
+  RESUBMITTED: 'Resubmitted',
   SITE_VISIT_SCHEDULED: 'Site Visit Scheduled',
   SITE_VISIT_COMPLETED: 'Site Visit Completed',
   VERIFIED: 'Verified',
@@ -31,6 +36,9 @@ export const DECLARATION_STATUS_LABELS: Record<DeclarationStatus, string> = {
   REJECTED: 'Rejected',
   OVERDUE: 'Overdue',
   SUPERSEDED: 'Superseded',
+  WITHDRAWN: 'Withdrawn',
+  RE_APPROVED: 'Re-Approved',
+  UPDATED_AFTER_APPROVAL: 'Updated After Approval',
 }
 
 /** Tailwind badge color classes for each canonical status */
@@ -40,6 +48,7 @@ export const DECLARATION_STATUS_BADGE_CLASSES: Record<DeclarationStatus, string>
   UNDER_REVIEW: 'bg-amber-100 text-amber-800 border-amber-200',
   CLARIFICATION_REQUIRED: 'bg-orange-100 text-orange-800 border-orange-200',
   CLARIFICATION_RESPONDED: 'bg-sky-100 text-sky-800 border-sky-200',
+  RESUBMITTED: 'bg-sky-100 text-sky-800 border-sky-200',
   SITE_VISIT_SCHEDULED: 'bg-purple-100 text-purple-800 border-purple-200',
   SITE_VISIT_COMPLETED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   VERIFIED: 'bg-teal-100 text-teal-800 border-teal-200',
@@ -47,6 +56,9 @@ export const DECLARATION_STATUS_BADGE_CLASSES: Record<DeclarationStatus, string>
   REJECTED: 'bg-red-100 text-red-800 border-red-200',
   OVERDUE: 'bg-red-200 text-red-900 border-red-300',
   SUPERSEDED: 'bg-gray-200 text-gray-700 border-gray-300',
+  WITHDRAWN: 'bg-gray-100 text-gray-600 border-gray-200',
+  RE_APPROVED: 'bg-green-200 text-green-900 border-green-300',
+  UPDATED_AFTER_APPROVAL: 'bg-yellow-100 text-yellow-800 border-yellow-200',
 }
 
 const moneySchema = z.number().nonnegative().optional()

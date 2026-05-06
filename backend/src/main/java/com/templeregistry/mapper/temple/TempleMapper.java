@@ -36,6 +36,10 @@ public interface TempleMapper {
     @Mapping(target = "dcRejectionReason", ignore = true)
     Temple fromCreateRequest(com.templeregistry.dto.request.temple.CreateTempleRequest request);
 
+    // districtName and cityName are enriched in TempleServiceImpl.enrichTempleResponse;
+    // they are not on the Temple entity and must be explicitly ignored here.
+    @Mapping(target = "districtName", ignore = true)
+    @Mapping(target = "cityName", ignore = true)
     TempleResponse toTempleResponse(Temple entity);
 
     @Mapping(target = "id", source = "templeId")

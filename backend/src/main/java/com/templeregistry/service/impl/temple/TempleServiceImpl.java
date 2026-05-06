@@ -15,6 +15,7 @@ import com.templeregistry.repository.temple.TemplePhotoRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
@@ -49,6 +50,7 @@ public class TempleServiceImpl implements TempleService {
     private final TempleMapper templeMapper;
     private final TemplePhotoRepository templePhotoRepository;
     private final TempleProfileStagingRepository stagingRepository;
+    private final DistrictRepository districtRepository;
     private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
     private final JurisdictionGuard jurisdictionGuard;
@@ -113,7 +115,7 @@ public class TempleServiceImpl implements TempleService {
         Temple temple = findOrThrow(id);
         jurisdictionGuard.assertSameDistrict(temple.getDistrictId());
         ownershipGuard.assertOwnsTemple(id);
-        TempleResponse dto = templeMapper.toTempleResponse(temple);
+        TempleResponse dto = enrichTempleResponse(templeMapper.toTempleResponse(temple));
         if (dto.getPhotoUrl() != null && !dto.getPhotoUrl().isBlank()) {
             dto = TempleResponse.builder()
                 .id(dto.getId())
@@ -132,6 +134,7 @@ public class TempleServiceImpl implements TempleService {
                 .hobliId(dto.getHobliId())
                 .talukId(dto.getTalukId())
                 .districtId(dto.getDistrictId())
+                .districtName(dto.getDistrictName())
                 .latitude(dto.getLatitude())
                 .longitude(dto.getLongitude())
                 .contactName(dto.getContactName())
@@ -227,7 +230,7 @@ public class TempleServiceImpl implements TempleService {
         if (temple != null) {
             jurisdictionGuard.assertSameDistrict(temple.getDistrictId());
             ownershipGuard.assertOwnsTemple(templeId);
-            return templeMapper.toTempleResponse(temple);
+            return enrichTempleResponse(templeMapper.toTempleResponse(temple));
         }
 
         TempleProfileStaging staging = stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
@@ -254,6 +257,67 @@ public class TempleServiceImpl implements TempleService {
                 .history(staging.getDescription() != null ? staging.getDescription() : staging.getHistoricalSignificance())
                 .bankName(staging.getBankName())
                 .bankIfsc(staging.getBankIfsc())
+                .build();
+    }
+
+    private TempleResponse enrichTempleResponse(TempleResponse dto) {
+        if (dto == null || dto.getDistrictId() == null) {
+            return dto;
+        }
+
+        // Single query: fetch district, then lazily resolve its city within the same transaction
+        final String[] districtAndCity = { null, null, null }; // [districtName, cityName, cityId]
+        districtRepository.findById(dto.getDistrictId()).ifPresent(d -> {
+            districtAndCity[0] = d.getName();
+            if (d.getCity() != null) {
+                districtAndCity[1] = d.getCity().getName();
+                districtAndCity[2] = d.getCity().getId() != null ? d.getCity().getId().toString() : null;
+            }
+        });
+
+        Long resolvedCityId = dto.getCityId() != null ? dto.getCityId()
+                : (districtAndCity[2] != null ? Long.parseLong(districtAndCity[2]) : null);
+
+        return TempleResponse.builder()
+                .id(dto.getId())
+                .registrationNumber(dto.getRegistrationNumber())
+                .name(dto.getName())
+                .aliasName(dto.getAliasName())
+                .grade(dto.getGrade())
+                .primaryDeity(dto.getPrimaryDeity())
+                .tradition(dto.getTradition())
+                .yearEstablished(dto.getYearEstablished())
+                .history(dto.getHistory())
+                .doorNumber(dto.getDoorNumber())
+                .street(dto.getStreet())
+                .villageTown(dto.getVillageTown())
+                .pinCode(dto.getPinCode())
+                .hobliId(dto.getHobliId())
+                .talukId(dto.getTalukId())
+                .cityId(resolvedCityId)
+                .cityName(districtAndCity[1])
+                .districtId(dto.getDistrictId())
+                .districtName(districtAndCity[0])
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
+                .contactName(dto.getContactName())
+                .contactDesignation(dto.getContactDesignation())
+                .contactMobile(dto.getContactMobile())
+                .contactEmail(dto.getContactEmail())
+                .photoUrl(dto.getPhotoUrl())
+                .website(dto.getWebsite())
+                .languagesOfWorship(dto.getLanguagesOfWorship())
+                .linkedInstitutions(dto.getLinkedInstitutions())
+                .annualFestivals(dto.getAnnualFestivals())
+                .landmark(dto.getLandmark())
+                .historicalSignificance(dto.getHistoricalSignificance())
+                .bankName(dto.getBankName())
+                .bankIfsc(dto.getBankIfsc())
+                .trustRegistered(dto.isTrustRegistered())
+                .assetDeclarationStatus(dto.getAssetDeclarationStatus())
+                .status(dto.getStatus())
+                .verificationStatus(dto.getVerificationStatus())
+                .dcRejectionReason(dto.getDcRejectionReason())
                 .build();
     }
 

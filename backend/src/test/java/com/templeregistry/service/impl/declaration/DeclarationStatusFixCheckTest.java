@@ -82,7 +82,6 @@ class DeclarationStatusFixCheckTest {
                 Mockito.mock(com.templeregistry.service.governance.GovernanceEditGuard.class),
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
-                Mockito.mock(com.templeregistry.service.notification.NotificationHelper.class),
                 Mockito.mock(com.templeregistry.service.workflow.WorkflowEngineAdaptor.class),
                 Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class)
         );

@@ -20,7 +20,7 @@ SELECT
     END                                                             AS status,
     NULL                                                            AS sub_status,
     0                                                               AS lock_version,
-    COALESCE(tps.version, 1)                                 AS version_number,
+    COALESCE(tps.version, 1)                                        AS version_number,
     CASE tps.status
         WHEN 'PENDING_REVIEW'   THEN 'DC'
         WHEN 'DRAFT'            THEN 'TA'
@@ -145,7 +145,7 @@ INSERT INTO workflow_instances
 SELECT
     'BOARD_MEMBER'                                                  AS entity_type,
     bm.id                                                           AS entity_id,
-    'SUBMITTED'                                                     AS status,
+    'SUBMITTED'                                                      AS status,
     NULL                                                            AS sub_status,
     0                                                               AS lock_version,
     1                                                               AS version_number,

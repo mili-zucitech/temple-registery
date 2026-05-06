@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image } from 'lucide-react'
+import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -46,7 +46,7 @@ function OverviewTab() {
     profileStatus === 'DRAFT' ? 'Continue Editing' :
     profileStatus === 'REJECTED' ? 'Create New Draft' : 'Edit Profile'
 
-  const district = temple ? `District ID: ${temple.districtId}` : undefined
+  const district = temple?.districtName ?? undefined
   const locationParts = [temple?.landmark, talukName, hobliName, district].filter(Boolean)
 
 
@@ -66,17 +66,51 @@ function OverviewTab() {
 
   return (
     <div className="space-y-4 animate-in fade-in-50 duration-300">
-      <StatusBanner
-        status={profileStatus}
-        reviewComment={profileReviewComment}
-      />
+
+      {temple?.verificationStatus === 'FLAGGED' && (
+        <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-destructive">Flagged By District Collector</p>
+              <p className="text-sm text-foreground">
+                {temple.dcRejectionReason?.trim() || 'Your profile was flagged. Please update the profile details and resubmit for review.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {temple?.verificationStatus === 'VERIFIED' && (
+        <div className="rounded-xl border-2 border-success/30 bg-success/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-success">Verified By District Collector</p>
+              <p className="text-sm text-foreground">Your temple profile has been verified by the District Collector.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {temple?.verificationStatus === 'UNDER_REVIEW' && (
+        <div className="rounded-xl border-2 border-info/30 bg-info/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 text-info" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-info-foreground">Under DC Review</p>
+              <p className="text-sm text-foreground">Your temple profile is currently under review by the District Collector.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-end">
         <Button
           onClick={handleEdit}
-          disabled={profileStatus === 'SUBMITTED'}
+          disabled={temple?.verificationStatus === 'UNDER_REVIEW'}
           className="bg-gradient-gold shadow-gold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium"
-          title={profileStatus === 'SUBMITTED' ? 'Editing locked while under DC review' : undefined}
+          title={temple?.verificationStatus === 'UNDER_REVIEW' ? 'Editing locked while under DC review' : undefined}
         >
           <span className="mr-2">✎</span>
           {editLabel}

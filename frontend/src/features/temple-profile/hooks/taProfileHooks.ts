@@ -23,6 +23,7 @@ function deriveProfileStatus(
     if (status === 'PENDING_REVIEW' || status === 'SUBMITTED') return 'SUBMITTED'
     if (status === 'REJECTED') return 'REJECTED'
     if (status === 'APPROVED') return 'APPROVED'
+    if (status === 'FLAGGED') return 'FLAGGED'
     return null
   }
 
@@ -36,6 +37,7 @@ function deriveProfileStatus(
   if (mappedLatestVersionStatus) return mappedLatestVersionStatus
 
   if (checklistStatus === 'APPROVED') return 'APPROVED'
+  if (checklistStatus === 'FLAGGED') return 'FLAGGED'
   if (checklistStatus === 'SUBMITTED' || checklistStatus === 'PENDING_REVIEW') return 'SUBMITTED'
   return 'NOT_STARTED'
 }
@@ -120,12 +122,12 @@ export function useTempleProfile() {
   const templeId = user?.templeId
 
   const { data: templeData, isLoading: templeLoading, isError } = useGetTempleByIdQuery(
-    templeId!, { skip: !templeId },
+    templeId!, { skip: !templeId, refetchOnFocus: true, refetchOnMountOrArgChange: true },
   )
   const temple = templeData?.data ?? null
 
   const { data: stagingData, isLoading: stagingLoading } = useGetActiveStagingQuery(
-    templeId!, { skip: !templeId },
+    templeId!, { skip: !templeId, refetchOnMountOrArgChange: true },
   )
   const stagingProfile = stagingData?.data ?? null
   const { data: historyData, isLoading: historyLoading } = useGetStagingHistoryQuery(
@@ -187,8 +189,12 @@ export function useTempleProfile() {
       const parsedLinked = normalizeTagList(source.linkedInstitutions)
       const parsedLanguages = normalizeTagList(source.languagesOfWorship)
 
+      // Normalize phone: strip +91 or leading 0 so it's always a plain 10-digit number.
+      const rawPhone = readProfileField(source, 'phone', 'contactMobile') ?? ''
+      const normalizedPhone = rawPhone.replace(/^\+91/, '').replace(/^0/, '').trim()
+
       form.reset({
-        phone: readProfileField(source, 'phone', 'contactMobile') ?? '',
+        phone: normalizedPhone,
         email: readProfileField(source, 'email', 'contactEmail') ?? '',
         website: readProfileField(source, 'website') ?? '',
         contactPersonName: readProfileField(source, 'contactPersonName', 'contactName') ?? '',
@@ -206,9 +212,11 @@ export function useTempleProfile() {
       })
     } else if (temple) {
       const parsedLanguages = normalizeTagList(temple.languagesOfWorship)
+      const rawPhone = temple.contactMobile ?? ''
+      const normalizedPhone = rawPhone.replace(/^\+91/, '').replace(/^0/, '').trim()
 
       form.reset({
-        phone: temple.contactMobile ?? '',
+        phone: normalizedPhone,
         email: temple.contactEmail ?? '',
         website: '',
         contactPersonName: temple.contactName ?? '',

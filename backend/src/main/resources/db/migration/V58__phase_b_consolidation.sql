@@ -1,48 +1,27 @@
 -- V58: Phase B consolidation
 -- 1. Add workflow_instance_id to in_app_notifications (for frontend deep-link from bell icon)
 -- 2. Add workflowInstanceId index on in_app_notifications
--- 3. Add sendNotification() email tracking column on email_delivery_logs (plural — created V43)
---
--- NOTE: original draft incorrectly named the email table 'email_delivery_log' (singular).
--- The canonical table is 'email_delivery_logs' (plural). Fixed here.
--- All ALTER statements guarded with INFORMATION_SCHEMA existence checks (pattern from V51/V57).
+-- 3. Add sendNotification() email tracking column on email_delivery_logs
 
--- ─── in_app_notifications: workflow_instance_id back-reference ───────────────
+ALTER TABLE in_app_notifications
+    ADD COLUMN IF NOT EXISTS workflow_instance_id BIGINT DEFAULT NULL
+        COMMENT 'FK to workflow_instances.id — enables frontend deep-link to WorkflowGovernancePanel';
 
-SET @tbl_ian = (
-    SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'in_app_notifications'
-);
+ALTER TABLE in_app_notifications
+    ADD INDEX IF NOT EXISTS idx_ian_workflow_instance (workflow_instance_id);
 
-SET @sql = IF(@tbl_ian > 0,
-    'ALTER TABLE in_app_notifications ADD COLUMN IF NOT EXISTS workflow_instance_id BIGINT DEFAULT NULL COMMENT ''FK to workflow_instances.id — enables frontend deep-link to WorkflowGovernancePanel''',
-    'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- ─── email_delivery_logs: add template_key for v2 pipeline ──────────────────
 
-SET @sql = IF(@tbl_ian > 0,
-    'ALTER TABLE in_app_notifications ADD INDEX IF NOT EXISTS idx_ian_workflow_instance (workflow_instance_id)',
-    'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- ─── email_delivery_logs: add template_key for v2 pipeline ───────────────────
--- V61 also guards this column idempotently; whichever runs first wins.
-
-SET @tbl_edl = (
-    SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_delivery_logs'
-);
-
-SET @sql = IF(@tbl_edl > 0,
-    'ALTER TABLE email_delivery_logs ADD COLUMN IF NOT EXISTS template_key VARCHAR(100) DEFAULT NULL COMMENT ''Template key used by EmailService.sendNotification() v2 pipeline''',
-    'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+ALTER TABLE email_delivery_logs
+    ADD COLUMN IF NOT EXISTS template_key VARCHAR(100) DEFAULT NULL
+        COMMENT 'Template key used by EmailService.sendNotification() v2 pipeline';
 
 -- ─── Deprecate legacy governance columns (soft-deprecation — leave data intact) ──────
 -- These columns are still read by existing frontend until WorkflowGovernancePanel migration.
 -- Remove in V60 after frontend cutover is complete.
 
--- trust_data: mark submission_status and dc_decision_status as deprecated
--- ALTER TABLE trust_data
+-- trusts: mark submission_status and dc_decision_status as deprecated
+-- ALTER TABLE trusts
 --     RENAME COLUMN submission_status TO submission_status_DEPRECATED,
 --     RENAME COLUMN dc_decision_status TO dc_decision_status_DEPRECATED;
 
@@ -54,14 +33,8 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- This block adds a complementary covering index under a distinct name; both are
 -- guarded with IF NOT EXISTS so re-runs are safe.
 
-SET @tbl_trusts_58 = (
-    SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trusts'
-);
-SET @sql = IF(@tbl_trusts_58 > 0,
-    'ALTER TABLE trusts ADD INDEX IF NOT EXISTS idx_trusts_wf_instance_id (workflow_instance_id)',
-    'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+ALTER TABLE trusts
+    ADD INDEX IF NOT EXISTS idx_trust_wf_instance_id (workflow_instance_id);
 
 SET @tbl_decl_58 = (
     SELECT COUNT(*) FROM information_schema.TABLES

@@ -7,7 +7,7 @@ import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import type { BoardMemberSummary, TrustFinancialSummary } from '@/features/dc/dcTypes'
+import type { BoardMemberSummary, TrustFinancialSummary, BoardMeetingSummary } from '@/features/dc/dcTypes'
 
 const MEMBERS_PAGE_SIZE = 10
 
@@ -19,12 +19,13 @@ interface TrustTabProps {
     validationIssues: string[]
   }
   trustFinancials: TrustFinancialSummary[]
+  boardMeetings: BoardMeetingSummary[]
   canAct: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onFlagTrust: (id: number, reason: string) => Promise<void>
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerifyTrust, onFlagTrust }: TrustTabProps) {
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onFlagTrust }: TrustTabProps) {
   const trustStatus = trust ? deriveModuleStatus(trust.isVerifiedByDc, trust.dcFlagReason) : null
   const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
   const [memberPage, setMemberPage] = useState(0)
@@ -286,6 +287,62 @@ export function TrustTab({ trust, boardMembers, trustFinancials, canAct, onVerif
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Board Meetings section */}
+      {boardMeetings.length > 0 && (
+        <SectionCard
+          title="Board Meetings"
+          icon={<Calendar size={18} className="text-blue-600" />}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20 border-b border-border">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground">Agenda</th>
+                  <th className="px-4 py-3 text-center font-semibold text-foreground">Minutes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {boardMeetings.map((m) => (
+                  <tr key={m.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">
+                      {new Date(m.meetingDate).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
+                      {m.agenda || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {m.minutesDocumentId ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                          <CheckCircle2 size={12} /> Uploaded
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <AlertCircle size={12} /> Pending
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
+
+      {boardMeetings.length === 0 && trust && (
+        <SectionCard
+          title="Board Meetings"
+          icon={<Calendar size={18} className="text-blue-600" />}
+        >
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Calendar size={28} className="text-slate-200 mb-3" />
+            <p className="text-sm font-medium text-slate-700">No board meetings recorded</p>
+            <p className="text-xs text-muted-foreground mt-1">The temple authority has not submitted any meeting records.</p>
+          </div>
+        </SectionCard>
+      )}
 
       {/* Oversight block - moved to end */}
       {trust && (

@@ -90,9 +90,10 @@ class DeclarationServiceImplTest {
 
     @Test
     void should_throw_EntityNotFoundException_when_declaration_not_found() {
-        // submit() is a deprecated no-op that throws UnsupportedOperationException before any repo lookup
-        assertThatThrownBy(() -> declarationService.submit(99L))
-                .isInstanceOf(UnsupportedOperationException.class);
+        when(declarationRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> declarationService.getById(99L))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 
     @Test

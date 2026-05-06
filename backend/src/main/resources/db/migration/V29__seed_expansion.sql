@@ -305,13 +305,14 @@ WHERE (latitude IS NULL OR latitude = 0)
   AND is_deleted = 0;
 
 -- =============================================================================
--- SECTION 3: TRUST REGISTRATIONS FOR NEW TEMPLES
+-- SECTION 3: TRUSTS FOR NEW TEMPLES
 -- Uses registration_number range to target only V24 temples.
+-- NOTE: trust_registrations was dropped and replaced by 'trusts' in V21.
 -- =============================================================================
 INSERT IGNORE INTO trusts (
     temple_id, trust_name, trust_type, trust_registration_number,
-    registering_authority, date_of_registration,
-    trust_pan_number, bank_name_and_branch,
+    registering_authority, date_of_registration, trust_pan_number,
+    bank_name_and_branch,
     annual_income, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
@@ -598,7 +599,8 @@ WHERE ad.status IN ('APPROVED', 'PENDING_REVIEW')
 -- ── HEAD PRIEST for every temple without any priest ──────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
+    joining_date, mobile,
+    status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -609,6 +611,7 @@ SELECT
         'Vishwanatha Sharma', 'Parameshwara Jois', 'Narasimhacharya'),
     'PRIEST',
     'Head Priest',
+    DATE_SUB(CURDATE(), INTERVAL (t.id % 15 + 2) YEAR),
     CONCAT('94', LPAD((t.id * 11 + 4000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -622,7 +625,8 @@ WHERE t.is_deleted = 0
 -- ── ASSISTANT PRIEST for Grade A and B temples ───────────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
+    joining_date, mobile,
+    status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -632,6 +636,7 @@ SELECT
         'Srikanth Jois', 'Manjunath Bhat'),
     'PRIEST',
     'Assistant Priest',
+    DATE_SUB(CURDATE(), INTERVAL (t.id % 8 + 1) YEAR),
     CONCAT('95', LPAD((t.id * 13 + 5000000) % 100000000, 8, '0')),
     'ACTIVE',
     0, @ts, @ts, @sys, @sys
@@ -643,7 +648,8 @@ WHERE t.grade IN ('A', 'B') AND t.is_deleted = 0
 -- ── ADMINISTRATIVE OFFICER for every temple ──────────────────────────────────
 INSERT INTO employees (
     temple_id, full_name, employee_type, designation,
-    mobile, status, is_deleted, created_at, updated_at, created_by, updated_by
+    joining_date, mobile,
+    status, is_deleted, created_at, updated_at, created_by, updated_by
 )
 SELECT
     t.id,
@@ -949,16 +955,16 @@ SELECT
     @sys,
     'TEMPLE_AUTHORITY',
     'CREATE',
-    'TRUST_REGISTRATION',
+    'TRUST',
     tr.id,
     CONCAT('{"action":"CREATE","trustName":"', REPLACE(tr.trust_name, '"', '\\"'),
-           '","registrationNumber":"', tr.trust_registration_number, '"}'),
+           '","registrationNumber":"', COALESCE(tr.trust_registration_number, ''), '"}'),
     tr.created_at
 FROM trusts tr
 WHERE tr.is_deleted = 0
   AND NOT EXISTS (
         SELECT 1 FROM audit_data_events ae
-        WHERE ae.entity_type = 'TRUST_REGISTRATION' AND ae.entity_id = tr.id AND ae.action = 'CREATE'
+        WHERE ae.entity_type = 'TRUST' AND ae.entity_id = tr.id AND ae.action = 'CREATE'
     );
 
 -- ── Temple SUSPEND events (for the 3 suspended temples) ───────────────────────

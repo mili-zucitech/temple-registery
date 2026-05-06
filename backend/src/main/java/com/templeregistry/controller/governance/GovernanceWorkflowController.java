@@ -96,6 +96,14 @@ public class GovernanceWorkflowController {
         return ResponseEntity.ok(ApiResponse.success("Declaration submitted for DC approval."));
     }
 
+    @PostMapping("/declarations/{declarationId}/withdraw")
+    @Operation(summary = "TA: Withdraw a submitted declaration before DC acts. Only allowed when status is SUBMITTED or CLARIFICATION_REQUIRED.")
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
+    public ResponseEntity<ApiResponse<Void>> withdrawDeclaration(@PathVariable Long declarationId) {
+        governanceWorkflowService.withdrawDeclaration(declarationId);
+        return ResponseEntity.ok(ApiResponse.success("Declaration withdrawn successfully."));
+    }
+
     @PostMapping("/declarations/{declarationId}/approve")
     @Operation(summary = "DC: Approve declaration. Blocked if physical verification has FAILED. Generates acknowledgement number.")
     @PreAuthorize(RoleConstants.CAN_ACT_DC)

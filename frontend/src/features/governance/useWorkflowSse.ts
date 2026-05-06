@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { workflowApi } from '../governance/workflowApi'
 import { getApiV1BaseUrl } from '@/lib/apiBase'
 
@@ -29,6 +29,7 @@ export const useWorkflowSse = ({
   onNotification,
 }: UseWorkflowSseOptions) => {
   const dispatch = useDispatch()
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const esRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryDelayRef = useRef(2000)
@@ -51,8 +52,8 @@ export const useWorkflowSse = ({
       try {
         const data = JSON.parse(event.data) as { title: string; body: string }
         onNotification?.({ type: 'notification', ...data })
-        // Invalidate badge count in RTK Query cache
-        dispatch(workflowApi.util.invalidateTags(['BadgeCount']))
+        // Invalidate badge count and workflow state in RTK Query cache
+        dispatch(workflowApi.util.invalidateTags(['BadgeCount', 'WorkflowState', 'Dashboard']))
       } catch (e) {
         console.warn('[SSE] Failed to parse notification event', e)
       }
@@ -76,7 +77,7 @@ export const useWorkflowSse = ({
       retryDelayRef.current = delay
       reconnectTimeoutRef.current = setTimeout(connect, delay)
     }
-  }, [userId, enabled, dispatch, onNotification])
+  }, [userId, enabled, accessToken, dispatch, onNotification])
 
   useEffect(() => {
     connect()

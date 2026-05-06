@@ -82,27 +82,20 @@ ALTER TABLE asset_declarations
 -- PART 2: Harden Trust Module
 -- ============================================================
 
-SET @fk := (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='board_meetings' AND CONSTRAINT_NAME='fk_board_meetings_trust');
-SET @s := IF(@fk > 0, 'ALTER TABLE board_meetings DROP FOREIGN KEY fk_board_meetings_trust', 'SELECT 1');
-PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
-SET @fk := (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='trust_financials' AND CONSTRAINT_NAME='fk_tf_trust');
-SET @s := IF(@fk > 0, 'ALTER TABLE trust_financials DROP FOREIGN KEY fk_tf_trust', 'SELECT 1');
-PREPARE p FROM @s; EXECUTE p; DEALLOCATE PREPARE p;
+-- Drop FK constraints that point to the old trust_registrations table (dropped in V21).
+-- These FKs now correctly reference the new 'trusts' table (re-added below).
+ALTER TABLE board_meetings DROP FOREIGN KEY fk_board_meetings_trust;
+ALTER TABLE trust_financials DROP FOREIGN KEY fk_tf_trust;
 
-UPDATE board_members bm
-JOIN trusts old_trust ON old_trust.id = bm.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET bm.trust_id = new_trust.id;
+-- NOTE: trust_registrations was dropped in V21 and replaced by 'trusts'.
+-- Any trust_financials rows that reference the old (now-gone) trust_registrations IDs
+-- are orphaned and must be removed before re-adding the FK constraint to 'trusts'.
+DELETE FROM trust_financials
+WHERE trust_id NOT IN (SELECT id FROM trusts WHERE is_deleted = 0);
 
-UPDATE board_meetings meeting
-JOIN trusts old_trust ON old_trust.id = meeting.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET meeting.trust_id = new_trust.id;
-
-UPDATE trust_financials financial
-JOIN trusts old_trust ON old_trust.id = financial.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET financial.trust_id = new_trust.id;
+-- The three UPDATE statements that migrated FK references from trust_registrations
+-- to trusts are no longer applicable: trust_registrations no longer exists and
+-- all new data is seeded directly into the 'trusts' table.
 
 UPDATE trusts
 SET date_of_registration = CURDATE()
