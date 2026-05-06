@@ -555,9 +555,9 @@ class PreservationPropertyTest {
      */
     @Test
     void property2_8_optimisticLockingIsConfigured() throws Exception {
-        // Verify Trust has governanceVersion field for optimistic locking
-        assertThat(hasField(Trust.class, "governanceVersion"))
-                .as("Trust must have governanceVersion field for optimistic locking")
+        // Verify Trust has lockVersion field for optimistic locking (governanceVersion was migrated to lockVersion)
+        assertThat(hasField(Trust.class, "lockVersion"))
+                .as("Trust must have lockVersion field for optimistic locking")
                 .isTrue();
 
         // Verify AssetDeclaration has lockVersion field for optimistic locking
@@ -565,10 +565,6 @@ class PreservationPropertyTest {
                 .as("AssetDeclaration must have lockVersion field for optimistic locking")
                 .isTrue();
 
-        // Verify AssetDeclaration also has governanceVersion for governance state changes
-        assertThat(hasField(AssetDeclaration.class, "governanceVersion"))
-                .as("AssetDeclaration must have governanceVersion field for governance state locking")
-                .isTrue();
     }
 
     // ─── Helper Methods ───────────────────────────────────────────────────────

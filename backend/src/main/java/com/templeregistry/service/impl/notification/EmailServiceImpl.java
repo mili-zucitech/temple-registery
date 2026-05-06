@@ -208,7 +208,7 @@ public class EmailServiceImpl implements EmailService {
     @org.springframework.scheduling.annotation.Async("taskExecutor")
     public void sendPasswordResetEmail(String recipientEmail, String resetLink) {
         if (!emailEnabled) {
-            log.info("[PasswordReset] Email disabled — reset link for [{}]: {}", recipientEmail, resetLink);
+            log.info("[PasswordReset] Email disabled — reset link generated for [{}] (link omitted from logs)", recipientEmail);
             return;
         }
         try {

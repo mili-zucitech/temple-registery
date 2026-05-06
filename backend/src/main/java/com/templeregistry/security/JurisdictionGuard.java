@@ -27,7 +27,7 @@ public class JurisdictionGuard {
                                 + claims.districtId() + "].");
             }
         }
-        // SUPER_ADMIN and AUDITOR are not jurisdiction-scoped
+        // SUPER_ADMIN, AUDITOR, and VIEWER are not jurisdiction-scoped
     }
 
     public Long enforceDistrictId(Long requestedDistrictId) {
@@ -36,7 +36,7 @@ public class JurisdictionGuard {
         if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
             return claims.districtId(); // JWT claim always wins for DC roles
         }
-        return requestedDistrictId; // SUPER_ADMIN may provide or omit
+        return requestedDistrictId; // SUPER_ADMIN, AUDITOR, VIEWER may provide or omit
     }
 
     private ScopeHelper.Claims currentClaims() {
@@ -65,9 +65,12 @@ public class JurisdictionGuard {
     public void assertDistrictScope(Temple temple, ScopeHelper.Claims claims) {
         String role = claims.role();
 
-        // SUPER_ADMIN and TEMPLE_AUTHORITY are never jurisdiction-scoped
-        // TEMPLE_AUTHORITY ownership is checked separately via OwnershipGuard
-        if (RoleConstants.SUPER_ADMIN.equals(role) || RoleConstants.TEMPLE_AUTHORITY.equals(role)) {
+        // SUPER_ADMIN, TEMPLE_AUTHORITY, and VIEWER are never jurisdiction-scoped.
+        // TEMPLE_AUTHORITY ownership is checked separately via OwnershipGuard.
+        // VIEWER has statewide read-only access, bypassing district scoping.
+        if (RoleConstants.SUPER_ADMIN.equals(role)
+                || RoleConstants.TEMPLE_AUTHORITY.equals(role)
+                || RoleConstants.VIEWER.equals(role)) {
             return;
         }
 

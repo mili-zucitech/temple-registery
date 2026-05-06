@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { API_BASE } from '@/constants/apiPaths'
 import type { GeoSelection } from '@/features/geo/geoTypes'
+import { USER_ROLES } from '@/constants/roles'
 import {
   useGetDcDashboardQuery,
   useSearchDcTemplesQuery,
@@ -56,11 +57,18 @@ function parseIntParam(value: string | null): number | undefined {
 /**
  * Returns DC dashboard KPI data.
  * Cache is considered fresh for 5 minutes (refetchOnMountOrArgChange: 300).
+ * Skipped for AUDITOR and VIEWER roles — the endpoint is DC/SA only.
  */
 export function useDcDashboard() {
+  const role = useAppSelector((s) => s.auth.currentUser?.role)
+  const isDcRole =
+    role === USER_ROLES.SUPER_ADMIN ||
+    role === USER_ROLES.DISTRICT_COLLECTOR ||
+    role === USER_ROLES.DC_STAFF
   const { data, isLoading, isError, refetch } = useGetDcDashboardQuery(undefined, {
     // Treat cached data as fresh for 5 minutes before re-fetching on mount
     refetchOnMountOrArgChange: 300,
+    skip: !isDcRole,
   })
 
   return {
@@ -85,19 +93,53 @@ export function useDcTempleSearch() {
   const dispatch = useAppDispatch()
   const currentUser = useAppSelector((s) => s.auth.currentUser)
 
+  // Statewide roles (SA, AUDITOR, VIEWER) search without district restriction
+  const role = currentUser?.role
+  const isStatewideRole = role === USER_ROLES.SUPER_ADMIN
+    || role === USER_ROLES.AUDITOR
+    || role === USER_ROLES.VIEWER
 
-  // Fetch DC context to know the user's district + city scope
+  // Fetch DC context only for DC roles — statewide roles don't need it
   const { data: contextData, refetch: refetchContext } = useGetDcContextQuery(undefined, {
     refetchOnMountOrArgChange: true,
-    skip: !currentUser?.userId,
+    skip: !currentUser?.userId || isStatewideRole,
   })
   const dcContext = contextData?.data ?? null
 
   // Track previous userId to detect user switch
   const prevUserIdRef = useRef<number | undefined>(undefined)
 
-  // Local state for districtId to block API until ready
+  // Local state for districtId — ONLY used for DC/DC_STAFF (locked to JWT).
+  // Statewide roles (SA, AUDITOR, VIEWER) read districtId directly from URL params instead.
   const [districtId, setDistrictId] = useState<number | null>(null)
+
+  // For statewide roles, districtId comes from URL (user's optional geo selection).
+  // For DC roles, districtId comes from state (locked to JWT, set below).
+  const effectiveDistrictId: number | null = isStatewideRole
+    ? (parseIntParam(searchParams.get('districtId')) ?? null)
+    : districtId
+
+  // On first load for a statewide role, strip any stale DC-scoped URL params
+  // (districtId/cityId) that may be leftover from a previous DC user session.
+  // Statewide roles always start with an unfiltered view; the user can narrow down manually.
+  const hasCleanedRef = useRef(false)
+  useEffect(() => {
+    if (!currentUser?.userId || !isStatewideRole) return
+    if (hasCleanedRef.current) return
+    hasCleanedRef.current = true
+    if (searchParams.has('districtId') || searchParams.has('cityId')) {
+      setSearchParams((prev) => {
+        const updated = new URLSearchParams(prev)
+        updated.delete('districtId')
+        updated.delete('cityId')
+        if (!updated.has('stateId')) updated.set('stateId', '1')
+        updated.set('page', '0')
+        return updated
+      }, { replace: true })
+    }
+  // Intentionally minimal deps — this must run only once per user mount, not on every searchParams change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.userId, isStatewideRole])
 
   // Ensure districtId is initialized from user as soon as available
   useEffect(() => {
@@ -191,7 +233,7 @@ export function useDcTempleSearch() {
 
   const filters: DcTempleSearchFilterRequest & { userId?: number } = useMemo(() => ({
     userId: currentUser?.userId,
-    districtId: districtId ?? undefined,
+    districtId: effectiveDistrictId ?? undefined,
     cityId: parseIntParam(searchParams.get('cityId')),
     talukId: parseIntParam(searchParams.get('talukId')),
     hobliId: parseIntParam(searchParams.get('hobliId')),
@@ -220,10 +262,10 @@ export function useDcTempleSearch() {
     sort: searchParams.get('sort') ?? undefined,
     page,
     size,
-  }), [searchParams, currentUser?.userId, districtId, page, size])
+  }), [searchParams, currentUser?.userId, effectiveDistrictId, page, size])
 
-  // Only fetch when userId and districtId are both available
-  const shouldFetch = !!currentUser?.userId && !!districtId
+  // Only fetch when userId is available; for DC roles also require districtId
+  const shouldFetch = !!currentUser?.userId && (isStatewideRole || !!districtId)
   const { data, isLoading, isError, isFetching, refetch } = useSearchDcTemplesQuery(filters, {
     refetchOnMountOrArgChange: true,
     skip: !shouldFetch,
@@ -243,10 +285,10 @@ export function useDcTempleSearch() {
   const geoSelection: GeoSelection = useMemo(() => ({
     stateId: parseIntParam(searchParams.get('stateId')) ?? 1,
     cityId: parseIntParam(searchParams.get('cityId')),
-    districtId: districtId ?? undefined,
+    districtId: effectiveDistrictId ?? undefined,
     talukId: parseIntParam(searchParams.get('talukId')),
     hobliId: parseIntParam(searchParams.get('hobliId')),
-  }), [searchParams, districtId])
+  }), [searchParams, effectiveDistrictId])
 
   const applyGeoSelection = useCallback(
     (geo: GeoSelection) => {
@@ -308,8 +350,8 @@ export function useDcTempleSearch() {
     [setSearchParams],
   )
 
-  // Render guard: do not render until user and districtId are ready
-  const ready = !!currentUser?.userId && !!districtId
+  // Render guard: statewide roles are always ready; DC roles wait for districtId from JWT
+  const ready = isStatewideRole ? !!currentUser?.userId : (!!currentUser?.userId && !!districtId)
 
   return {
     temples: data?.data?.content ?? [],

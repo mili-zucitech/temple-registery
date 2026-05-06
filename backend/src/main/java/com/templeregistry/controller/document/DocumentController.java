@@ -17,13 +17,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
 @Tag(name = "Documents", description = "Upload and retrieve supporting documents stored in S3")
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
 public class DocumentController {
 
     private final DocumentService documentService;
@@ -42,28 +41,13 @@ public class DocumentController {
                         documentService.upload(ownerType, ownerId, referenceId, label, file)));
     }
 
-    @Value("${app.storage.base-dir:./uploads}")
-    private String baseDir;
-
     @GetMapping("/download")
-    @Operation(summary = "Download a file by its storage key")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadByKey(@RequestParam String key) {
-        java.nio.file.Path base = java.nio.file.Paths.get(baseDir).toAbsolutePath().normalize();
-        java.nio.file.Path target = base.resolve(key).normalize();
-
-        if (!target.startsWith(base) || !java.nio.file.Files.exists(target)) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(target);
-        
-        String mimeType = "application/octet-stream";
-        try {
-            mimeType = java.nio.file.Files.probeContentType(target);
-        } catch (java.io.IOException e) {}
-
+    @Operation(summary = "Download a file by its storage key. Access control enforced at service level.")
+    public ResponseEntity<Resource> downloadByKey(@RequestParam String key) {
+        Resource resource = documentService.downloadByKey(key);
         return ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.parseMediaType(mimeType != null ? mimeType : "application/octet-stream"))
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + key + "\"")
                 .body(resource);
     }
 

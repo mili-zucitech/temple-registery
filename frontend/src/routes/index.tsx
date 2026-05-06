@@ -28,6 +28,15 @@ const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagem
 const AuditLogPage = lazy(() => import('@/features/admin/pages/AuditLogPage/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
 const AdminToolsPage = lazy(() => import('@/features/admin/pages/AdminToolsPage/AdminToolsPage').then(m => ({ default: m.AdminToolsPage })))
 const GeoManagementPage = lazy(() => import('@/features/admin/pages/GeoManagementPage/GeoManagementPage').then(m => ({ default: m.GeoManagementPage })))
+const SystemConfigPage = lazy(() => import('@/features/admin/pages/SystemConfigPage/SystemConfigPage').then(m => ({ default: m.SystemConfigPage })))
+const NotificationRulesPage = lazy(() => import('@/features/admin/pages/NotificationRulesPage/NotificationRulesPage').then(m => ({ default: m.NotificationRulesPage })))
+const TempleGovernancePage = lazy(() => import('@/features/admin/pages/TempleGovernancePage/TempleGovernancePage').then(m => ({ default: m.TempleGovernancePage })))
+const ObservationsPage = lazy(() => import('@/features/auditor/pages/ObservationsPage/ObservationsPage').then(m => ({ default: m.ObservationsPage })))
+const ObservationDetailPage = lazy(() => import('@/features/auditor/pages/ObservationDetailPage/ObservationDetailPage').then(m => ({ default: m.ObservationDetailPage })))
+const ComplianceReportPage = lazy(() => import('@/features/auditor/pages/ComplianceReportPage/ComplianceReportPage').then(m => ({ default: m.ComplianceReportPage })))
+const AuditTrailPage = lazy(() => import('@/features/auditor/pages/AuditTrailPage/AuditTrailPage').then(m => ({ default: m.AuditTrailPage })))
+const AuditorDashboardPage = lazy(() => import('@/features/auditor/pages/AuditorDashboardPage/AuditorDashboardPage').then(m => ({ default: m.AuditorDashboardPage })))
+const ViewerDashboardPage = lazy(() => import('@/features/viewer/pages/ViewerDashboardPage/ViewerDashboardPage').then(m => ({ default: m.ViewerDashboardPage })))
 const TaTrustPage = lazy(() => import('@/features/trust/pages/TaTrustPage/TaTrustPage').then(m => ({ default: m.TaTrustPage })))
 const TaEmployeesPage = lazy(() => import('@/features/employee/pages/TaEmployeesPage/TaEmployeesPage').then(m => ({ default: m.TaEmployeesPage })))
 const EmployeeDetailPage = lazy(() => import('@/features/employee/pages/EmployeeDetailPage/EmployeeDetailPage').then(m => ({ default: m.EmployeeDetailPage })))
@@ -105,17 +114,38 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.ADMIN_AUDIT, element: <Suspense fallback={<PageLoader />}><AuditLogPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_GEO, element: <Suspense fallback={<PageLoader />}><GeoManagementPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TOOLS, element: <Suspense fallback={<PageLoader />}><AdminToolsPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_SYSTEM_CONFIG, element: <Suspense fallback={<PageLoader />}><SystemConfigPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_NOTIFICATION_RULES, element: <Suspense fallback={<PageLoader />}><NotificationRulesPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_GOVERNANCE, element: <Suspense fallback={<PageLoader />}><TempleGovernancePage /></Suspense> },
             ],
           },
-          // Auditor (read-only)
+          // Auditor (read-only) — SUPER_ADMIN can also access auditor pages via sidebar links
           {
-            element: <RoleRoute allowedRoles={[USER_ROLES.AUDITOR]} />,
+            element: <RoleRoute allowedRoles={[USER_ROLES.AUDITOR, USER_ROLES.SUPER_ADMIN]} />,
             children: [
-              { path: ROUTE_PATHS.AUDITOR_DASHBOARD, element: <Suspense fallback={<PageLoader />}><DcDashboardPage /></Suspense> },
+              { path: ROUTE_PATHS.AUDITOR_DASHBOARD, element: <Suspense fallback={<PageLoader />}><AuditorDashboardPage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_TEMPLES, element: <Suspense fallback={<PageLoader />}><DcTempleSearchPage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.AUDITOR_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationDetailPage /></Suspense> },
+              { path: ROUTE_PATHS.AUDITOR_OBSERVATIONS, element: <Suspense fallback={<PageLoader />}><ObservationsPage /></Suspense> },
+              { path: ROUTE_PATHS.AUDITOR_OBSERVATION_DETAIL, element: <Suspense fallback={<PageLoader />}><ObservationDetailPage /></Suspense> },
+              { path: ROUTE_PATHS.AUDITOR_COMPLIANCE, element: <Suspense fallback={<PageLoader />}><ComplianceReportPage /></Suspense> },
+              { path: ROUTE_PATHS.AUDITOR_AUDIT_TRAIL, element: <Suspense fallback={<PageLoader />}><AuditTrailPage /></Suspense> },
+            ],
+          },
+          // Viewer (State Government / Audit Bodies — read-only, statewide)
+          {
+            element: <RoleRoute allowedRoles={[USER_ROLES.VIEWER]} />,
+            children: [
+              { path: ROUTE_PATHS.VIEWER_DASHBOARD, element: <Suspense fallback={<PageLoader />}><ViewerDashboardPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_TEMPLES, element: <Suspense fallback={<PageLoader />}><DcTempleSearchPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationDetailPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_COMPLIANCE, element: <Suspense fallback={<PageLoader />}><ComplianceReportPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_AUDIT_TRAIL, element: <Suspense fallback={<PageLoader />}><AuditTrailPage /></Suspense> },
+              { path: ROUTE_PATHS.VIEWER_EXPORT, element: <Suspense fallback={<PageLoader />}><DcExportPage /></Suspense> },
             ],
           },
           // Notifications (all authenticated users)

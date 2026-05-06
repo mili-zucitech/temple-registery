@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useDispatch } from 'react-redux'
 import { workflowApi } from '../governance/workflowApi'
-import { VITE_API_BASE_URL } from '../../lib/env'
+import { getApiV1BaseUrl } from '@/lib/apiBase'
 
 interface SseNotification {
   type: 'notification' | 'badge' | 'connected'
@@ -38,7 +38,7 @@ export const useWorkflowSse = ({
     if (esRef.current?.readyState === EventSource.OPEN) return
 
     const token = (window as any).__accessToken
-    const url = `${VITE_API_BASE_URL}/api/v1/notifications/stream`
+    const url = `${getApiV1BaseUrl()}/notifications/stream`
 
     const es = new EventSource(url, { withCredentials: true })
     esRef.current = es

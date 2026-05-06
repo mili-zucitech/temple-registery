@@ -59,6 +59,13 @@ public interface TempleSearchSummaryRepository extends JpaRepository<TempleSearc
     java.util.List<Object[]> countByDistrict();
 
     /**
+     * Count temples by templeStatus string value (e.g. "ACTIVE", "SUSPENDED").
+     * Used by statewide dashboard.
+     */
+    @Query("SELECT COUNT(tss) FROM TempleSearchSummary tss WHERE tss.templeStatus = :status")
+    long countAll(@org.springframework.data.repository.query.Param("status") String status);
+
+    /**
      * Count temples without any approved declaration (hasApprovedDeclaration = false).
      * Used by DcDashboardService KPI: templesWithoutApprovedDeclaration.
      */
@@ -72,4 +79,14 @@ public interface TempleSearchSummaryRepository extends JpaRepository<TempleSearc
      * dc_e2e Section 2.5 — query-level district filter (Layer 3 RBAC).
      */
     Page<TempleSearchSummary> findAllByDistrictId(Long districtId, Pageable pageable);
+
+    /**
+     * Returns only temples that have at least one compliance anomaly.
+     * Used by AuditorService — avoids loading all temples into memory.
+     */
+    @Query("SELECT tss FROM TempleSearchSummary tss WHERE " +
+           "(tss.overdueDeclarations IS NOT NULL AND tss.overdueDeclarations > 0) OR " +
+           "tss.hasApprovedDeclaration = false OR " +
+           "tss.trustRegistered = false")
+    java.util.List<TempleSearchSummary> findAllWithAnomalies();
 }

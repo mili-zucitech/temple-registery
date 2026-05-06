@@ -20,13 +20,14 @@ const userSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   fullName: z.string().min(2, 'Full name is required'),
-  mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be 10 digits').optional().or(z.literal('')),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Mobile must be a valid Indian number starting with 6-9').optional().or(z.literal('')),
   role: z.enum([
     USER_ROLES.SUPER_ADMIN,
     USER_ROLES.DISTRICT_COLLECTOR,
     USER_ROLES.DC_STAFF,
     USER_ROLES.TEMPLE_AUTHORITY,
     USER_ROLES.AUDITOR,
+    USER_ROLES.VIEWER,
   ] as [UserRole, ...UserRole[]]),
   districtId: z.coerce.number().optional(),
   templeId: z.coerce.number().optional(),
@@ -62,7 +63,9 @@ export function UserFormDialog({
   })
 
   const handleSubmit = async (values: UserFormValues) => {
-    await onSubmit(values)
+    // Strip empty mobile — backend @Pattern rejects empty strings
+    const payload = { ...values, mobile: values.mobile || undefined }
+    await onSubmit(payload)
     form.reset()
   }
 

@@ -7,6 +7,7 @@ import com.templeregistry.dto.response.declaration.*;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.declaration.DeclarationService;
+import com.templeregistry.service.governance.GovernanceWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ import java.util.List;
 public class DeclarationController {
 
     private final DeclarationService declarationService;
+    private final GovernanceWorkflowService governanceWorkflowService;
 
     @GetMapping("/api/v1/temples/{templeId}/declarations")
     @Operation(summary = "List declarations for a temple (paginated)")
@@ -62,16 +64,15 @@ public class DeclarationController {
 
     /**
      * @deprecated Use POST /api/v1/governance/declarations/{id}/submit instead.
-     * This endpoint is removed to prevent dual-path workflow mutation.
-     * DeclarationController handles CRUD only. GovernanceWorkflowController handles workflow.
+     * Backward compatibility shim: delegates to GovernanceWorkflowService.
      */
     @Deprecated(forRemoval = true)
     @PostMapping("/api/v1/declarations/{id}/submit")
     @Operation(summary = "[DEPRECATED] Use /api/v1/governance/declarations/{id}/submit",
-               description = "This endpoint is deprecated. Use the governance workflow endpoint instead.")
+               description = "Deprecated alias that delegates to the governance workflow endpoint.")
     public ResponseEntity<ApiResponse<Void>> submit(@PathVariable Long id) {
-        return ResponseEntity.status(HttpStatus.GONE)
-            .body(ApiResponse.error("This endpoint is deprecated. Use POST /api/v1/governance/declarations/" + id + "/submit", "ENDPOINT_DEPRECATED"));
+        governanceWorkflowService.submitDeclaration(id);
+        return ResponseEntity.ok(ApiResponse.success("Declaration submitted."));
     }
 
     @PostMapping("/api/v1/declarations/{id}/resubmit")

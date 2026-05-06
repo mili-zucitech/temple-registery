@@ -269,6 +269,10 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         assertEntityStatusConsistency(WorkflowEntityType.DECLARATION, declarationId, DeclarationStatus.APPROVED.name());
 
         // [P2] Snapshot on approval
+        versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
+
+        summaryService.refresh(declaration.getTempleId());
+
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
                 .newStatus(DeclarationStatus.APPROVED.name())

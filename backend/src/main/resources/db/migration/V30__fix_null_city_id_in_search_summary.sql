@@ -45,7 +45,7 @@ WHERE tss.registration_number IS NULL
 INSERT IGNORE INTO temple_search_summary (
     temple_id, name, registration_number, grade, primary_deity, tradition,
     hobli_id, taluk_id, district_id, city_id, temple_status, trust_registered,
-    asset_declaration_status, year_established, photo_url,
+    asset_declaration_status, year_established,
     pending_declarations, overdue_declarations, has_active_trust,
     has_approved_declaration, last_declaration_at
 )
@@ -64,7 +64,6 @@ SELECT
     t.trust_registered,
     t.asset_declaration_status,
     t.year_established,
-    t.photo_url,
     0, 0, 0, 0, NULL
 FROM temples t
 LEFT JOIN districts d ON d.id = t.district_id

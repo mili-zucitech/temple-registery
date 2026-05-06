@@ -195,6 +195,7 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         return TaProfileStatusResponse.builder()
                 .status(instance.getStatus().name())
                 .submittedAt(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
+                .reviewComment(s.getReviewComment())
                 .build();
     }
 

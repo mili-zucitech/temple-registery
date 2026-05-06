@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/temples")
 @RequiredArgsConstructor
 @Tag(name = "DC Temples", description = "Temple search, profile access, and verification for the DC portal")
-@PreAuthorize(RoleConstants.IS_DC_ROLE)
+@PreAuthorize(RoleConstants.CAN_READ_ALL)
 public class DcTempleController {
 
     private final DcTempleSearchService dcTempleSearchService;
@@ -62,6 +62,7 @@ public class DcTempleController {
     /* ── Temple Profile Verification Workflow (DC) ────────── */
 
     @PostMapping("/{templeId}/verify")
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
     @Operation(summary = "Verify a temple profile. Sets isVerifiedByDc=true and removes any existing flag.")
     public ResponseEntity<ApiResponse<TempleVerificationResponse>> verifyTempleProfile(
             @PathVariable Long templeId,
@@ -72,6 +73,7 @@ public class DcTempleController {
     }
 
     @PostMapping("/{templeId}/flag")
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
     @Operation(summary = "Flag a temple profile for issues. Sets isFlaggedByDc=true and removes verification.")
     public ResponseEntity<ApiResponse<TempleVerificationResponse>> flagTempleProfile(
             @PathVariable Long templeId,
@@ -82,6 +84,7 @@ public class DcTempleController {
     }
 
     @PostMapping("/{templeId}/unflag")
+    @PreAuthorize(RoleConstants.IS_DC_ROLE)
     @Operation(summary = "Remove flag from a temple profile. Sets isFlaggedByDc=false.")
     public ResponseEntity<ApiResponse<TempleVerificationResponse>> unflagTempleProfile(
             @PathVariable Long templeId,
