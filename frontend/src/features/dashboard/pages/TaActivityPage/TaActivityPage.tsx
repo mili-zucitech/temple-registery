@@ -146,7 +146,7 @@ export function TaActivityPage() {
   const {
     notifications, totalPages, totalElements, unreadCount,
     isLoading, isError, isMarking, isMarkingAll,
-    markRead: handleMarkRead, markAllRead: handleMarkAll,
+    markRead: handleMarkRead, markAllRead: handleMarkAll, refetch,
   } = useTaActivity(page, pageSize)
 
   return (
@@ -197,7 +197,7 @@ export function TaActivityPage() {
           <EmptyState
             title="Failed to load activity"
             description="Unable to fetch notifications. Please try again."
-            action={{ label: 'Retry', onClick: () => window.location.reload() }}
+            action={{ label: 'Retry', onClick: () => refetch() }}
           />
         ) : notifications.length === 0 ? (
           <EmptyState

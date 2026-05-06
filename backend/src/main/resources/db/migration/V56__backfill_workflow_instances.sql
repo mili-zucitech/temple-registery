@@ -20,7 +20,7 @@ SELECT
     END                                                             AS status,
     NULL                                                            AS sub_status,
     0                                                               AS lock_version,
-    COALESCE(tps.version_number, 1)                                 AS version_number,
+    COALESCE(tps.version, 1)                                        AS version_number,
     CASE tps.status
         WHEN 'PENDING_REVIEW'   THEN 'DC'
         WHEN 'DRAFT'            THEN 'TA'
@@ -145,14 +145,11 @@ INSERT INTO workflow_instances
 SELECT
     'BOARD_MEMBER'                                                  AS entity_type,
     bm.id                                                           AS entity_id,
-    CASE
-        WHEN bm.is_verified_by_dc = 1 THEN 'APPROVED'
-        ELSE 'SUBMITTED'
-    END                                                             AS status,
+    'SUBMITTED'                                                      AS status,
     NULL                                                            AS sub_status,
     0                                                               AS lock_version,
     1                                                               AS version_number,
-    CASE WHEN bm.is_verified_by_dc = 1 THEN NULL ELSE 'DC' END     AS current_actor_role,
+    'DC'                                                            AS current_actor_role,
     COALESCE(bm.created_by, 0)                                     AS created_by_user_id,
     tr.temple_id,
     COALESCE(t.district_id, 0)                                     AS district_id,

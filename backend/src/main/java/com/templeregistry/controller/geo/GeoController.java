@@ -26,7 +26,6 @@ public class GeoController {
 
     @GetMapping("/states")
     @Operation(summary = "List all states")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<StateResponse>>> listStates() {
         return ResponseEntity.ok(ApiResponse.success("States retrieved.", geoService.listStates()));
     }
@@ -41,14 +40,12 @@ public class GeoController {
 
     @GetMapping("/states/{stateId}/cities")
     @Operation(summary = "List cities in a state")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<CityResponse>>> listCities(@PathVariable Long stateId) {
         return ResponseEntity.ok(ApiResponse.success("Cities retrieved.", geoService.listCitiesByState(stateId)));
     }
 
     @GetMapping("/states/{stateId}/districts")
     @Operation(summary = "List all districts in a state (skipping city level)")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<DistrictResponse>>> listDistrictsByState(@PathVariable Long stateId) {
         return ResponseEntity.ok(ApiResponse.success("Districts retrieved.", geoService.listDistrictsByState(stateId)));
     }
@@ -63,7 +60,6 @@ public class GeoController {
 
     @GetMapping("/cities/{cityId}/districts")
     @Operation(summary = "List districts in a city")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<DistrictResponse>>> listDistricts(@PathVariable Long cityId) {
         return ResponseEntity.ok(ApiResponse.success("Districts retrieved.", geoService.listDistrictsByCity(cityId)));
     }
@@ -78,7 +74,6 @@ public class GeoController {
 
     @GetMapping("/districts/{districtId}/taluks")
     @Operation(summary = "List taluks in a district")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<TalukResponse>>> listTaluks(@PathVariable Long districtId) {
         return ResponseEntity.ok(ApiResponse.success("Taluks retrieved.", geoService.listTaluksByDistrict(districtId)));
     }
@@ -93,7 +88,6 @@ public class GeoController {
 
     @GetMapping("/taluks/{talukId}/hoblis")
     @Operation(summary = "List hoblis in a taluk")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<HobliResponse>>> listHoblis(@PathVariable Long talukId) {
         return ResponseEntity.ok(ApiResponse.success("Hoblis retrieved.", geoService.listHoblisByTaluk(talukId)));
     }

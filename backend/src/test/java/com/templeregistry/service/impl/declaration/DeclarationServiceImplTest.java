@@ -92,7 +92,7 @@ class DeclarationServiceImplTest {
     void should_throw_EntityNotFoundException_when_declaration_not_found() {
         when(declarationRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> declarationService.submit(99L))
+        assertThatThrownBy(() -> declarationService.getById(99L))
                 .isInstanceOf(EntityNotFoundException.class);
     }
 

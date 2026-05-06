@@ -11,6 +11,7 @@ spring:
       keepalive-time: 120000
       minimum-idle: 2
       maximum-pool-size: 8
+      connection-init-sql: "SET tidb_enable_noop_functions=1"
 
   jpa:
     hibernate:

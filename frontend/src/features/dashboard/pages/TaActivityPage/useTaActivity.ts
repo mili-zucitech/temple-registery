@@ -1,7 +1,7 @@
 import { useListNotificationsQuery, useMarkReadMutation, useMarkAllReadMutation } from '@/features/notification/notificationApi'
 
 export function useTaActivity(page: number, pageSize: number) {
-  const { data, isLoading, isError } = useListNotificationsQuery({ page, size: pageSize })
+  const { data, isLoading, isError, refetch } = useListNotificationsQuery({ page, size: pageSize })
   const [markRead, { isLoading: isMarking }] = useMarkReadMutation()
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllReadMutation()
 
@@ -21,5 +21,6 @@ export function useTaActivity(page: number, pageSize: number) {
     isMarkingAll,
     markRead: (id: number) => markRead(id),
     markAllRead: () => markAllRead(),
+    refetch,
   }
 }

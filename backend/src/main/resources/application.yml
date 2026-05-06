@@ -54,6 +54,8 @@ app:
   base-url: ${APP_BASE_URL}
   notification:
     email-enabled: true
+  legacy:
+    enabled: false
 
 spring.mail:
   enabled: ${SPRING_MAIL_ENABLED:false}

@@ -3,13 +3,14 @@ import type { TaProfileStatus } from '@/features/temple-profile/hooks/templeType
 import { Button } from '@/components/ui/button'
 import type { LucideIcon } from 'lucide-react'
 import {
-  CheckCircle2, Clock, FileEdit, XCircle,
+  AlertTriangle, CheckCircle2, Clock, FileEdit, XCircle,
 } from 'lucide-react'
 
 interface StatusBannerProps {
   status: TaProfileStatus
   reviewComment?: string | null
   className?: string
+  onCreateNewDraft?: () => void
 }
 
 interface BannerConfig {
@@ -62,9 +63,17 @@ const CONFIG: Record<TaProfileStatus, BannerConfig> = {
     heading: 'Profile Update Rejected',
     body: 'Your profile update was rejected by the District Collector. Review the comment below and create a new draft.',
   },
+  FLAGGED: {
+    icon: AlertTriangle,
+    bg: 'bg-warning/10',
+    border: 'border-warning/40',
+    text: 'text-warning-foreground',
+    heading: 'Profile Flagged By District Collector',
+    body: 'The District Collector has flagged your profile. Please edit the profile and resubmit for review.',
+  },
 }
 
-export function StatusBanner({ status, reviewComment, className }: StatusBannerProps) {
+export function StatusBanner({ status, reviewComment, className, onCreateNewDraft }: StatusBannerProps) {
   const cfg = CONFIG[status]
   const Icon = cfg.icon
 
@@ -88,6 +97,16 @@ export function StatusBanner({ status, reviewComment, className }: StatusBannerP
             <p className="text-xs font-bold text-destructive uppercase tracking-wider mb-1.5">DC Comment</p>
             <p className="text-sm text-foreground leading-relaxed">{reviewComment}</p>
           </div>
+        )}
+        {status === 'REJECTED' && onCreateNewDraft && (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="mt-3"
+            onClick={onCreateNewDraft}
+          >
+            Create New Draft
+          </Button>
         )}
       </div>
     </div>

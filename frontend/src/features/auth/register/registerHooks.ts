@@ -49,6 +49,7 @@ export function useSubmitRegistration(): UseSubmitRegistrationResult {
           pincode: step4.pincode,
           gpsLatitude: step4.gpsLatitude ?? undefined,
           gpsLongitude: step4.gpsLongitude ?? undefined,
+          yearEstablished: step4.yearEstablished ?? undefined,
         },
       }
 

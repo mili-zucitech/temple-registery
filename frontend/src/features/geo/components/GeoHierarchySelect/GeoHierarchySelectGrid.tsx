@@ -26,12 +26,15 @@ function hasLocationSelection(value: GeoSelection): boolean {
 export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarchySelectGridProps) {
   const { states, cities, districts, taluks, hoblis } = useGeoHierarchy(value)
 
-  // Auto-select the first state (Karnataka) once geo data loads and nothing is pre-selected
+  // Auto-select the first state (Karnataka) once geo data loads and the selection is completely empty.
+  // Guard: do NOT fire if any geo level is already selected (prevents resetting on back-navigation).
+  const hasAnySelection = !!(value.stateId || value.cityId || value.districtId || value.talukId || value.hobliId)
   useEffect(() => {
-    if (!value.stateId && states.data.length > 0) {
+    if (!hasAnySelection && states.data.length > 0) {
       onChange({ stateId: states.data[0].id })
     }
-  }, [states.data, value.stateId, onChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states.data.length, hasAnySelection])
 
   const handleSelect = (level: keyof GeoSelection, id: string) => {
     const numericId = Number(id)

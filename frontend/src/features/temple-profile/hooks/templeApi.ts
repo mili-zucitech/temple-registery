@@ -94,7 +94,7 @@ export const templeApi = createApi({
           body: formData,
         }
       },
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'Temple', id }, { type: 'TempleStaging', id }],
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'TemplePhotos', id }],
     }),
 
     uploadTemplePhotos: builder.mutation<ApiResponse<string[]>, { id: number; files: File[] }>({
@@ -107,11 +107,9 @@ export const templeApi = createApi({
           body: formData,
         }
       },
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'Temple', id },
-        { type: 'TempleStaging', id },
-        { type: 'TemplePhotos', id },
-      ],
+      // Only invalidate TemplePhotos — do NOT invalidate Temple or TempleStaging.
+      // Invalidating those triggers isLoading cycle which causes form.reset() and loses entered data.
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'TemplePhotos', id }],
     }),
 
     getTemplePhotos: builder.query<ApiResponse<TemplePhotoDto[]>, number>({
@@ -125,6 +123,17 @@ export const templeApi = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: (_r, _e, { templeId }) => [{ type: 'TemplePhotos', id: templeId }],
+    }),
+
+    deleteProfileStaging: builder.mutation<ApiResponse<void>, { templeId: number; stagingId: number }>({
+      query: ({ templeId, stagingId }) => ({
+        url: `/temples/${templeId}/profile/staging/${stagingId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'TempleStaging', id: `active-${templeId}` },
+        { type: 'TempleStaging', id: `history-${templeId}` },
+      ],
     }),
   }),
 })
@@ -143,4 +152,5 @@ export const {
   useUploadTemplePhotosMutation,
   useGetTemplePhotosQuery,
   useDeleteTemplePhotoMutation,
+  useDeleteProfileStagingMutation,
 } = templeApi

@@ -16,7 +16,7 @@ import { UserFormDialog } from '../../components/UserFormDialog/UserFormDialog'
 
 export function UserManagementPage() {
   const [page, setPage] = useState(0)
-  const { data, isLoading, isError } = useListUsersQuery({ page, size: DEFAULT_PAGE_SIZE })
+  const { data, isLoading, isError, refetch } = useListUsersQuery({ page, size: DEFAULT_PAGE_SIZE })
   const [deactivate, { isLoading: deactivating }] = useDeactivateUserMutation()
   const [activate, { isLoading: activating }] = useActivateUserMutation()
   const [createUser, { isLoading: creating }] = useCreateUserMutation()
@@ -69,7 +69,7 @@ export function UserManagementPage() {
   }
 
   if (isError) {
-    return <EmptyState title="Failed to load users" description="Unable to fetch user data." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+    return <EmptyState title="Failed to load users" description="Unable to fetch user data." action={{ label: 'Retry', onClick: () => refetch() }} />
   }
 
   return (

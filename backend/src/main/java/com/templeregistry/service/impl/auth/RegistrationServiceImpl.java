@@ -59,6 +59,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .orElseThrow(() -> new EntityNotFoundException("Hobli", templeReq.getHobliId()));
         Long talukId    = hobli.getTaluk().getId();
         Long districtId = hobli.getTaluk().getDistrict().getId();
+        Long cityId     = hobli.getTaluk().getDistrict().getCity().getId();
 
         // 3. Create User (isActive=false; SA must activate after reviewing the registration)
         User user = User.builder()
@@ -89,8 +90,9 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .tradition(ReligiousTradition.valueOf(templeReq.getReligiousTradition()))
                 .hobliId(templeReq.getHobliId())
                 .talukId(talukId)
+                .cityId(cityId)
                 .districtId(districtId)
-                .doorNumber(templeReq.getAddressLine1())
+                .street(templeReq.getAddressLine1())
                 .pinCode(templeReq.getPincode())
                 .latitude(templeReq.getGpsLatitude())
                 .longitude(templeReq.getGpsLongitude())

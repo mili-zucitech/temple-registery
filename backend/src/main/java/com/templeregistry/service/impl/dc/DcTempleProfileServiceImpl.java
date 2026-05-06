@@ -18,6 +18,7 @@ import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.service.workflow.WorkflowEngine;
 import com.templeregistry.entity.trust.BoardMember;
+import com.templeregistry.entity.trust.BoardMeeting;
 import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.trust.TrustFinancial;
 import com.templeregistry.exception.EntityNotFoundException;
@@ -31,6 +32,7 @@ import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
+import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
@@ -61,6 +63,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final TempleSearchSummaryRepository summaryRepository;
         private final TrustRepository trustRepository;
         private final BoardMemberRepository boardMemberRepository;
+        private final BoardMeetingRepository boardMeetingRepository;
         private final TrustFinancialRepository trustFinancialRepository;
         private final EmployeeRepository employeeRepository;
         private final ContractorRepository contractorRepository;
@@ -139,6 +142,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .validationIssues(List.of())
                                 .build();
                 List<TempleFullProfileResponse.TrustFinancialSummary> financials = List.of();
+                List<TempleFullProfileResponse.BoardMeetingSummary> meetings = List.of();
 
                 if (primaryTrust != null) {
                         trustSummary = toTrustSummary(primaryTrust, claims);
@@ -153,6 +157,9 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                         financials = trustFinancialRepository
                                         .findAllByTrustIdOrderByFinancialYearDesc(primaryTrust.getId())
                                         .stream().map(this::toFinancialSummary).toList();
+                        meetings = boardMeetingRepository
+                                        .findAllByTrustIdOrderByMeetingDateDesc(primaryTrust.getId())
+                                        .stream().map(this::toBoardMeetingSummary).toList();
                 }
 
                 // Employees (max 100 for DC view)
@@ -188,6 +195,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .trust(trustSummary)
                                 .boardMembers(boardMembers)
                                 .trustFinancials(financials)
+                                .boardMeetings(meetings)
                                 .employees(employees)
                                 .contractors(contractors)
                                 .declarations(declarations)
@@ -371,6 +379,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .annualIncome(t.getAnnualIncome())
                                 .dcFlagReason(t.getDcFlagReason())
                                 .reviewStatus(isVerified ? "APPROVED" : (t.getDcFlagReason() != null ? "FLAGGED" : "PENDING"))
+                                .isVerifiedByDc(isVerified)
                                 .validationIssues(buildTrustValidationIssues(t))
                                 .financialStatus(financials.isEmpty() ? "MISSING" : "SUBMITTED")
                                 .build();
@@ -424,6 +433,16 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .financialYear(f.getFinancialYear())
                                 .annualIncome(f.getAnnualIncome())
                                 .annualExpenditure(f.getAnnualExpenditure())
+                                .build();
+        }
+
+        private TempleFullProfileResponse.BoardMeetingSummary toBoardMeetingSummary(BoardMeeting m) {
+                return TempleFullProfileResponse.BoardMeetingSummary.builder()
+                                .id(m.getId())
+                                .meetingDate(m.getMeetingDate())
+                                .agenda(m.getAgenda())
+                                .minutesDocumentId(m.getMinutesDocumentId())
+                                .createdAt(m.getCreatedAt())
                                 .build();
         }
 

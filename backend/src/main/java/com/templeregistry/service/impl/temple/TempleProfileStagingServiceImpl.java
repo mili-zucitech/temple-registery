@@ -62,13 +62,28 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         Temple temple = findTempleOrThrow(templeId);
         assertNotSuspended(temple);
 
-        // EC-04: If a PENDING_REVIEW staging record exists, editing is locked
+        // EC-04: If a PENDING_REVIEW staging record exists, editing is normally locked.
+        // Safety-net exception: if the temple is already VERIFIED by DC but a SUBMITTED
+        // staging is still present (DC used direct-verify instead of staging approve),
+        // auto-reject the stale staging so the TA is not permanently blocked.
         Optional<TempleProfileStaging> pending = stagingRepository
                 .findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED);
         if (pending.isPresent()) {
-            throw new IllegalStateException(
-                    "A profile submission is already under DC review (status: SUBMITTED). "
-                            + "Editing is locked until DC responds.");
+            if (temple.getVerificationStatus() == com.templeregistry.entity.temple.VerificationStatus.VERIFIED) {
+                TempleProfileStaging stale = pending.get();
+                WorkflowInstance staleInstance = workflowEngine.getState(
+                        WorkflowEntityType.TEMPLE_PROFILE, stale.getId());
+                workflowEngine.executeSystem(staleInstance.getId(), WorkflowAction.REJECT,
+                        "Auto-resolved: DC verified the temple profile directly; " +
+                        "this submission was not explicitly reviewed through the staging workflow.");
+                log.info("Auto-resolved stale SUBMITTED staging [{}] for VERIFIED temple [{}]; " +
+                         "TA can now create a new draft.", stale.getId(), templeId);
+                // Fall through — TA is now unblocked to create/update a DRAFT
+            } else {
+                throw new IllegalStateException(
+                        "A profile submission is already under DC review (status: SUBMITTED). "
+                                + "Editing is locked until DC responds.");
+            }
         }
 
         // Find or create DRAFT
@@ -79,6 +94,8 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                             .map(v -> v + 1).orElse(1);
                     return TempleProfileStaging.builder()
                             .templeId(templeId)
+                            .version(nextVersion)
+                            .versionNumber(nextVersion)
                             .build();
                 });
 
@@ -114,9 +131,17 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
 
         TempleProfileStaging staging = stagingRepository
             .findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.DRAFT)
-            .orElseThrow(() -> new EntityNotFoundException(
-                "No DRAFT temple profile staging found for temple [" + templeId + "]",
-                "TEMPLE_PROFILE_STAGING_DRAFT_NOT_FOUND"));
+            .orElseGet(() -> createDraftFromTempleSnapshot(temple));
+
+        // Ensure a workflow instance exists (idempotent — handles legacy staging records
+        // that were created before the workflow engine was introduced).
+        workflowEngine.initiate(
+            WorkflowEntityType.TEMPLE_PROFILE,
+            staging.getId(),
+            templeId,
+            temple.getDistrictId(),
+            currentUserId()
+        );
 
         // Canonical: WorkflowEngine handles the SUBMIT transition
         WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, staging.getId());
@@ -139,6 +164,25 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         return toResponse(staging);
     }
 
+    private TempleProfileStaging createDraftFromTempleSnapshot(Temple temple) {
+        CreateTempleProfileStagingRequest prefill = CreateTempleProfileStagingRequest.builder()
+                .phone(temple.getContactMobile())
+                .email(temple.getContactEmail())
+                .contactPersonName(temple.getContactName())
+                .contactPersonDesignation(temple.getContactDesignation())
+                .photoFilePath(temple.getPhotoUrl())
+                .languagesOfWorship(temple.getLanguagesOfWorship())
+                .landmark(temple.getLandmark())
+                .historicalSignificance(temple.getHistoricalSignificance())
+                .description(temple.getHistory())
+                .build();
+
+        return stagingRepository.findById(createOrUpdateDraft(temple.getId(), prefill).getId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "TempleProfileStaging",
+                        temple.getId()));
+    }
+
     @Override
     @PreAuthorize(RoleConstants.CAN_APPROVE)
     @Transactional
@@ -156,7 +200,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         stagingRepository.findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.APPROVED)
                 .ifPresent(prev -> {
                     WorkflowInstance prevInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, prev.getId());
-                    workflowEngine.executeSystem(prevInstance.getId(), WorkflowAction.REJECT, "Superseded by stagingId=" + stagingId);
+                    workflowEngine.executeSystem(prevInstance.getId(), WorkflowAction.AUTO_SUPERSEDE, "Superseded by stagingId=" + stagingId);
                 });
 
         // CORRECT: Promote staging fields to the Temple entity ONLY on approval
@@ -208,6 +252,10 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .build(),
             actionContextResolver.resolve(ScopeHelper.Claims.fromContext())
         );
+
+        // Store the DC rejection comment on the staging record so TA can see it
+        staging.setReviewComment(dcComment);
+        stagingRepository.save(staging);
 
         // [P2] Snapshot on rejection using canonical version
         versionService.snapshot(WorkflowEntityType.TEMPLE_PROFILE, stagingId, workflowInstance.getVersionNumber(), staging, currentUserId(), null);
@@ -272,13 +320,36 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public void respondToClarification(Long templeId, Long threadId, String response, Long respondedByUserId) {
         // [P6] Canonical: ClarificationEngine handles response + WorkflowEngine transition
-        clarificationEngine.respond(threadId, 
+        clarificationEngine.respond(threadId,
             com.templeregistry.service.clarification.ClarificationResponse.builder()
                 .message(response)
-                .build(), 
+                .build(),
             respondedByUserId);
-        
+
         log.info("Clarification response submitted for thread [{}] by userId={}", threadId, respondedByUserId);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
+    public void deleteDraftStaging(Long templeId, Long stagingId) {
+        TempleProfileStaging staging = stagingRepository.findById(stagingId)
+                .orElseThrow(() -> new EntityNotFoundException("TempleProfileStaging", stagingId));
+
+        if (!templeId.equals(staging.getTempleId())) {
+            throw new EntityNotFoundException("TempleProfileStaging", stagingId);
+        }
+
+        // Use WorkflowInstance as the canonical status source — the entity-level status field
+        // is never updated after creation and must not be used for guard checks.
+        WorkflowInstance wfInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
+        if (wfInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.DRAFT) {
+            throw new IllegalStateException(
+                    "Only DRAFT staging records can be deleted. Current status: " + wfInstance.getStatus());
+        }
+
+        stagingRepository.delete(staging); // triggers @SQLDelete soft-delete
+        log.info("Draft staging [{}] soft-deleted for temple [{}]", stagingId, templeId);
     }
 
     /* ── Helpers ─────────────────────────────────────────── */
@@ -421,6 +492,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .annualFestivals(s.getAnnualFestivals())
                 .landmark(s.getLandmark())
                 .historicalSignificance(s.getHistoricalSignificance())
+                .reviewComment(s.getReviewComment())
                 .submittedAt(instance.getSubmittedAt() != null ? LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
                 .reviewedAt(instance.getStatusUpdatedAt() != null ? LocalDateTime.ofInstant(instance.getStatusUpdatedAt(), java.time.ZoneId.systemDefault()) : null)
                 .createdAt(s.getCreatedAt())

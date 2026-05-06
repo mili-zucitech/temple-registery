@@ -44,7 +44,7 @@ export function TaEmployeesPage() {
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
 
-  const { data, isLoading, isError } = useListEmployeesQuery(
+  const { data, isLoading, isError, refetch } = useListEmployeesQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
     { skip: !templeId }
   )
@@ -136,7 +136,7 @@ export function TaEmployeesPage() {
       <EmptyState
         title="Failed to load employees"
         description="Unable to fetch employee data. Please try again."
-        action={{ label: 'Retry', onClick: () => window.location.reload() }}
+        action={{ label: 'Retry', onClick: () => refetch() }}
       />
     )
   }

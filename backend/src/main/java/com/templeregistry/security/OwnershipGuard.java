@@ -14,7 +14,8 @@ public class OwnershipGuard {
     public void assertOwnsTemple(Long resourceTempleId) {
         ScopeHelper.Claims claims = currentClaims();
         if (RoleConstants.TEMPLE_AUTHORITY.equals(claims.role())) {
-            if (!resourceTempleId.equals(claims.templeId())) {
+            if (resourceTempleId == null || claims.templeId() == null
+                    || !resourceTempleId.equals(claims.templeId())) {
                 throw new JurisdictionAccessDeniedException(
                         "You are not authorized to access temple [" + resourceTempleId + "].");
             }

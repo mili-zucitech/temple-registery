@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { workflowApi } from '../governance/workflowApi'
 import { VITE_API_BASE_URL } from '../../lib/env'
+import type { RootState } from '@/store'
 
 interface SseNotification {
   type: 'notification' | 'badge' | 'connected'
@@ -29,6 +30,7 @@ export const useWorkflowSse = ({
   onNotification,
 }: UseWorkflowSseOptions) => {
   const dispatch = useDispatch()
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const esRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryDelayRef = useRef(2000)
@@ -37,8 +39,10 @@ export const useWorkflowSse = ({
     if (!userId || !enabled) return
     if (esRef.current?.readyState === EventSource.OPEN) return
 
-    const token = (window as any).__accessToken
-    const url = `${VITE_API_BASE_URL}/api/v1/notifications/stream`
+    const baseUrl = `${VITE_API_BASE_URL}/api/v1/notifications/stream`
+    const url = accessToken
+      ? `${baseUrl}?token=${encodeURIComponent(accessToken)}`
+      : baseUrl
 
     const es = new EventSource(url, { withCredentials: true })
     esRef.current = es
@@ -51,8 +55,8 @@ export const useWorkflowSse = ({
       try {
         const data = JSON.parse(event.data) as { title: string; body: string }
         onNotification?.({ type: 'notification', ...data })
-        // Invalidate badge count in RTK Query cache
-        dispatch(workflowApi.util.invalidateTags(['BadgeCount']))
+        // Invalidate badge count and workflow state in RTK Query cache
+        dispatch(workflowApi.util.invalidateTags(['BadgeCount', 'WorkflowState', 'Dashboard']))
       } catch (e) {
         console.warn('[SSE] Failed to parse notification event', e)
       }
@@ -76,7 +80,7 @@ export const useWorkflowSse = ({
       retryDelayRef.current = delay
       reconnectTimeoutRef.current = setTimeout(connect, delay)
     }
-  }, [userId, enabled, dispatch, onNotification])
+  }, [userId, enabled, accessToken, dispatch, onNotification])
 
   useEffect(() => {
     connect()

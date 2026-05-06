@@ -82,23 +82,20 @@ ALTER TABLE asset_declarations
 -- PART 2: Harden Trust Module
 -- ============================================================
 
+-- Drop FK constraints that point to the old trust_registrations table (dropped in V21).
+-- These FKs now correctly reference the new 'trusts' table (re-added below).
 ALTER TABLE board_meetings DROP FOREIGN KEY fk_board_meetings_trust;
 ALTER TABLE trust_financials DROP FOREIGN KEY fk_tf_trust;
 
-UPDATE board_members bm
-JOIN trust_registrations old_trust ON old_trust.id = bm.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET bm.trust_id = new_trust.id;
+-- NOTE: trust_registrations was dropped in V21 and replaced by 'trusts'.
+-- Any trust_financials rows that reference the old (now-gone) trust_registrations IDs
+-- are orphaned and must be removed before re-adding the FK constraint to 'trusts'.
+DELETE FROM trust_financials
+WHERE trust_id NOT IN (SELECT id FROM trusts WHERE is_deleted = 0);
 
-UPDATE board_meetings meeting
-JOIN trust_registrations old_trust ON old_trust.id = meeting.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET meeting.trust_id = new_trust.id;
-
-UPDATE trust_financials financial
-JOIN trust_registrations old_trust ON old_trust.id = financial.trust_id
-JOIN trusts new_trust ON new_trust.temple_id = old_trust.temple_id
-SET financial.trust_id = new_trust.id;
+-- The three UPDATE statements that migrated FK references from trust_registrations
+-- to trusts are no longer applicable: trust_registrations no longer exists and
+-- all new data is seeded directly into the 'trusts' table.
 
 UPDATE trusts
 SET date_of_registration = CURDATE()

@@ -15,6 +15,7 @@ import {
   useUploadDocumentMutation,
   useSoftDeleteDocumentMutation,
   useLazyGetDocumentUrlQuery,
+  useListDocumentsQuery,
 } from '@/features/document/documentApi'
 import {
   createContractorSchema,
@@ -72,6 +73,12 @@ export function ContractorFormPage() {
   const [deleteDocument] = useSoftDeleteDocumentMutation()
   const [getDocumentUrl] = useLazyGetDocumentUrlQuery()
 
+  // Fetch existing documents via RTK Query instead of raw fetch (C1 fix)
+  const { data: existingDocsData } = useListDocumentsQuery(
+    { ownerType: 'CONTRACTOR', ownerId: templeId!, page: 0, size: 50 },
+    { skip: !isEditMode || !templeId }
+  )
+
   const form = useForm<CreateContractorRequest>({
     resolver: zodResolver(createContractorSchema),
     defaultValues: {
@@ -104,29 +111,12 @@ export function ContractorFormPage() {
         paymentStatus: c.paymentStatus,
         documentIds: c.documentIds ?? [],
       })
-      // Load existing documents
-      if (c.documentIds && c.documentIds.length > 0) {
-        // Fetch document details for each ID
-        c.documentIds.forEach(async (docId) => {
-          try {
-            const response = await fetch(`/api/documents/${docId}`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`,
-              },
-            })
-            if (response.ok) {
-              const data = await response.json()
-              if (data.success && data.data) {
-                setUploadedDocuments((prev) => [...prev, data.data])
-              }
-            }
-          } catch (error) {
-            console.error('Failed to fetch document:', error)
-          }
-        })
+      // Load existing documents from RTK Query result (C1 fix — no raw fetch)
+      if (existingDocsData?.data?.content) {
+        setUploadedDocuments(existingDocsData.data.content)
       }
     }
-  }, [isEditMode, contractorData, form])
+  }, [isEditMode, contractorData, existingDocsData, form])
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -216,12 +206,20 @@ export function ContractorFormPage() {
       return
     }
 
+    // Convert empty-string dates to null so the backend LocalDate deserializer
+    // doesn't receive "" and throw a 400 Bad Request.
+    const payload = {
+      ...values,
+      workOrderDate: values.workOrderDate || null,
+      contractEndDate: values.contractEndDate || null,
+    }
+
     try {
       if (isEditMode && id) {
-        await updateContractor({ id: Number(id), body: values }).unwrap()
+        await updateContractor({ id: Number(id), body: payload as CreateContractorRequest }).unwrap()
         toast.success('Contractor updated successfully')
       } else {
-        await createContractor({ templeId, body: values }).unwrap()
+        await createContractor({ templeId, body: payload as CreateContractorRequest }).unwrap()
         toast.success('Contractor added successfully')
       }
       navigate(ROUTE_PATHS.TA_CONTRACTORS)

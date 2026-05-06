@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { TEMPLE_GRADES, RELIGIOUS_TRADITIONS } from '@/features/temple-profile/hooks/templeTypes'
+import type { GeoSelection } from '@/features/geo/geoTypes'
 
 // ── Step 1 — Mobile + Aadhaar ─────────────────────────────────────────────────
 
@@ -70,6 +71,13 @@ export const step4Schema = z.object({
     .max(180)
     .optional()
     .nullable(),
+  yearEstablished: z
+    .number()
+    .int()
+    .min(500, 'Year must be 500 CE or later')
+    .max(new Date().getFullYear(), `Year cannot be in the future`)
+    .optional()
+    .nullable(),
 })
 
 export type Step4Data = z.infer<typeof step4Schema>
@@ -87,6 +95,7 @@ export interface TempleRegistrationFields {
   pincode: string
   gpsLatitude?: number | null
   gpsLongitude?: number | null
+  yearEstablished?: number | null
 }
 
 export interface CreateAccountRequest {
@@ -115,6 +124,7 @@ export interface WizardState {
   tempToken: string | null
   step3: Omit<Step3Data, 'confirmPassword'> | null
   step4: Step4Data | null
+  step4GeoSelection: GeoSelection | null
   userId: number | null
   recoveryCodes: string[]
 }

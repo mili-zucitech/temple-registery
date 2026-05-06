@@ -84,11 +84,15 @@ public class VersionService {
             }
         }
 
+        // Auto-compute next version number to avoid duplicate-key violations when callers
+        // always pass versionNumber=1 but a snapshot already exists for this entity.
+        int nextVersionNumber = previous.map(ev -> ev.getVersionNumber() + 1).orElse(versionNumber);
+
         EntityVersion version = EntityVersion.builder()
             .workflowInstance(workflowInstance)  // FIX: set the FK to satisfy nullable=false
             .entityType(entityType.name())
             .entityId(entityId)
-            .versionNumber(versionNumber)
+            .versionNumber(nextVersionNumber)
                 .status(com.templeregistry.entity.versioning.EntityVersionStatus.DRAFT_OVERLAY)
             .snapshotJson(snapshotJson)
             .diffJson(diffJson)
