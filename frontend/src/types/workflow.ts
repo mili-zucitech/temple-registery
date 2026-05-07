@@ -229,6 +229,8 @@ export interface GovernanceStatusPayload {
   pendingSince?: string
   deadline?: string
   workflowInstanceId?: number
+<<<<<<< HEAD
+=======
   /**
    * Actions the actionableBy role may perform from this state.
    * Derived from TransitionRuleRegistry on the backend.
@@ -237,4 +239,5 @@ export interface GovernanceStatusPayload {
   allowedActions?: string[]
   /** Populated when status = REJECTED — reason given by DC */
   rejectionReason?: string | null
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 }

@@ -54,7 +54,7 @@ class TempleServiceImplTest {
         TempleResponse result = templeService.create(rq);
 
         assertThat(result.getName()).isEqualTo("Shiva Temple");
-        verify(searchSummaryService).refresh(any());
+        verify(searchSummaryService).scheduleRefresh(any());
     }
 
     @Test

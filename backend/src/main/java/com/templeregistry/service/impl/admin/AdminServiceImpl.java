@@ -117,6 +117,9 @@ public class AdminServiceImpl implements AdminService {
         userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "ACTIVATE_USER",
                 "User", id, "Activated user");
+        if (user.getTempleId() != null) {
+            searchSummaryService.scheduleRefresh(user.getTempleId());
+        }
         log.info("User [{}] activated.", id);
     }
 

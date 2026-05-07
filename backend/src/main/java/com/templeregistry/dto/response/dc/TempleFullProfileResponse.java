@@ -4,7 +4,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.templeregistry.dto.response.contractor.ContractorResponse;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
+<<<<<<< HEAD
+=======
 import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 import com.templeregistry.dto.response.temple.TempleResponse;
 import lombok.Builder;
 import lombok.Getter;

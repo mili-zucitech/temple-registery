@@ -102,8 +102,7 @@ public class TempleServiceImpl implements TempleService {
         }
         Temple temple = templeMapper.fromCreateRequest(request);
         Temple saved = templeRepository.save(temple);
-        summaryService.refresh(saved.getId());
-        
+        summaryService.scheduleRefresh(saved.getId());
         log.info("Temple created: id=[{}], reg=[{}]", saved.getId(), saved.getRegistrationNumber());
         return templeMapper.toTempleResponse(saved);
     }
@@ -168,8 +167,7 @@ public class TempleServiceImpl implements TempleService {
         ownershipGuard.assertOwnsTemple(id);
         applyUpdates(temple, request);
         Temple saved = templeRepository.save(temple);
-        summaryService.refresh(saved.getId());
-        
+        summaryService.scheduleRefresh(saved.getId());
         log.info("Temple updated: id=[{}]", saved.getId());
         return templeMapper.toTempleResponse(saved);
     }

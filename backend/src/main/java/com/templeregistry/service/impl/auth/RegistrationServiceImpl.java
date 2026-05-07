@@ -17,6 +17,7 @@ import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.service.auth.RegistrationService;
+import com.templeregistry.service.temple.TempleSearchSummaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,6 +35,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final TempleRepository   templeRepository;
     private final HobliRepository    hobliRepository;
     private final PasswordEncoder    passwordEncoder;
+    private final TempleSearchSummaryService summaryService;
 
     // ── Step 1 ────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .pinCode(templeReq.getPincode())
                 .latitude(templeReq.getGpsLatitude())
                 .longitude(templeReq.getGpsLongitude())
+                .yearEstablished(templeReq.getYearEstablished())
                 .trustRegistered(false)
                 .status(TempleStatus.ACTIVE)
                 .build();
@@ -103,6 +106,9 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         // 6. Link the temple to the user in a single UPDATE (avoids reload)
         userRepository.linkTemple(user.getId(), temple.getId());
+
+        // 7. Schedule search summary creation (afterCommit — avoids @Async read-before-commit race)
+        summaryService.scheduleRefresh(temple.getId());
 
         log.info("New TEMPLE_AUTHORITY registered: userId=[{}], templeId=[{}], registrationNumber=[{}], aadhaar=[{}]",
                 user.getId(), temple.getId(), registrationNumber, maskAadhaar(request.getAadhaar()));

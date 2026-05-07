@@ -516,9 +516,15 @@ export function DcTempleSearchPage() {
           />
           <FilterChip
             label="Pending"
+<<<<<<< HEAD
+            selected={filters.declarationStatus === 'SUBMITTED'}
+            selectedClassName="bg-amber-500 hover:bg-amber-600 border-transparent text-white"
+            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'SUBMITTED' ? undefined : 'SUBMITTED' })}
+=======
             selected={filters.declarationStatus === 'PENDING_REVIEW'}
             selectedClassName="bg-amber-500 hover:bg-amber-600 border-transparent text-white"
             onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW' })}
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
           />
           <FilterChip
             label="Resubmitted"
@@ -854,7 +860,11 @@ export function DcTempleSearchPage() {
               variant="outline"
               size="sm"
               className="h-7 px-2 text-xs"
+<<<<<<< HEAD
+              onClick={() => applyFilters({ declarationStatus: 'SUBMITTED' })}
+=======
               onClick={() => applyFilters({ declarationStatus: 'PENDING_REVIEW' })}
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
               title="Declarations pending review"
             >
               Pending Verification

@@ -25,10 +25,11 @@ import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.TempleProfileWorkflowService;
 import com.templeregistry.service.notification.NotificationHelper;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
-import com.templeregistry.service.workflow.ActionContext;
 import com.templeregistry.service.workflow.ActionContextResolver;
 import com.templeregistry.service.workflow.WorkflowActionRequest;
 import com.templeregistry.service.workflow.WorkflowEngine;
+import com.templeregistry.util.StatusTransitionValidator;
+import com.templeregistry.service.workflow.ActionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -74,6 +75,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final GovernanceAuditService governanceAuditService;
+    private final StatusTransitionValidator transitionValidator;
     private final WorkflowEngine workflowEngine;
     private final ActionContextResolver actionContextResolver;
 
@@ -186,7 +188,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         governanceAuditService.logAction(staging.getTempleId(), "TEMPLE_PROFILE", claims.userId(), "APPROVE", 
                 "Approved version " + staging.getVersionNumber() + ". Remarks: " + request.getRemarks());
 
-        summaryService.refresh(staging.getTempleId());
+        summaryService.scheduleRefresh(staging.getTempleId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(staging.getId())
@@ -236,7 +238,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         governanceAuditService.logAction(staging.getTempleId(), "TEMPLE_PROFILE", claims.userId(), "REJECT", 
                 "Rejected version " + staging.getVersionNumber() + ". Remarks: " + request.getReason());
 
-        summaryService.refresh(staging.getTempleId());
+        summaryService.scheduleRefresh(staging.getTempleId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(staging.getId())

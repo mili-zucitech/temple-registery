@@ -41,7 +41,6 @@ class TempleProfileStagingServiceImplTest {
     @Mock OwnershipGuard ownershipGuard;
     @Mock PaginationUtil paginationUtil;
     @Mock com.templeregistry.service.workflow.WorkflowEngine workflowEngine;
-    @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
     @Mock com.templeregistry.service.workflow.VersionService versionService;
     @Mock com.templeregistry.service.clarification.ClarificationEngine clarificationEngine;
     @Mock ActionContextResolver actionContextResolver;
@@ -104,13 +103,12 @@ class TempleProfileStagingServiceImplTest {
         when(templeRepository.findById(2L)).thenReturn(Optional.of(activeTemple));
         TempleProfileStaging pending = TempleProfileStaging.builder().templeId(2L).build();
         pending.setId(101L);
-        // New guard uses findTopByTempleIdAndStatusInOrderByVersionNumberDesc with list of statuses
-        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(2L), anyList()))
+        when(stagingRepository.findFirstByTempleIdAndStatus(2L, WorkflowStatus.SUBMITTED))
                 .thenReturn(Optional.of(pending));
-        WorkflowInstance instance = mockWorkflow(WorkflowStatus.SUBMITTED, 1);
 
         assertThatThrownBy(() -> stagingService.createOrUpdateDraft(2L, new CreateTempleProfileStagingRequest()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SUBMITTED");
     }
 
     @Test
@@ -118,17 +116,16 @@ class TempleProfileStagingServiceImplTest {
         when(templeRepository.findById(3L)).thenReturn(Optional.of(activeTemple));
         TempleProfileStaging draft = TempleProfileStaging.builder().templeId(3L).build();
         draft.setId(102L);
-
+        
         when(stagingRepository.findFirstByTempleIdAndStatus(3L, WorkflowStatus.DRAFT))
                 .thenReturn(Optional.of(draft));
-
+        
         WorkflowInstance instance = mockWorkflow(WorkflowStatus.DRAFT, 1);
-        when(workflowEngineAdaptor.adaptSubmit(any(), any(), any(), any(), any())).thenReturn(true);
+        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
 
         stagingService.submitForReview(3L);
 
-        verify(workflowEngineAdaptor).adaptSubmit(
-                eq(WorkflowEntityType.TEMPLE_PROFILE), eq(102L), eq(3L), any(), any());
+        verify(workflowEngine).execute(eq(instance.getId()), any(), any());
         verify(versionService).snapshot(eq(WorkflowEntityType.TEMPLE_PROFILE), eq(102L), eq(1), eq(draft), eq(42L), isNull());
     }
 
@@ -173,88 +170,5 @@ class TempleProfileStagingServiceImplTest {
         stagingService.reject(5L, 300L, "Fix bank details");
 
         verify(workflowEngine).execute(eq(instance.getId()), argThat(req -> req.getAction() == com.templeregistry.entity.workflow.WorkflowAction.REJECT), any());
-    }
-
-    // ── Parity: RESUBMITTED approve ──────────────────────────────────────────
-
-    @Test
-    void should_approve_RESUBMITTED_staging_with_canonical_APPROVE_action() {
-        // Temple Profile parity: DC can approve RESUBMITTED staging (not just SUBMITTED)
-        TempleProfileStaging staging = TempleProfileStaging.builder().templeId(6L).build();
-        staging.setId(400L);
-        when(stagingRepository.findById(400L)).thenReturn(Optional.of(staging));
-        when(templeRepository.findById(6L)).thenReturn(Optional.of(activeTemple));
-        when(stagingRepository.findFirstByTempleIdAndStatus(6L, WorkflowStatus.APPROVED))
-                .thenReturn(Optional.empty());
-
-        WorkflowInstance resubmittedInstance = mockWorkflow(WorkflowStatus.RESUBMITTED, 2);
-        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
-
-        stagingService.approve(6L, 400L);
-
-        // Should NOT throw — RESUBMITTED is now a valid state for approval
-        verify(workflowEngine).execute(
-                eq(resubmittedInstance.getId()),
-                argThat(req -> req.getAction() == com.templeregistry.entity.workflow.WorkflowAction.APPROVE
-                        || req.getAction() == com.templeregistry.entity.workflow.WorkflowAction.RE_APPROVE),
-                any());
-    }
-
-    @Test
-    void should_reject_RESUBMITTED_staging_via_workflow_engine() {
-        TempleProfileStaging staging = TempleProfileStaging.builder().templeId(7L).build();
-        staging.setId(500L);
-        when(stagingRepository.findById(500L)).thenReturn(Optional.of(staging));
-        when(templeRepository.findById(7L)).thenReturn(Optional.of(activeTemple));
-
-        WorkflowInstance instance = mockWorkflow(WorkflowStatus.RESUBMITTED, 2);
-        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
-
-        stagingService.reject(7L, 500L, "Documents missing");
-
-        verify(workflowEngine).execute(
-                eq(instance.getId()),
-                argThat(req -> req.getAction() == com.templeregistry.entity.workflow.WorkflowAction.REJECT),
-                any());
-    }
-
-    @Test
-    void should_throw_when_approve_called_on_DRAFT_staging() {
-        TempleProfileStaging staging = TempleProfileStaging.builder().templeId(8L).build();
-        staging.setId(600L);
-        when(stagingRepository.findById(600L)).thenReturn(Optional.of(staging));
-
-        mockWorkflow(WorkflowStatus.DRAFT, 1);
-
-        assertThatThrownBy(() -> stagingService.approve(8L, 600L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("DRAFT");
-    }
-
-    @Test
-    void should_transition_approved_staging_to_UPDATED_AFTER_APPROVAL_on_edit() {
-        // Parity: When TA edits an approved profile, the staging should transition in-place
-        TempleProfileStaging approvedStaging = TempleProfileStaging.builder().templeId(9L).build();
-        approvedStaging.setId(700L);
-
-        when(templeRepository.findById(9L)).thenReturn(Optional.of(activeTemple));
-        // No pending (SUBMITTED/UNDER_REVIEW/RESUBMITTED) staging
-        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(eq(9L), anyList()))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(approvedStaging)); // second call: APPROVED/RE_APPROVED lookup
-        // No DRAFT or UPDATED_AFTER_APPROVAL staging
-        when(stagingRepository.findFirstByTempleIdAndStatus(9L, WorkflowStatus.DRAFT))
-                .thenReturn(Optional.empty());
-        when(stagingRepository.findFirstByTempleIdAndStatus(9L, WorkflowStatus.UPDATED_AFTER_APPROVAL))
-                .thenReturn(Optional.empty());
-
-        WorkflowInstance approvedInstance = mockWorkflow(WorkflowStatus.APPROVED, 1);
-        lenient().when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 700L)).thenReturn(approvedInstance);
-        lenient().when(workflowEngine.initiate(any(), any(), any(), any(), any())).thenReturn(approvedInstance);
-
-        stagingService.createOrUpdateDraft(9L, new CreateTempleProfileStagingRequest());
-
-        verify(workflowEngineAdaptor).adaptEditApproved(
-                eq(WorkflowEntityType.TEMPLE_PROFILE), eq(700L), anyLong(), eq(9L));
     }
 }

@@ -73,7 +73,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         temple.setDcRejectionReason(null);
 
         Temple saved = templeRepository.save(temple);
-        summaryService.refresh(templeId);
+        summaryService.scheduleRefresh(templeId);
         notificationHelper.notifyTempleApproved(templeId, claims.userId());
 
         log.info("Temple profile verified by DC: templeId=[{}] dcUserId=[{}]", templeId, claims.userId());
@@ -94,7 +94,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         temple.setDcRejectionReason(request.getReason());
 
         Temple saved = templeRepository.save(temple);
-        summaryService.refresh(templeId);
+        summaryService.scheduleRefresh(templeId);
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleFlagged(templeId, claims.userId(), request.getReason());
@@ -122,7 +122,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         temple.setDcRejectionReason(null);
 
         Temple saved = templeRepository.save(temple);
-        summaryService.refresh(templeId);
+        summaryService.scheduleRefresh(templeId);
 
         // Send notification to all TAs for this temple
         notificationHelper.notifyTempleUnflagged(templeId, claims.userId());

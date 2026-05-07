@@ -2,17 +2,23 @@ package com.templeregistry.service.impl.temple;
 
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleSearchSummary;
+import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -23,6 +29,8 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
 
     private final TempleRepository templeRepository;
     private final TempleSearchSummaryRepository summaryRepository;
+    private final TempleProfileStagingRepository stagingRepository;
+    private final ApplicationContext applicationContext;
 
     @Override
     @Async
@@ -36,6 +44,24 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 templeId, summary.getDistrictId(), summary.getTalukId(), summary.getHobliId());
         summaryRepository.save(summary);
         log.info("Search summary refreshed for temple [{}]", templeId);
+    }
+
+    @Override
+    public void scheduleRefresh(Long templeId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // Use applicationContext.getBean() to get the Spring proxy so
+                    // @Async + @Transactional on refresh() are applied correctly.
+                    // This avoids the circular-dependency problem of @Lazy self-injection
+                    // and guarantees we get the fully-initialized proxied bean.
+                    applicationContext.getBean(TempleSearchSummaryService.class).refresh(templeId);
+                }
+            });
+        } else {
+            applicationContext.getBean(TempleSearchSummaryService.class).refresh(templeId);
+        }
     }
 
     @Override
@@ -73,15 +99,16 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .talukId(taluk != null ? taluk.getId() : null)
                 .districtId(district != null ? district.getId() : null)
                 .cityId(city != null ? city.getId() : null)
-                .templeStatus("ACTIVE") // default; DC module refresh() will read temple.status when added
+                .templeStatus(t.getStatus() != null ? t.getStatus().name() : TempleStatus.ACTIVE.name())
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .yearEstablished(t.getYearEstablished())
                 .photoUrl(t.getPhotoUrl())
-                // DC module counters — initialised to 0 here; DC refresh() will recompute from sub-queries
+                // DC module counters — pendingProfileReview computed live; others re-populated by DC refresh
                 .pendingDeclarations(0)
                 .overdueDeclarations(0)
-                .pendingProfileReview(0)
+                .pendingProfileReview(
+                        stagingRepository.existsByTempleIdAndStatus(t.getId(), WorkflowStatus.SUBMITTED) ? 1 : 0)
                 .hasActiveTrust(false)
                 .hasApprovedDeclaration(false)
                 .lastDeclarationAt(null)

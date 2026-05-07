@@ -19,6 +19,7 @@ public interface TempleSearchSummaryRepository extends JpaRepository<TempleSearc
 
     @Modifying
     @Query("DELETE FROM TempleSearchSummary tss WHERE tss.templeId = :templeId")
+    @org.springframework.transaction.annotation.Transactional
     void deleteByTempleId(Long templeId);
 
     // ─── DC dashboard aggregation queries ─────────────────────────────────

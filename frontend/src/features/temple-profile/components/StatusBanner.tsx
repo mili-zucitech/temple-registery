@@ -71,6 +71,8 @@ const CONFIG: Record<TaProfileStatus, BannerConfig> = {
     heading: 'Profile Flagged By District Collector',
     body: 'The District Collector has flagged your profile. Please edit the profile and resubmit for review.',
   },
+<<<<<<< HEAD
+=======
   UPDATED_AFTER_APPROVAL: {
     icon: FileEdit,
     bg: 'bg-info/10',
@@ -87,6 +89,7 @@ const CONFIG: Record<TaProfileStatus, BannerConfig> = {
     heading: 'Resubmitted — Awaiting DC Review',
     body: 'Your updated profile has been resubmitted and is awaiting the District Collector\'s review. Editing is locked until a decision is received.',
   },
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 }
 
 export function StatusBanner({ status, reviewComment, className, onCreateNewDraft }: StatusBannerProps) {
