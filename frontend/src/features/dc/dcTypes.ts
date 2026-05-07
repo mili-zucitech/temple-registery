@@ -71,7 +71,11 @@ export const dcClarifySchema = z.object({
 })
 
 export const approveProfileSchema = z.object({
+<<<<<<< HEAD
   remarks: z.string().max(1000).optional(),
+=======
+  notes: z.string().max(1000).optional(),
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 })
 
 export const rejectProfileSchema = z.object({
@@ -335,6 +339,11 @@ export interface DcTrustSummary {
   reviewStatus: 'APPROVED' | 'PENDING' | 'FLAGGED'
   /** Raw workflow status (SUBMITTED, APPROVED, SENT_BACK, DRAFT, REJECTED…). Used to gate DC actions. */
   workflowStatus?: string | null
+<<<<<<< HEAD
+=======
+  /** Canonical governance status — single source of truth. Replaces workflowStatus, reviewStatus, isVerifiedByDc. */
+  governanceStatus?: import('@/types/workflow').GovernanceStatusPayload
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
   validationIssues: string[]
   financialStatus: 'SUBMITTED' | 'MISSING'
 }
@@ -346,6 +355,7 @@ export interface TrustFinancialSummary {
 }
 
 export interface ProfileCurrentResponse {
+<<<<<<< HEAD
   phone: string | null
   email: string | null
   website: string | null
@@ -358,6 +368,13 @@ export interface ProfileCurrentResponse {
   languagesOfWorship: string | null
   linkedInstitutions: string | null
   description: string | null
+=======
+  contactPersonName: string | null
+  contactPersonDesignation: string | null
+  photoFilePath: string | null
+  languagesOfWorship: string | null
+  linkedInstitutions: string | null
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
   annualFestivals: string | null
   landmark: string | null
   historicalSignificance: string | null
@@ -382,7 +399,10 @@ export interface TempleFullProfileResponse {
     hobliId: number | null
     talukId: number | null
     districtId: number | null
+<<<<<<< HEAD
     districtName: string | null
+=======
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
     latitude: number | null
     longitude: number | null
     contactName: string | null
@@ -390,6 +410,7 @@ export interface TempleFullProfileResponse {
     contactMobile: string | null
     contactEmail: string | null
     photoUrl: string | null
+<<<<<<< HEAD
     website: string | null
     languagesOfWorship: string | null
     linkedInstitutions: string | null
@@ -401,6 +422,11 @@ export interface TempleFullProfileResponse {
     trustRegistered: boolean
     assetDeclarationStatus: string | null
     status: string | null
+=======
+    languagesOfWorship: string | null
+    trustRegistered: boolean
+    assetDeclarationStatus: string | null
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
     verificationStatus?: 'UNVERIFIED' | 'UNDER_REVIEW' | 'VERIFIED' | 'FLAGGED'
     /** Reason provided when DC flagged the temple. Null when not flagged. */
     dcFlagReason?: string | null
@@ -492,6 +518,7 @@ export interface ProfileStagingResponse {
   templeId: number
   version: number
   status: string
+<<<<<<< HEAD
   contactPersonName: string | null
   contactPersonDesignation: string | null
   phone: string | null
@@ -504,6 +531,15 @@ export interface ProfileStagingResponse {
   languagesOfWorship: string | null
   linkedInstitutions: string | null
   description: string | null
+=======
+  /** Canonical governance status — single source of truth. Use allowedActions to gate buttons. */
+  governanceStatus?: import('@/types/workflow').GovernanceStatusPayload
+  contactPersonName: string | null
+  contactPersonDesignation: string | null
+  photoFilePath: string | null
+  languagesOfWorship: string | null
+  linkedInstitutions: string | null
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
   annualFestivals: string | null
   landmark: string | null
   historicalSignificance: string | null

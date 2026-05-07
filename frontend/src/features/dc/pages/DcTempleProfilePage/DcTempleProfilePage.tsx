@@ -48,7 +48,11 @@ import {
 } from '@/features/dc/dcApi'
 import {
   useApproveTrustMutation,
+<<<<<<< HEAD
   useSendBackTrustMutation,
+=======
+  useRejectTrustMutation,
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 } from '@/features/governance/governanceApi'
 import {
   workflowApproveSchema,
@@ -117,7 +121,11 @@ export function DcTempleProfilePage() {
   const [flagTemple] = useFlagTempleMutation()
   const [unflagTemple, { isLoading: isUnflagging }] = useUnflagTempleMutation()
   const [approveTrust, { isLoading: verifyingTrust }] = useApproveTrustMutation()
+<<<<<<< HEAD
   const [sendBackTrust, { isLoading: flaggingTrust }] = useSendBackTrustMutation()
+=======
+  const [rejectTrust, { isLoading: rejectingTrust }] = useRejectTrustMutation()
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 
   const overdueDecls = useMemo(() =>
     profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
@@ -365,13 +373,28 @@ export function DcTempleProfilePage() {
             <OverviewTab
               profile={profile}
               canAct={canAct}
+<<<<<<< HEAD
               pendingStaging={pendingStaging ?? null}
+=======
+              pendingStaging={pendingStaging}
+              onApproveProfile={async (notes) => {
+                if (!pendingStaging) return
+                const success = await submitApproveProfile(pendingStaging.id, id, { remarks: notes })
+                if (success) refetchProfile()
+              }}
+              onRejectProfile={async (reason) => {
+                if (!pendingStaging) return
+                const success = await submitRejectProfile(pendingStaging.id, id, { reason })
+                if (success) refetchProfile()
+              }}
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
               onVerifyTemple={async (notes) => {
                 await verifyTemple({ id, body: { notes } }).unwrap()
               }}
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
               }}
+<<<<<<< HEAD
               onApproveProfile={async (stagingId, _notes) => {
                 await submitApproveProfile(stagingId, id, { remarks: _notes })
                 refetchProfile()
@@ -380,6 +403,8 @@ export function DcTempleProfilePage() {
                 await submitRejectProfile(stagingId, id, { reason })
                 refetchProfile()
               }}
+=======
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
             />
           </TabsContent>
 
@@ -413,6 +438,7 @@ export function DcTempleProfilePage() {
                   toast.error('Failed to approve trust. Please try again.')
                 }
               }}
+<<<<<<< HEAD
               onFlagTrust={async (trustId, reason) => {
                 try {
                   await sendBackTrust({ trustId, body: { reason } }).unwrap()
@@ -420,6 +446,15 @@ export function DcTempleProfilePage() {
                   refetchProfile()
                 } catch {
                   toast.error('Failed to send back trust. Please try again.')
+=======
+              onRejectTrust={async (trustId, reason) => {
+                try {
+                  await rejectTrust({ trustId, body: { reason } }).unwrap()
+                  toast.success('Trust rejected.')
+                  refetchProfile()
+                } catch {
+                  toast.error('Failed to reject trust. Please try again.')
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
                 }
               }}
             />

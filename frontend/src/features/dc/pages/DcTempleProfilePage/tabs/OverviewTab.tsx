@@ -1,26 +1,44 @@
+<<<<<<< HEAD
 import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, CreditCard, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
+=======
+import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock } from 'lucide-react'
+import { useMemo } from 'react'
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
+<<<<<<< HEAD
 import type { TempleFullProfileResponse, ProfileStagingResponse, ProfileCurrentResponse } from '@/features/dc/dcTypes'
+=======
+import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
   canAct: boolean
+<<<<<<< HEAD
   pendingStaging: ProfileStagingResponse | null | undefined
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
   onApproveProfile: (stagingId: number, notes?: string) => Promise<void>
   onRejectProfile: (stagingId: number, reason: string) => Promise<void>
+=======
+  pendingStaging?: ProfileStagingResponse | null
+  onApproveProfile?: (notes: string) => Promise<void>
+  onRejectProfile?: (reason: string) => Promise<void>
+  onVerifyTemple: (notes: string) => Promise<void>
+  onFlagTemple: (reason: string) => Promise<void>
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 }
 
 export function OverviewTab({
   profile,
   canAct,
   pendingStaging,
+<<<<<<< HEAD
   onVerifyTemple,
   onFlagTemple,
   onApproveProfile,
@@ -30,6 +48,14 @@ export function OverviewTab({
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [profileSectionExpanded, setProfileSectionExpanded] = useState(true)
+=======
+  onApproveProfile,
+  onRejectProfile,
+  onVerifyTemple,
+  onFlagTemple
+}: OverviewTabProps) {
+  const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 
   const pendingReviewDecls = useMemo(() =>
     declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
@@ -109,9 +135,12 @@ export function OverviewTab({
                   <DetailItem label="Contact Mobile" value={temple.contactMobile || '—'} />
                   <DetailItem label="Contact Email" value={temple.contactEmail || '—'} />
                   <DetailItem label="Designation" value={temple.contactDesignation || '—'} />
+<<<<<<< HEAD
                   {temple.website && <DetailItem label="Website" value={temple.website} />}
                   {temple.annualFestivals && <DetailItem label="Annual Festivals" value={temple.annualFestivals} />}
                   {temple.landmark && <DetailItem label="Landmark" value={temple.landmark} />}
+=======
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
                 </div>
               </div>
 
@@ -284,8 +313,43 @@ export function OverviewTab({
           </div>
         </div>
 
+<<<<<<< HEAD
         {/* Temple Oversight - FULL WIDTH */}
         {(() => {
+=======
+        {/* Temple Profile Governance — single card that cycles:
+             Approved → Pending Review (when update submitted) → Approved.
+             When pendingStaging exists, the card shows the update-under-review state
+             and exposes Approve / Reject for the staging. Otherwise it shows the
+             current temple verification state (Verified / Pending / Flagged) with
+             the Verify / Flag temple-entity actions. */}
+        {(() => {
+          if (pendingStaging && onApproveProfile && onRejectProfile) {
+            // An update from the TA is awaiting DC review — show the governance card
+            // for the profile staging, not the old verified state.
+            const govStatus = pendingStaging.governanceStatus
+            const canApprove = govStatus
+              ? govStatus.allowedActions.includes('APPROVE') || govStatus.allowedActions.includes('RE_APPROVE')
+              : true
+            const canReject = govStatus
+              ? govStatus.allowedActions.includes('REJECT')
+              : true
+            return (
+              <div className="rounded-xl overflow-hidden border border-amber-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
+                <GovernanceActionPanel
+                  entityName="Temple Profile Update"
+                  isVerified={false}
+                  canonicalStatus={govStatus?.status ?? pendingStaging.status}
+                  canAct={canAct && (canApprove || canReject)}
+                  onVerify={onApproveProfile}
+                  onReject={onRejectProfile}
+                  statusHint={`Version ${pendingStaging.version} · Submitted ${pendingStaging.submittedAt ? new Date(pendingStaging.submittedAt).toLocaleDateString() : 'recently'}`}
+                />
+              </div>
+            )
+          }
+          // No pending update — show current temple verification / oversight state.
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
           const isVerified = temple.verificationStatus === 'VERIFIED'
           const flagReason = temple.verificationStatus === 'FLAGGED' ? (temple.dcFlagReason ?? 'Flagged by DC') : null
           return (
@@ -297,10 +361,15 @@ export function OverviewTab({
                 canAct={canAct}
                 onVerify={onVerifyTemple}
                 onFlag={onFlagTemple}
+<<<<<<< HEAD
+=======
+                onReject={onFlagTemple}
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
               />
             </div>
           )
         })()}
+<<<<<<< HEAD
 
         {/* Pending Profile Review - FULL WIDTH (shown only when TA has submitted staging) */}
         {pendingStaging && (
@@ -444,6 +513,8 @@ export function OverviewTab({
             </div>
           </div>
         )}
+=======
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
       </div>
     </div>
   )

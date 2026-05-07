@@ -22,7 +22,7 @@ import notificationReducer from '@/features/notification/notificationSlice'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 
 export const rootReducer = combineReducers({
-  // RTK Query cachesss
+  // RTK Query caches
   [authApi.reducerPath]: authApi.reducer,
   [geoApi.reducerPath]: geoApi.reducer,
   [templeApi.reducerPath]: templeApi.reducer,

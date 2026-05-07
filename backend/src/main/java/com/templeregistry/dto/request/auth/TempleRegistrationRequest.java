@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
-import java.math.BigDecimal;
-
 /**
  * Temple details submitted as part of Step 3 (createAccount).
  * GPS validation follows schema spec: latitude -90 to 90, longitude -180 to 180.

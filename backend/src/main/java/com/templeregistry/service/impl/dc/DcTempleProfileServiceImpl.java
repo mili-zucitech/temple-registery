@@ -319,8 +319,12 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 jurisdictionGuard.assertDistrictScope(temple, claims);
 
                 return profileStagingRepository
-                                .findFirstByTempleIdAndStatus(templeId,
-                                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED)
+                                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                                                templeId,
+                                                java.util.List.of(
+                                                        com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                                                        com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW,
+                                                        com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED))
                                 .map(this::toProfileStagingResponse)
                                 .orElse(null);
         }
@@ -394,6 +398,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .bankBranch(bankParts[1])
                                 .annualIncome(t.getAnnualIncome())
                                 .dcFlagReason(dcFlagReasonValue)
+                                .governanceStatus(governancePayload)
                                 .reviewStatus(reviewStatus)
                                 .workflowStatus(workflowStatus)
                                 .isVerifiedByDc(isVerified)
@@ -564,6 +569,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .templeId(s.getTempleId())
                                 .version(instance.getVersionNumber())
                                 .status(instance.getStatus().name())
+                                .governanceStatus(governanceStatusResolver.resolve(WorkflowEntityType.TEMPLE_PROFILE, s.getId()))
                                 .contactPersonName(s.getContactPersonName())
                                 .contactPersonDesignation(s.getContactPersonDesignation())
                                 .phone(s.getPhone())

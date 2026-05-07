@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.dc;
 
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,6 +18,9 @@ public class ProfileStagingResponse {
     private Long templeId;
     private int version;
     private String status;
+
+    /** Canonical governance status — single source of truth for allowedActions / UI state. */
+    private GovernanceStatusPayload governanceStatus;
 
     // Content fields
     private String contactPersonName;

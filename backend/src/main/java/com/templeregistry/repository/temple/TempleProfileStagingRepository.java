@@ -47,9 +47,16 @@ public interface TempleProfileStagingRepository extends JpaRepository<TempleProf
                 return findFirstByTempleIdAndStatus(templeId, toWorkflowStatus(status));
         }
 
-    /** Highest version number ever used for a temple. */
-    @org.springframework.data.jpa.repository.Query("SELECT MAX(wi.versionNumber) FROM WorkflowInstance wi WHERE wi.templeId = :templeId AND wi.entityType = 'TEMPLE_PROFILE'")
-    Optional<Integer> findMaxVersionNumberByTempleId(Long templeId);
+    /**
+     * Highest version number ever used for a temple.
+     * Uses native SQL to include soft-deleted rows — the UNIQUE KEY
+     * uk_profile_staging_temple_version (temple_id, version) applies to ALL rows
+     * including soft-deleted ones, so we must account for them when computing the next version.
+     */
+    @org.springframework.data.jpa.repository.Query(
+            value = "SELECT MAX(version) FROM temple_profile_staging WHERE temple_id = :templeId",
+            nativeQuery = true)
+    Optional<Integer> findMaxVersionNumberByTempleId(@org.springframework.data.repository.query.Param("templeId") Long templeId);
 
     @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.versionNumber = :versionNumber")
     Optional<TempleProfileStaging> findByTempleIdAndVersionNumber(Long templeId, int versionNumber);

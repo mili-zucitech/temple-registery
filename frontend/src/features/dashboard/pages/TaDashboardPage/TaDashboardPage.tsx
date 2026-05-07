@@ -212,6 +212,7 @@ export function TaDashboardPage() {
 
   const isLoading = userLoading || templeLoading || declLoading
 
+<<<<<<< HEAD
   // Normalise backend status: PENDING_REVIEW is the DB value; SUBMITTED is the display value
   const profileStatus = (() => {
     const raw = checklist?.templeProfileStatus
@@ -219,10 +220,13 @@ export function TaDashboardPage() {
     return raw
   })()
 
+=======
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
   // ── Compliance checklist items ─────────────────────────────────────────────
   const checklistItems: ChecklistItem[] = [
     {
       label: 'Temple Profile',
+<<<<<<< HEAD
       sub: profileStatus === 'APPROVED'  ? 'Approved by District Collector'
          : profileStatus === 'SUBMITTED' ? 'Under DC review'
          : profileStatus                 ? `Status: ${profileStatus}`
@@ -230,6 +234,15 @@ export function TaDashboardPage() {
       status: profileStatus === 'APPROVED'  ? 'complete'
             : profileStatus === 'SUBMITTED' ? 'pending'
             : profileStatus === 'REJECTED'  ? 'rejected'
+=======
+      sub: checklist?.templeProfileStatus === 'APPROVED'  ? 'Approved by District Collector'
+         : checklist?.templeProfileStatus === 'SUBMITTED' ? 'Under DC review'
+         : checklist?.templeProfileStatus                 ? `Status: ${checklist.templeProfileStatus}`
+         : 'Not submitted yet',
+      status: checklist?.templeProfileStatus === 'APPROVED'  ? 'complete'
+            : checklist?.templeProfileStatus === 'SUBMITTED' ? 'pending'
+            : checklist?.templeProfileStatus === 'REJECTED'  ? 'rejected'
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
             : 'incomplete',
       to: ROUTE_PATHS.TA_TEMPLE,
     },
@@ -309,6 +322,7 @@ export function TaDashboardPage() {
                       Grade {temple.grade}
                     </span>
                   )}
+<<<<<<< HEAD
                   {profileStatus && (
                     <span className={cn(
                       'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border',
@@ -321,6 +335,20 @@ export function TaDashboardPage() {
                             : 'bg-white/15 border-white/25 text-white/80',
                     )}>
                       {profileStatus}
+=======
+                  {checklist?.templeProfileStatus && (
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border',
+                      checklist.templeProfileStatus === 'APPROVED'
+                        ? 'bg-emerald-400 border-emerald-300/60 text-emerald-900'
+                        : checklist.templeProfileStatus === 'SUBMITTED'
+                          ? 'bg-sky-300 border-sky-200/60 text-sky-900'
+                          : checklist.templeProfileStatus === 'REJECTED'
+                            ? 'bg-rose-400 border-rose-300/60 text-rose-900'
+                            : 'bg-white/15 border-white/25 text-white/80',
+                    )}>
+                      {checklist.templeProfileStatus}
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
                     </span>
                   )}
                 </div>
@@ -368,7 +396,11 @@ export function TaDashboardPage() {
         {([
           {
             label: 'Profile Status',
+<<<<<<< HEAD
             value: profileStatus ?? 'Not Started',
+=======
+            value: checklist?.templeProfileStatus ?? 'Not Started',
+>>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
             icon: <Building2 size={20} />,
             iconBg: 'bg-primary/10',
             iconColor: 'text-primary',

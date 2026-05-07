@@ -57,6 +57,8 @@ public class TransitionRuleRegistry {
         r.add(rule("*", WorkflowStatus.SUBMITTED,                WorkflowAction.WITHDRAW,              "TA",     WorkflowStatus.WITHDRAWN,              null,                        true));
         r.add(rule("*", WorkflowStatus.APPROVED,                 WorkflowAction.EDIT_APPROVED,         "TA",     WorkflowStatus.UPDATED_AFTER_APPROVAL, null,                        true));
         r.add(rule("*", WorkflowStatus.RE_APPROVED,              WorkflowAction.EDIT_APPROVED,         "TA",     WorkflowStatus.UPDATED_AFTER_APPROVAL, null,                        true));
+        // Rejected entities can also be edited — same transition, allows TA to fix and resubmit.
+        r.add(rule("*", WorkflowStatus.REJECTED,                 WorkflowAction.EDIT_APPROVED,         "TA",     WorkflowStatus.UPDATED_AFTER_APPROVAL, null,                        true));
 
         // ─── Universal DC Actions ────────────────────────────────────────────
         r.add(rule("*", WorkflowStatus.SUBMITTED,                WorkflowAction.BEGIN_REVIEW,          "DC",     WorkflowStatus.UNDER_REVIEW,           null,                        true));

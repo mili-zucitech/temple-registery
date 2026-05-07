@@ -5,7 +5,6 @@ import com.templeregistry.dto.request.temple.CreateTempleProfileStagingRequest;
 import com.templeregistry.dto.response.temple.TempleProfileStagingResponse;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
-import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
@@ -25,6 +24,7 @@ import com.templeregistry.util.PaginationUtil;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.workflow.VersionService;
 import com.templeregistry.service.clarification.ClarificationEngine;
+import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import com.templeregistry.service.governance.GovernanceStatusResolver;
 
 import java.util.UUID;
@@ -52,6 +52,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     private final OwnershipGuard ownershipGuard;
     private final PaginationUtil paginationUtil;
     private final WorkflowEngine workflowEngine;
+    private final WorkflowEngineAdaptor workflowEngineAdaptor;
     private final VersionService versionService;
     private final ClarificationEngine clarificationEngine;
     private final com.templeregistry.service.workflow.ActionContextResolver actionContextResolver;
@@ -66,12 +67,15 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         Temple temple = findTempleOrThrow(templeId);
         assertNotSuspended(temple);
 
-        // EC-04: If a PENDING_REVIEW staging record exists, editing is normally locked.
-        // Safety-net exception: if the temple is already VERIFIED by DC but a SUBMITTED
-        // staging is still present (DC used direct-verify instead of staging approve),
-        // auto-reject the stale staging so the TA is not permanently blocked.
+        // EC-04: Block editing while a submission is under active DC review.
+        // Check SUBMITTED, UNDER_REVIEW, and RESUBMITTED states — all are DC-side.
         Optional<TempleProfileStaging> pending = stagingRepository
-                .findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED);
+                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                        templeId,
+                        List.of(
+                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                                com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW,
+                                com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED));
         if (pending.isPresent()) {
             if (temple.getVerificationStatus() == com.templeregistry.entity.temple.VerificationStatus.VERIFIED) {
                 TempleProfileStaging stale = pending.get();
@@ -85,15 +89,42 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 // Fall through — TA is now unblocked to create/update a DRAFT
             } else {
                 throw new IllegalStateException(
-                        "A profile submission is already under DC review (status: SUBMITTED). "
-                                + "Editing is locked until DC responds.");
+                        "A profile submission is already under DC review (status: " +
+                        workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, pending.get().getId()).getStatus() +
+                        "). Editing is locked until DC responds.");
             }
         }
 
-        // Find or create DRAFT
+        // Find or create/edit the staging record.
+        // Priority:  DRAFT (new draft in progress)
+        //         → UPDATED_AFTER_APPROVAL (edit already started on approved version)
+        //         → APPROVED/RE_APPROVED (first edit since approval — transition in-place)
+        //         → new DRAFT (no prior staging)
         TempleProfileStaging staging = stagingRepository
                 .findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.DRAFT)
+                .or(() -> stagingRepository.findFirstByTempleIdAndStatus(
+                        templeId, com.templeregistry.entity.workflow.WorkflowStatus.UPDATED_AFTER_APPROVAL))
                 .orElseGet(() -> {
+                    // Check if there is an approved version to edit in place
+                    Optional<TempleProfileStaging> approvedOpt = stagingRepository
+                            .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                                    templeId,
+                                    List.of(com.templeregistry.entity.workflow.WorkflowStatus.APPROVED,
+                                            com.templeregistry.entity.workflow.WorkflowStatus.RE_APPROVED));
+                    if (approvedOpt.isPresent()) {
+                        // Edit-in-place: transition approved staging → UPDATED_AFTER_APPROVAL
+                        // This mirrors Trust's edit-after-approval parity.
+                        TempleProfileStaging approvedStaging = approvedOpt.get();
+                        workflowEngineAdaptor.adaptEditApproved(
+                                WorkflowEntityType.TEMPLE_PROFILE,
+                                approvedStaging.getId(),
+                                currentUserId(),
+                                templeId);
+                        log.info("Temple profile staging [{}] transitioned to UPDATED_AFTER_APPROVAL for edit (templeId={})",
+                                approvedStaging.getId(), templeId);
+                        return approvedStaging;
+                    }
+                    // No prior version: create a fresh DRAFT
                     int nextVersion = stagingRepository.findMaxVersionNumberByTempleId(templeId)
                             .map(v -> v + 1).orElse(1);
                     return TempleProfileStaging.builder()
@@ -133,8 +164,11 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         Temple temple = findTempleOrThrow(templeId);
         assertNotSuspended(temple);
 
+        // Find submittable staging: DRAFT (first submission) or UPDATED_AFTER_APPROVAL (resubmission after approval)
         TempleProfileStaging staging = stagingRepository
             .findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.DRAFT)
+            .or(() -> stagingRepository.findFirstByTempleIdAndStatus(
+                    templeId, com.templeregistry.entity.workflow.WorkflowStatus.UPDATED_AFTER_APPROVAL))
             .orElseGet(() -> createDraftFromTempleSnapshot(temple));
 
         // Ensure a workflow instance exists (idempotent — handles legacy staging records
@@ -147,28 +181,26 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
             currentUserId()
         );
 
-        // Canonical: WorkflowEngine handles the SUBMIT transition
-        WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, staging.getId());
-        
-        workflowEngine.execute(
-            instance.getId(),
-            WorkflowActionRequest.builder()
-                .action(WorkflowAction.SUBMIT)
-                .expectedVersion(instance.getLockVersion())
-                .idempotencyKey(UUID.randomUUID().toString())
-                .build(),
-            actionContextResolver.resolve(ScopeHelper.Claims.fromContext())
+        // Route through adaptSubmit — it automatically selects SUBMIT vs RESUBMIT:
+        //   DRAFT                  → SUBMIT   → SUBMITTED
+        //   UPDATED_AFTER_APPROVAL → RESUBMIT → RESUBMITTED
+        workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.TEMPLE_PROFILE,
+            staging.getId(),
+            templeId,
+            temple.getDistrictId(),
+            currentUserId()
         );
+
+        // Re-fetch instance to get the updated versionNumber for the snapshot.
+        WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, staging.getId());
+
+        // Sync legacy staging.status field (projection only — never authority).
+        staging.setStatus(com.templeregistry.entity.temple.TempleProfileStagingStatus.PENDING_REVIEW);
+        stagingRepository.save(staging);
 
         // Snapshot domain entity for versioning
         versionService.snapshot(WorkflowEntityType.TEMPLE_PROFILE, staging.getId(), instance.getVersionNumber(), staging, currentUserId(), null);
-
-        // Sync the entity-level status column so Path B (DcProfileController) can gate on it
-        staging.setStatus(TempleProfileStagingStatus.PENDING_REVIEW);
-        stagingRepository.save(staging);
-
-        // Refresh search summary so DC dashboard pendingProfileReview counter is up-to-date
-        summaryService.scheduleRefresh(templeId);
 
         log.info("Temple profile submitted for review (NOT promoted): stagingId=[{}] templeId=[{}]", staging.getId(), templeId);
 
@@ -201,9 +233,11 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         TempleProfileStaging staging = findStagingOrThrow(stagingId);
         WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
         
-        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED) {
+        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED
+                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW
+                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED) {
             throw new IllegalStateException(
-                    "Only SUBMITTED staging records can be approved. Current status: " + workflowInstance.getStatus());
+                    "Only SUBMITTED, UNDER_REVIEW, or RESUBMITTED staging records can be approved. Current status: " + workflowInstance.getStatus());
         }
         Temple temple = findTempleOrThrow(templeId);
 
@@ -246,9 +280,11 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         TempleProfileStaging staging = findStagingOrThrow(stagingId);
         WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
         
-        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED) {
+        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED
+                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW
+                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED) {
             throw new IllegalStateException(
-                    "Only SUBMITTED staging records can be rejected. Current status: " + workflowInstance.getStatus());
+                    "Only SUBMITTED, UNDER_REVIEW, or RESUBMITTED staging records can be rejected. Current status: " + workflowInstance.getStatus());
         }
         Temple temple = findTempleOrThrow(templeId);
 
@@ -285,7 +321,11 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     public TempleProfileStagingResponse getActiveStagingOrNull(Long templeId) {
         ownershipGuard.assertOwnsTemple(templeId);
         return stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
-                templeId, List.of(com.templeregistry.entity.workflow.WorkflowStatus.DRAFT, com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED))
+                templeId, List.of(
+                        com.templeregistry.entity.workflow.WorkflowStatus.DRAFT,
+                        com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                        com.templeregistry.entity.workflow.WorkflowStatus.UPDATED_AFTER_APPROVAL,
+                        com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED))
                 .map(this::toResponse).orElse(null);
     }
 
