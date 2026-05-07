@@ -174,7 +174,7 @@ public class TrustServiceImpl implements TrustService {
             workflowEngineAdaptor.adaptEditApproved(
                 WorkflowEntityType.TRUST, trust.getId(), currentUserId(), trust.getTempleId());
             notificationHelper.notifyTrustUpdated(trust.getId(), trust.getTempleId(), trust.getTrustName(), currentUserId());
-            log.info("Trust [{}] re-submitted after TA edit (was {}). DC notified.", id, statusBeforeEdit);
+            log.info("Trust [{}] moved to UPDATED_AFTER_APPROVAL after TA edit (was {}). TA must resubmit to complete DC re-review.", id, statusBeforeEdit);
         }
 
         return toResponse(trustRepository.save(trust));

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.templeregistry.dto.response.contractor.ContractorResponse;
 import com.templeregistry.dto.response.declaration.DeclarationResponse;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import com.templeregistry.dto.response.temple.TempleResponse;
 import lombok.Builder;
 import lombok.Getter;
@@ -76,9 +77,25 @@ public class TempleFullProfileResponse {
         private String bankBranch;
         private BigDecimal annualIncome;
         private String dcFlagReason;
+        /** Canonical governance status — single source of truth for all roles. */
+        private GovernanceStatusPayload governanceStatus;
+        /**
+         * @deprecated Use {@link #governanceStatus}.status instead.
+         *             Kept for backward compatibility only.
+         */
+        @Deprecated
         private String reviewStatus;
-        /** Raw workflow status string (e.g. SUBMITTED, APPROVED, SENT_BACK). Used by frontend to gate actions. */
+        /**
+         * @deprecated Use {@link #governanceStatus}.status instead.
+         *             Kept for backward compatibility only.
+         */
+        @Deprecated
         private String workflowStatus;
+        /**
+         * @deprecated Use {@link #governanceStatus}.status == "APPROVED" || "RE_APPROVED" instead.
+         *             Kept for backward compatibility only.
+         */
+        @Deprecated
         private boolean isVerifiedByDc;
         private List<String> validationIssues;
         private String financialStatus;

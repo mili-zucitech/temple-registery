@@ -4,12 +4,15 @@ import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
-import type { TempleFullProfileResponse } from '@/features/dc/dcTypes'
+import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
 import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
   canAct: boolean
+  pendingStaging?: ProfileStagingResponse | null
+  onApproveProfile?: (notes: string) => Promise<void>
+  onRejectProfile?: (reason: string) => Promise<void>
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
 }
@@ -17,6 +20,9 @@ interface OverviewTabProps {
 export function OverviewTab({
   profile,
   canAct,
+  pendingStaging,
+  onApproveProfile,
+  onRejectProfile,
   onVerifyTemple,
   onFlagTemple
 }: OverviewTabProps) {
@@ -272,8 +278,38 @@ export function OverviewTab({
           </div>
         </div>
 
-        {/* Temple Oversight - FULL WIDTH */}
+        {/* Temple Profile Governance — single card that cycles:
+             Approved → Pending Review (when update submitted) → Approved.
+             When pendingStaging exists, the card shows the update-under-review state
+             and exposes Approve / Reject for the staging. Otherwise it shows the
+             current temple verification state (Verified / Pending / Flagged) with
+             the Verify / Flag temple-entity actions. */}
         {(() => {
+          if (pendingStaging && onApproveProfile && onRejectProfile) {
+            // An update from the TA is awaiting DC review — show the governance card
+            // for the profile staging, not the old verified state.
+            const govStatus = pendingStaging.governanceStatus
+            const canApprove = govStatus
+              ? govStatus.allowedActions.includes('APPROVE') || govStatus.allowedActions.includes('RE_APPROVE')
+              : true
+            const canReject = govStatus
+              ? govStatus.allowedActions.includes('REJECT')
+              : true
+            return (
+              <div className="rounded-xl overflow-hidden border border-amber-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
+                <GovernanceActionPanel
+                  entityName="Temple Profile Update"
+                  isVerified={false}
+                  canonicalStatus={govStatus?.status ?? pendingStaging.status}
+                  canAct={canAct && (canApprove || canReject)}
+                  onVerify={onApproveProfile}
+                  onReject={onRejectProfile}
+                  statusHint={`Version ${pendingStaging.version} · Submitted ${pendingStaging.submittedAt ? new Date(pendingStaging.submittedAt).toLocaleDateString() : 'recently'}`}
+                />
+              </div>
+            )
+          }
+          // No pending update — show current temple verification / oversight state.
           const isVerified = temple.verificationStatus === 'VERIFIED'
           const flagReason = temple.verificationStatus === 'FLAGGED' ? (temple.dcFlagReason ?? 'Flagged by DC') : null
           return (
@@ -285,6 +321,7 @@ export function OverviewTab({
                 canAct={canAct}
                 onVerify={onVerifyTemple}
                 onFlag={onFlagTemple}
+                onReject={onFlagTemple}
               />
             </div>
           )

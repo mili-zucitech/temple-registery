@@ -335,6 +335,8 @@ export interface DcTrustSummary {
   reviewStatus: 'APPROVED' | 'PENDING' | 'FLAGGED'
   /** Raw workflow status (SUBMITTED, APPROVED, SENT_BACK, DRAFT, REJECTED…). Used to gate DC actions. */
   workflowStatus?: string | null
+  /** Canonical governance status — single source of truth. Replaces workflowStatus, reviewStatus, isVerifiedByDc. */
+  governanceStatus?: import('@/types/workflow').GovernanceStatusPayload
   validationIssues: string[]
   financialStatus: 'SUBMITTED' | 'MISSING'
 }
@@ -476,6 +478,8 @@ export interface ProfileStagingResponse {
   templeId: number
   version: number
   status: string
+  /** Canonical governance status — single source of truth. Use allowedActions to gate buttons. */
+  governanceStatus?: import('@/types/workflow').GovernanceStatusPayload
   contactPersonName: string | null
   contactPersonDesignation: string | null
   photoFilePath: string | null

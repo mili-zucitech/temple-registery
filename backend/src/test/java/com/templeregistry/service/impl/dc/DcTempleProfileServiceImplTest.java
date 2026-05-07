@@ -1,6 +1,7 @@
 package com.templeregistry.service.impl.dc;
 
 import com.templeregistry.dto.response.dc.TempleFullProfileResponse;
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import com.templeregistry.entity.geo.City;
 import com.templeregistry.entity.geo.District;
 import com.templeregistry.entity.geo.Hobli;
@@ -9,6 +10,10 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleGrade;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.entity.trust.Trust;
+import com.templeregistry.entity.trust.TrustStatus;
+import com.templeregistry.entity.trust.TrustType;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.dc.*;
@@ -20,12 +25,14 @@ import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
+import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.document.FileStorageService;
+import com.templeregistry.service.governance.GovernanceStatusResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -53,6 +60,7 @@ class DcTempleProfileServiceImplTest {
     @Mock private TempleSearchSummaryRepository summaryRepository;
     @Mock private TrustRepository trustRepository;
     @Mock private BoardMemberRepository boardMemberRepository;
+    @Mock private BoardMeetingRepository boardMeetingRepository;
     @Mock private TrustFinancialRepository trustFinancialRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private ContractorRepository contractorRepository;
@@ -71,6 +79,7 @@ class DcTempleProfileServiceImplTest {
     @Mock private CityRepository cityRepository;
     @Mock private JurisdictionGuard jurisdictionGuard;
     @Mock private FileStorageService fileStorageService;
+    @Mock private GovernanceStatusResolver governanceStatusResolver;
 
     @InjectMocks
     private DcTempleProfileServiceImpl service;
@@ -298,5 +307,62 @@ class DcTempleProfileServiceImplTest {
 
         assertThatThrownBy(() -> service.getFullProfile(999L, SUPER_ADMIN_CLAIMS))
                 .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    // ── Test: DcTrustSummary canonical governanceStatus ───────────────────────
+
+    @Test
+    void should_includeCanonicalGovernanceStatus_when_trustIsSummarised() {
+        Temple temple = templeWithFullGeo();
+        temple.setId(10L);
+
+        Trust trust = Trust.builder()
+                .trustName("Test Trust")
+                .trustRegistrationNumber("TRN-TEST")
+                .dateOfRegistration(java.time.LocalDate.now())
+                .registeringAuthority("Test Authority")
+                .trustType(TrustType.SINGLE_TRUSTEE)
+                .trustPANNumber("AABCT1234Z")
+                .bankAccountNumber("1234567890")
+                .bankNameAndBranch("SBI, Test Branch")
+                .status(TrustStatus.ACTIVE)
+                .templeId(10L)
+                .build();
+        trust.setId(200L);
+
+        GovernanceStatusPayload payload = GovernanceStatusPayload.builder()
+                .status("SUBMITTED")
+                .workflowInstanceId(300L)
+                .label("Submitted")
+                .severity("INFO")
+                .actionableBy("DC")
+                .build();
+
+        when(templeRepository.findWithGeoById(10L)).thenReturn(Optional.of(temple));
+        when(trustRepository.findAllByTempleId(10L)).thenReturn(List.of(trust));
+        when(governanceStatusResolver.resolve(WorkflowEntityType.TRUST, 200L)).thenReturn(payload);
+        when(trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(200L)).thenReturn(List.of());
+        when(boardMeetingRepository.findAllByTrustIdOrderByMeetingDateDesc(200L)).thenReturn(List.of());
+        when(boardMemberRepository.findAllByTrustIdOrderByAppointmentDateDescIdDesc(200L)).thenReturn(List.of());
+        when(employeeRepository.findAllByTempleId(eq(10L), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(contractorRepository.findAllByTempleId(eq(10L), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(declarationRepository.findAllByTempleIdExcludingDraft(eq(10L), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(profileCurrentRepository.findByTempleId(10L)).thenReturn(Optional.empty());
+        when(summaryRepository.findByTempleId(10L)).thenReturn(Optional.empty());
+
+        TempleFullProfileResponse result = service.getFullProfile(10L, SUPER_ADMIN_CLAIMS);
+
+        TempleFullProfileResponse.DcTrustSummary summary = result.getTrust();
+        assertThat(summary).isNotNull();
+        assertThat(summary.getGovernanceStatus()).isNotNull();
+        assertThat(summary.getGovernanceStatus().getStatus()).isEqualTo("SUBMITTED");
+        assertThat(summary.getGovernanceStatus().getWorkflowInstanceId()).isEqualTo(300L);
+        // Legacy fields still populated for backward compatibility
+        assertThat(summary.getWorkflowStatus()).isEqualTo("SUBMITTED");
+        assertThat(summary.getReviewStatus()).isEqualTo("PENDING");
+        assertThat(summary.isVerifiedByDc()).isFalse();
     }
 }

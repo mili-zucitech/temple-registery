@@ -66,4 +66,76 @@ class TransitionRuleRegistryTest {
             
         assertEquals(WorkflowStatus.APPROVED, rule.getToStatus());
     }
+
+    @Test
+    @DisplayName("Should allow TA to RESUBMIT from UPDATED_AFTER_APPROVAL")
+    void should_allowTaResubmit_when_statusIsUpdatedAfterApproval() {
+        TransitionRule rule = registry.find("TRUST", WorkflowStatus.UPDATED_AFTER_APPROVAL, WorkflowAction.RESUBMIT)
+            .orElseThrow(() -> new AssertionError("RESUBMIT from UPDATED_AFTER_APPROVAL rule not found"));
+
+        assertEquals(WorkflowStatus.RESUBMITTED, rule.getToStatus());
+        assertEquals("TA", rule.getRequiredRole());
+    }
+
+    @Test
+    @DisplayName("Should NOT allow DC to SEND_BACK from UPDATED_AFTER_APPROVAL")
+    void should_notAllowDcSendBack_when_statusIsUpdatedAfterApproval() {
+        java.util.Optional<TransitionRule> rule = registry.find("TRUST", WorkflowStatus.UPDATED_AFTER_APPROVAL, WorkflowAction.SEND_BACK);
+        assertTrue(rule.isEmpty(), "DC must NOT be able to SEND_BACK from UPDATED_AFTER_APPROVAL — TA resubmit is required first");
+    }
+
+    @Test
+    @DisplayName("Should NOT allow DC to APPROVE from UPDATED_AFTER_APPROVAL")
+    void should_notAllowDcApprove_when_statusIsUpdatedAfterApproval() {
+        java.util.Optional<TransitionRule> rule = registry.find("TRUST", WorkflowStatus.UPDATED_AFTER_APPROVAL, WorkflowAction.APPROVE);
+        assertTrue(rule.isEmpty(), "DC must NOT be able to APPROVE from UPDATED_AFTER_APPROVAL — TA resubmit is required first");
+    }
+
+    @Test
+    @DisplayName("UPDATED_AFTER_APPROVAL → RESUBMIT → RESUBMITTED lifecycle check")
+    void should_completeUpdateAfterApprovalLifecycle() {
+        // Step 1: TA edits approved entity → UPDATED_AFTER_APPROVAL (via EDIT_APPROVED from APPROVED)
+        TransitionRule editRule = registry.find("*", WorkflowStatus.APPROVED, WorkflowAction.EDIT_APPROVED)
+            .orElseThrow(() -> new AssertionError("EDIT_APPROVED from APPROVED rule not found"));
+        assertEquals(WorkflowStatus.UPDATED_AFTER_APPROVAL, editRule.getToStatus());
+        assertEquals("TA", editRule.getRequiredRole());
+
+        // Step 2: TA resubmits → RESUBMITTED
+        TransitionRule resubmitRule = registry.find("*", WorkflowStatus.UPDATED_AFTER_APPROVAL, WorkflowAction.RESUBMIT)
+            .orElseThrow(() -> new AssertionError("RESUBMIT from UPDATED_AFTER_APPROVAL rule not found"));
+        assertEquals(WorkflowStatus.RESUBMITTED, resubmitRule.getToStatus());
+        assertEquals("TA", resubmitRule.getRequiredRole());
+
+        // Step 3: DC can RE_APPROVE from RESUBMITTED
+        TransitionRule reApproveRule = registry.find("*", WorkflowStatus.RESUBMITTED, WorkflowAction.RE_APPROVE)
+            .orElseThrow(() -> new AssertionError("RE_APPROVE from RESUBMITTED rule not found"));
+        assertEquals(WorkflowStatus.RE_APPROVED, reApproveRule.getToStatus());
+        assertEquals("DC", reApproveRule.getRequiredRole());
+    }
+
+    @Test
+    @DisplayName("findAllForStatus should return only DC rules for SUBMITTED status")
+    void should_returnOnlyDcRules_when_queryingSubmittedStatusForDcRole() {
+        List<TransitionRule> dcRules = registry.findAllForStatus("TRUST", WorkflowStatus.SUBMITTED)
+            .stream()
+            .filter(r -> "DC".equals(r.getRequiredRole()))
+            .toList();
+
+        assertFalse(dcRules.isEmpty());
+        assertTrue(dcRules.stream().allMatch(r -> "DC".equals(r.getRequiredRole())));
+        assertTrue(dcRules.stream().anyMatch(r -> r.getAction() == WorkflowAction.APPROVE));
+        assertTrue(dcRules.stream().anyMatch(r -> r.getAction() == WorkflowAction.SEND_BACK));
+    }
+
+    @Test
+    @DisplayName("findAllForStatus should return only TA rules for UPDATED_AFTER_APPROVAL")
+    void should_returnOnlyTaRules_when_queryingUpdatedAfterApprovalStatus() {
+        List<TransitionRule> allRules = registry.findAllForStatus("TRUST", WorkflowStatus.UPDATED_AFTER_APPROVAL);
+
+        assertFalse(allRules.isEmpty());
+        // All rules from UPDATED_AFTER_APPROVAL must be for TA, not DC
+        assertTrue(allRules.stream().noneMatch(r -> "DC".equals(r.getRequiredRole())),
+            "DC must have no allowed actions from UPDATED_AFTER_APPROVAL — only TA can resubmit");
+        assertTrue(allRules.stream().anyMatch(r -> "TA".equals(r.getRequiredRole()) && r.getAction() == WorkflowAction.RESUBMIT));
+    }
 }

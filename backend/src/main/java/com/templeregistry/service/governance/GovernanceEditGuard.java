@@ -40,9 +40,7 @@ public class GovernanceEditGuard {
      */
     public void assertCanEdit(WorkflowStatus currentStatus, String entityType, Long entityId) {
         switch (currentStatus) {
-            case REJECTED -> throw new IllegalStatusTransitionException(
-                    entityType + " [" + entityId + "] has been REJECTED and cannot be edited. " +
-                    "Please create a new " + entityType + " from scratch.");
+            // REJECTED is now editable — TA can fix and resubmit (REJECTED → UPDATED_AFTER_APPROVAL → RESUBMITTED)
             case SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, RESUBMITTED ->
                 throw new IllegalStatusTransitionException(
                     entityType + " [" + entityId + "] is currently " + currentStatus.name() + " and awaiting DC review. " +
@@ -58,7 +56,9 @@ public class GovernanceEditGuard {
      * Returns true if the current WorkflowStatus requires re-submission after a TA edit.
      */
     public boolean requiresResubmission(WorkflowStatus currentStatus) {
-        return currentStatus == WorkflowStatus.APPROVED || currentStatus == WorkflowStatus.RE_APPROVED;
+        return currentStatus == WorkflowStatus.APPROVED
+            || currentStatus == WorkflowStatus.RE_APPROVED
+            || currentStatus == WorkflowStatus.REJECTED;
     }
 
     /**

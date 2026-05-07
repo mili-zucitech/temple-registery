@@ -129,6 +129,10 @@ export type UpdatePhysicalVerificationRequest = z.infer<typeof updatePhysicalVer
 // ─── Response types ───────────────────────────────────────────────────────────
 
 /**
+ * @deprecated Dead type — no active component consumes this.
+ * Use {@link GovernanceStatusPayload} from '@/types/workflow' instead.
+ * All status is now canonical via WorkflowInstance.status → GovernanceStatusPayload.
+ *
  * Governance status view for Temple Authority.
  * Applies to TRUST and ASSET DECLARATION only.
  * Contains ONLY submissionStatus, dcDecisionStatus, and sendBackReason.
@@ -142,6 +146,10 @@ export interface GovernanceStatusResponse {
 }
 
 /**
+ * @deprecated Dead type — no active component consumes this.
+ * Use {@link GovernanceStatusPayload} from '@/types/workflow' instead.
+ * All status is now canonical via WorkflowInstance.status → GovernanceStatusPayload.
+ *
  * Full governance status view for DC and DC Staff.
  * Contains all 3 layers plus physical verification status (declarations only).
  * MUST NEVER be shown to Temple Authority.

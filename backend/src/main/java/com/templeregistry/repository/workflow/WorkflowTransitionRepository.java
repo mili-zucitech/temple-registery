@@ -57,5 +57,16 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
         ORDER BY wt.performedAt DESC
         """)
     List<WorkflowTransition> findByWorkflowInstanceIdOrderByPerformedAtDesc(@Param("instanceId") Long instanceId);
+
+    /** Find the most recent REJECT transition for a workflow instance — used to expose rejection reason to TA. */
+    @Query("""
+        SELECT wt FROM WorkflowTransition wt
+        WHERE wt.workflowInstance.id = :instanceId
+          AND wt.action = com.templeregistry.entity.workflow.WorkflowAction.REJECT
+          AND wt.deleted = false
+        ORDER BY wt.performedAt DESC
+        LIMIT 1
+        """)
+    java.util.Optional<WorkflowTransition> findLatestRejectByInstanceId(@Param("instanceId") Long instanceId);
 }
 

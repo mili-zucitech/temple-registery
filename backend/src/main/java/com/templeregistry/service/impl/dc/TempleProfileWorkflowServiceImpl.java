@@ -8,6 +8,10 @@ import com.templeregistry.entity.dc.TempleProfileHistory;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
+import com.templeregistry.entity.workflow.WorkflowAction;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.dc.TempleProfileHistoryRepository;
@@ -21,7 +25,10 @@ import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.dc.TempleProfileWorkflowService;
 import com.templeregistry.service.notification.NotificationHelper;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
-import com.templeregistry.util.StatusTransitionValidator;
+import com.templeregistry.service.workflow.ActionContext;
+import com.templeregistry.service.workflow.ActionContextResolver;
+import com.templeregistry.service.workflow.WorkflowActionRequest;
+import com.templeregistry.service.workflow.WorkflowEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,29 +36,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Executes DC profile workflow actions on temple_profile_staging.
  *
  * On APPROVE:
- *  1. Validates staging status is PENDING_REVIEW
+ *  1. Validates canonical WorkflowInstance.status is SUBMITTED / UNDER_REVIEW / RESUBMITTED
  *  2. Asserts district scope
  *  3. Archives existing temple_profile_current → temple_profile_history
  *  4. Writes new temple_profile_current row (UPSERT: delete + save)
- *  5. Sets staging status = APPROVED
- *  6. Publishes in-transaction NotificationEvent
- *  7. Fires async audit log
- *  8. Logs governance action history
- *  9. Calls TempleSearchSummaryService.refresh() in same transaction
+ *  5. Sets legacy staging.status = APPROVED (projection only — never authority)
+ *  6. Supersedes prior APPROVED version via WorkflowEngine.executeSystem(AUTO_SUPERSEDE)
+ *  7. Advances WorkflowInstance via WorkflowEngine.execute(APPROVE or RE_APPROVE)
+ *  8. Publishes NotificationEvent and fires audit log
  *
  * On REJECT:
- *  1. Validates staging status is PENDING_REVIEW
+ *  1. Validates canonical WorkflowInstance.status is SUBMITTED / UNDER_REVIEW / RESUBMITTED
  *  2. Asserts district scope
- *  3. Sets staging status = REJECTED, stores reviewComment
- *  4. Publishes in-transaction NotificationEvent
- *  5. Fires async audit log
- *  6. Logs governance action history
- *  7. Calls TempleSearchSummaryService.refresh() in same transaction
+ *  3. Sets legacy staging.status = REJECTED (projection only)
+ *  4. Advances WorkflowInstance via WorkflowEngine.execute(REJECT)
+ *  5. Publishes NotificationEvent and fires audit log
  *
  * dc_e2e Section 4.4, 2.6, 2.8.
  */
@@ -69,7 +74,8 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final GovernanceAuditService governanceAuditService;
-    private final StatusTransitionValidator transitionValidator;
+    private final WorkflowEngine workflowEngine;
+    private final ActionContextResolver actionContextResolver;
 
     @Override
     @Transactional
@@ -77,77 +83,101 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     public WorkflowActionResponse approveProfile(Long stagingId, ApproveProfileRequest request,
                                                   ScopeHelper.Claims claims) {
         TempleProfileStaging staging = loadStaging(stagingId);
-        assertPendingReview(staging);
 
-        transitionValidator.validateProfileStagingTransition(staging.getStatus().name(), TempleProfileStagingStatus.APPROVED.name());
+        // Canonical status from WorkflowEngine — NOT the legacy staging.status field.
+        WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
+        WorkflowStatus currentStatus = workflowInstance.getStatus();
+        assertReviewable(currentStatus);
 
         Temple temple = loadTempleWithGeo(staging.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Archive existing current → history
-        currentRepository.findByTempleId(staging.getTempleId()).ifPresent(existing -> {
+        // UPSERT pattern — avoids delete+insert on temple_profile_current (unique on temple_id).
+        // JPA batches INSERT before DELETE within the same flush cycle, violating the unique
+        // constraint. Instead: load the existing row (if any), archive it to history, then
+        // update it in-place. A brand-new temple gets a plain INSERT.
+        TempleProfileCurrent current = currentRepository.findByTempleId(staging.getTempleId())
+                .orElseGet(() -> TempleProfileCurrent.builder()
+                        .templeId(staging.getTempleId())
+                        .build());
+
+        if (current.getId() != null) {
+            // Archive a snapshot of the current approved data before overwriting it.
             TempleProfileHistory history = TempleProfileHistory.builder()
-                    .templeId(existing.getTempleId())
+                    .templeId(current.getTempleId())
                     .version(staging.getVersionNumber() - 1)
-                    .phone(existing.getPhone())
-                    .email(existing.getEmail())
-                    .website(existing.getWebsite())
-                    .contactPersonName(existing.getContactPersonName())
-                    .contactPersonDesignation(existing.getContactPersonDesignation())
-                    .photoFilePath(existing.getPhotoFilePath())
-                    .bankName(existing.getBankName())
-                    .bankAccountNumberEncrypted(existing.getBankAccountNumberEncrypted())
-                    .bankIfsc(existing.getBankIfsc())
-                    .languagesOfWorship(existing.getLanguagesOfWorship())
-                    .linkedInstitutions(existing.getLinkedInstitutions())
-                    .description(existing.getDescription())
-                    .annualFestivals(existing.getAnnualFestivals())
-                    .landmark(existing.getLandmark())
-                    .historicalSignificance(existing.getHistoricalSignificance())
-                    .publishedAt(existing.getPublishedAt())
+                    .phone(current.getPhone())
+                    .email(current.getEmail())
+                    .website(current.getWebsite())
+                    .contactPersonName(current.getContactPersonName())
+                    .contactPersonDesignation(current.getContactPersonDesignation())
+                    .photoFilePath(current.getPhotoFilePath())
+                    .bankName(current.getBankName())
+                    .bankAccountNumberEncrypted(current.getBankAccountNumberEncrypted())
+                    .bankIfsc(current.getBankIfsc())
+                    .languagesOfWorship(current.getLanguagesOfWorship())
+                    .linkedInstitutions(current.getLinkedInstitutions())
+                    .description(current.getDescription())
+                    .annualFestivals(current.getAnnualFestivals())
+                    .landmark(current.getLandmark())
+                    .historicalSignificance(current.getHistoricalSignificance())
+                    .publishedAt(current.getPublishedAt())
                     .build();
             historyRepository.save(history);
-            currentRepository.delete(existing);
-        });
+        }
 
-        // Promote staging content to current
-        TempleProfileCurrent newCurrent = TempleProfileCurrent.builder()
-                .templeId(staging.getTempleId())
-                .phone(staging.getPhone())
-                .email(staging.getEmail())
-                .website(staging.getWebsite())
-                .contactPersonName(staging.getContactPersonName())
-                .contactPersonDesignation(staging.getContactPersonDesignation())
-                .photoFilePath(staging.getPhotoFilePath())
-                .bankName(staging.getBankName())
-                .bankAccountNumberEncrypted(staging.getBankAccountNumberEncrypted())
-                .bankIfsc(staging.getBankIfsc())
-                .languagesOfWorship(staging.getLanguagesOfWorship())
-                .linkedInstitutions(staging.getLinkedInstitutions())
-                .description(staging.getDescription())
-                .annualFestivals(staging.getAnnualFestivals())
-                .landmark(staging.getLandmark())
-                .historicalSignificance(staging.getHistoricalSignificance())
-                .publishedAt(LocalDateTime.now())
-                .publishedBy(claims.userId())
-                .build();
-        currentRepository.save(newCurrent);
+        // Overwrite (or initialise) the current record with approved staging content.
+        current.setPhone(staging.getPhone());
+        current.setEmail(staging.getEmail());
+        current.setWebsite(staging.getWebsite());
+        current.setContactPersonName(staging.getContactPersonName());
+        current.setContactPersonDesignation(staging.getContactPersonDesignation());
+        current.setPhotoFilePath(staging.getPhotoFilePath());
+        current.setBankName(staging.getBankName());
+        current.setBankAccountNumberEncrypted(staging.getBankAccountNumberEncrypted());
+        current.setBankIfsc(staging.getBankIfsc());
+        current.setLanguagesOfWorship(staging.getLanguagesOfWorship());
+        current.setLinkedInstitutions(staging.getLinkedInstitutions());
+        current.setDescription(staging.getDescription());
+        current.setAnnualFestivals(staging.getAnnualFestivals());
+        current.setLandmark(staging.getLandmark());
+        current.setHistoricalSignificance(staging.getHistoricalSignificance());
+        current.setPublishedAt(LocalDateTime.now());
+        current.setPublishedBy(claims.userId());
+        currentRepository.save(current);
 
-        // Update staging status
+        // Update legacy staging status for backward compatibility
         staging.setStatus(TempleProfileStagingStatus.APPROVED);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
         stagingRepository.save(staging);
 
-        // Mark previous APPROVED records for same temple as SUPERSEDED
+        // Supersede the previous APPROVED version (if any) via canonical WorkflowEngine.
+        // AUTO_SUPERSEDE is a SYSTEM action — no actor context needed.
         stagingRepository.findFirstByTempleIdAndStatus(staging.getTempleId(), TempleProfileStagingStatus.APPROVED)
                 .ifPresent(prev -> {
                     if (!prev.getId().equals(staging.getId())) {
-                        transitionValidator.validateProfileStagingTransition(prev.getStatus().name(), TempleProfileStagingStatus.SUPERSEDED.name());
-                        prev.setStatus(TempleProfileStagingStatus.SUPERSEDED);
-                        stagingRepository.save(prev);
+                        WorkflowInstance prevInstance = workflowEngine.getState(
+                                WorkflowEntityType.TEMPLE_PROFILE, prev.getId());
+                        workflowEngine.executeSystem(prevInstance.getId(),
+                                WorkflowAction.AUTO_SUPERSEDE,
+                                "Superseded by approved stagingId=" + staging.getId());
                     }
                 });
+
+        // Canonical: transition WorkflowInstance to APPROVED / RE_APPROVED
+        WorkflowAction approveAction = (currentStatus == WorkflowStatus.RESUBMITTED)
+                ? WorkflowAction.RE_APPROVE : WorkflowAction.APPROVE;
+        ActionContext context = actionContextResolver.resolve(claims);
+        workflowEngine.execute(
+                workflowInstance.getId(),
+                WorkflowActionRequest.builder()
+                        .action(approveAction)
+                        .expectedVersion(workflowInstance.getLockVersion())
+                        .idempotencyKey(UUID.randomUUID().toString())
+                        .comment(request.getRemarks())
+                        .build(),
+                context);
 
         notificationHelper.notifyTempleApproved(staging.getTempleId(), claims.userId());
         auditService.logDataEvent(claims.userId(), claims.role(), "APPROVE", "TEMPLE_PROFILE", staging.getTempleId(),
@@ -171,18 +201,33 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     public WorkflowActionResponse rejectProfile(Long stagingId, RejectProfileRequest request,
                                                    ScopeHelper.Claims claims) {
         TempleProfileStaging staging = loadStaging(stagingId);
-        assertPendingReview(staging);
 
-        transitionValidator.validateProfileStagingTransition(staging.getStatus().name(), TempleProfileStagingStatus.REJECTED.name());
+        // Canonical status from WorkflowEngine — NOT the legacy staging.status field.
+        WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
+        WorkflowStatus currentStatus = workflowInstance.getStatus();
+        assertReviewable(currentStatus);
 
         Temple temple = loadTempleWithGeo(staging.getTempleId());
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
+        // Update legacy staging status for backward compatibility
         staging.setStatus(TempleProfileStagingStatus.REJECTED);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
         staging.setReviewComment(request.getReason());
         stagingRepository.save(staging);
+
+        // Canonical: transition WorkflowInstance to REJECTED
+        ActionContext context = actionContextResolver.resolve(claims);
+        workflowEngine.execute(
+                workflowInstance.getId(),
+                WorkflowActionRequest.builder()
+                        .action(WorkflowAction.REJECT)
+                        .expectedVersion(workflowInstance.getLockVersion())
+                        .idempotencyKey(UUID.randomUUID().toString())
+                        .comment(request.getReason())
+                        .build(),
+                context);
 
         notificationHelper.notifyTempleRejected(staging.getTempleId(), claims.userId(), request.getReason());
         auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
@@ -207,9 +252,17 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                 .orElseThrow(() -> new EntityNotFoundException("TempleProfileStaging", id));
     }
 
-    private void assertPendingReview(TempleProfileStaging staging) {
-        if (staging.getStatus() != TempleProfileStagingStatus.PENDING_REVIEW) {
-            throw new IllegalStateException("Staging record is not in PENDING_REVIEW status.");
+    /**
+     * Validates that the staging's canonical WorkflowInstance status is in a DC-reviewable state.
+     * Replaces the legacy assertPendingReview() which used the stale staging.status field.
+     */
+    private void assertReviewable(WorkflowStatus currentStatus) {
+        if (currentStatus != WorkflowStatus.SUBMITTED
+                && currentStatus != WorkflowStatus.UNDER_REVIEW
+                && currentStatus != WorkflowStatus.RESUBMITTED) {
+            throw new IllegalStateException(
+                    "Temple profile staging is not in a DC-reviewable state. Current canonical status: "
+                            + currentStatus + ". Expected: SUBMITTED, UNDER_REVIEW, or RESUBMITTED.");
         }
     }
 

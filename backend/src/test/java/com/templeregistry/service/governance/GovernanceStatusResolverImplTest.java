@@ -6,11 +6,13 @@ import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.service.governance.impl.GovernanceStatusResolverImpl;
+import com.templeregistry.service.workflow.TransitionRuleRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -24,6 +26,9 @@ class GovernanceStatusResolverImplTest {
 
     @Mock
     private WorkflowInstanceRepository instanceRepo;
+
+    @Spy
+    private TransitionRuleRegistry ruleRegistry = new TransitionRuleRegistry();
 
     @InjectMocks
     private GovernanceStatusResolverImpl resolver;
@@ -159,5 +164,81 @@ class GovernanceStatusResolverImplTest {
 
         assertThat(payload.getStatus()).isEqualTo("APPROVED");
         assertThat(payload.getWorkflowInstanceId()).isEqualTo(1L);
+    }
+
+    @Test
+    void should_returnEmptyAllowedActions_when_statusIsApproved() {
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(approvedInstance);
+
+        assertThat(payload.getAllowedActions()).isEmpty();
+        assertThat(payload.getActionableBy()).isNull();
+    }
+
+    @Test
+    void should_returnDcAllowedActions_when_statusIsSubmitted() {
+        WorkflowInstance submitted = WorkflowInstance.builder()
+                .id(4L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(40L)
+                .status(WorkflowStatus.SUBMITTED)
+                .submittedAt(Instant.now())
+                .build();
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(submitted);
+
+        assertThat(payload.getActionableBy()).isEqualTo("DC");
+        assertThat(payload.getAllowedActions())
+                .isNotEmpty()
+                .contains("APPROVE", "SEND_BACK", "REJECT", "REQUEST_CLARIFICATION", "BEGIN_REVIEW");
+    }
+
+    @Test
+    void should_returnTaResubmitAction_when_statusIsUpdatedAfterApproval() {
+        WorkflowInstance updatedAfterApproval = WorkflowInstance.builder()
+                .id(6L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(60L)
+                .status(WorkflowStatus.UPDATED_AFTER_APPROVAL)
+                .submittedAt(Instant.now())
+                .build();
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(updatedAfterApproval);
+
+        assertThat(payload.getActionableBy()).isEqualTo("TA");
+        assertThat(payload.getAllowedActions())
+                .containsExactly("RESUBMIT");
+    }
+
+    @Test
+    void should_returnDcAllowedActions_when_statusIsResubmitted() {
+        WorkflowInstance resubmitted = WorkflowInstance.builder()
+                .id(7L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(70L)
+                .status(WorkflowStatus.RESUBMITTED)
+                .submittedAt(Instant.now())
+                .build();
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(resubmitted);
+
+        assertThat(payload.getActionableBy()).isEqualTo("DC");
+        assertThat(payload.getAllowedActions())
+                .isNotEmpty()
+                .contains("RE_APPROVE", "SEND_BACK", "REJECT", "REQUEST_CLARIFICATION");
+    }
+
+    @Test
+    void should_returnEmptyAllowedActions_when_statusIsRejected() {
+        WorkflowInstance rejected = WorkflowInstance.builder()
+                .id(8L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(80L)
+                .status(WorkflowStatus.REJECTED)
+                .build();
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(rejected);
+
+        assertThat(payload.getActionableBy()).isNull();
+        assertThat(payload.getAllowedActions()).isEmpty();
     }
 }
