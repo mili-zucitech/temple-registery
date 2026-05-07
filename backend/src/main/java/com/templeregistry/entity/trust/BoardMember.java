@@ -56,10 +56,9 @@ public class BoardMember extends BaseEntity {
     @Builder.Default
     @Column(name = "is_current", nullable = false) private boolean isCurrent = true;
 
-    // DC Governance Fields
+    // DC Governance Field — dcFlagReason removed (V80 migration)
     @Builder.Default
     @Column(name = "is_verified_by_dc", nullable = false) private boolean isVerifiedByDc = false;
-    @Column(name = "dc_flag_reason", columnDefinition = "TEXT") private String dcFlagReason;
 
     public String getMaskedAadhaar() {
         if (aadhaarLast4 != null && aadhaarLast4.length() == 4) {

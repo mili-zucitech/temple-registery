@@ -70,9 +70,6 @@ function MemberTable({ members, emptyLabel }: { members: BoardMemberResponse[]; 
             <tr key={m.id} className="hover:bg-muted/30">
               <td className="px-4 py-3 font-medium">
                 {m.fullName}
-                {m.dcFlagReason && (
-                  <div className="text-xs text-destructive mt-1">Feedback: {m.dcFlagReason}</div>
-                )}
               </td>
               <td className="px-4 py-3 text-muted-foreground">{m.designation}</td>
               <td className="px-4 py-3 text-muted-foreground">{m.appointmentDate}</td>
@@ -80,13 +77,7 @@ function MemberTable({ members, emptyLabel }: { members: BoardMemberResponse[]; 
               <td className="px-4 py-3 text-muted-foreground">{m.contactNumber}</td>
               <td className="px-4 py-3 text-muted-foreground">{m.address}</td>
               <td className="px-4 py-3 text-muted-foreground">
-                {m.isVerifiedByDc ? (
-                  <span className="text-success text-xs font-medium">Approved</span>
-                ) : m.dcFlagReason ? (
-                  <span className="text-destructive text-xs font-medium">Flagged</span>
-                ) : (
-                  <span className="text-muted-foreground text-xs">Pending</span>
-                )}
+                <span className="text-muted-foreground text-xs">N/A</span>
               </td>
             </tr>
           ))}

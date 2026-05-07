@@ -326,38 +326,6 @@ export function ContractorDetailPage() {
               </div>
             </div>
           </div>
-
-          {/* Verification Status (if applicable) */}
-          {contractor.isVerifiedByDc !== undefined && (
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
-                Verification Status
-              </h2>
-              <div className="space-y-2">
-                {contractor.isVerifiedByDc ? (
-                  <div className="flex items-center gap-2 text-green-600">
-                    <div className="h-2 w-2 rounded-full bg-green-600" />
-                    <span className="text-sm font-medium">Verified by DC</span>
-                  </div>
-                ) : contractor.dcFlagReason ? (
-                  <div>
-                    <div className="flex items-center gap-2 text-red-600 mb-2">
-                      <div className="h-2 w-2 rounded-full bg-red-600" />
-                      <span className="text-sm font-medium">Flagged by DC</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground bg-red-50 p-2 rounded">
-                      {contractor.dcFlagReason}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-yellow-600">
-                    <div className="h-2 w-2 rounded-full bg-yellow-600" />
-                    <span className="text-sm font-medium">Pending Review</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

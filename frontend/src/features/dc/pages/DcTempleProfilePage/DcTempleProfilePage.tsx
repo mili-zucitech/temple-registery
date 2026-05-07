@@ -45,9 +45,11 @@ import {
   useVerifyTempleMutation,
   useFlagTempleMutation,
   useUnflagTempleMutation,
-  useVerifyTrustMutation,
-  useFlagTrustMutation,
 } from '@/features/dc/dcApi'
+import {
+  useApproveTrustMutation,
+  useSendBackTrustMutation,
+} from '@/features/governance/governanceApi'
 import {
   workflowApproveSchema,
   workflowRejectSchema,
@@ -114,8 +116,8 @@ export function DcTempleProfilePage() {
   const [verifyTemple] = useVerifyTempleMutation()
   const [flagTemple] = useFlagTempleMutation()
   const [unflagTemple, { isLoading: isUnflagging }] = useUnflagTempleMutation()
-  const [verifyTrust, { isLoading: verifyingTrust }] = useVerifyTrustMutation()
-  const [flagTrust, { isLoading: flaggingTrust }] = useFlagTrustMutation()
+  const [approveTrust, { isLoading: verifyingTrust }] = useApproveTrustMutation()
+  const [sendBackTrust, { isLoading: flaggingTrust }] = useSendBackTrustMutation()
 
   const overdueDecls = useMemo(() =>
     profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
@@ -393,20 +395,22 @@ export function DcTempleProfilePage() {
               trustFinancials={profile.trustFinancials}
               boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
-              onVerifyTrust={async (trustId, notes) => {
+              onVerifyTrust={async (trustId, _notes) => {
                 try {
-                  await verifyTrust({ id: trustId, templeId: id, body: { notes } }).unwrap()
-                  toast.success('Trust marked as verified.')
+                  await approveTrust(trustId).unwrap()
+                  toast.success('Trust approved.')
+                  refetchProfile()
                 } catch {
-                  toast.error('Failed to verify trust. Please try again.')
+                  toast.error('Failed to approve trust. Please try again.')
                 }
               }}
               onFlagTrust={async (trustId, reason) => {
                 try {
-                  await flagTrust({ id: trustId, templeId: id, body: { reason } }).unwrap()
-                  toast.success('Trust flagged for review.')
+                  await sendBackTrust({ trustId, body: { reason } }).unwrap()
+                  toast.success('Trust sent back for clarification.')
+                  refetchProfile()
                 } catch {
-                  toast.error('Failed to flag trust. Please try again.')
+                  toast.error('Failed to send back trust. Please try again.')
                 }
               }}
             />

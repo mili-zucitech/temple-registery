@@ -33,10 +33,7 @@ public interface TrustMapper {
     @Mapping(target = "trustRegistrationNumber", ignore = true)
     @Mapping(target = "trustPANNumber", ignore = true)
     @Mapping(target = "bankNameAndBranch", ignore = true)
-    @Mapping(target = "dcFlagReason", ignore = true)
-    @Mapping(target = "submissionStatus", ignore = true)
     @Mapping(target = "systemVerificationStatus", ignore = true)
-    @Mapping(target = "dcDecisionStatus", ignore = true)
     @Mapping(target = "sendBackReason", ignore = true)
     Trust fromCreateRequest(CreateTrustRequest request);
 
@@ -53,10 +50,7 @@ public interface TrustMapper {
     @Mapping(target = "dissolutionDate", ignore = true)
     @Mapping(target = "dissolutionReason", ignore = true)
     @Mapping(target = "bankNameAndBranch", ignore = true)
-    @Mapping(target = "dcFlagReason", ignore = true)
-    @Mapping(target = "submissionStatus", ignore = true)
     @Mapping(target = "systemVerificationStatus", ignore = true)
-    @Mapping(target = "dcDecisionStatus", ignore = true)
     @Mapping(target = "sendBackReason", ignore = true)
     void updateFromRequest(UpdateTrustRequest request, @MappingTarget Trust trust);
 
@@ -86,7 +80,6 @@ public interface TrustMapper {
     @Mapping(target = "fullName", source = "fullName")
     @Mapping(target = "current", ignore = true)
     @Mapping(target = "verifiedByDc", ignore = true)
-    @Mapping(target = "dcFlagReason", ignore = true)
     BoardMember fromCreateMemberRequest(CreateBoardMemberRequest request);
 
     @Mapping(target = "id", ignore = true)
@@ -102,7 +95,6 @@ public interface TrustMapper {
     @Mapping(target = "aadhaarHash", ignore = true)
     @Mapping(target = "aadhaarLast4", ignore = true)
     @Mapping(target = "verifiedByDc", ignore = true)
-    @Mapping(target = "dcFlagReason", ignore = true)
     void updateMemberFromRequest(UpdateBoardMemberRequest request, @MappingTarget BoardMember member);
 
     @Mapping(target = "maskedAadhaar", expression = "java(member.getMaskedAadhaar())")

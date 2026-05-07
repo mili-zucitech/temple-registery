@@ -1,8 +1,8 @@
 package com.templeregistry.dto.response.trust;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.templeregistry.entity.governance.DcDecisionStatus;
-import com.templeregistry.entity.governance.SubmissionStatus;
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import com.templeregistry.entity.trust.TrustStatus;
 import com.templeregistry.entity.trust.TrustType;
 import lombok.Builder;
@@ -27,13 +27,14 @@ public class TrustResponse {
     private String bankName;
     private String bankBranch;
     private BigDecimal annualIncome;
+    /** Entity lifecycle status — ACTIVE / DISSOLVED. NOT a governance status. */
     private TrustStatus status;
     @JsonProperty("active")
     private boolean active;
     private LocalDate dissolvedAt;
     private String dissolutionReason;
-    private String dcFlagReason;
-    private SubmissionStatus submissionStatus;
-    private DcDecisionStatus dcDecisionStatus;
+    /** DC send-back reason text — display data, kept as separate field. */
     private String sendBackReason;
+    /** Canonical governance status — single source of truth for TA/DC/Auditor views. */
+    private GovernanceStatusPayload governanceStatus;
 }

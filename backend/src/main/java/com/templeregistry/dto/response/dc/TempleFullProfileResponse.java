@@ -77,6 +77,8 @@ public class TempleFullProfileResponse {
         private BigDecimal annualIncome;
         private String dcFlagReason;
         private String reviewStatus;
+        /** Raw workflow status string (e.g. SUBMITTED, APPROVED, SENT_BACK). Used by frontend to gate actions. */
+        private String workflowStatus;
         private boolean isVerifiedByDc;
         private List<String> validationIssues;
         private String financialStatus;

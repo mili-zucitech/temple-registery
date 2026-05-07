@@ -4,6 +4,7 @@ import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.governance.PhysicalVerificationStatus;
 import com.templeregistry.entity.governance.SubmissionStatus;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.repository.governance.PhysicalVerificationHistoryRepository;
 import com.templeregistry.entity.governance.PhysicalVerificationHistory;
@@ -16,16 +17,6 @@ import com.templeregistry.security.ScopeHelper;
 
 /**
  * Guards and side-effects for TA edit operations on governed entities.
- *
- * Re-submission rules (TASK 3):
- * 1. REJECTED records cannot be edited — TA must create a new one.
- * 2. SUBMITTED records cannot be edited — TA must wait for DC action.
- * 3. APPROVED records CAN be edited — edit resets status to PENDING_REVIEW (re-submission).
- *    This triggers DC notification and requires re-approval.
- * 4. SENT_BACK records CAN be edited (edit does not auto-submit; TA must call submit).
- * 5. DRAFT records can always be edited.
- * 6. For declarations: any edit after PHYSICALLY_VERIFIED or VERIFICATION_FAILED
- *    resets physicalVerificationStatus to NOT_INITIATED.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,6 +34,37 @@ public class GovernanceEditGuard {
      * @param entityId      entity ID for error messages
      * @throws IllegalStatusTransitionException if the entity cannot be edited
      */
+    /**
+     * Asserts that a TA can edit a governed entity — canonical WorkflowStatus variant.
+     * Use this for entities whose legacy SubmissionStatus field has been removed (Phase 4+).
+     */
+    public void assertCanEdit(WorkflowStatus currentStatus, String entityType, Long entityId) {
+        switch (currentStatus) {
+            case REJECTED -> throw new IllegalStatusTransitionException(
+                    entityType + " [" + entityId + "] has been REJECTED and cannot be edited. " +
+                    "Please create a new " + entityType + " from scratch.");
+            case SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, RESUBMITTED ->
+                throw new IllegalStatusTransitionException(
+                    entityType + " [" + entityId + "] is currently " + currentStatus.name() + " and awaiting DC review. " +
+                    "Editing is not allowed until the DC acts on it.");
+            default -> {
+                // DRAFT, CLARIFICATION_REQUESTED, APPROVED, RE_APPROVED,
+                // UPDATED_AFTER_APPROVAL — allowed
+            }
+        }
+    }
+
+    /**
+     * Returns true if the current WorkflowStatus requires re-submission after a TA edit.
+     */
+    public boolean requiresResubmission(WorkflowStatus currentStatus) {
+        return currentStatus == WorkflowStatus.APPROVED || currentStatus == WorkflowStatus.RE_APPROVED;
+    }
+
+    /**
+     * @deprecated Use assertCanEdit(WorkflowStatus, ...) for canonical path.
+     */
+    @Deprecated
     public void assertCanEdit(SubmissionStatus currentStatus, String entityType, Long entityId) {
         switch (currentStatus) {
             case REJECTED -> throw new IllegalStatusTransitionException(
@@ -71,6 +93,10 @@ public class GovernanceEditGuard {
      *
      * @param currentStatus the status BEFORE the edit was applied
      */
+    /**
+     * @deprecated Use requiresResubmission(WorkflowStatus) for canonical path.
+     */
+    @Deprecated
     public boolean requiresResubmission(SubmissionStatus currentStatus) {
         return currentStatus == SubmissionStatus.APPROVED;
     }

@@ -3,7 +3,6 @@ package com.templeregistry.controller.employee;
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.employee.CreateEmployeeRequest;
-import com.templeregistry.dto.request.employee.SubmitEmployeeRequest;
 import com.templeregistry.dto.request.employee.UpdateEmployeeRequest;
 import com.templeregistry.dto.response.employee.EmployeeResponse;
 import com.templeregistry.service.employee.EmployeeService;
@@ -66,23 +65,5 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         employeeService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success("Employee removed."));
-    }
-
-    @PostMapping("/employees/{id}/submit")
-    @Operation(summary = "Submit employee record for DC review")
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    public ResponseEntity<ApiResponse<EmployeeResponse>> submitForReview(
-            @PathVariable Long id,
-            @Valid @RequestBody SubmitEmployeeRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Employee submitted for review.",
-                employeeService.submitForReview(id, request)));
-    }
-
-    @PostMapping("/employees/{id}/withdraw")
-    @Operation(summary = "Withdraw submission (return to DRAFT)")
-    @PreAuthorize(RoleConstants.CAN_SUBMIT)
-    public ResponseEntity<ApiResponse<EmployeeResponse>> withdrawSubmission(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Submission withdrawn.",
-                employeeService.withdrawSubmission(id)));
     }
 }

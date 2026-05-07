@@ -333,6 +333,8 @@ export interface DcTrustSummary {
   isVerifiedByDc: boolean
   dcFlagReason: string | null
   reviewStatus: 'APPROVED' | 'PENDING' | 'FLAGGED'
+  /** Raw workflow status (SUBMITTED, APPROVED, SENT_BACK, DRAFT, REJECTED…). Used to gate DC actions. */
+  workflowStatus?: string | null
   validationIssues: string[]
   financialStatus: 'SUBMITTED' | 'MISSING'
 }
@@ -423,8 +425,6 @@ export interface BoardMemberSummary {
   tenureEndDate: string | null
   address: string | null
   isCurrent: boolean
-  isVerifiedByDc: boolean
-  dcFlagReason: string | null
 }
 
 export interface EmployeeSummary {
@@ -440,8 +440,6 @@ export interface EmployeeSummary {
   address: string | null
   status: string
   isHereditary: boolean
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
 }
 
 export interface ContractorResponse {
@@ -457,8 +455,6 @@ export interface ContractorResponse {
   contractValue: number | null
   paymentStatus: 'PENDING' | 'COMPLETED' | 'DISPUTED'
   documentIds?: number[]
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
 }
 
 export interface DeclarationSummary {

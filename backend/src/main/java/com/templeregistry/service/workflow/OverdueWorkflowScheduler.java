@@ -1,6 +1,8 @@
 package com.templeregistry.service.workflow;
 
 import com.templeregistry.entity.workflow.*;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -30,6 +34,7 @@ public class OverdueWorkflowScheduler {
 
     private final WorkflowInstanceRepository instanceRepo;
     private final WorkflowEngine workflowEngine;
+    private final DeclarationRepository declarationRepository;
 
     private static final List<WorkflowStatus> PENDING_STATUSES = List.of(
         WorkflowStatus.SUBMITTED,
@@ -58,6 +63,11 @@ public class OverdueWorkflowScheduler {
                 workflowEngine.executeSystem(wi.getId(),
                     WorkflowAction.FLAG_OVERDUE,
                     "Auto-flagged: deadline was " + wi.getDeadlineAt());
+
+                // Phase A: propagate OVERDUE state to domain entity to keep dual-write in sync.
+                // Remove this block after V82 migration drops asset_declarations.status.
+                propagateOverdueToDomainEntity(wi);
+
                 flagged++;
             } catch (Exception ex) {
                 log.warn("[OverdueScheduler] Failed instance={}: {}", wi.getId(), ex.getMessage());
@@ -65,6 +75,22 @@ public class OverdueWorkflowScheduler {
             }
         }
         log.info("[OverdueScheduler] flagged={} failed={}", flagged, failed);
+    }
+
+    /**
+     * Propagates OVERDUE state to domain entity after WorkflowEngine transition.
+     * Only handles DECLARATION — Trust has no isOverdue flag.
+     * Remove after V82 migration drops asset_declarations.status.
+     */
+    private void propagateOverdueToDomainEntity(WorkflowInstance wi) {
+        if (wi.getEntityType() == WorkflowEntityType.DECLARATION) {
+            declarationRepository.findById(wi.getEntityId()).ifPresent(declaration -> {
+                declaration.setOverdue(true);
+                declaration.setOverdueFlaggedAt(LocalDateTime.now(ZoneOffset.UTC));
+                declarationRepository.save(declaration);
+                log.debug("[OverdueScheduler] Declaration [{}] isOverdue=true flaggedAt set", declaration.getId());
+            });
+        }
     }
 
     // ─── Deadline warning sweep — 09:00 IST (03:30 UTC) ─────────────────────

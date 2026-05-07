@@ -43,8 +43,17 @@ vi.mock('@/features/dc/dcApi', () => ({
   },
   useVerifyTempleMutation: () => [vi.fn(), { isLoading: false }],
   useFlagTempleMutation: () => [vi.fn(), { isLoading: false }],
-  useVerifyTrustMutation: () => [vi.fn(), { isLoading: false }],
-  useFlagTrustMutation: () => [vi.fn(), { isLoading: false }],
+  useUnflagTempleMutation: () => [vi.fn(), { isLoading: false }],
+}))
+
+vi.mock('@/features/governance/governanceApi', () => ({
+  governanceApi: {
+    reducerPath: 'governanceApi',
+    reducer: (s = {}) => s,
+    middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
+  },
+  useApproveTrustMutation: () => [vi.fn(), { isLoading: false }],
+  useSendBackTrustMutation: () => [vi.fn(), { isLoading: false }],
 }))
 
 vi.mock('@/app/store', () => ({

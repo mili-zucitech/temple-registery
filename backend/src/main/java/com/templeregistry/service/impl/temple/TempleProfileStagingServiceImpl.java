@@ -24,6 +24,7 @@ import com.templeregistry.util.PaginationUtil;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.workflow.VersionService;
 import com.templeregistry.service.clarification.ClarificationEngine;
+import com.templeregistry.service.governance.GovernanceStatusResolver;
 
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,8 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     private final VersionService versionService;
     private final ClarificationEngine clarificationEngine;
     private final com.templeregistry.service.workflow.ActionContextResolver actionContextResolver;
+    private final FileStorageService fileStorageService;
+    private final GovernanceStatusResolver governanceStatusResolver;
 
     @Override
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
@@ -454,8 +457,6 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
             temple.setLinkedInstitutions(staging.getLinkedInstitutions());
     }
 
-    private final FileStorageService fileStorageService;
-
     private TempleProfileStagingResponse toResponse(TempleProfileStaging s) {
         WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
 
@@ -497,6 +498,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .reviewedAt(instance.getStatusUpdatedAt() != null ? LocalDateTime.ofInstant(instance.getStatusUpdatedAt(), java.time.ZoneId.systemDefault()) : null)
                 .createdAt(s.getCreatedAt())
                 .updatedAt(s.getUpdatedAt())
+                .governanceStatus(governanceStatusResolver.resolveFromInstance(instance))
                 .build();
     }
 }

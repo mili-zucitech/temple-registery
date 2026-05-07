@@ -130,6 +130,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final DeclarationAuditLogService declarationAuditLogService;
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
     private final WorkflowEngine workflowEngine;
+    private final com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
 
     @Override
     @Transactional(readOnly = true)
@@ -778,6 +779,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .overdue(declaration.isOverdue())
                 .overdueFlaggedAt(declaration.getOverdueFlaggedAt())
                 .remarks(declaration.getReviewComment())
+                .governanceStatus(governanceStatusResolver.resolve(
+                    com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION, declaration.getId()))
                 .build();
     }
 
