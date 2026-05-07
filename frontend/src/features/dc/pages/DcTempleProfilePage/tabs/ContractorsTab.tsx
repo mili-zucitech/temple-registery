@@ -1,4 +1,4 @@
-import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download, User, Building2, AlertCircle } from 'lucide-react'
+import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download, User, Building2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '../components'
 import { formatCurrency } from '../utils'
@@ -139,9 +139,6 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                               <Receipt size={10} className="text-slate-400" /> GST: {c.gstNumber}
                             </div>
                           )}
-                          {c.dcFlagReason && (
-                            <div className="text-xs text-red-600 mt-1">⚑ {c.dcFlagReason}</div>
-                          )}
                         </td>
                         <td className="px-5 py-4">
                           <Badge variant="outline" className={SERVICE_TYPE_COLORS[c.serviceType]}>
@@ -239,17 +236,6 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                   </div>
                 </div>
               </div>
-
-              {/* DC Feedback if flagged */}
-              {selectedContractor.dcFlagReason && (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
-                  <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-destructive">DC Feedback</p>
-                    <p className="text-sm text-destructive/90 mt-1">{selectedContractor.dcFlagReason}</p>
-                  </div>
-                </div>
-              )}
 
               {/* Basic Information */}
               <div>

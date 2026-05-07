@@ -114,11 +114,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
             versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
         }
 
-        // Keep legacy status in sync during transition period
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
-        trust.setSendBackReason(null);
-        trustRepository.save(trust);
-
         log.info("Trust [{}] submitted by userId={}", trustId, currentUserId());
     }
 
@@ -135,13 +130,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on approval
         versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
 
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.APPROVED);
-        trustRepository.save(trust);
-
-        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
-        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
-            com.templeregistry.entity.governance.SubmissionStatus.APPROVED.name());
-
         log.info("Trust [{}] APPROVED by userId={}", trustId, currentUserId());
     }
 
@@ -156,13 +144,9 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
 
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SENT_BACK);
+        // sendBackReason is display data — keep it in sync
         trust.setSendBackReason(request.getReason());
         trustRepository.save(trust);
-
-        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
-        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
-            com.templeregistry.entity.governance.SubmissionStatus.SENT_BACK.name());
 
         log.info("Trust [{}] SENT_BACK by userId={}", trustId, currentUserId());
     }
@@ -177,13 +161,6 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         workflowEngineAdaptor.adaptReject(
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
-
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.REJECTED);
-        trustRepository.save(trust);
-
-        // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
-        assertEntityStatusConsistency(WorkflowEntityType.TRUST, trustId,
-            com.templeregistry.entity.governance.SubmissionStatus.REJECTED.name());
 
         log.info("Trust [{}] REJECTED by userId={}", trustId, currentUserId());
     }

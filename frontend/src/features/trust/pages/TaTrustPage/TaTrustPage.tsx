@@ -54,29 +54,6 @@ function formatInr(value?: number | null) {
   return `₹${value.toLocaleString('en-IN')}`
 }
 
-function trustReviewStatus(trust: {
-  submissionStatus?: string | null
-  dcDecisionStatus?: string | null
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
-  sendBackReason?: string | null
-} | null) {
-  if (!trust) return 'DRAFT'
-
-  const submission = String(trust.submissionStatus ?? '').toUpperCase()
-  if (submission === 'APPROVED') return 'APPROVED'
-  if (submission === 'SUBMITTED') return 'UNDER_REVIEW'
-  if (submission === 'SENT_BACK') return 'CLARIFICATION_REQUIRED'
-  if (submission === 'REJECTED') return 'REJECTED'
-
-  if (trust.isVerifiedByDc) return 'APPROVED'
-  if (trust.dcFlagReason || trust.sendBackReason || trust.dcDecisionStatus === 'REJECTED_BY_DC') {
-    return 'CLARIFICATION_REQUIRED'
-  }
-  if (trust.dcDecisionStatus === 'PENDING_DC_APPROVAL') return 'UNDER_REVIEW'
-  return 'DRAFT'
-}
-
 export function TaTrustPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState('details')
@@ -110,7 +87,7 @@ export function TaTrustPage() {
     { skip: !trust?.id || tab !== 'meetings' }
   )
 
-  const reviewStatus = useMemo(() => trustReviewStatus(trust), [trust])
+  const reviewStatus = trust?.governanceStatus?.status ?? 'DRAFT'
   const allCurrentMembers = useMemo(() => membersData?.data?.current ?? [], [membersData])
   const allPastMembers = useMemo(() => membersData?.data?.past ?? [], [membersData])
   const financials = useMemo(() => financialsData?.data ?? [], [financialsData])
@@ -488,9 +465,9 @@ export function TaTrustPage() {
                       </Button>
                     </div>
                   </div>
-                  {trust.dcFlagReason && (
+                  {trust.sendBackReason && (
                     <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                      <strong>DC feedback:</strong> {trust.dcFlagReason}
+                      <strong>DC feedback:</strong> {trust.sendBackReason}
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -681,12 +658,10 @@ export function TaTrustPage() {
                   </div>
 
                   {/* DC Feedback if flagged */}
-                  {viewingMember.dcFlagReason && (
-                    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
-                      <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
+                  {viewingMember.address && (
+                    <div className="rounded-lg border border-border/20 bg-muted/5 p-4 flex items-start gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-destructive">DC Feedback</p>
-                        <p className="text-sm text-destructive/90 mt-1">{viewingMember.dcFlagReason}</p>
+                        <p className="text-sm text-muted-foreground">{viewingMember.address}</p>
                       </div>
                     </div>
                   )}
@@ -863,8 +838,6 @@ function MemberTable({
     contactNumber?: string
     maskedAadhaar?: string | null
     address?: string
-    isVerifiedByDc?: boolean
-    dcFlagReason?: string | null
     isCurrent: boolean
   }>
   onDelete: (memberId: number) => Promise<void>

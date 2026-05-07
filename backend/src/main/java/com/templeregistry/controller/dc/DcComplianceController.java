@@ -16,15 +16,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * DC compliance endpoints for governed modules: Temple and Trust only.
+ * DC compliance endpoints for Temple only.
  *
- * Staff (Employee) and Contractor modules have NO DC approval or verification workflow.
- * Any attempt to verify/flag Staff or Contractors will result in 404 (endpoint does not exist).
+ * Trust governance is handled by GovernanceWorkflow endpoints (/api/v1/governance/trusts/...).
+ * Staff (Employee) and Contractor modules have NO DC compliance workflow.
  */
 @RestController
 @RequestMapping("/api/v1/dc/compliance")
 @RequiredArgsConstructor
-@Tag(name = "DC Compliance", description = "Endpoints for DC to verify or flag governance entities")
+@Tag(name = "DC Compliance", description = "Endpoints for DC to verify or flag Temple entities")
 @PreAuthorize(RoleConstants.CAN_ACT_DC)
 public class DcComplianceController {
 
@@ -43,21 +43,6 @@ public class DcComplianceController {
     public ResponseEntity<ApiResponse<Void>> flagTemple(@PathVariable Long id, @RequestBody @Valid DcFlagRequest req) {
         dcComplianceService.flagTemple(id, req, currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Temple flagged for review."));
-    }
-
-    @PostMapping("/trusts/{id}/verify")
-    @Operation(summary = "Mark a Trust as VERIFIED")
-    public ResponseEntity<ApiResponse<Void>> verifyTrust(@PathVariable Long id,
-            @RequestBody @Valid DcVerifyRequest req) {
-        dcComplianceService.verifyTrust(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Trust marked as verified."));
-    }
-
-    @PostMapping("/trusts/{id}/flag")
-    @Operation(summary = "Mark a Trust as FLAGGED")
-    public ResponseEntity<ApiResponse<Void>> flagTrust(@PathVariable Long id, @RequestBody @Valid DcFlagRequest req) {
-        dcComplianceService.flagTrust(id, req, currentClaims());
-        return ResponseEntity.ok(ApiResponse.success("Trust flagged for review."));
     }
 
     private ScopeHelper.Claims currentClaims() {

@@ -83,6 +83,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final JurisdictionGuard jurisdictionGuard;
         private final TrustValidationService trustValidationService;
         private final WorkflowEngine workflowEngine;
+        private final com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
 
         @Override
         @Transactional(readOnly = true)
@@ -364,7 +365,16 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims) {
                 String[] bankParts = splitBankNameAndBranch(t.getBankNameAndBranch());
                 List<TrustFinancial> financials = trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(t.getId());
-                boolean isVerified = t.getDcDecisionStatus() == com.templeregistry.entity.governance.DcDecisionStatus.APPROVED_BY_DC;
+                // Use canonical WorkflowInstance status — NOT systemVerificationStatus which is never set by approveTrust.
+                com.templeregistry.dto.response.governance.GovernanceStatusPayload governancePayload =
+                        governanceStatusResolver.resolve(WorkflowEntityType.TRUST, t.getId());
+                String workflowStatus = governancePayload.getStatus(); // e.g. SUBMITTED, APPROVED, CLARIFICATION_REQUESTED
+                boolean isVerified = "APPROVED".equals(workflowStatus) || "RE_APPROVED".equals(workflowStatus);
+                // SEND_BACK action transitions to CLARIFICATION_REQUESTED in the workflow engine
+                boolean isSentBack = "CLARIFICATION_REQUESTED".equals(workflowStatus)
+                        || "CLARIFICATION_RESPONDED".equals(workflowStatus);
+                String dcFlagReasonValue = (isSentBack && t.getSendBackReason() != null) ? t.getSendBackReason() : null;
+                String reviewStatus = isVerified ? "APPROVED" : (isSentBack ? "FLAGGED" : "PENDING");
                 return TempleFullProfileResponse.DcTrustSummary.builder()
                                 .id(t.getId())
                                 .trustName(t.getTrustName())
@@ -377,8 +387,9 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .bankName(bankParts[0])
                                 .bankBranch(bankParts[1])
                                 .annualIncome(t.getAnnualIncome())
-                                .dcFlagReason(t.getDcFlagReason())
-                                .reviewStatus(isVerified ? "APPROVED" : (t.getDcFlagReason() != null ? "FLAGGED" : "PENDING"))
+                                .dcFlagReason(dcFlagReasonValue)
+                                .reviewStatus(reviewStatus)
+                                .workflowStatus(workflowStatus)
                                 .isVerifiedByDc(isVerified)
                                 .validationIssues(buildTrustValidationIssues(t))
                                 .financialStatus(financials.isEmpty() ? "MISSING" : "SUBMITTED")
@@ -424,7 +435,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contactNumber(m.getContactNumber())
                                 .address(m.getAddress())
                                 .current(trustValidationService.isCurrentMember(m.getTenureEndDate()))
-                                .dcFlagReason(m.getDcFlagReason())
+                                .dcFlagReason(null)
                                 .build();
         }
 
@@ -503,6 +514,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .reviewedAt(d.getReviewedAt())
                                 .acknowledgementNumber(d.getAcknowledgementNumber())
                                 .dueDate(d.getDueDate())
+                                .governanceStatus(governanceStatusResolver.resolve(
+                                    WorkflowEntityType.DECLARATION, d.getId()))
                                 .build();
         }
 

@@ -2,7 +2,6 @@ package com.templeregistry.service.impl;
 
 import com.templeregistry.dto.request.dc.DcFlagRequest;
 import com.templeregistry.dto.request.dc.DcVerifyRequest;
-import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.entity.trust.Trust;
@@ -70,76 +69,6 @@ public class DcComplianceServiceImpl implements DcComplianceService {
         governanceAuditService.logAction(id, "TEMPLE", claims.userId(), "FLAG", req.getReason());
         notificationHelper.notifyTempleFlagged(id, claims.userId(), req.getReason());
         log.info("Temple [{}] FLAGGED by userId={}", id, claims.userId());
-    }
-
-    // ─── Trust ────────────────────────────────────────────────────────────────
-
-    @Override
-    @Transactional
-    public void verifyTrust(Long id, DcVerifyRequest req, ScopeHelper.Claims claims) {
-        Trust trust = trustRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
-        Temple temple = loadTempleWithGeo(trust.getTempleId());
-        jurisdictionGuard.assertDistrictScope(temple, claims);
-
-        workflowEngineAdaptor.ensureInitiated(
-            WorkflowEntityType.TRUST,
-            id,
-            trust.getTempleId(),
-            temple.getDistrictId(),
-            claims.userId());
-
-        workflowEngineAdaptor.adaptApprove(
-                WorkflowEntityType.TRUST,
-                id,
-                temple.getDistrictId(),
-                claims.userId());
-
-        trust.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
-        trust.setDcFlagReason(null);
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.APPROVED);
-        trustRepository.save(trust);
-
-        governanceAuditService.logAction(id, "TRUST", claims.userId(), "VERIFY", req.getNotes());
-        log.info("Trust [{}] VERIFIED by userId={}", id, claims.userId());
-    }
-
-    @Override
-    @Transactional
-    public void flagTrust(Long id, DcFlagRequest req, ScopeHelper.Claims claims) {
-        Trust trust = trustRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Trust", id));
-        Temple temple = loadTempleWithGeo(trust.getTempleId());
-        jurisdictionGuard.assertDistrictScope(temple, claims);
-
-        // Guard: DC can only flag a trust that has been submitted — flagging a DRAFT trust
-        // would cause adaptSendBack to fail with an invalid-transition error from WorkflowEngine.
-        if (trust.getSubmissionStatus() == com.templeregistry.entity.governance.SubmissionStatus.DRAFT) {
-            throw new IllegalStateException(
-                    "Trust must be submitted before DC can flag it. Current status: DRAFT");
-        }
-
-        workflowEngineAdaptor.ensureInitiated(
-            WorkflowEntityType.TRUST,
-            id,
-            trust.getTempleId(),
-            temple.getDistrictId(),
-            claims.userId());
-
-        workflowEngineAdaptor.adaptSendBack(
-            WorkflowEntityType.TRUST,
-            id,
-            temple.getDistrictId(),
-            claims.userId(),
-            req.getReason());
-
-        trust.setDcDecisionStatus(DcDecisionStatus.REJECTED_BY_DC);
-        trust.setDcFlagReason(req.getReason());
-        trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SENT_BACK);
-        trustRepository.save(trust);
-
-        governanceAuditService.logAction(id, "TRUST", claims.userId(), "FLAG", req.getReason());
-        log.info("Trust [{}] FLAGGED by userId={}", id, claims.userId());
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

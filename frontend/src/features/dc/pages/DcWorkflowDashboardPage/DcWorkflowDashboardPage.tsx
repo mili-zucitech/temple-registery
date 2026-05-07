@@ -66,7 +66,7 @@ export function DcWorkflowDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>('')
 
-  const districtId = useAppSelector((state) => state.auth.user?.districtId)
+  const districtId = useAppSelector((state) => state.auth.currentUser?.districtId)
 
   const dashboardQuery = useGetWorkflowDashboardQuery({
     districtId,

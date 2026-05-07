@@ -145,8 +145,12 @@ class RegistrationServiceImplTest {
     }
 
     private Hobli buildHobli() {
+        com.templeregistry.entity.geo.City city = new com.templeregistry.entity.geo.City();
+        city.setId(1L);
+
         District district = new District();
         district.setId(1L);
+        district.setCity(city);
 
         Taluk taluk = new Taluk();
         taluk.setId(1L);

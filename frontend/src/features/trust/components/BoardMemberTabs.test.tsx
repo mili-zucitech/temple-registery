@@ -21,7 +21,6 @@ describe('BoardMemberTabs', () => {
     contactNumber: '9999999999',
     address: 'Test Address',
     isCurrent: true,
-    isVerifiedByDc: false,
   };
 
   it('shows new members as current and past tab is empty', async () => {

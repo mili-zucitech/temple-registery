@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.temple;
 
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -46,4 +47,7 @@ public class TempleProfileStagingResponse {
     private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /** Canonical governance status — single source of truth for TA/DC/Auditor views. */
+    private GovernanceStatusPayload governanceStatus;
 }

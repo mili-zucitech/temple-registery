@@ -5,14 +5,13 @@ import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.employee.Employee;
 import com.templeregistry.entity.employee.EmployeeStatus;
 import com.templeregistry.entity.employee.EmployeeType;
-import com.templeregistry.entity.governance.DcDecisionStatus;
-import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleGrade;
 import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.trust.TrustStatus;
 import com.templeregistry.entity.trust.TrustType;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import net.jqwik.api.*;
 import org.junit.jupiter.api.Test;
 
@@ -56,37 +55,11 @@ class PreservationPropertyTest {
     void property2_1_trustWorkflowTransitionsAreUnchanged(
             @ForAll("validTrustStates") Trust trust
     ) {
-        // Verify Trust can transition through valid workflow states
-        SubmissionStatus initialStatus = trust.getSubmissionStatus();
-
-        // Valid transitions from each state
-        switch (initialStatus) {
-            case DRAFT:
-                // DRAFT can transition to SUBMITTED
-                assertThat(SubmissionStatus.SUBMITTED)
-                        .as("Trust in DRAFT can transition to SUBMITTED")
-                        .isNotNull();
-                break;
-            case SUBMITTED:
-                // SUBMITTED can transition to SENT_BACK, APPROVED, or REJECTED
-                assertThat(List.of(SubmissionStatus.SENT_BACK, SubmissionStatus.APPROVED, SubmissionStatus.REJECTED))
-                        .as("Trust in SUBMITTED can transition to SENT_BACK, APPROVED, or REJECTED")
-                        .isNotEmpty();
-                break;
-            case SENT_BACK:
-                // SENT_BACK can transition back to SUBMITTED (TA re-submits)
-                assertThat(SubmissionStatus.SUBMITTED)
-                        .as("Trust in SENT_BACK can transition back to SUBMITTED")
-                        .isNotNull();
-                break;
-            case APPROVED:
-            case REJECTED:
-                // Terminal states — no further transitions
-                assertThat(initialStatus)
-                        .as("Trust in APPROVED or REJECTED is in terminal state")
-                        .isIn(SubmissionStatus.APPROVED, SubmissionStatus.REJECTED);
-                break;
-        }
+        // In the Canonical Status Architecture, Trust has no submissionStatus field.
+        // Workflow state lives exclusively in WorkflowInstance.
+        // This property verifies that Trust entity only has valid fields.
+        assertThat(trust.getTempleId()).isNotNull();
+        assertThat(trust.getStatus()).isNotNull();
 
         // Verify Trust dissolution fields are preserved
         if (trust.getStatus() == TrustStatus.DISSOLVED) {
@@ -101,11 +74,8 @@ class PreservationPropertyTest {
 
     @Provide
     Arbitrary<Trust> validTrustStates() {
-        return Combinators.combine(
-                Arbitraries.of(SubmissionStatus.values()),
-                Arbitraries.of(DcDecisionStatus.values()),
-                Arbitraries.of(TrustStatus.values())
-        ).as((submissionStatus, dcDecisionStatus, trustStatus) ->
+        return Arbitraries.of(TrustStatus.values())
+        .map(trustStatus ->
                 Trust.builder()
                         .templeId(1L)
                         .trustName("Test Trust")
@@ -117,8 +87,6 @@ class PreservationPropertyTest {
                         .bankAccountNumber("1234567890")
                         .bankNameAndBranch("Test Bank, Main Branch")
                         .status(trustStatus)
-                        .submissionStatus(submissionStatus)
-                        .dcDecisionStatus(dcDecisionStatus)
                         .dissolutionDate(trustStatus == TrustStatus.DISSOLVED ? LocalDate.now() : null)
                         .dissolutionReason(trustStatus == TrustStatus.DISSOLVED ? "Test dissolution" : null)
                         .build()
@@ -351,7 +319,7 @@ class PreservationPropertyTest {
                 .as("Employee must have status")
                 .isNotNull();
 
-        // Verify optional fields are accessible
+        // Verify optional fields are accessible (Phase 0: governance fields removed from Employee)
         assertThat(employee)
                 .as("Employee has all expected fields")
                 .hasFieldOrProperty("designation")
@@ -360,17 +328,7 @@ class PreservationPropertyTest {
                 .hasFieldOrProperty("mobile")
                 .hasFieldOrProperty("address")
                 .hasFieldOrProperty("hereditary")
-                .hasFieldOrProperty("dateOfLeaving")
-                .hasFieldOrProperty("submissionStatus")
-                .hasFieldOrProperty("submittedAt")
-                .hasFieldOrProperty("submittedBy")
-                .hasFieldOrProperty("reviewedAt")
-                .hasFieldOrProperty("reviewedBy")
-                .hasFieldOrProperty("reviewRemarks")
-                .hasFieldOrProperty("verifiedByDc")
-                .hasFieldOrProperty("verifiedByDcAt")
-                .hasFieldOrProperty("verifiedByDcUserId")
-                .hasFieldOrProperty("dcFlagReason");
+                .hasFieldOrProperty("dateOfLeaving");
 
         // Verify terminal status constraints
         if (employee.getStatus() == EmployeeStatus.RETIRED || employee.getStatus() == EmployeeStatus.RESIGNED) {
@@ -387,15 +345,13 @@ class PreservationPropertyTest {
         return Combinators.combine(
                 Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(50),
                 Arbitraries.of(EmployeeType.values()),
-                Arbitraries.of(EmployeeStatus.values()),
-                Arbitraries.of(com.templeregistry.entity.governance.SubmissionStatus.values())
-        ).as((fullName, employeeType, status, submissionStatus) ->
+                Arbitraries.of(EmployeeStatus.values())
+        ).as((fullName, employeeType, status) ->
                 Employee.builder()
                         .templeId(1L)
                         .fullName(fullName)
                         .employeeType(employeeType)
                         .status(status)
-                        .submissionStatus(submissionStatus)
                         .designation("Test Designation")
                         .dateOfJoining(LocalDate.now().minusYears(1))
                         .salaryGrade("Grade A")

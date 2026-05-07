@@ -1,5 +1,7 @@
 package com.templeregistry.dto.response.declaration;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
 import com.templeregistry.entity.declaration.DeclarationStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,6 +27,12 @@ public class DeclarationResponse {
     private Long districtId;
     private String financialYear;
     private Integer versionNumber;
+    /**
+     * Legacy entity status — Phase A dual-write copy of WorkflowInstance.status.
+     * @deprecated Use governanceStatus.status for governance state.
+     *             This field will be removed when asset_declarations.status column is dropped (V82).
+     */
+    @Deprecated
     private DeclarationStatus status;
     private BigDecimal agriculturalLandAcres;
     private BigDecimal agriculturalLandValue;
@@ -50,4 +58,7 @@ public class DeclarationResponse {
 
     /** Free-text reason from DC when status is SENT_BACK. Null otherwise. */
     private String sendBackReason;
+
+    /** Canonical governance status — single source of truth for TA/DC/Auditor views. */
+    private GovernanceStatusPayload governanceStatus;
 }

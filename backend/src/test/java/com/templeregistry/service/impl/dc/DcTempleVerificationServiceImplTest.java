@@ -6,14 +6,16 @@ import com.templeregistry.dto.request.dc.VerifyTempleProfileRequest;
 import com.templeregistry.dto.response.dc.TempleVerificationResponse;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.VerificationStatus;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.notification.NotificationHelper;
+import com.templeregistry.service.temple.TempleProfileStagingService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
-import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,10 +40,11 @@ import static org.mockito.Mockito.*;
 class DcTempleVerificationServiceImplTest {
 
     @Mock TempleRepository templeRepository;
+    @Mock TempleProfileStagingRepository profileStagingRepository;
+    @Mock TempleProfileStagingService stagingService;
     @Mock JurisdictionGuard jurisdictionGuard;
     @Mock TempleSearchSummaryService summaryService;
     @Mock NotificationHelper notificationHelper;
-    @Mock WorkflowEngineAdaptor workflowEngineAdaptor;
 
     @InjectMocks
     DcTempleVerificationServiceImpl service;
@@ -58,6 +61,10 @@ class DcTempleVerificationServiceImplTest {
         temple.setVerificationStatus(VerificationStatus.UNVERIFIED);
 
         dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+
+        // profileStagingRepository.findFirstByTempleIdAndStatus defaults to empty — no staged profile to auto-approve
+        lenient().when(profileStagingRepository.findFirstByTempleIdAndStatus(anyLong(), any(WorkflowStatus.class)))
+                .thenReturn(java.util.Optional.empty());
     }
 
     // ── verifyTempleProfile ───────────────────────────────────────────────────
@@ -74,7 +81,6 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getDcRejectionReason()).isNull();
         assertThat(response.getVerificationStatus()).isEqualTo("VERIFIED");
         verify(summaryService).refresh(7L);
-        verify(workflowEngineAdaptor).adaptVerifyTempleProfile(7L, 10L, 5L);
         verify(notificationHelper).notifyTempleApproved(7L, 5L);
     }
 
@@ -115,7 +121,6 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getDcRejectionReason()).isEqualTo("Missing land survey documents.");
         assertThat(response.getVerificationStatus()).isEqualTo("FLAGGED");
         verify(summaryService).refresh(7L);
-        verify(workflowEngineAdaptor).adaptFlagTempleProfile(7L, 10L, 5L, "Missing land survey documents.");
         verify(notificationHelper).notifyTempleFlagged(7L, 5L, "Missing land survey documents.");
     }
 
@@ -135,7 +140,6 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getDcRejectionReason()).isNull();
         assertThat(response.getVerificationStatus()).isEqualTo("UNVERIFIED");
         verify(summaryService).refresh(7L);
-        verify(workflowEngineAdaptor).adaptUnflagTempleProfile(7L, 10L, 5L);
         verify(notificationHelper).notifyTempleUnflagged(7L, 5L);
     }
 

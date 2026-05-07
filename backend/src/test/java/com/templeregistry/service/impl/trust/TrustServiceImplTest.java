@@ -63,6 +63,7 @@ class TrustServiceImplTest {
     @Mock com.templeregistry.service.notification.NotificationRecipientResolver recipientResolver;
     @Mock com.templeregistry.service.notification.NotificationEventPublisher eventPublisher;
     @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
+    @Mock com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
 
     @InjectMocks TrustServiceImpl sut;
 

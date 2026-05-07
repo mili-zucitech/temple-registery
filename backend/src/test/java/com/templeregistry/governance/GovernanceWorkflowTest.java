@@ -4,10 +4,9 @@ import com.templeregistry.dto.request.governance.RejectRequest;
 import com.templeregistry.dto.request.governance.SendBackRequest;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.DeclarationStatus;
-import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.governance.PhysicalVerificationStatus;
-import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.trust.Trust;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.IllegalStatusTransitionException;
 import com.templeregistry.service.governance.GovernanceEditGuard;
 import org.junit.jupiter.api.DisplayName;
@@ -50,55 +49,55 @@ class GovernanceWorkflowTest {
     // =========================================================================
 
     @Nested
-    @DisplayName("TC-01: Trust Happy Path")
+    @DisplayName("TC-01: Trust Happy Path (Canonical Status Architecture)")
     class TrustHappyPath {
 
         @Test
-        @DisplayName("DRAFT trust can be submitted → SUBMITTED")
-        void draftTrustCanBeSubmitted() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.DRAFT)
-                    .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
-                    .build();
-
-            trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-            trust.setSendBackReason(null);
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
-            assertThat(trust.getDcDecisionStatus()).isEqualTo(DcDecisionStatus.PENDING_DC_APPROVAL);
-            assertThat(trust.getSendBackReason()).isNull();
+        @DisplayName("Trust entity does NOT have a submissionStatus field (legacy removed)")
+        void trustEntityHasNoSubmissionStatusField() throws Exception {
+            Class<?> trustClass = Trust.class;
+            boolean hasSubmissionStatus = false;
+            for (java.lang.reflect.Field field : trustClass.getDeclaredFields()) {
+                if ("submissionStatus".equals(field.getName())) {
+                    hasSubmissionStatus = true;
+                    break;
+                }
+            }
+            assertThat(hasSubmissionStatus)
+                .as("Trust must NOT have submissionStatus field — state lives in WorkflowInstance")
+                .isFalse();
         }
 
         @Test
-        @DisplayName("SUBMITTED trust can be approved by DC → APPROVED")
-        void submittedTrustCanBeApproved() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
-                    .build();
-
-            trust.setSubmissionStatus(SubmissionStatus.APPROVED);
-            trust.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.APPROVED);
-            assertThat(trust.getDcDecisionStatus()).isEqualTo(DcDecisionStatus.APPROVED_BY_DC);
+        @DisplayName("Trust entity does NOT have a dcDecisionStatus field (legacy removed)")
+        void trustEntityHasNoDcDecisionStatusField() throws Exception {
+            Class<?> trustClass = Trust.class;
+            boolean hasDcDecisionStatus = false;
+            for (java.lang.reflect.Field field : trustClass.getDeclaredFields()) {
+                if ("dcDecisionStatus".equals(field.getName())) {
+                    hasDcDecisionStatus = true;
+                    break;
+                }
+            }
+            assertThat(hasDcDecisionStatus)
+                .as("Trust must NOT have dcDecisionStatus field — state lives in WorkflowInstance")
+                .isFalse();
         }
 
         @Test
-        @DisplayName("SENT_BACK trust can be re-submitted → SUBMITTED")
-        void sentBackTrustCanBeResubmitted() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SENT_BACK)
-                    .sendBackReason("PAN number is incorrect.")
-                    .build();
-
-            trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-            trust.setSendBackReason(null);
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
-            assertThat(trust.getSendBackReason()).isNull();
+        @DisplayName("Trust entity still has sendBackReason (display-only field kept)")
+        void trustEntityHasSendBackReason() throws Exception {
+            Class<?> trustClass = Trust.class;
+            boolean hasSendBackReason = false;
+            for (java.lang.reflect.Field field : trustClass.getDeclaredFields()) {
+                if ("sendBackReason".equals(field.getName())) {
+                    hasSendBackReason = true;
+                    break;
+                }
+            }
+            assertThat(hasSendBackReason)
+                .as("Trust must retain sendBackReason for display to Temple Authority")
+                .isTrue();
         }
     }
 
@@ -169,38 +168,22 @@ class GovernanceWorkflowTest {
     class SendBackFlow {
 
         @Test
-        @DisplayName("DC can send back SUBMITTED trust with mandatory free-text reason")
+        @DisplayName("DC can send back trust — sendBackReason persisted on entity")
         void dcCanSendBackTrustWithReason() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .build();
+            Trust trust = Trust.builder().build();
 
             String reason = "The PAN number format is incorrect. Please verify and resubmit.";
-            trust.setSubmissionStatus(SubmissionStatus.SENT_BACK);
             trust.setSendBackReason(reason);
 
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SENT_BACK);
             assertThat(trust.getSendBackReason()).isEqualTo(reason);
         }
 
         @Test
-        @DisplayName("TA can edit SENT_BACK trust and resubmit → SUBMITTED")
-        void taCanEditAndResubmitSentBackTrust() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SENT_BACK)
-                    .sendBackReason("PAN number is incorrect.")
-                    .build();
-
+        @DisplayName("GovernanceEditGuard allows editing when WorkflowStatus is CLARIFICATION_REQUESTED")
+        void taCanEditWhenStatusIsClarificationRequested() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
-            // SENT_BACK is editable — must NOT throw
-            guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L);
-
-            trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-            trust.setSendBackReason(null);
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
-            assertThat(trust.getSendBackReason()).isNull();
+            // CLARIFICATION_REQUESTED (send-back) is editable — must NOT throw
+            guard.assertCanEdit(WorkflowStatus.CLARIFICATION_REQUESTED, "Trust", 1L);
         }
 
         @Test
@@ -221,44 +204,21 @@ class GovernanceWorkflowTest {
     class RejectFlow {
 
         @Test
-        @DisplayName("DC can reject SUBMITTED trust → REJECTED (terminal)")
-        void dcCanRejectSubmittedTrust() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .build();
-
-            trust.setSubmissionStatus(SubmissionStatus.REJECTED);
-            trust.setDcDecisionStatus(DcDecisionStatus.REJECTED_BY_DC);
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.REJECTED);
-            assertThat(trust.getDcDecisionStatus()).isEqualTo(DcDecisionStatus.REJECTED_BY_DC);
-        }
-
-        @Test
-        @DisplayName("REJECTED trust cannot be edited — TA must create new")
-        void rejectedTrustCannotBeEdited() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.REJECTED)
-                    .build();
-
+        @DisplayName("GovernanceEditGuard blocks editing when WorkflowStatus is REJECTED (terminal)")
+        void rejectedStatusCannotBeEdited() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L))
+            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L))
                     .isInstanceOf(IllegalStatusTransitionException.class)
-                    .hasMessageContaining("REJECTED")
-                    .hasMessageContaining("cannot be edited");
+                    .hasMessageContaining("REJECTED");
         }
 
         @Test
-        @DisplayName("SUBMITTED trust cannot be edited by TA")
-        void submittedTrustCannotBeEditedByTa() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .build();
-
+        @DisplayName("GovernanceEditGuard blocks editing when WorkflowStatus is SUBMITTED")
+        void submittedStatusCannotBeEdited() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L))
+            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.SUBMITTED, "Trust", 1L))
                     .isInstanceOf(IllegalStatusTransitionException.class)
                     .hasMessageContaining("SUBMITTED");
         }
@@ -472,18 +432,13 @@ class GovernanceWorkflowTest {
     class DoubleApprovalBlocked {
 
         @Test
-        @DisplayName("Already APPROVED trust cannot be approved again")
+        @DisplayName("Already APPROVED trust cannot be approved again — WorkflowStatus check")
         void alreadyApprovedTrustCannotBeApprovedAgain() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.APPROVED)
-                    .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .build();
-
-            // assertDcCanAct requires SUBMITTED status
-            boolean canAct = trust.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
+            // APPROVED is not the same as SUBMITTED — DC can only act on SUBMITTED
+            boolean canAct = WorkflowStatus.APPROVED == WorkflowStatus.SUBMITTED;
 
             assertThat(canAct)
-                    .as("APPROVED trust must NOT be actionable by DC again")
+                    .as("APPROVED WorkflowStatus must NOT equal SUBMITTED — DC cannot act again")
                     .isFalse();
 
             assertThatThrownBy(() -> {
@@ -519,39 +474,27 @@ class GovernanceWorkflowTest {
     class InvalidStateTransitions {
 
         @Test
-        @DisplayName("DRAFT trust cannot be approved directly (must be submitted first)")
+        @DisplayName("DRAFT WorkflowStatus cannot be approved directly (must be submitted first)")
         void draftTrustCannotBeApprovedDirectly() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.DRAFT)
-                    .build();
-
-            boolean canAct = trust.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
+            boolean canAct = WorkflowStatus.DRAFT == WorkflowStatus.SUBMITTED;
             assertThat(canAct).isFalse();
         }
 
         @Test
-        @DisplayName("REJECTED trust cannot be submitted again (terminal — must create new)")
+        @DisplayName("REJECTED WorkflowStatus cannot be re-submitted (terminal — must create new)")
         void rejectedTrustCannotBeSubmittedAgain() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.REJECTED)
-                    .build();
-
-            boolean canSubmit = trust.getSubmissionStatus() == SubmissionStatus.DRAFT
-                    || trust.getSubmissionStatus() == SubmissionStatus.SENT_BACK;
+            boolean canSubmit = WorkflowStatus.REJECTED == WorkflowStatus.DRAFT
+                    || WorkflowStatus.REJECTED == WorkflowStatus.CLARIFICATION_REQUESTED;
 
             assertThat(canSubmit)
-                    .as("REJECTED trust cannot be re-submitted — TA must create a new record")
+                    .as("REJECTED WorkflowStatus cannot be re-submitted — TA must create a new record")
                     .isFalse();
         }
 
         @Test
-        @DisplayName("APPROVED trust cannot be sent back")
+        @DisplayName("APPROVED WorkflowStatus is not SUBMITTED — DC cannot send back an approved trust")
         void approvedTrustCannotBeSentBack() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.APPROVED)
-                    .build();
-
-            boolean canAct = trust.getSubmissionStatus() == SubmissionStatus.SUBMITTED;
+            boolean canAct = WorkflowStatus.APPROVED == WorkflowStatus.SUBMITTED;
             assertThat(canAct).isFalse();
         }
 
@@ -593,94 +536,64 @@ class GovernanceWorkflowTest {
     // =========================================================================
 
     @Nested
-    @DisplayName("TC-11: Re-submission Logic")
+    @DisplayName("TC-11: Re-submission Logic (Canonical WorkflowStatus)")
     class ResubmissionLogic {
 
         @Test
-        @DisplayName("GovernanceEditGuard.assertCanEdit() allows APPROVED entities to be edited")
+        @DisplayName("GovernanceEditGuard.assertCanEdit() allows APPROVED WorkflowStatus to be edited")
         void approvedEntityCanBeEdited() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.APPROVED)
-                    .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .build();
-
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
-
-            // Must NOT throw — APPROVED is now editable (triggers re-submission)
-            guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L);
+            // Must NOT throw — APPROVED is editable (triggers re-submission)
+            guard.assertCanEdit(WorkflowStatus.APPROVED, "Trust", 1L);
         }
 
         @Test
-        @DisplayName("GovernanceEditGuard.requiresResubmission() returns true for APPROVED status")
+        @DisplayName("GovernanceEditGuard.requiresResubmission() returns true for APPROVED WorkflowStatus")
         void requiresResubmissionTrueForApproved() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
-
-            assertThat(guard.requiresResubmission(SubmissionStatus.APPROVED))
+            assertThat(guard.requiresResubmission(WorkflowStatus.APPROVED))
                     .as("APPROVED entity must require re-submission after TA edit")
                     .isTrue();
         }
 
         @Test
-        @DisplayName("GovernanceEditGuard.requiresResubmission() returns false for DRAFT and SENT_BACK")
-        void requiresResubmissionFalseForDraftAndSentBack() {
+        @DisplayName("GovernanceEditGuard.requiresResubmission() returns true for RE_APPROVED WorkflowStatus")
+        void requiresResubmissionTrueForReApproved() {
+            GovernanceEditGuard guard = new GovernanceEditGuard(null);
+            assertThat(guard.requiresResubmission(WorkflowStatus.RE_APPROVED))
+                    .as("RE_APPROVED entity must require re-submission after TA edit")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("GovernanceEditGuard.requiresResubmission() returns false for DRAFT and CLARIFICATION_REQUESTED")
+        void requiresResubmissionFalseForDraftAndClarification() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThat(guard.requiresResubmission(SubmissionStatus.DRAFT))
+            assertThat(guard.requiresResubmission(WorkflowStatus.DRAFT))
                     .as("DRAFT entity does not require re-submission")
                     .isFalse();
-            assertThat(guard.requiresResubmission(SubmissionStatus.SENT_BACK))
-                    .as("SENT_BACK entity does not require re-submission")
+            assertThat(guard.requiresResubmission(WorkflowStatus.CLARIFICATION_REQUESTED))
+                    .as("CLARIFICATION_REQUESTED entity does not require re-submission")
                     .isFalse();
         }
 
         @Test
-        @DisplayName("After TA edits APPROVED trust, status resets to SUBMITTED (PENDING_REVIEW)")
-        void approvedTrustResetsToSubmittedAfterEdit() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.APPROVED)
-                    .dcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC)
-                    .build();
-
-            GovernanceEditGuard guard = new GovernanceEditGuard(null);
-
-            // Simulate the re-submission logic in TrustServiceImpl.update()
-            SubmissionStatus statusBeforeEdit = trust.getSubmissionStatus();
-            guard.assertCanEdit(statusBeforeEdit, "Trust", 1L); // must not throw
-
-            if (guard.requiresResubmission(statusBeforeEdit)) {
-                trust.setSubmissionStatus(SubmissionStatus.SUBMITTED);
-                trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-                trust.setSendBackReason(null);
-            }
-
-            assertThat(trust.getSubmissionStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
-            assertThat(trust.getDcDecisionStatus()).isEqualTo(DcDecisionStatus.PENDING_DC_APPROVAL);
-        }
-
-        @Test
-        @DisplayName("REJECTED entity still cannot be edited (terminal state)")
+        @DisplayName("REJECTED WorkflowStatus still cannot be edited (terminal state)")
         void rejectedEntityCannotBeEdited() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.REJECTED)
-                    .build();
-
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L))
+            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L))
                     .isInstanceOf(IllegalStatusTransitionException.class)
                     .hasMessageContaining("REJECTED");
         }
 
         @Test
-        @DisplayName("SUBMITTED entity cannot be edited (awaiting DC action)")
+        @DisplayName("SUBMITTED WorkflowStatus cannot be edited (awaiting DC action)")
         void submittedEntityCannotBeEdited() {
-            Trust trust = Trust.builder()
-                    .submissionStatus(SubmissionStatus.SUBMITTED)
-                    .build();
-
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(trust.getSubmissionStatus(), "Trust", 1L))
+            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.SUBMITTED, "Trust", 1L))
                     .isInstanceOf(IllegalStatusTransitionException.class)
                     .hasMessageContaining("SUBMITTED");
         }

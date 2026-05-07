@@ -16,12 +16,15 @@ import com.templeregistry.entity.dc.TempleProfileCurrent;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.mapper.temple.TempleMapper;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +60,7 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     private final TempleMapper templeMapper;
     private final NotificationEventPublisher notificationPublisher;
     private final UserRepository userRepository;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
 
     // ─── Dashboard aggregation ───────────────────────────────────────────────
 
@@ -68,12 +74,17 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         Temple temple = findTempleOrThrow(templeId);
         Optional<TempleProfileStaging> latestStaging =
                 stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId);
+        Optional<WorkflowInstance> wfInstance =
+                workflowInstanceRepository.findByEntityTypeAndEntityId(WorkflowEntityType.TEMPLE_PROFILE, templeId);
 
         boolean hasApprovedProfile = currentRepository.existsByTempleId(templeId);
-        String profileStatus = latestStaging
-                .map(s -> stagingStatusToDisplayString(s.getStatus()))
-                .orElse(hasApprovedProfile ? "APPROVED" : "NOT_CREATED");
-        List<String> pendingActions = computePendingActions(latestStaging.orElse(null), hasApprovedProfile);
+        // Use canonical workflow status when a workflow instance exists; fall back to staging status
+        String profileStatus = wfInstance
+                .map(wi -> wi.getStatus().name())
+                .orElseGet(() -> latestStaging
+                        .map(s -> stagingStatusToDisplayString(s.getStatus()))
+                        .orElse(hasApprovedProfile ? "APPROVED" : "NOT_CREATED"));
+        List<String> pendingActions = computePendingActionsFromWf(wfInstance.orElse(null), latestStaging.orElse(null), hasApprovedProfile);
 
         return TaDashboardResponse.builder()
             .temple(TaDashboardResponse.TempleBasicInfo.builder()
@@ -172,6 +183,25 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public TaProfileStatusResponse getProfileStatus(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
+        Optional<WorkflowInstance> wfInstance =
+                workflowInstanceRepository.findByEntityTypeAndEntityId(
+                        WorkflowEntityType.TEMPLE_PROFILE, claims.templeId());
+
+        if (wfInstance.isPresent()) {
+            WorkflowInstance wi = wfInstance.get();
+            // Canonical status from workflow engine
+            Optional<TempleProfileStaging> latest =
+                    stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(claims.templeId());
+            String reviewComment = latest.map(TempleProfileStaging::getReviewComment).orElse(null);
+            return TaProfileStatusResponse.builder()
+                    .status(wi.getStatus().name())
+                    .submittedAt(wi.getSubmittedAt() != null
+                            ? LocalDateTime.ofInstant(wi.getSubmittedAt(), ZoneId.systemDefault())
+                            : null)
+                    .reviewComment(reviewComment)
+                    .build();
+        }
+
         Optional<TempleProfileStaging> latest =
                 stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(claims.templeId());
 
@@ -266,10 +296,23 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     }
 
     /**
-     * Derives the list of actionable items shown in the dashboard pending-actions panel.
+     * Derives the list of actionable items from the canonical workflow state.
      */
-    private List<String> computePendingActions(TempleProfileStaging staging, boolean hasApprovedProfile) {
+    private List<String> computePendingActionsFromWf(WorkflowInstance wf, TempleProfileStaging staging, boolean hasApprovedProfile) {
         List<String> actions = new ArrayList<>();
+        if (wf != null) {
+            switch (wf.getStatus()) {
+                case DRAFT -> {
+                    if (!hasApprovedProfile) actions.add("Submit profile for DC approval");
+                    else actions.add("Submit pending profile update for DC review");
+                }
+                case CLARIFICATION_REQUESTED -> actions.add("Respond to DC clarification request");
+                case UPDATED_AFTER_APPROVAL -> actions.add("Resubmit updated profile for DC review");
+                default -> { /* no pending TA action */ }
+            }
+            return actions;
+        }
+        // fallback to staging
         if (staging == null) {
             if (!hasApprovedProfile) {
                 actions.add("Complete and submit your temple profile");
