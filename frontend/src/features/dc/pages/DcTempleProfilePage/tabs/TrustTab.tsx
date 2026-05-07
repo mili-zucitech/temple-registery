@@ -3,6 +3,7 @@ import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRigh
 import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ModuleStatusBadge } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
+import type { ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,11 +23,44 @@ interface TrustTabProps {
   boardMeetings: BoardMeetingSummary[]
   canAct: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
-  onFlagTrust: (id: number, reason: string) => Promise<void>
+  onRejectTrust: (id: number, reason: string) => Promise<void>
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onFlagTrust }: TrustTabProps) {
-  const trustStatus = trust?.governanceStatus?.status ?? null
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onRejectTrust }: TrustTabProps) {
+  // Canonical status from governanceStatus (preferred) with fallback to legacy workflowStatus
+  const canonicalStatus = trust?.governanceStatus?.status ?? trust?.workflowStatus ?? null
+
+  // Derive the 3-state badge value from canonical WorkflowStatus
+  const trustBadgeStatus: ModuleVerificationStatus = (() => {
+    if (!canonicalStatus) return 'PENDING'
+    if (canonicalStatus === 'APPROVED' || canonicalStatus === 'RE_APPROVED') return 'VERIFIED'
+    if (
+      canonicalStatus === 'CLARIFICATION_REQUESTED' ||
+      canonicalStatus === 'CLARIFICATION_RESPONDED'
+    ) return 'FLAGGED'
+    return 'PENDING'
+  })()
+
+  // DC can act when the backend says actionableBy is DC for this trust's governance status.
+  // Never hardcode workflow states here — that logic lives in the backend TransitionRuleRegistry.
+  const dcCanAct = canAct && trust?.governanceStatus?.actionableBy === 'DC'
+
+  // Derive statusHint from canonical status
+  const statusHint = (() => {
+    if (!canonicalStatus || canonicalStatus === 'DRAFT') {
+      return 'Trust registration has not been submitted by the temple authority yet. Actions will be available once it is submitted.'
+    }
+    if (canonicalStatus === 'UPDATED_AFTER_APPROVAL') {
+      return 'The temple authority has edited this trust registration after approval. Awaiting their resubmission before DC review.'
+    }
+    if (canonicalStatus === 'REJECTED') {
+      return 'This trust registration has been rejected and cannot be actioned further.'
+    }
+    return null
+  })()
+
+  // isVerified for GovernanceActionPanel
+  const isVerified = canonicalStatus === 'APPROVED' || canonicalStatus === 'RE_APPROVED'
   const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
   const [memberPage, setMemberPage] = useState(0)
   const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
@@ -53,7 +87,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         <SectionCard
           title="Trust Registration"
           icon={<Shield size={18} className="text-emerald-600" />}
-          action={<ModuleStatusBadge status={trustStatus!} />}
+          action={<ModuleStatusBadge status={trustBadgeStatus} />}
         >
           {trust.validationIssues?.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -341,20 +375,13 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         >
           <GovernanceActionPanel
             entityName="Trust Registration"
-            isVerified={trust.isVerifiedByDc === true}
-            flagReason={trust.dcFlagReason ?? null}
-            canAct={canAct && ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'RESUBMITTED'].includes(trust.workflowStatus ?? '')}
-            statusHint={
-              !trust.workflowStatus || trust.workflowStatus === 'DRAFT'
-                ? 'Trust registration has not been submitted by the temple authority yet. Actions will be available once it is submitted.'
-                : trust.workflowStatus === 'APPROVED' || trust.workflowStatus === 'RE_APPROVED'
-                ? null
-                : trust.workflowStatus === 'REJECTED'
-                ? 'This trust registration has been rejected and cannot be actioned further.'
-                : null
-            }
+            isVerified={isVerified}
+            canonicalStatus={canonicalStatus}
+            rejectionReason={trust.governanceStatus?.rejectionReason ?? trust.dcFlagReason ?? null}
+            canAct={dcCanAct}
+            statusHint={statusHint}
             onVerify={(notes) => onVerifyTrust(trust.id, notes)}
-            onFlag={(reason) => onFlagTrust(trust.id, reason)}
+            onReject={(reason) => onRejectTrust(trust.id, reason)}
           />
         </SectionCard>
       )}

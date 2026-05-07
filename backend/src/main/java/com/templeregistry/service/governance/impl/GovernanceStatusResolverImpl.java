@@ -5,11 +5,16 @@ import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
+import com.templeregistry.repository.workflow.WorkflowTransitionRepository;
 import com.templeregistry.service.governance.GovernanceStatusResolver;
+import com.templeregistry.service.workflow.TransitionRuleRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Resolves the canonical {@link GovernanceStatusPayload} from {@link WorkflowInstance#getStatus()}.
@@ -23,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
 
     private final WorkflowInstanceRepository instanceRepo;
+    private final TransitionRuleRegistry ruleRegistry;
+    private final WorkflowTransitionRepository transitionRepo;
 
     @Override
     @Transactional(readOnly = true)
@@ -39,17 +46,40 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
     @Override
     public GovernanceStatusPayload resolveFromInstance(WorkflowInstance wi) {
         WorkflowStatus status = wi.getStatus();
+        String actionableBy = actionableByFor(status);
+        String entityTypeName = wi.getEntityType().name();
+        List<String> allowedActions = allowedActionsFor(entityTypeName, status, actionableBy);
+        // Expose rejection reason when status is REJECTED so TA can see why it was rejected
+        String rejectionReason = null;
+        if (status == WorkflowStatus.REJECTED) {
+            rejectionReason = transitionRepo.findLatestRejectByInstanceId(wi.getId())
+                    .map(t -> t.getComment())
+                    .orElse(null);
+        }
         return GovernanceStatusPayload.builder()
                 .status(status.name())
                 .subStatus(wi.getSubStatus())
                 .label(labelFor(status))
                 .severity(severityFor(status))
-                .actionableBy(actionableByFor(status))
+                .actionableBy(actionableBy)
                 .requiresComment(requiresCommentFor(status))
                 .pendingSince(wi.getSubmittedAt())
                 .deadline(wi.getDeadlineAt())
                 .workflowInstanceId(wi.getId())
+                .allowedActions(allowedActions)
+                .rejectionReason(rejectionReason)
                 .build();
+    }
+
+    private List<String> allowedActionsFor(String entityType, WorkflowStatus status, String actorRole) {
+        if (actorRole == null) {
+            return List.of();
+        }
+        return ruleRegistry.findAllForStatus(entityType, status).stream()
+                .filter(r -> actorRole.equals(r.getRequiredRole()))
+                .map(r -> r.getAction().name())
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     private String labelFor(WorkflowStatus status) {
@@ -85,7 +115,8 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
                  CLARIFICATION_RESPONDED,
                  RESUBMITTED             -> "DC";
             case CLARIFICATION_REQUESTED,
-                 UPDATED_AFTER_APPROVAL  -> "TA";
+                 UPDATED_AFTER_APPROVAL,
+                 REJECTED               -> "TA";
             case OVERDUE                 -> "SYSTEM";
             default                      -> null;
         };

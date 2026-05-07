@@ -191,7 +191,9 @@ public class WorkflowEngineAdaptor {
     @Transactional
     public void adaptEditApproved(WorkflowEntityType entityType, Long entityId, Long actorId, Long templeId) {
         instanceRepo.findByEntityTypeAndEntityId(entityType, entityId).ifPresent(instance -> {
-            if (instance.getStatus() == WorkflowStatus.APPROVED || instance.getStatus() == WorkflowStatus.RE_APPROVED) {
+            if (instance.getStatus() == WorkflowStatus.APPROVED
+                    || instance.getStatus() == WorkflowStatus.RE_APPROVED
+                    || instance.getStatus() == WorkflowStatus.REJECTED) {
                 execute(instance.getId(), WorkflowAction.EDIT_APPROVED, actorId, templeId, null, null, null);
             }
         });

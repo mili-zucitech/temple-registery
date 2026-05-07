@@ -140,15 +140,13 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Trust trust = loadTrust(trustId);
         assertDistrictScopeForTrust(trust);
 
-        workflowEngineAdaptor.adaptSendBack(
+        // Simplified workflow: send-back is now equivalent to reject for Trust.
+        // The CLARIFICATION_REQUESTED loop is removed from Trust workflow.
+        workflowEngineAdaptor.adaptReject(
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
 
-        // sendBackReason is display data — keep it in sync
-        trust.setSendBackReason(request.getReason());
-        trustRepository.save(trust);
-
-        log.info("Trust [{}] SENT_BACK by userId={}", trustId, currentUserId());
+        log.info("Trust [{}] REJECTED (via send-back) by userId={}", trustId, currentUserId());
     }
 
     @Override
@@ -186,7 +184,11 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
             versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, currentUserId(), null);
         }
 
-        // Keep legacy status in sync
+        // Keep legacy status in sync — CRITICAL: DC listing queries filter by entity.status != 'DRAFT'
+        // so we must set status to SUBMITTED here or DC will not see it.
+        if (transitioned && declaration.getStatus() == DeclarationStatus.DRAFT) {
+            declaration.setStatus(DeclarationStatus.SUBMITTED);
+        }
         declaration.setSubmittedBy(currentUserId());
         declarationRepository.save(declaration);
 

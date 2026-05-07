@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Canonical governance status payload — embedded in all governed-module responses.
@@ -47,6 +48,22 @@ public class GovernanceStatusPayload {
     private Long workflowInstanceId;
 
     /**
+     * Actions the current {@link #actionableBy} role may perform from this state.
+     * Derived from {@link com.templeregistry.service.workflow.TransitionRuleRegistry}.
+     * Empty list for terminal states (APPROVED, REJECTED, etc.).
+     * Frontend must use this to decide which action buttons to render.
+     */
+    @Builder.Default
+    private List<String> allowedActions = List.of();
+
+    /**
+     * Rejection or send-back reason from DC — populated only when status = REJECTED.
+     * Sourced from the most recent REJECT WorkflowTransition.comment.
+     * Null for all other statuses.
+     */
+    private String rejectionReason;
+
+    /**
      * Fallback payload for entities that have no WorkflowInstance yet
      * (pre-migration records or corrupt data).
      */
@@ -61,6 +78,7 @@ public class GovernanceStatusPayload {
                 .pendingSince(null)
                 .deadline(null)
                 .workflowInstanceId(null)
+                .allowedActions(List.of())
                 .build();
     }
 }

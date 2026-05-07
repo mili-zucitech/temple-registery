@@ -277,6 +277,19 @@ export function TaTrustPage() {
 
   return (
     <div className="space-y-5 pb-10">
+      {/* Rejection reason banner */}
+      {trust && reviewStatus === 'REJECTED' && trust.governanceStatus?.rejectionReason && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex gap-3">
+          <div className="mt-0.5 shrink-0 size-5 rounded-full bg-red-100 flex items-center justify-center">
+            <span className="text-red-600 text-xs font-bold">!</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800">Trust Registration Rejected</p>
+            <p className="text-sm text-red-700 mt-1">{trust.governanceStatus.rejectionReason}</p>
+            <p className="text-xs text-red-500 mt-2">You can edit your trust details and resubmit for DC review.</p>
+          </div>
+        </div>
+      )}
       {/* Modern Header */}
       <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
         <CardContent className="space-y-4 p-5">
@@ -327,6 +340,40 @@ export function TaTrustPage() {
                       }}
                     >
                       {submittingTrust ? 'Submitting…' : 'Yes, submit'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {trust && reviewStatus === 'UPDATED_AFTER_APPROVAL' && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
+                    Resubmit for DC Review
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Resubmit Trust for DC Review?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Your recent edits will be sent to the District Collector for re-review.
+                      You will not be able to edit again until DC responds.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={submittingTrust}
+                      onClick={async () => {
+                        try {
+                          await submitTrust(trust.id).unwrap()
+                          toast.success('Trust resubmitted for DC review.')
+                        } catch {
+                          toast.error('Could not resubmit trust. Please try again.')
+                        }
+                      }}
+                    >
+                      {submittingTrust ? 'Submitting…' : 'Yes, resubmit'}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

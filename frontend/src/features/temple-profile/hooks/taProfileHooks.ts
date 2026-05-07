@@ -22,8 +22,10 @@ function deriveProfileStatus(
     // Backend labels PENDING_REVIEW as SUBMITTED in response (DECISION-01)
     if (status === 'PENDING_REVIEW' || status === 'SUBMITTED') return 'SUBMITTED'
     if (status === 'REJECTED') return 'REJECTED'
-    if (status === 'APPROVED') return 'APPROVED'
+    if (status === 'APPROVED' || status === 'RE_APPROVED') return 'APPROVED'
     if (status === 'FLAGGED') return 'FLAGGED'
+    if (status === 'UPDATED_AFTER_APPROVAL') return 'UPDATED_AFTER_APPROVAL'
+    if (status === 'RESUBMITTED') return 'RESUBMITTED'
     return null
   }
 
@@ -169,6 +171,7 @@ export function useTempleProfile() {
 
   // Only allow editing if DRAFT or REJECTED (staging), otherwise edits go to main profile
   const isEditable = profileStatus === 'DRAFT' || profileStatus === 'REJECTED'
+    || profileStatus === 'FLAGGED' || profileStatus === 'UPDATED_AFTER_APPROVAL'
 
   const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
@@ -180,7 +183,7 @@ export function useTempleProfile() {
   useEffect(() => {
     if (isLoading) return
     let source: any = null
-    if (profileStatus === 'DRAFT' || profileStatus === 'REJECTED') {
+    if (profileStatus === 'DRAFT' || profileStatus === 'REJECTED' || profileStatus === 'UPDATED_AFTER_APPROVAL') {
       source = stagingProfile
     } else {
       source = temple ?? stagingProfile

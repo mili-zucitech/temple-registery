@@ -181,7 +181,7 @@ export interface TempleProfileStagingResponse {
 
 // ─── TA Self-Service Profile (endpoints at /api/v1/ta/profile) ────────────────
 
-export type TaProfileStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'FLAGGED'
+export type TaProfileStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'FLAGGED' | 'UPDATED_AFTER_APPROVAL' | 'RESUBMITTED'
 
 /** 
  * Backend API request for profile staging.
