@@ -29,10 +29,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { DeclarationHeader, ClarificationAlert, RejectionAlert, DiffTab } from './components'
+import { DeclarationHeader, ClarificationAlert, RejectionAlert } from './components'
 import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
 import { useWithdrawDeclarationMutation } from '@/features/governance/governanceApi'
-import type { RootState } from '@/store'
+import type { RootState } from '@/app/store'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -125,7 +125,7 @@ export function TaDeclarationDetailPage() {
   const navigate = useNavigate()
   const id = Number(rawId)
   const isValid = Number.isFinite(id) && id > 0
-  const userRole = useSelector((state: RootState) => state.auth.user?.role ?? '')
+  const userRole = useSelector((state: RootState) => state.auth.currentUser?.role ?? '')
 
   const declarationQuery = useGetDeclarationQuery(id, { skip: !isValid })
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })

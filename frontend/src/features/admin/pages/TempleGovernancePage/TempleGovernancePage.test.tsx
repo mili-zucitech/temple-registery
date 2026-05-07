@@ -35,7 +35,7 @@ vi.mock('@/features/admin/adminApi', () => ({
   useArchiveTempleMutation: () => [mockArchive, { isLoading: false }],
 }))
 
-vi.mock('@/features/temple/templeApi', () => ({
+vi.mock('@/features/temple-profile/hooks/templeApi', () => ({
   templeApi: {
     reducerPath: 'templeApi',
     reducer: (s = {}) => s,
@@ -44,7 +44,7 @@ vi.mock('@/features/temple/templeApi', () => ({
   useSearchTemplesQuery: vi.fn(),
 }))
 
-import { useSearchTemplesQuery } from '@/features/temple/templeApi'
+import { useSearchTemplesQuery } from '@/features/temple-profile/hooks/templeApi'
 
 describe('TempleGovernancePage', () => {
   beforeEach(() => {

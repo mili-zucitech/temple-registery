@@ -3,7 +3,6 @@ package com.templeregistry.bugfix;
 import com.templeregistry.entity.declaration.AssetDeclaration;
 import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.employee.Employee;
-import com.templeregistry.entity.governance.DcDecisionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.Trust;
 import jakarta.persistence.Column;
@@ -107,26 +106,12 @@ class BugConditionExplorationTest {
      */
     @Test
     void subProperty1b_employeeSubmissionStatusIsGovernanceType() throws Exception {
-        // Construct Employee with the correct enum value (governance.SubmissionStatus.SUBMITTED)
-        Employee employee = Employee.builder()
-                .templeId(1L)
-                .fullName("Test Employee")
-                .employeeType(com.templeregistry.entity.employee.EmployeeType.PRIEST)
-                .submissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED)
-                .build();
-
-        // Retrieve the declared field type for submissionStatus
-        Field submissionStatusField = Employee.class.getDeclaredField("submissionStatus");
-        Class<?> fieldType = submissionStatusField.getType();
-
-        assertThat(fieldType)
-                .as("FIX 1b: Employee.submissionStatus must be of type " +
-                    "com.templeregistry.entity.governance.SubmissionStatus (canonical enum). " +
-                    "Currently it is %s (duplicate enum with PENDING_REVIEW value that has no " +
-                    "equivalent in governance.SubmissionStatus). " +
-                    "Delete employee.SubmissionStatus and migrate all references to governance.SubmissionStatus.",
-                    fieldType.getName())
-                .isEqualTo(com.templeregistry.entity.governance.SubmissionStatus.class);
+        // On FIXED code: Employee.submissionStatus field was removed entirely (Phase 0).
+        // Assert that the submissionStatus field does NOT exist on Employee.
+        assertThat(hasField(Employee.class, "submissionStatus"))
+                .as("FIX 1b: Employee must NOT have a submissionStatus field. " +
+                    "Employee governance is handled by WorkflowInstance only.")
+                .isFalse();
     }
 
     // ─── Sub-property 1c — Trust Contradiction ───────────────────────────────
@@ -145,45 +130,16 @@ class BugConditionExplorationTest {
      */
     @Test
     void subProperty1c_trustCannotHaveContradictoryIsVerifiedAndPendingDecisionStatus() throws Exception {
-        // On FIXED code: Trust should NOT have isVerifiedByDc field at all.
-        // Assert that the isVerifiedByDc field does NOT exist on Trust (field deleted in fix).
+        // On FIXED code: Trust should NOT have isVerifiedByDc or dcDecisionStatus fields at all.
+        // Both are removed — state lives exclusively in WorkflowInstance.
         assertThat(hasField(Trust.class, "isVerifiedByDc"))
                 .as("FIX 1c: Trust must NOT have an isVerifiedByDc field. " +
-                    "The boolean flag and dcDecisionStatus enum can diverge (isVerifiedByDc=true AND " +
-                    "dcDecisionStatus=PENDING_DC_APPROVAL simultaneously). " +
-                    "Remove isVerifiedByDc from Trust; derive DC verification state exclusively from dcDecisionStatus.")
+                    "DC verification state derives exclusively from WorkflowInstance status.")
                 .isFalse();
 
-        // Verify that the derived method works correctly
-        Trust trust = Trust.builder()
-                .templeId(1L)
-                .trustName("Test Trust")
-                .trustRegistrationNumber("TR-001")
-                .dateOfRegistration(java.time.LocalDate.now())
-                .registeringAuthority("Test Authority")
-                .trustType(com.templeregistry.entity.trust.TrustType.PRIVATE)
-                .trustPANNumber("ABCDE1234F")
-                .bankAccountNumber("1234567890")
-                .bankNameAndBranch("Test Bank, Main Branch")
-                .status(com.templeregistry.entity.trust.TrustStatus.ACTIVE)
-                .dcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL)
-                .build();
-
-        // Verify that isVerifiedByDc() returns false when dcDecisionStatus is PENDING_DC_APPROVAL
-        assertThat(trust.isVerifiedByDc())
-                .as("isVerifiedByDc() should return false when dcDecisionStatus is PENDING_DC_APPROVAL")
-                .isFalse();
-
-        // Verify that isVerifiedByDc() returns true when dcDecisionStatus is APPROVED_BY_DC
-        trust.setDcDecisionStatus(DcDecisionStatus.APPROVED_BY_DC);
-        assertThat(trust.isVerifiedByDc())
-                .as("isVerifiedByDc() should return true when dcDecisionStatus is APPROVED_BY_DC")
-                .isTrue();
-
-        // Verify that isVerifiedByDc() returns false when dcDecisionStatus is REJECTED_BY_DC
-        trust.setDcDecisionStatus(DcDecisionStatus.REJECTED_BY_DC);
-        assertThat(trust.isVerifiedByDc())
-                .as("isVerifiedByDc() should return false when dcDecisionStatus is REJECTED_BY_DC")
+        assertThat(hasField(Trust.class, "dcDecisionStatus"))
+                .as("FIX 1c: Trust must NOT have a dcDecisionStatus field. " +
+                    "DC decision state lives exclusively in WorkflowInstance.")
                 .isFalse();
     }
 

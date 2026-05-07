@@ -187,6 +187,4 @@ export interface ContractorResponse {
   contractValue?: number
   paymentStatus: PaymentStatus
   documentIds?: number[]
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string
 }

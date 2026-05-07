@@ -45,6 +45,11 @@ public class ActionContextResolver {
     private String resolveRole(Authentication auth) {
         return auth.getAuthorities().stream()
             .map(a -> a.getAuthority().replace("ROLE_", ""))
+            .map(r -> switch (r) {
+                case "DISTRICT_COLLECTOR" -> "DC";
+                case "TEMPLE_AUTHORITY"   -> "TA";
+                default -> r;
+            })
             .filter(r -> r.equals("TA") || r.equals("DC") || r.equals("DC_STAFF")
                       || r.equals("SUPER_ADMIN") || r.equals("SYSTEM"))
             .findFirst()

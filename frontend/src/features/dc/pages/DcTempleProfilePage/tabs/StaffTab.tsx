@@ -1,7 +1,6 @@
-import { Users, Hash, Shield, Briefcase, Phone, UserCheck, Eye, Flag } from 'lucide-react'
+import { Users, Hash, Shield, Briefcase, Phone, Eye } from 'lucide-react'
 import { useState } from 'react'
 import { SectionCard } from '../components'
-import { deriveModuleStatus, ModuleStatusBadge } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -92,7 +91,6 @@ export function StaffTab({ employees }: StaffTabProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedEmployees.map((employee) => {
-                    const itemStatus = deriveModuleStatus(employee.isVerifiedByDc, employee.dcFlagReason)
                     return (
                       <tr key={employee.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-4">
@@ -107,12 +105,6 @@ export function StaffTab({ employees }: StaffTabProps) {
                               <Shield className="size-2.5" />
                               Hereditary
                             </span>
-                          )}
-                          {employee.dcFlagReason && (
-                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                              <Flag className="size-3" />
-                              Flagged
-                            </div>
                           )}
                         </td>
                         <td className="px-5 py-4">
@@ -330,32 +322,6 @@ export function StaffTab({ employees }: StaffTabProps) {
                   </Card>
                 )}
 
-                {/* Verification Status */}
-                <Card className="border-border">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <UserCheck className="size-4 text-primary" />
-                      Verification Status
-                    </CardTitle>
-                  </CardHeader>
-                  <Separator />
-                  <CardContent className="pt-3">
-                    <ModuleStatusBadge 
-                      status={deriveModuleStatus(selectedEmployee.isVerifiedByDc, selectedEmployee.dcFlagReason)} 
-                    />
-                    {selectedEmployee.dcFlagReason && (
-                      <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-100">
-                        <div className="flex items-start gap-2">
-                          <Flag className="size-3 text-red-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs font-semibold text-red-800 mb-1">Flag Reason:</p>
-                            <p className="text-xs text-red-700">{selectedEmployee.dcFlagReason}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
               </div>
             </>
           )}

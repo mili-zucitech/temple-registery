@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import { workflowApi } from '../governance/workflowApi'
 import { getApiV1BaseUrl } from '@/lib/apiBase'
 
@@ -29,7 +29,6 @@ export const useWorkflowSse = ({
   onNotification,
 }: UseWorkflowSseOptions) => {
   const dispatch = useDispatch()
-  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const esRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryDelayRef = useRef(2000)
@@ -38,7 +37,6 @@ export const useWorkflowSse = ({
     if (!userId || !enabled) return
     if (esRef.current?.readyState === EventSource.OPEN) return
 
-    const token = (window as any).__accessToken
     const url = `${getApiV1BaseUrl()}/notifications/stream`
 
     const es = new EventSource(url, { withCredentials: true })
@@ -77,7 +75,7 @@ export const useWorkflowSse = ({
       retryDelayRef.current = delay
       reconnectTimeoutRef.current = setTimeout(connect, delay)
     }
-  }, [userId, enabled, accessToken, dispatch, onNotification])
+  }, [userId, enabled, dispatch, onNotification])
 
   useEffect(() => {
     connect()

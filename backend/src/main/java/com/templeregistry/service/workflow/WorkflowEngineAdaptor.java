@@ -199,6 +199,17 @@ public class WorkflowEngineAdaptor {
 
     // ─── Internal ─────────────────────────────────────────────────────────────
 
+    /**
+     * Returns the current WorkflowStatus for an entity, or DRAFT if no instance exists.
+     * Use this instead of reading legacy status fields from entity classes.
+     */
+    @Transactional(readOnly = true)
+    public WorkflowStatus currentStatus(WorkflowEntityType entityType, Long entityId) {
+        return instanceRepo.findByEntityTypeAndEntityId(entityType, entityId)
+            .map(WorkflowInstance::getStatus)
+            .orElse(WorkflowStatus.DRAFT);
+    }
+
     private void execute(Long instanceId, WorkflowAction action, Long actorId,
                                 Long templeId, Long districtId, String comment, String clientIdempotencyKey) {
         String role = districtId != null ? "DC" : "TA";

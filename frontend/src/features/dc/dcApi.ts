@@ -175,7 +175,7 @@ export const dcApi = createApi({
         const patchResult = dispatch(
           dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
             if (draft?.data?.temple) {
-              draft.data.temple.verificationStatus = 'ACTIVE'
+              draft.data.temple.verificationStatus = 'UNVERIFIED'
             }
           })
         )
@@ -186,59 +186,6 @@ export const dcApi = createApi({
         }
       },
       invalidatesTags: (_r, _e, { id }) => [{ type: 'DcTempleProfile', id }, 'DcTempleSearch'],
-    }),
-
-    verifyTrust: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcVerifyRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/trusts/${id}/verify`,
-        method: 'POST',
-        body,
-      }),
-      // Optimistically update the cache so the UI reflects the change immediately
-      // without waiting for a refetch (avoids TiDB read-after-write lag)
-      onQueryStarted: async ({ id: trustId, templeId }, { dispatch, queryFulfilled }) => {
-        const patchResult = dispatch(
-          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
-            if (draft?.data?.trust && draft.data.trust.id === trustId) {
-              draft.data.trust.isVerifiedByDc = true
-              draft.data.trust.dcFlagReason = null
-              draft.data.trust.reviewStatus = 'APPROVED'
-            }
-          })
-        )
-        try {
-          await queryFulfilled
-        } catch {
-          patchResult.undo()
-        }
-      },
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
-    }),
-
-    flagTrust: builder.mutation<ApiResponse<void>, { id: number; templeId: number; body: DcFlagRequest }>({
-      query: ({ id, body }) => ({
-        url: `/dc/compliance/trusts/${id}/flag`,
-        method: 'POST',
-        body,
-      }),
-      // Optimistically update the cache
-      onQueryStarted: async ({ id: trustId, templeId, body }, { dispatch, queryFulfilled }) => {
-        const patchResult = dispatch(
-          dcApi.util.updateQueryData('getDcTempleProfile', templeId, (draft) => {
-            if (draft?.data?.trust && draft.data.trust.id === trustId) {
-              draft.data.trust.isVerifiedByDc = false
-              draft.data.trust.dcFlagReason = body.reason
-              draft.data.trust.reviewStatus = 'FLAGGED'
-            }
-          })
-        )
-        try {
-          await queryFulfilled
-        } catch {
-          patchResult.undo()
-        }
-      },
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'DcTempleProfile', id: templeId }],
     }),
 
     // ─── Notifications (deprecated — use notificationApi instead) ────────────
@@ -332,6 +279,4 @@ export const {
   useVerifyTempleMutation,
   useFlagTempleMutation,
   useUnflagTempleMutation,
-  useVerifyTrustMutation,
-  useFlagTrustMutation,
 } = dcApi

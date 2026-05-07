@@ -214,3 +214,19 @@ export const isPendingDcAction = (status: WorkflowStatus) =>
 
 export const isPendingTaAction = (status: WorkflowStatus) =>
   PENDING_TA_STATUSES.includes(status)
+
+// ─── Governance Status Payload ────────────────────────────────────────────────
+// Canonical status object embedded in all governed entity API responses.
+// Replaces: dcDecisionStatus, submissionStatus, isVerifiedByDc, dcFlagReason.
+
+export interface GovernanceStatusPayload {
+  status: WorkflowStatus
+  subStatus?: string
+  label: string
+  severity: 'SUCCESS' | 'WARNING' | 'ERROR' | 'INFO'
+  actionableBy?: 'DC' | 'TA' | 'SYSTEM' | null
+  requiresComment: boolean
+  pendingSince?: string
+  deadline?: string
+  workflowInstanceId?: number
+}

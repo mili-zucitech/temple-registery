@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle } from 'lucide-react'
 import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
-import { ModuleStatusBadge, deriveModuleStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
+import { ModuleStatusBadge } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -26,7 +26,7 @@ interface TrustTabProps {
 }
 
 export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onFlagTrust }: TrustTabProps) {
-  const trustStatus = trust ? deriveModuleStatus(trust.isVerifiedByDc, trust.dcFlagReason) : null
+  const trustStatus = trust?.governanceStatus?.status ?? null
   const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
   const [memberPage, setMemberPage] = useState(0)
   const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
@@ -239,17 +239,6 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
                 </div>
               </div>
 
-              {/* DC Feedback if flagged */}
-              {viewingMember.dcFlagReason && (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex items-start gap-3">
-                  <AlertCircle size={18} className="text-destructive shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-destructive">DC Feedback</p>
-                    <p className="text-sm text-destructive/90 mt-1">{viewingMember.dcFlagReason}</p>
-                  </div>
-                </div>
-              )}
-
               {/* Personal Information */}
               <div>
                 <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -352,9 +341,18 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         >
           <GovernanceActionPanel
             entityName="Trust Registration"
-            isVerified={trust.isVerifiedByDc}
-            flagReason={trust.dcFlagReason}
-            canAct={canAct}
+            isVerified={trust.isVerifiedByDc === true}
+            flagReason={trust.dcFlagReason ?? null}
+            canAct={canAct && ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED', 'RESUBMITTED'].includes(trust.workflowStatus ?? '')}
+            statusHint={
+              !trust.workflowStatus || trust.workflowStatus === 'DRAFT'
+                ? 'Trust registration has not been submitted by the temple authority yet. Actions will be available once it is submitted.'
+                : trust.workflowStatus === 'APPROVED' || trust.workflowStatus === 'RE_APPROVED'
+                ? null
+                : trust.workflowStatus === 'REJECTED'
+                ? 'This trust registration has been rejected and cannot be actioned further.'
+                : null
+            }
             onVerify={(notes) => onVerifyTrust(trust.id, notes)}
             onFlag={(reason) => onFlagTrust(trust.id, reason)}
           />

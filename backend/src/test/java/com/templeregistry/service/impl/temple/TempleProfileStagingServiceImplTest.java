@@ -45,6 +45,7 @@ class TempleProfileStagingServiceImplTest {
     @Mock com.templeregistry.service.clarification.ClarificationEngine clarificationEngine;
     @Mock ActionContextResolver actionContextResolver;
     @Mock com.templeregistry.service.document.FileStorageService fileStorageService;
+    @Mock com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
 
     @InjectMocks TempleProfileStagingServiceImpl stagingService;
 
@@ -151,7 +152,7 @@ class TempleProfileStagingServiceImplTest {
 
         stagingService.approve(4L, 200L);
 
-        verify(workflowEngine).executeSystem(eq(888L), eq(com.templeregistry.entity.workflow.WorkflowAction.REJECT), anyString());
+        verify(workflowEngine).executeSystem(eq(888L), eq(com.templeregistry.entity.workflow.WorkflowAction.AUTO_SUPERSEDE), anyString());
         verify(workflowEngine).execute(eq(currentInstance.getId()), any(), any());
         verify(templeRepository).save(any());
     }
