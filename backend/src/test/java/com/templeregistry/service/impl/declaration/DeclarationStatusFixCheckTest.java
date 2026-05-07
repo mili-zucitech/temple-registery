@@ -83,7 +83,8 @@ class DeclarationStatusFixCheckTest {
                 Mockito.mock(com.templeregistry.service.declaration.SnapshotService.class),
                 Mockito.mock(com.templeregistry.service.audit.DeclarationAuditLogService.class),
                 Mockito.mock(com.templeregistry.service.workflow.WorkflowEngineAdaptor.class),
-                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class)
+                Mockito.mock(com.templeregistry.service.workflow.WorkflowEngine.class),
+                Mockito.mock(com.templeregistry.service.governance.GovernanceStatusResolver.class)
         );
 
         // Mock security context so @PreAuthorize doesn't interfere

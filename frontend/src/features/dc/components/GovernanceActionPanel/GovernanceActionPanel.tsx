@@ -22,6 +22,8 @@ interface GovernanceActionPanelProps {
   onVerify: (notes: string) => Promise<void>
   onFlag: (reason: string) => Promise<void>
   canAct: boolean
+  /** Optional hint shown when canAct is false and the entity is not yet verified/flagged */
+  statusHint?: string | null
 }
 
 export function GovernanceActionPanel({
@@ -31,6 +33,7 @@ export function GovernanceActionPanel({
   onVerify,
   onFlag,
   canAct,
+  statusHint,
 }: GovernanceActionPanelProps) {
   const [verifyOpen, setVerifyOpen] = useState(false)
   const [flagOpen, setFlagOpen] = useState(false)
@@ -101,6 +104,13 @@ export function GovernanceActionPanel({
         <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-4">
           <p className="text-xs font-semibold text-amber-800">Pending DC Compliance Check</p>
           <p className="text-xs text-amber-700/80 mt-1">This entity has not yet been verified by the District Collector.</p>
+        </div>
+      )}
+
+      {!canAct && !isVerified && !flagReason && statusHint && (
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <Info size={14} className="shrink-0 text-slate-400" />
+          <p className="text-xs text-slate-500">{statusHint}</p>
         </div>
       )}
 
@@ -181,16 +191,19 @@ export function GovernanceActionPanel({
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Detail the compliance issue..."
+              placeholder="Detail the compliance issue (min 10 characters)..."
               className="rounded-lg border-destructive/20 focus:ring-destructive/20"
               rows={4}
             />
+            {notes.trim().length > 0 && notes.trim().length < 10 && (
+              <p className="text-xs text-destructive">Reason must be at least 10 characters ({notes.trim().length}/10).</p>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleFlag} 
-              disabled={isSubmitting || !notes.trim()} 
+              disabled={isSubmitting || notes.trim().length < 10} 
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold"
             >
               {isSubmitting ? 'Flagging...' : 'Confirm Flag'}

@@ -4,7 +4,8 @@ import {
   useSuspendTempleMutation, useReactivateTempleMutation,
   useFreezeTempleMutation, useArchiveTempleMutation,
 } from '@/features/admin/adminApi'
-import { useSearchTemplesQuery } from '@/features/temple/templeApi'
+import { useSearchTemplesQuery } from '@/features/temple-profile/hooks/templeApi'
+import type { TempleSearchResultResponse } from '@/features/temple-profile/hooks/templeTypes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +14,6 @@ import { ConfirmDialog } from '@/components/feedback/ConfirmDialog/ConfirmDialog
 import { Textarea } from '@/components/ui/textarea'
 import { AlertTriangle, Archive, Pause, Play, Snowflake, Search, Building2, Star, Info, X, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TempleSearchResultResponse } from '@/features/temple-profile/hooks/templeTypes'
 
 const STATUS_STYLE: Record<string, string> = {
   ACTIVE: 'bg-emerald-100 text-emerald-800',
@@ -118,7 +118,7 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">No temples found matching "{debouncedKeyword}"</div>
           ) : (
             <ul>
-              {results.map((t) => (
+              {results.map((t: TempleSearchResultResponse) => (
                 <li key={t.id}>
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left border-b border-border last:border-0"

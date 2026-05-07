@@ -33,18 +33,33 @@ export const governanceApi = createApi({
     'GovernanceTrust',
     'GovernanceDeclaration',
     'PhysicalVerificationHistory',
+    'DcDashboard',
+    'DcTempleSearch',
+    'Trust',
   ],
   endpoints: (builder) => ({
     // ─── TRUST ───────────────────────────────────────────────────────────────
 
     submitTrust: builder.mutation<ApiResponse<void>, number>({
       query: (trustId) => ({ url: `/governance/trusts/${trustId}/submit`, method: 'POST' }),
-      invalidatesTags: (_r, _e, trustId) => [{ type: 'GovernanceTrust', id: trustId }],
+      // Also invalidate DC-side caches so the trust appears immediately in DC dashboard/search
+      invalidatesTags: (_r, _e, trustId) => [
+        { type: 'GovernanceTrust', id: trustId },
+        { type: 'Trust', id: trustId },
+        'DcDashboard',
+        'DcTempleSearch',
+      ],
     }),
 
     approveTrust: builder.mutation<ApiResponse<void>, number>({
       query: (trustId) => ({ url: `/governance/trusts/${trustId}/approve`, method: 'POST' }),
-      invalidatesTags: (_r, _e, trustId) => [{ type: 'GovernanceTrust', id: trustId }],
+      // Invalidate DC profile, TA trust list, and DC search so all views refresh.
+      invalidatesTags: (_r, _e, trustId) => [
+        { type: 'GovernanceTrust', id: trustId },
+        { type: 'Trust', id: trustId },
+        'Trust',
+        'DcTempleSearch',
+      ],
     }),
 
     sendBackTrust: builder.mutation<ApiResponse<void>, { trustId: number; body: SendBackRequest }>({
@@ -53,7 +68,12 @@ export const governanceApi = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_r, _e, { trustId }) => [{ type: 'GovernanceTrust', id: trustId }],
+      invalidatesTags: (_r, _e, { trustId }) => [
+        { type: 'GovernanceTrust', id: trustId },
+        { type: 'Trust', id: trustId },
+        'Trust',
+        'DcTempleSearch',
+      ],
     }),
 
     rejectTrust: builder.mutation<ApiResponse<void>, { trustId: number; body: RejectRequest }>({
@@ -62,7 +82,10 @@ export const governanceApi = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_r, _e, { trustId }) => [{ type: 'GovernanceTrust', id: trustId }],
+      invalidatesTags: (_r, _e, { trustId }) => [
+        { type: 'GovernanceTrust', id: trustId },
+        { type: 'Trust', id: trustId },
+      ],
     }),
 
     // ─── DECLARATION ──────────────────────────────────────────────────────────

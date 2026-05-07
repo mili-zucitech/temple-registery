@@ -99,11 +99,9 @@ export interface TrustResponse {
   bankBranch?: string
   annualIncome?: number | null
   status?: string
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
-  submissionStatus?: string | null
-  dcDecisionStatus?: string | null
   sendBackReason?: string | null
+  /** Canonical governance status. Replaces submissionStatus, dcDecisionStatus, isVerifiedByDc. */
+  governanceStatus?: import('@/types/workflow').GovernanceStatusPayload
 }
 
 export interface BoardMemberResponse {
@@ -117,8 +115,6 @@ export interface BoardMemberResponse {
   contactNumber?: string
   address?: string
   isCurrent: boolean
-  isVerifiedByDc?: boolean
-  dcFlagReason?: string | null
 }
 
 export interface TrustFinancialResponse {

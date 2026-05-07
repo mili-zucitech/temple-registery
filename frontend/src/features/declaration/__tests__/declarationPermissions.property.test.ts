@@ -39,9 +39,17 @@ const DC_APPROVE_REJECT_STATUSES: DeclarationStatus[] = [
   'SUBMITTED',
   'UNDER_REVIEW',
   'CLARIFICATION_RESPONDED',
+  'RESUBMITTED',
   'VERIFIED',
+  'RE_APPROVED',
+  'UPDATED_AFTER_APPROVAL',
 ]
 
+// DC can request clarification from SUBMITTED, UNDER_REVIEW, RESUBMITTED
+const DC_CLARIFY_STATUSES: DeclarationStatus[] = ['SUBMITTED', 'UNDER_REVIEW', 'RESUBMITTED']
+// DC can schedule site visit only from SUBMITTED, UNDER_REVIEW
+const DC_SITE_VISIT_STATUSES: DeclarationStatus[] = ['SUBMITTED', 'UNDER_REVIEW']
+/** @deprecated use DC_CLARIFY_STATUSES / DC_SITE_VISIT_STATUSES */
 const DC_CLARIFY_SITE_VISIT_STATUSES: DeclarationStatus[] = ['SUBMITTED', 'UNDER_REVIEW']
 
 describe('Property 8: getAvailableActions button visibility', () => {
@@ -75,11 +83,11 @@ describe('Property 8: getAvailableActions button visibility', () => {
           expect(actions.canEdit, `canEdit for TA, status=${status}`).toBe(isTA && (status === 'DRAFT' || status === 'REJECTED'))
           expect(actions.canSubmit, `canSubmit for TA, status=${status}`).toBe(isTA && (status === 'DRAFT' || status === 'REJECTED'))
 
-          // clarification-respond: enabled ONLY for CLARIFICATION_REQUIRED
+          // clarification-respond: enabled for CLARIFICATION_REQUIRED, CLARIFICATION_RESPONDED, RESUBMITTED
           expect(
             actions.canRespondToClarification,
             `canRespondToClarification for TA, status=${status}`,
-          ).toBe(isTA && status === 'CLARIFICATION_REQUIRED')
+          ).toBe(isTA && (status === 'CLARIFICATION_REQUIRED' || status === 'CLARIFICATION_RESPONDED' || status === 'RESUBMITTED'))
 
           // ─── DC rules ──────────────────────────────────────────────────────
           // approve: SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED
@@ -92,14 +100,14 @@ describe('Property 8: getAvailableActions button visibility', () => {
             isDC && DC_APPROVE_REJECT_STATUSES.includes(status),
           )
 
-          // request clarification: SUBMITTED, UNDER_REVIEW
+          // request clarification: SUBMITTED, UNDER_REVIEW, RESUBMITTED
           expect(actions.canRequestClarification, `canRequestClarification for DC, status=${status}`).toBe(
-            isDC && DC_CLARIFY_SITE_VISIT_STATUSES.includes(status),
+            isDC && DC_CLARIFY_STATUSES.includes(status),
           )
 
           // schedule site visit: SUBMITTED, UNDER_REVIEW
           expect(actions.canScheduleSiteVisit, `canScheduleSiteVisit for DC, status=${status}`).toBe(
-            isDC && DC_CLARIFY_SITE_VISIT_STATUSES.includes(status),
+            isDC && DC_SITE_VISIT_STATUSES.includes(status),
           )
 
           // complete site visit: SITE_VISIT_SCHEDULED only
@@ -135,11 +143,14 @@ describe('Property 8: getAvailableActions button visibility', () => {
     }
   })
 
-  it('TA: clarification-respond is enabled only for CLARIFICATION_REQUIRED', () => {
-    const clarReq = getAvailableActions('CLARIFICATION_REQUIRED', TA_ROLE)
-    expect(clarReq.canRespondToClarification).toBe(true)
+  it('TA: clarification-respond is enabled for CLARIFICATION_REQUIRED, CLARIFICATION_RESPONDED, RESUBMITTED', () => {
+    const TA_RESPOND_STATUSES: DeclarationStatus[] = ['CLARIFICATION_REQUIRED', 'CLARIFICATION_RESPONDED', 'RESUBMITTED']
+    for (const status of TA_RESPOND_STATUSES) {
+      const actions = getAvailableActions(status, TA_ROLE)
+      expect(actions.canRespondToClarification, `canRespondToClarification should be true for TA with status=${status}`).toBe(true)
+    }
 
-    for (const status of DECLARATION_STATUSES.filter((s) => s !== 'CLARIFICATION_REQUIRED')) {
+    for (const status of DECLARATION_STATUSES.filter((s) => !TA_RESPOND_STATUSES.includes(s))) {
       const actions = getAvailableActions(status, TA_ROLE)
       expect(
         actions.canRespondToClarification,
@@ -148,7 +159,7 @@ describe('Property 8: getAvailableActions button visibility', () => {
     }
   })
 
-  it('DC: approve and reject are enabled for SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED', () => {
+  it('DC: approve and reject are enabled for SUBMITTED, UNDER_REVIEW, CLARIFICATION_RESPONDED, VERIFIED, RESUBMITTED, RE_APPROVED, UPDATED_AFTER_APPROVAL', () => {
     for (const status of DC_APPROVE_REJECT_STATUSES) {
       const actions = getAvailableActions(status, DC_ROLE)
       expect(actions.canApprove, `canApprove should be true for DC with status=${status}`).toBe(true)
@@ -162,16 +173,24 @@ describe('Property 8: getAvailableActions button visibility', () => {
     }
   })
 
-  it('DC: request clarification and schedule site visit are enabled only for SUBMITTED, UNDER_REVIEW', () => {
-    for (const status of DC_CLARIFY_SITE_VISIT_STATUSES) {
+  it('DC: request clarification is enabled for SUBMITTED, UNDER_REVIEW, RESUBMITTED; site visit for SUBMITTED, UNDER_REVIEW', () => {
+    for (const status of DC_CLARIFY_STATUSES) {
       const actions = getAvailableActions(status, DC_ROLE)
       expect(actions.canRequestClarification, `canRequestClarification should be true for DC with status=${status}`).toBe(true)
+    }
+
+    for (const status of DC_SITE_VISIT_STATUSES) {
+      const actions = getAvailableActions(status, DC_ROLE)
       expect(actions.canScheduleSiteVisit, `canScheduleSiteVisit should be true for DC with status=${status}`).toBe(true)
     }
 
-    for (const status of DECLARATION_STATUSES.filter((s) => !DC_CLARIFY_SITE_VISIT_STATUSES.includes(s))) {
+    for (const status of DECLARATION_STATUSES.filter((s) => !DC_CLARIFY_STATUSES.includes(s))) {
       const actions = getAvailableActions(status, DC_ROLE)
       expect(actions.canRequestClarification, `canRequestClarification should be false for DC with status=${status}`).toBe(false)
+    }
+
+    for (const status of DECLARATION_STATUSES.filter((s) => !DC_SITE_VISIT_STATUSES.includes(s))) {
+      const actions = getAvailableActions(status, DC_ROLE)
       expect(actions.canScheduleSiteVisit, `canScheduleSiteVisit should be false for DC with status=${status}`).toBe(false)
     }
   })

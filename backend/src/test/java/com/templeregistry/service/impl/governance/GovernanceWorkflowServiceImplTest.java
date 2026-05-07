@@ -1,6 +1,5 @@
 package com.templeregistry.service.impl.governance;
 
-import com.templeregistry.entity.governance.SubmissionStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
@@ -35,10 +34,10 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for GovernanceWorkflowServiceImpl — focuses on:
- *   - Trust dual-write methods call WorkflowEngineAdaptor + set entity status
- *   - V-H1 guard throws IllegalStateException when status diverges
- *   - V-H1 guard is silent when statuses agree
+ *   - Trust workflow methods call WorkflowEngineAdaptor correctly
+ *   - sendBackTrust persists sendBackReason display field
  *   - EntityNotFoundException propagates when Trust not found
+ *   - No dual-write of SubmissionStatus (removed in Canonical Status Architecture)
  */
 @ExtendWith(MockitoExtension.class)
 class GovernanceWorkflowServiceImplTest {
@@ -53,7 +52,6 @@ class GovernanceWorkflowServiceImplTest {
     @Mock GovernanceAuditService governanceAuditService;
     @Mock AcknowledgementService acknowledgementService;
     @Mock TempleSearchSummaryService summaryService;
-    // Remaining dependencies injected as leniently-verified mocks
     @Mock com.templeregistry.repository.declaration.DeclarationRepository declarationRepository;
     @Mock com.templeregistry.repository.governance.PhysicalVerificationHistoryRepository physicalVerificationHistoryRepository;
     @Mock com.templeregistry.repository.workflow.WorkflowInstanceRepository workflowInstanceRepository;
@@ -68,10 +66,10 @@ class GovernanceWorkflowServiceImplTest {
     @InjectMocks
     GovernanceWorkflowServiceImpl service;
 
-    private static final Long TRUST_ID   = 1L;
-    private static final Long TEMPLE_ID  = 10L;
+    private static final Long TRUST_ID    = 1L;
+    private static final Long TEMPLE_ID   = 10L;
     private static final Long DISTRICT_ID = 7L;
-    private static final Long ACTOR_ID   = 5L;
+    private static final Long ACTOR_ID    = 5L;
 
     private Trust trust;
     private Temple temple;
@@ -80,9 +78,7 @@ class GovernanceWorkflowServiceImplTest {
     void setUp() {
         trust = Trust.builder()
             .templeId(TEMPLE_ID)
-            .submissionStatus(SubmissionStatus.SUBMITTED)
             .build();
-        // Reflectively set the id field (extends BaseEntity)
         org.springframework.test.util.ReflectionTestUtils.setField(trust, "id", TRUST_ID);
 
         temple = Temple.builder()
@@ -90,11 +86,10 @@ class GovernanceWorkflowServiceImplTest {
             .build();
         org.springframework.test.util.ReflectionTestUtils.setField(temple, "id", TEMPLE_ID);
 
-        // Set up security context so currentUserId() resolves
         ScopeHelper.Claims claims = new ScopeHelper.Claims(ACTOR_ID, "DISTRICT_COLLECTOR", DISTRICT_ID, null, "dc_user");
-        SecurityContextHolder.getContext().setAuthentication(
-            new UsernamePasswordAuthenticationToken(claims, null)
-        );
+        var auth = new UsernamePasswordAuthenticationToken(claims, null);
+        var secCtx = new org.springframework.security.core.context.SecurityContextImpl(auth);
+        SecurityContextHolder.setContext(secCtx);
 
         lenient().when(trustRepository.findById(TRUST_ID)).thenReturn(Optional.of(trust));
         lenient().when(templeRepository.findById(TEMPLE_ID)).thenReturn(Optional.of(temple));
@@ -105,78 +100,42 @@ class GovernanceWorkflowServiceImplTest {
     // ── approveTrust ──────────────────────────────────────────────────────────
 
     @Test
-    void should_callAdaptorAndSetApprovedStatus_when_approveTrust() {
-        WorkflowInstance wi = workflowInstanceWithStatus(WorkflowStatus.APPROVED);
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.of(wi));
-
+    void should_callAdaptorAndSnapshot_when_approveTrust() {
         service.approveTrust(TRUST_ID);
 
         verify(workflowEngineAdaptor).adaptApprove(
-            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), anyLong(), eq(ACTOR_ID));
-        verify(trustRepository, atLeastOnce()).save(argThat(t -> t.getSubmissionStatus() == SubmissionStatus.APPROVED));
-    }
-
-    @Test
-    void should_throwIllegalStateException_when_approveTrustProducesStatusDivergence() {
-        // Adaptor records APPROVED in WorkflowInstance but entity is set to SUBMITTED (divergence)
-        WorkflowInstance wi = workflowInstanceWithStatus(WorkflowStatus.SUBMITTED); // <-- mismatch
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.of(wi));
-
-        assertThatThrownBy(() -> service.approveTrust(TRUST_ID))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("diverged");
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(DISTRICT_ID), eq(ACTOR_ID));
+        verify(versionService).snapshot(
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(1), any(), eq(ACTOR_ID), isNull());
     }
 
     // ── sendBackTrust ─────────────────────────────────────────────────────────
 
     @Test
-    void should_callAdaptorAndSetSentBackStatus_when_sendBackTrust() {
-        WorkflowInstance wi = workflowInstanceWithStatus(WorkflowStatus.CLARIFICATION_REQUESTED);
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.of(wi));
-
+    void should_callAdaptorAndPersistSendBackReason_when_sendBackTrust() {
         com.templeregistry.dto.request.governance.SendBackRequest req =
             new com.templeregistry.dto.request.governance.SendBackRequest();
         req.setReason("Missing document");
         service.sendBackTrust(TRUST_ID, req);
 
         verify(workflowEngineAdaptor).adaptSendBack(
-            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), anyLong(), eq(ACTOR_ID), eq("Missing document"));
-        verify(trustRepository, atLeastOnce()).save(argThat(t -> t.getSubmissionStatus() == SubmissionStatus.SENT_BACK));
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(DISTRICT_ID), eq(ACTOR_ID), eq("Missing document"));
+        verify(trustRepository, atLeastOnce()).save(argThat(t -> "Missing document".equals(t.getSendBackReason())));
     }
 
     // ── rejectTrust ───────────────────────────────────────────────────────────
 
     @Test
-    void should_callAdaptorAndSetRejectedStatus_when_rejectTrust() {
-        WorkflowInstance wi = workflowInstanceWithStatus(WorkflowStatus.REJECTED);
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.of(wi));
-
+    void should_callAdaptorOnly_when_rejectTrust() {
         com.templeregistry.dto.request.governance.RejectRequest req =
             new com.templeregistry.dto.request.governance.RejectRequest();
         req.setReason("Non-compliant");
         service.rejectTrust(TRUST_ID, req);
 
         verify(workflowEngineAdaptor).adaptReject(
-            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), anyLong(), eq(ACTOR_ID), eq("Non-compliant"));
-        verify(trustRepository, atLeastOnce()).save(argThat(t -> t.getSubmissionStatus() == SubmissionStatus.REJECTED));
-    }
-
-    @Test
-    void should_throwIllegalStateException_when_rejectTrustProducesStatusDivergence() {
-        WorkflowInstance wi = workflowInstanceWithStatus(WorkflowStatus.APPROVED); // <-- mismatch
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.of(wi));
-
-        com.templeregistry.dto.request.governance.RejectRequest req =
-            new com.templeregistry.dto.request.governance.RejectRequest();
-        req.setReason("Divergence test");
-        assertThatThrownBy(() -> service.rejectTrust(TRUST_ID, req))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("diverged");
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(DISTRICT_ID), eq(ACTOR_ID), eq("Non-compliant"));
+        // No dual-write: trustRepository.save must NOT be called for reject
+        verify(trustRepository, never()).save(any());
     }
 
     // ── EntityNotFoundException propagates ────────────────────────────────────
@@ -189,22 +148,21 @@ class GovernanceWorkflowServiceImplTest {
             .isInstanceOf(EntityNotFoundException.class);
     }
 
-    // ── V-H1 guard is silent when no WorkflowInstance exists yet ──────────────
+    // ── No WorkflowInstance — no throw ────────────────────────────────────────
 
     @Test
     void should_notThrow_when_noWorkflowInstanceExistsForTrust() {
-        // If the entity was created before workflow migration, findState returns empty
-        when(workflowEngineAdaptor.findState(WorkflowEntityType.TRUST, TRUST_ID))
-            .thenReturn(Optional.empty());
-
-        // Should complete without throwing
+        // Trust has no WorkflowInstance yet (pre-migration record)
+        // approveTrust must not throw — adaptor handles missing instances gracefully
         service.approveTrust(TRUST_ID);
 
-        verify(trustRepository, atLeastOnce()).save(any());
+        verify(workflowEngineAdaptor).adaptApprove(
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), anyLong(), eq(ACTOR_ID));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("unused")
     private WorkflowInstance workflowInstanceWithStatus(WorkflowStatus status) {
         return WorkflowInstance.builder()
             .entityType(WorkflowEntityType.TRUST)
@@ -214,3 +172,4 @@ class GovernanceWorkflowServiceImplTest {
             .build();
     }
 }
+

@@ -4,8 +4,7 @@ import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.trust.*;
 import com.templeregistry.dto.response.trust.*;
 import com.templeregistry.entity.document.Document;
-import com.templeregistry.entity.governance.DcDecisionStatus;
-import com.templeregistry.entity.governance.SubmissionStatus;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.trust.*;
 import com.templeregistry.exception.EntityNotFoundException;
@@ -27,6 +26,7 @@ import com.templeregistry.service.trust.TrustService;
 import com.templeregistry.service.trust.TrustValidationService;
 import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.service.governance.GovernanceStatusResolver;
 import com.templeregistry.util.HmacUtil;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
@@ -70,6 +70,7 @@ public class TrustServiceImpl implements TrustService {
     private final com.templeregistry.service.notification.NotificationEventPublisher eventPublisher;
     private final NotificationRecipientResolver recipientResolver;
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
+    private final GovernanceStatusResolver governanceStatusResolver;
 
     @Override
     @Transactional(readOnly = true)
@@ -145,11 +146,11 @@ public class TrustServiceImpl implements TrustService {
         jurisdictionGuard.assertDistrictScope(temple, currentClaims());
         trustValidationService.validateTrustUpdateRequest(rq, id);
 
-        // Capture status before edit to detect re-submission requirement
-        SubmissionStatus statusBeforeEdit = trust.getSubmissionStatus();
+        // Canonical status lookup — no longer reads Trust.submissionStatus (removed in Phase 4)
+        WorkflowStatus statusBeforeEdit = workflowEngineAdaptor.currentStatus(
+            WorkflowEntityType.TRUST, trust.getId());
 
-        // Governance guard: assert TA can edit (blocks REJECTED and SUBMITTED)
-        // APPROVED is now allowed — triggers re-submission below
+        // Governance guard: assert TA can edit (blocks REJECTED and IN_REVIEW states)
         governanceEditGuard.assertCanEdit(statusBeforeEdit, "Trust", id);
 
         trust.setTrustName(rq.getTrustName());
@@ -167,27 +168,13 @@ public class TrustServiceImpl implements TrustService {
         trust.setBankNameAndBranch(joinBankNameAndBranch(rq.getBankName(), rq.getBankBranch()));
         trust.setAnnualIncome(rq.getAnnualIncome());
 
-        // Re-submission: if trust was APPROVED and TA edits, reset to PENDING_REVIEW
+        // Re-submission: if trust was APPROVED/RE_APPROVED and TA edits, trigger re-submission workflow
         if (governanceEditGuard.requiresResubmission(statusBeforeEdit)) {
-            // Clear send-back reason before re-submission
             trust.setSendBackReason(null);
-            trust.setSubmissionStatus(com.templeregistry.entity.governance.SubmissionStatus.SUBMITTED);
-
-            // ── Workflow Engine: adapt edit-approved transition ───────────────
             workflowEngineAdaptor.adaptEditApproved(
                 WorkflowEntityType.TRUST, trust.getId(), currentUserId(), trust.getTempleId());
-
-            // EC-04: Notify via helper
             notificationHelper.notifyTrustUpdated(trust.getId(), trust.getTempleId(), trust.getTrustName(), currentUserId());
-
-            log.info("Trust [{}] re-submitted after TA edit (was APPROVED). DC notified.", id);
-        }
-
-        // Legacy DC verification reset (isVerifiedByDc field on Trust entity)
-        if (trust.isVerifiedByDc()) {
-            trust.setDcDecisionStatus(DcDecisionStatus.PENDING_DC_APPROVAL);
-            trust.setDcFlagReason(null);
-            log.info("Trust [{}] DC verification flag reset after TA update", id);
+            log.info("Trust [{}] re-submitted after TA edit (was {}). DC notified.", id, statusBeforeEdit);
         }
 
         return toResponse(trustRepository.save(trust));
@@ -344,7 +331,6 @@ public class TrustServiceImpl implements TrustService {
             throw new EntityNotFoundException("BoardMember", memberId);
         }
         member.setVerifiedByDc(true);
-        member.setDcFlagReason(null);
         boardMemberRepository.save(member);
         // ── Workflow Engine: adapt board member approval ───────────────────────
         workflowEngineAdaptor.adaptApprove(
@@ -369,7 +355,6 @@ public class TrustServiceImpl implements TrustService {
             throw new EntityNotFoundException("BoardMember", memberId);
         }
         member.setVerifiedByDc(false);
-        member.setDcFlagReason(reason);
         boardMemberRepository.save(member);
         // ── Workflow Engine: adapt board member rejection ──────────────────────
         workflowEngineAdaptor.adaptReject(
@@ -549,7 +534,6 @@ public class TrustServiceImpl implements TrustService {
                 .trustType(t.getTrustType()).registrationNumber(t.getTrustRegistrationNumber())
                 .registeringAuthority(t.getRegisteringAuthority())
                 .dateOfRegistration(t.getDateOfRegistration())
-                // Raw PAN and bank account are intentionally excluded — only masked values returned
                 .maskedPanNumber(maskPan(t.getTrustPANNumber()))
                 .maskedBankAccountNumber(maskBankAccount(t.getBankAccountNumber()))
                 .bankName(bankParts[0])
@@ -559,11 +543,8 @@ public class TrustServiceImpl implements TrustService {
                 .active(t.getStatus() == TrustStatus.ACTIVE)
                 .dissolvedAt(t.getDissolutionDate())
                 .dissolutionReason(t.getDissolutionReason())
-                .dcFlagReason(t.getDcFlagReason())
-                // 3-layer governance status (TA-safe: no systemVerificationStatus)
-                .submissionStatus(t.getSubmissionStatus())
-                .dcDecisionStatus(t.getDcDecisionStatus())
                 .sendBackReason(t.getSendBackReason())
+                .governanceStatus(governanceStatusResolver.resolve(WorkflowEntityType.TRUST, t.getId()))
                 .build();
     }
 
@@ -574,7 +555,6 @@ public class TrustServiceImpl implements TrustService {
                 .maskedAadhaar(bm.getMaskedAadhaar()).designation(bm.getDesignation())
                 .appointmentDate(bm.getAppointmentDate()).tenureEndDate(bm.getTenureEndDate())
                 .contactNumber(bm.getContactNumber()).address(bm.getAddress()).current(isCurrent)
-                .dcFlagReason(bm.getDcFlagReason())
                 .build();
     }
 

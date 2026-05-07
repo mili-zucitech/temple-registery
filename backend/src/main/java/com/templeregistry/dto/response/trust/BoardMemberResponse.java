@@ -20,6 +20,4 @@ public class BoardMemberResponse {
     private String address;
     @JsonProperty("current")
     private boolean current;
-    @JsonIgnore
-    private String dcFlagReason;
 }
