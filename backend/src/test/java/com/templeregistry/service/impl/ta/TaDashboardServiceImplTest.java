@@ -21,6 +21,7 @@ import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
@@ -61,6 +62,7 @@ class TaDashboardServiceImplTest {
     @Mock NotificationEventPublisher notificationPublisher;
     @Mock UserRepository userRepository;
     @Mock WorkflowEngine workflowEngine;
+    @Mock WorkflowInstanceRepository workflowInstanceRepository;
 
     @InjectMocks TaDashboardServiceImpl taDashboardService;
 

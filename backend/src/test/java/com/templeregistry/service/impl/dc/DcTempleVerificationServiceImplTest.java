@@ -80,7 +80,7 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
         assertThat(temple.getDcRejectionReason()).isNull();
         assertThat(response.getVerificationStatus()).isEqualTo("VERIFIED");
-        verify(summaryService).refresh(7L);
+        verify(summaryService).scheduleRefresh(7L);
         verify(notificationHelper).notifyTempleApproved(7L, 5L);
     }
 
@@ -120,7 +120,7 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getVerificationStatus()).isEqualTo(VerificationStatus.FLAGGED);
         assertThat(temple.getDcRejectionReason()).isEqualTo("Missing land survey documents.");
         assertThat(response.getVerificationStatus()).isEqualTo("FLAGGED");
-        verify(summaryService).refresh(7L);
+        verify(summaryService).scheduleRefresh(7L);
         verify(notificationHelper).notifyTempleFlagged(7L, 5L, "Missing land survey documents.");
     }
 
@@ -139,7 +139,7 @@ class DcTempleVerificationServiceImplTest {
         assertThat(temple.getVerificationStatus()).isEqualTo(VerificationStatus.UNVERIFIED);
         assertThat(temple.getDcRejectionReason()).isNull();
         assertThat(response.getVerificationStatus()).isEqualTo("UNVERIFIED");
-        verify(summaryService).refresh(7L);
+        verify(summaryService).scheduleRefresh(7L);
         verify(notificationHelper).notifyTempleUnflagged(7L, 5L);
     }
 

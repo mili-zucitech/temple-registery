@@ -15,6 +15,7 @@ import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleRepository;
+import com.templeregistry.service.temple.TempleSearchSummaryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -38,6 +39,7 @@ class RegistrationServiceImplTest {
     @Mock TempleRepository   templeRepository;
     @Mock HobliRepository    hobliRepository;
     @Mock PasswordEncoder    passwordEncoder;
+    @Mock TempleSearchSummaryService summaryService;
 
     @InjectMocks RegistrationServiceImpl registrationService;
 

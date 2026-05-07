@@ -71,7 +71,7 @@ export const dcClarifySchema = z.object({
 })
 
 export const approveProfileSchema = z.object({
-  notes: z.string().max(1000).optional(),
+  remarks: z.string().max(1000).optional(),
 })
 
 export const rejectProfileSchema = z.object({
@@ -346,11 +346,18 @@ export interface TrustFinancialSummary {
 }
 
 export interface ProfileCurrentResponse {
+  phone: string | null
+  email: string | null
+  website: string | null
   contactPersonName: string | null
   contactPersonDesignation: string | null
-  photoFilePath: string | null
+  photoUrl: string | null
+  bankName: string | null
+  bankAccountMasked: string | null
+  bankIfsc: string | null
   languagesOfWorship: string | null
   linkedInstitutions: string | null
+  description: string | null
   annualFestivals: string | null
   landmark: string | null
   historicalSignificance: string | null
@@ -375,6 +382,7 @@ export interface TempleFullProfileResponse {
     hobliId: number | null
     talukId: number | null
     districtId: number | null
+    districtName: string | null
     latitude: number | null
     longitude: number | null
     contactName: string | null
@@ -382,9 +390,17 @@ export interface TempleFullProfileResponse {
     contactMobile: string | null
     contactEmail: string | null
     photoUrl: string | null
+    website: string | null
     languagesOfWorship: string | null
+    linkedInstitutions: string | null
+    annualFestivals: string | null
+    landmark: string | null
+    historicalSignificance: string | null
+    bankName: string | null
+    bankIfsc: string | null
     trustRegistered: boolean
     assetDeclarationStatus: string | null
+    status: string | null
     verificationStatus?: 'UNVERIFIED' | 'UNDER_REVIEW' | 'VERIFIED' | 'FLAGGED'
     /** Reason provided when DC flagged the temple. Null when not flagged. */
     dcFlagReason?: string | null
@@ -478,9 +494,16 @@ export interface ProfileStagingResponse {
   status: string
   contactPersonName: string | null
   contactPersonDesignation: string | null
-  photoFilePath: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  photoUrl: string | null
+  bankName: string | null
+  bankAccountNumberMasked: string | null
+  bankIfsc: string | null
   languagesOfWorship: string | null
   linkedInstitutions: string | null
+  description: string | null
   annualFestivals: string | null
   landmark: string | null
   historicalSignificance: string | null

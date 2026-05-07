@@ -176,7 +176,7 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.REJECTED);
         
         verify(versionService).snapshot(eq(com.templeregistry.entity.workflow.WorkflowEntityType.DECLARATION), eq(42L), anyInt(), any(), eq(5L), isNull());
-        verify(summaryService).refresh(1L);
+        verify(summaryService).scheduleRefresh(1L);
         verify(ackGenerator, never()).generate();
     }
 
@@ -201,7 +201,7 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(pendingDeclaration.getClarificationRound()).isEqualTo(1);
         
         verify(clarificationEngine).requestClarification(eq(500L), any(), eq(5L), anyString());
-        verify(summaryService).refresh(1L);
+        verify(summaryService).scheduleRefresh(1L);
     }
 
     @Test
@@ -280,7 +280,7 @@ class GovernanceDeclarationWorkflowTest {
 
         assertThat(result.getNewStatus()).isEqualTo("SITE_VISIT_SCHEDULED");
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.SITE_VISIT_SCHEDULED);
-        verify(summaryService).refresh(1L);
+        verify(summaryService).scheduleRefresh(1L);
     }
 
     // ── Send-Back regression ──────────────────────────────────────────────────

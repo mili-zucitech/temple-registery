@@ -516,9 +516,9 @@ export function DcTempleSearchPage() {
           />
           <FilterChip
             label="Pending"
-            selected={filters.declarationStatus === 'PENDING_REVIEW'}
+            selected={filters.declarationStatus === 'SUBMITTED'}
             selectedClassName="bg-amber-500 hover:bg-amber-600 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW' })}
+            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'SUBMITTED' ? undefined : 'SUBMITTED' })}
           />
           <FilterChip
             label="Resubmitted"
@@ -854,7 +854,7 @@ export function DcTempleSearchPage() {
               variant="outline"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => applyFilters({ declarationStatus: 'PENDING_REVIEW' })}
+              onClick={() => applyFilters({ declarationStatus: 'SUBMITTED' })}
               title="Declarations pending review"
             >
               Pending Verification

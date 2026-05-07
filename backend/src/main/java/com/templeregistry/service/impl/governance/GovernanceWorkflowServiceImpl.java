@@ -252,7 +252,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on approval
         versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
@@ -319,7 +319,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on rejection
         versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper call removed — NotificationRouter handles GovernanceDomainEvent.
 
@@ -379,7 +379,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .authorId(claims.userId())
                 .build());
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper removed — event outbox takes over.
 
@@ -444,7 +444,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         auditService.logDataEvent(claims.userId(), claims.role(), "PHYSICAL_VERIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId, "flagged=true");
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper removed — event outbox takes over.
 

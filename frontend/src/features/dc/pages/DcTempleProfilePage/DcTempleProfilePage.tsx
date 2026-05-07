@@ -365,11 +365,20 @@ export function DcTempleProfilePage() {
             <OverviewTab
               profile={profile}
               canAct={canAct}
+              pendingStaging={pendingStaging ?? null}
               onVerifyTemple={async (notes) => {
                 await verifyTemple({ id, body: { notes } }).unwrap()
               }}
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
+              }}
+              onApproveProfile={async (stagingId, _notes) => {
+                await submitApproveProfile(stagingId, id, { remarks: _notes })
+                refetchProfile()
+              }}
+              onRejectProfile={async (stagingId, reason) => {
+                await submitRejectProfile(stagingId, id, { reason })
+                refetchProfile()
               }}
             />
           </TabsContent>

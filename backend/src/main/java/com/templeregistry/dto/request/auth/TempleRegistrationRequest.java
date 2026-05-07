@@ -3,6 +3,7 @@ package com.templeregistry.dto.request.auth;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
 
 import java.math.BigDecimal;
 
@@ -53,4 +54,8 @@ public class TempleRegistrationRequest {
     @DecimalMin(value = "-180.0", message = "GPS longitude must be between -180 and 180.")
     @DecimalMax(value = "180.0",  message = "GPS longitude must be between -180 and 180.")
     private BigDecimal gpsLongitude;
+
+    @Min(value = 1, message = "Year established must be a positive year.")
+    @Max(value = 2100, message = "Year established must not exceed 2100.")
+    private Integer yearEstablished;
 }

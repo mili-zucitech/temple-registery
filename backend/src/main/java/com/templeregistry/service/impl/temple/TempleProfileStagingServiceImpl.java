@@ -5,6 +5,7 @@ import com.templeregistry.dto.request.temple.CreateTempleProfileStagingRequest;
 import com.templeregistry.dto.response.temple.TempleProfileStagingResponse;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
+import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
@@ -161,6 +162,13 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
 
         // Snapshot domain entity for versioning
         versionService.snapshot(WorkflowEntityType.TEMPLE_PROFILE, staging.getId(), instance.getVersionNumber(), staging, currentUserId(), null);
+
+        // Sync the entity-level status column so Path B (DcProfileController) can gate on it
+        staging.setStatus(TempleProfileStagingStatus.PENDING_REVIEW);
+        stagingRepository.save(staging);
+
+        // Refresh search summary so DC dashboard pendingProfileReview counter is up-to-date
+        summaryService.scheduleRefresh(templeId);
 
         log.info("Temple profile submitted for review (NOT promoted): stagingId=[{}] templeId=[{}]", staging.getId(), templeId);
 

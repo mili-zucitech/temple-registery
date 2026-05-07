@@ -109,7 +109,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "APPROVE",
                 "Approved with acknowledgement: " + ackNumber + ". Remarks: " + request.getRemarks());
 
-        summaryService.refresh(d.getTempleId());
+        summaryService.scheduleRefresh(d.getTempleId());
 
         log.info("Declaration [{}] APPROVED by userId={} ack={}", declarationId, claims.userId(), ackNumber);
 
@@ -150,7 +150,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "REJECT",
                 "Rejected with remarks: " + request.getRemarks());
 
-        summaryService.refresh(d.getTempleId());
+        summaryService.scheduleRefresh(d.getTempleId());
 
         log.info("Declaration [{}] REJECTED by userId={}", declarationId, claims.userId());
 
@@ -202,7 +202,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
                     notificationPublisher.publish(sa.getId(), "CLARIFICATION_ESCALATION", declarationId, "ASSET_DECLARATION"));
         }
 
-        summaryService.refresh(d.getTempleId());
+        summaryService.scheduleRefresh(d.getTempleId());
 
         log.info("Clarification requested for declaration [{}] by userId={}", declarationId, claims.userId());
 
@@ -241,7 +241,7 @@ public class DeclarationWorkflowServiceImpl implements DeclarationWorkflowServic
         governanceAuditService.logAction(declarationId, "DECLARATION", claims.userId(), "FLAG",
                 "Flagged for physical verification: " + request.getMessage());
 
-        summaryService.refresh(d.getTempleId());
+        summaryService.scheduleRefresh(d.getTempleId());
 
         log.info("Physical verification flagged for declaration [{}] by userId={}", declarationId, claims.userId());
 

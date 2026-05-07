@@ -1,26 +1,35 @@
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock } from 'lucide-react'
-import { useMemo } from 'react'
+import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, CreditCard, Globe, ChevronDown, ChevronUp } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
-import type { TempleFullProfileResponse } from '@/features/dc/dcTypes'
+import type { TempleFullProfileResponse, ProfileStagingResponse, ProfileCurrentResponse } from '@/features/dc/dcTypes'
 import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
   canAct: boolean
+  pendingStaging: ProfileStagingResponse | null | undefined
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
+  onApproveProfile: (stagingId: number, notes?: string) => Promise<void>
+  onRejectProfile: (stagingId: number, reason: string) => Promise<void>
 }
 
 export function OverviewTab({
   profile,
   canAct,
+  pendingStaging,
   onVerifyTemple,
-  onFlagTemple
+  onFlagTemple,
+  onApproveProfile,
+  onRejectProfile,
 }: OverviewTabProps) {
-  const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
+  const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName, currentProfile } = profile
+  const [rejectReason, setRejectReason] = useState('')
+  const [showRejectInput, setShowRejectInput] = useState(false)
+  const [profileSectionExpanded, setProfileSectionExpanded] = useState(true)
 
   const pendingReviewDecls = useMemo(() =>
     declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
@@ -100,6 +109,9 @@ export function OverviewTab({
                   <DetailItem label="Contact Mobile" value={temple.contactMobile || '—'} />
                   <DetailItem label="Contact Email" value={temple.contactEmail || '—'} />
                   <DetailItem label="Designation" value={temple.contactDesignation || '—'} />
+                  {temple.website && <DetailItem label="Website" value={temple.website} />}
+                  {temple.annualFestivals && <DetailItem label="Annual Festivals" value={temple.annualFestivals} />}
+                  {temple.landmark && <DetailItem label="Landmark" value={temple.landmark} />}
                 </div>
               </div>
 
@@ -289,6 +301,149 @@ export function OverviewTab({
             </div>
           )
         })()}
+
+        {/* Pending Profile Review - FULL WIDTH (shown only when TA has submitted staging) */}
+        {pendingStaging && (
+          <div className="bg-white rounded-xl border-2 border-amber-300/70 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
+            <div className="px-4 py-2.5 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md">
+                  <Clock size={16} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Pending Profile Submission — Awaiting Review</h2>
+                  <p className="text-[10px] text-amber-700 font-medium">Version {pendingStaging.version} · Submitted by Temple Authority</p>
+                </div>
+              </div>
+              <button
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                onClick={() => setProfileSectionExpanded((p) => !p)}
+                aria-label="Toggle profile section"
+              >
+                {profileSectionExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
+            {profileSectionExpanded && (
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
+                  <DetailItem label="Contact Person" value={pendingStaging.contactPersonName || '—'} />
+                  <DetailItem label="Designation" value={pendingStaging.contactPersonDesignation || '—'} />
+                  <DetailItem label="Phone" value={pendingStaging.phone || '—'} />
+                  <DetailItem label="Email" value={pendingStaging.email || '—'} />
+                  <DetailItem label="Website" value={pendingStaging.website || '—'} />
+                  <DetailItem label="Languages of Worship" value={pendingStaging.languagesOfWorship || '—'} />
+                  <DetailItem label="Bank Name" value={pendingStaging.bankName || '—'} />
+                  <DetailItem label="Bank Account (masked)" value={pendingStaging.bankAccountNumberMasked || '—'} />
+                  <DetailItem label="Bank IFSC" value={pendingStaging.bankIfsc || '—'} />
+                  <DetailItem label="Annual Festivals" value={pendingStaging.annualFestivals || '—'} />
+                  <DetailItem label="Landmark" value={pendingStaging.landmark || '—'} />
+                </div>
+                {pendingStaging.description && (
+                  <div>
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
+                    <p className="text-xs text-slate-700 leading-relaxed">{pendingStaging.description}</p>
+                  </div>
+                )}
+                {pendingStaging.historicalSignificance && (
+                  <div>
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Historical Significance</p>
+                    <p className="text-xs text-slate-700 leading-relaxed">{pendingStaging.historicalSignificance}</p>
+                  </div>
+                )}
+                {canAct && (
+                  <div className="pt-3 border-t border-amber-100 space-y-2">
+                    {showRejectInput ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder="Provide the rejection reason (required, min 10 characters)…"
+                          rows={3}
+                          className="w-full text-xs rounded-lg border border-red-200 bg-red-50/50 p-2.5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs font-bold px-3"
+                            disabled={rejectReason.trim().length < 10}
+                            onClick={() => {
+                              onRejectProfile(pendingStaging.id, rejectReason)
+                              setShowRejectInput(false)
+                              setRejectReason('')
+                            }}
+                          >
+                            Confirm Reject
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowRejectInput(false); setRejectReason('') }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+                          onClick={() => onApproveProfile(pendingStaging.id)}
+                        >
+                          Approve Profile
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs font-bold border-red-300 text-red-600 hover:bg-red-50 px-4"
+                          onClick={() => setShowRejectInput(true)}
+                        >
+                          Reject Profile
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Approved Account Details - FULL WIDTH (shown when a profile has been approved) */}
+        {currentProfile && (
+          <div className="bg-white rounded-xl border border-emerald-200/70 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
+            <div className="px-4 py-2.5 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+                <CreditCard size={16} className="text-white" />
+              </div>
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Approved Account Details</h2>
+            </div>
+            <div className="p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
+                <DetailItem label="Contact Person" value={currentProfile.contactPersonName || '—'} />
+                <DetailItem label="Designation" value={currentProfile.contactPersonDesignation || '—'} />
+                <DetailItem label="Phone" value={currentProfile.phone || '—'} />
+                <DetailItem label="Email" value={currentProfile.email || '—'} />
+                <DetailItem label="Website" value={currentProfile.website || '—'} />
+                <DetailItem label="Bank Name" value={currentProfile.bankName || '—'} />
+                <DetailItem label="Bank Account (masked)" value={currentProfile.bankAccountMasked || '—'} />
+                <DetailItem label="Bank IFSC" value={currentProfile.bankIfsc || '—'} />
+                <DetailItem label="Languages of Worship" value={currentProfile.languagesOfWorship || '—'} />
+                <DetailItem label="Annual Festivals" value={currentProfile.annualFestivals || '—'} />
+                <DetailItem label="Landmark" value={currentProfile.landmark || '—'} />
+              </div>
+              {currentProfile.description && (
+                <div className="mt-2.5">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">{currentProfile.description}</p>
+                </div>
+              )}
+              {currentProfile.historicalSignificance && (
+                <div className="mt-2.5">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Historical Significance</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">{currentProfile.historicalSignificance}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
