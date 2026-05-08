@@ -187,7 +187,8 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         // Keep legacy status in sync — CRITICAL: DC listing queries filter by entity.status != 'DRAFT'
         // so we must set status to SUBMITTED here or DC will not see it.
-        if (transitioned && declaration.getStatus() == DeclarationStatus.DRAFT) {
+        if (transitioned && (declaration.getStatus() == DeclarationStatus.DRAFT
+                             || declaration.getStatus() == DeclarationStatus.REJECTED)) {
             declaration.setStatus(DeclarationStatus.SUBMITTED);
         }
         declaration.setSubmittedBy(currentUserId());

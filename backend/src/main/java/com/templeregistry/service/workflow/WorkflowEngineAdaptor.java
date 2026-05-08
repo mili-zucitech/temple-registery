@@ -95,6 +95,11 @@ public class WorkflowEngineAdaptor {
 
             execute(instance.getId(), action, actorId, templeId, null, null, null);
             return true;
+        } else if (instance.getStatus() == WorkflowStatus.REJECTED) {
+            // REJECTED → UPDATED_AFTER_APPROVAL → RESUBMITTED (two-step per TransitionRuleRegistry)
+            execute(instance.getId(), WorkflowAction.EDIT_APPROVED, actorId, templeId, null, null, null);
+            execute(instance.getId(), WorkflowAction.RESUBMIT, actorId, templeId, null, null, null);
+            return true;
         } else {
             log.debug("[WorkflowAdaptor] Skip adapt-submit — instance={} already in status={}",
                 instance.getId(), instance.getStatus());

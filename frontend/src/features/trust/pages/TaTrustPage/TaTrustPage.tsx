@@ -290,7 +290,7 @@ export function TaTrustPage() {
           </div>
         </div>
       )}
-      {/* Modern Header */}}
+      {/* Modern Header */}
       <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
