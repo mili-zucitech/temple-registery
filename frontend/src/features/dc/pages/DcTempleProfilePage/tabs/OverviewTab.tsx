@@ -1,61 +1,53 @@
-<<<<<<< HEAD
 import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, CreditCard, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
-=======
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock } from 'lucide-react'
-import { useMemo } from 'react'
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
-<<<<<<< HEAD
 import type { TempleFullProfileResponse, ProfileStagingResponse, ProfileCurrentResponse } from '@/features/dc/dcTypes'
-=======
-import type { TempleFullProfileResponse, ProfileStagingResponse } from '@/features/dc/dcTypes'
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
   canAct: boolean
-<<<<<<< HEAD
-  pendingStaging: ProfileStagingResponse | null | undefined
-  onVerifyTemple: (notes: string) => Promise<void>
-  onFlagTemple: (reason: string) => Promise<void>
-  onApproveProfile: (stagingId: number, notes?: string) => Promise<void>
-  onRejectProfile: (stagingId: number, reason: string) => Promise<void>
-=======
   pendingStaging?: ProfileStagingResponse | null
   onApproveProfile?: (notes: string) => Promise<void>
   onRejectProfile?: (reason: string) => Promise<void>
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
 }
 
 export function OverviewTab({
   profile,
   canAct,
   pendingStaging,
-<<<<<<< HEAD
-  onVerifyTemple,
-  onFlagTemple,
-  onApproveProfile,
-  onRejectProfile,
-}: OverviewTabProps) {
-  const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName, currentProfile } = profile
-  const [rejectReason, setRejectReason] = useState('')
-  const [showRejectInput, setShowRejectInput] = useState(false)
-  const [profileSectionExpanded, setProfileSectionExpanded] = useState(true)
-=======
   onApproveProfile,
   onRejectProfile,
   onVerifyTemple,
   onFlagTemple
 }: OverviewTabProps) {
   const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
+  const currentProfile = profile.currentProfile
+
+  // Effective display values — priority: pending staging (TA submitted, awaiting DC review)
+  // → current approved profile → temples table (only updated on approval).
+  // This ensures DC sees the submitted data immediately after TA submits for review.
+  const effectiveContactName = pendingStaging?.contactPersonName || currentProfile?.contactPersonName || temple.contactName
+  const effectiveContactDesignation = pendingStaging?.contactPersonDesignation || currentProfile?.contactPersonDesignation || temple.contactDesignation
+  const effectivePhone = pendingStaging?.phone || currentProfile?.phone || temple.contactMobile
+  const effectiveEmail = pendingStaging?.email || currentProfile?.email || temple.contactEmail
+  const effectivePhotoUrl = pendingStaging?.photoUrl || currentProfile?.photoUrl || temple.photoUrl
+  const effectiveLanguages = pendingStaging?.languagesOfWorship || currentProfile?.languagesOfWorship || temple.languagesOfWorship
+  // Bank details — pendingStaging uses bankAccountNumberMasked, currentProfile uses bankAccountMasked
+  const effectiveBankName = pendingStaging?.bankName || currentProfile?.bankName || temple.bankName
+  const effectiveBankIfsc = pendingStaging?.bankIfsc || currentProfile?.bankIfsc || temple.bankIfsc
+  const effectiveBankAccountMasked = pendingStaging?.bankAccountNumberMasked || currentProfile?.bankAccountMasked
+  // Whether any contact field is sourced from a pending (unapproved) staging record
+  const hasUnreviewedData = !!(pendingStaging && ['SUBMITTED', 'UNDER_REVIEW', 'RESUBMITTED'].includes(pendingStaging.status) && (
+    pendingStaging.contactPersonName || pendingStaging.phone ||
+    pendingStaging.email || pendingStaging.languagesOfWorship ||
+    pendingStaging.bankName
+  ))
 
   const pendingReviewDecls = useMemo(() =>
     declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
@@ -116,6 +108,11 @@ export function OverviewTab({
               <Building2 size={16} className="text-white" />
             </div>
             <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Temple Identity & Information</h2>
+            {hasUnreviewedData && (
+              <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                Pending Review
+              </span>
+            )}
           </div>
           
           <div className="p-3">
@@ -128,28 +125,22 @@ export function OverviewTab({
                   <DetailItem label="Year Established" value={temple.yearEstablished ? temple.yearEstablished : '—'} />
                   <DetailItem label="Registration No." value={temple.registrationNumber || '—'} />
                   <DetailItem label="Alias Name" value={temple.aliasName || '—'} />
-                  <DetailItem label="Languages" value={formatList(temple.languagesOfWorship)} />
+                  <DetailItem label="Languages" value={formatList(effectiveLanguages)} />
                   <DetailItem label="Door Number" value={temple.doorNumber || '—'} />
                   <DetailItem label="PIN Code" value={temple.pinCode || '—'} />
-                  <DetailItem label="Contact Name" value={temple.contactName || '—'} />
-                  <DetailItem label="Contact Mobile" value={temple.contactMobile || '—'} />
-                  <DetailItem label="Contact Email" value={temple.contactEmail || '—'} />
-                  <DetailItem label="Designation" value={temple.contactDesignation || '—'} />
-<<<<<<< HEAD
-                  {temple.website && <DetailItem label="Website" value={temple.website} />}
-                  {temple.annualFestivals && <DetailItem label="Annual Festivals" value={temple.annualFestivals} />}
-                  {temple.landmark && <DetailItem label="Landmark" value={temple.landmark} />}
-=======
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
+                  <DetailItem label="Contact Name" value={effectiveContactName || '—'} />
+                  <DetailItem label="Contact Mobile" value={effectivePhone || '—'} />
+                  <DetailItem label="Contact Email" value={effectiveEmail || '—'} />
+                  <DetailItem label="Designation" value={effectiveContactDesignation || '—'} />
                 </div>
               </div>
 
               {/* Right Side - Photo (1/4 width) */}
               <div className="lg:col-span-1 flex flex-col items-center justify-start gap-2">
                 <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center overflow-hidden border-2 border-orange-200/60 shadow-lg group transition-all hover:shadow-xl hover:scale-105 duration-300">
-                  {temple.photoUrl ? (
+                  {effectivePhotoUrl ? (
                     <img
-                      src={`${import.meta.env.VITE_BASE_URL}${temple.photoUrl}`}
+                      src={`${import.meta.env.VITE_BASE_URL}${effectivePhotoUrl}`}
                       alt={temple.name || 'Temple Photo'}
                       className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -221,19 +212,19 @@ export function OverviewTab({
                   <UserCircle size={20} className="text-purple-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-900">{temple.contactName || '—'}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 font-regular">{temple.contactDesignation || '—'}</p>
+                  <p className="text-xs font-semibold text-slate-900">{effectiveContactName || '—'}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 font-regular">{effectiveContactDesignation || '—'}</p>
                   <div className="mt-2 space-y-1">
-                    {temple.contactMobile && (
-                      <a href={`tel:${temple.contactMobile}`} className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
+                    {effectivePhone && (
+                      <a href={`tel:${effectivePhone}`} className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
                         <Phone size={10} className="text-purple-400" />
-                        {temple.contactMobile}
+                        {effectivePhone}
                       </a>
                     )}
-                    {temple.contactEmail && (
-                      <a href={`mailto:${temple.contactEmail}`} className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
+                    {effectiveEmail && (
+                      <a href={`mailto:${effectiveEmail}`} className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
                         <Shield size={10} className="text-purple-400" />
-                        {temple.contactEmail}
+                        {effectiveEmail}
                       </a>
                     )}
                   </div>
@@ -311,12 +302,32 @@ export function OverviewTab({
               </div>
             </div>
           </div>
+
+          {/* Bank Account Details */}
+          {(effectiveBankName || effectiveBankIfsc || effectiveBankAccountMasked) && (
+            <div className="bg-white rounded-xl border border-slate-200/60 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
+              <div className="px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-green-50 to-emerald-50 flex items-center gap-2.5">
+                <div className="size-7 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-md">
+                  <CreditCard size={14} className="text-white" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Bank Account</h2>
+                {hasUnreviewedData && (pendingStaging?.bankName || pendingStaging?.bankIfsc || pendingStaging?.bankAccountNumberMasked) && (
+                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                    Pending Review
+                  </span>
+                )}
+              </div>
+              <div className="p-3">
+                <dl className="grid grid-cols-1 gap-y-2.5">
+                  {effectiveBankName && <DetailItem label="Bank Name" value={effectiveBankName} />}
+                  {effectiveBankIfsc && <DetailItem label="IFSC Code" value={effectiveBankIfsc} />}
+                  {effectiveBankAccountMasked && <DetailItem label="Account (Masked)" value={effectiveBankAccountMasked} />}
+                </dl>
+              </div>
+            </div>
+          )}
         </div>
 
-<<<<<<< HEAD
-        {/* Temple Oversight - FULL WIDTH */}
-        {(() => {
-=======
         {/* Temple Profile Governance — single card that cycles:
              Approved → Pending Review (when update submitted) → Approved.
              When pendingStaging exists, the card shows the update-under-review state
@@ -329,10 +340,10 @@ export function OverviewTab({
             // for the profile staging, not the old verified state.
             const govStatus = pendingStaging.governanceStatus
             const canApprove = govStatus
-              ? govStatus.allowedActions.includes('APPROVE') || govStatus.allowedActions.includes('RE_APPROVE')
+              ? (govStatus.allowedActions?.includes('APPROVE') || govStatus.allowedActions?.includes('RE_APPROVE')) ?? true
               : true
             const canReject = govStatus
-              ? govStatus.allowedActions.includes('REJECT')
+              ? govStatus.allowedActions?.includes('REJECT') ?? true
               : true
             return (
               <div className="rounded-xl overflow-hidden border border-amber-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
@@ -349,7 +360,6 @@ export function OverviewTab({
             )
           }
           // No pending update — show current temple verification / oversight state.
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
           const isVerified = temple.verificationStatus === 'VERIFIED'
           const flagReason = temple.verificationStatus === 'FLAGGED' ? (temple.dcFlagReason ?? 'Flagged by DC') : null
           return (
@@ -361,160 +371,11 @@ export function OverviewTab({
                 canAct={canAct}
                 onVerify={onVerifyTemple}
                 onFlag={onFlagTemple}
-<<<<<<< HEAD
-=======
                 onReject={onFlagTemple}
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
               />
             </div>
           )
         })()}
-<<<<<<< HEAD
-
-        {/* Pending Profile Review - FULL WIDTH (shown only when TA has submitted staging) */}
-        {pendingStaging && (
-          <div className="bg-white rounded-xl border-2 border-amber-300/70 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
-            <div className="px-4 py-2.5 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md">
-                  <Clock size={16} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Pending Profile Submission — Awaiting Review</h2>
-                  <p className="text-[10px] text-amber-700 font-medium">Version {pendingStaging.version} · Submitted by Temple Authority</p>
-                </div>
-              </div>
-              <button
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-                onClick={() => setProfileSectionExpanded((p) => !p)}
-                aria-label="Toggle profile section"
-              >
-                {profileSectionExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-            </div>
-            {profileSectionExpanded && (
-              <div className="p-3 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
-                  <DetailItem label="Contact Person" value={pendingStaging.contactPersonName || '—'} />
-                  <DetailItem label="Designation" value={pendingStaging.contactPersonDesignation || '—'} />
-                  <DetailItem label="Phone" value={pendingStaging.phone || '—'} />
-                  <DetailItem label="Email" value={pendingStaging.email || '—'} />
-                  <DetailItem label="Website" value={pendingStaging.website || '—'} />
-                  <DetailItem label="Languages of Worship" value={pendingStaging.languagesOfWorship || '—'} />
-                  <DetailItem label="Bank Name" value={pendingStaging.bankName || '—'} />
-                  <DetailItem label="Bank Account (masked)" value={pendingStaging.bankAccountNumberMasked || '—'} />
-                  <DetailItem label="Bank IFSC" value={pendingStaging.bankIfsc || '—'} />
-                  <DetailItem label="Annual Festivals" value={pendingStaging.annualFestivals || '—'} />
-                  <DetailItem label="Landmark" value={pendingStaging.landmark || '—'} />
-                </div>
-                {pendingStaging.description && (
-                  <div>
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
-                    <p className="text-xs text-slate-700 leading-relaxed">{pendingStaging.description}</p>
-                  </div>
-                )}
-                {pendingStaging.historicalSignificance && (
-                  <div>
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Historical Significance</p>
-                    <p className="text-xs text-slate-700 leading-relaxed">{pendingStaging.historicalSignificance}</p>
-                  </div>
-                )}
-                {canAct && (
-                  <div className="pt-3 border-t border-amber-100 space-y-2">
-                    {showRejectInput ? (
-                      <div className="space-y-2">
-                        <textarea
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Provide the rejection reason (required, min 10 characters)…"
-                          rows={3}
-                          className="w-full text-xs rounded-lg border border-red-200 bg-red-50/50 p-2.5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-7 text-xs font-bold px-3"
-                            disabled={rejectReason.trim().length < 10}
-                            onClick={() => {
-                              onRejectProfile(pendingStaging.id, rejectReason)
-                              setShowRejectInput(false)
-                              setRejectReason('')
-                            }}
-                          >
-                            Confirm Reject
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowRejectInput(false); setRejectReason('') }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-4"
-                          onClick={() => onApproveProfile(pendingStaging.id)}
-                        >
-                          Approve Profile
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs font-bold border-red-300 text-red-600 hover:bg-red-50 px-4"
-                          onClick={() => setShowRejectInput(true)}
-                        >
-                          Reject Profile
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Approved Account Details - FULL WIDTH (shown when a profile has been approved) */}
-        {currentProfile && (
-          <div className="bg-white rounded-xl border border-emerald-200/70 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
-            <div className="px-4 py-2.5 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 flex items-center gap-2.5">
-              <div className="size-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
-                <CreditCard size={16} className="text-white" />
-              </div>
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Approved Account Details</h2>
-            </div>
-            <div className="p-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
-                <DetailItem label="Contact Person" value={currentProfile.contactPersonName || '—'} />
-                <DetailItem label="Designation" value={currentProfile.contactPersonDesignation || '—'} />
-                <DetailItem label="Phone" value={currentProfile.phone || '—'} />
-                <DetailItem label="Email" value={currentProfile.email || '—'} />
-                <DetailItem label="Website" value={currentProfile.website || '—'} />
-                <DetailItem label="Bank Name" value={currentProfile.bankName || '—'} />
-                <DetailItem label="Bank Account (masked)" value={currentProfile.bankAccountMasked || '—'} />
-                <DetailItem label="Bank IFSC" value={currentProfile.bankIfsc || '—'} />
-                <DetailItem label="Languages of Worship" value={currentProfile.languagesOfWorship || '—'} />
-                <DetailItem label="Annual Festivals" value={currentProfile.annualFestivals || '—'} />
-                <DetailItem label="Landmark" value={currentProfile.landmark || '—'} />
-              </div>
-              {currentProfile.description && (
-                <div className="mt-2.5">
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{currentProfile.description}</p>
-                </div>
-              )}
-              {currentProfile.historicalSignificance && (
-                <div className="mt-2.5">
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mb-1">Historical Significance</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{currentProfile.historicalSignificance}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-=======
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
       </div>
     </div>
   )

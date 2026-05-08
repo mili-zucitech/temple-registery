@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -204,13 +205,13 @@ class GovernanceWorkflowTest {
     class RejectFlow {
 
         @Test
-        @DisplayName("GovernanceEditGuard blocks editing when WorkflowStatus is REJECTED (terminal)")
+        @DisplayName("GovernanceEditGuard allows editing when WorkflowStatus is REJECTED (TA can fix and resubmit)")
         void rejectedStatusCannotBeEdited() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L))
-                    .isInstanceOf(IllegalStatusTransitionException.class)
-                    .hasMessageContaining("REJECTED");
+            // REJECTED is now editable — TA can fix and resubmit (REJECTED → UPDATED_AFTER_APPROVAL → RESUBMITTED)
+            assertThatNoException().isThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L));
+            assertThat(guard.requiresResubmission(WorkflowStatus.REJECTED)).isTrue();
         }
 
         @Test
@@ -579,13 +580,13 @@ class GovernanceWorkflowTest {
         }
 
         @Test
-        @DisplayName("REJECTED WorkflowStatus still cannot be edited (terminal state)")
+        @DisplayName("GovernanceEditGuard allows editing when REJECTED (TA fix-and-resubmit flow)")
         void rejectedEntityCannotBeEdited() {
             GovernanceEditGuard guard = new GovernanceEditGuard(null);
 
-            assertThatThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L))
-                    .isInstanceOf(IllegalStatusTransitionException.class)
-                    .hasMessageContaining("REJECTED");
+            // REJECTED is editable so TA can fix issues and resubmit for re-review
+            assertThatNoException().isThrownBy(() -> guard.assertCanEdit(WorkflowStatus.REJECTED, "Trust", 1L));
+            assertThat(guard.requiresResubmission(WorkflowStatus.REJECTED)).isTrue();
         }
 
         @Test

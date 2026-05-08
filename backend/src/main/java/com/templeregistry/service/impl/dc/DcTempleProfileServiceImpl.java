@@ -325,6 +325,14 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                                         com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
                                                         com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW,
                                                         com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED))
+                                .or(() ->
+                                        // Fallback: if no active review exists, return the most recently
+                                        // rejected staging so DC can still see what was reviewed.
+                                        profileStagingRepository
+                                                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                                                        templeId,
+                                                        java.util.List.of(
+                                                                com.templeregistry.entity.workflow.WorkflowStatus.REJECTED)))
                                 .map(this::toProfileStagingResponse)
                                 .orElse(null);
         }

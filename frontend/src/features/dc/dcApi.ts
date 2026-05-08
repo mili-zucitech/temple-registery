@@ -113,6 +113,7 @@ export const dcApi = createApi({
       invalidatesTags: (_r, _e, { templeId }) => [
         { type: 'DcProfileStaging', id: templeId },
         { type: 'DcTempleProfile', id: templeId },
+        'DcTempleSearch',
         'DcDashboard',
       ],
     }),

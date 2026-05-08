@@ -277,8 +277,6 @@ export function TaTrustPage() {
 
   return (
     <div className="space-y-5 pb-10">
-<<<<<<< HEAD
-=======
       {/* Rejection reason banner */}
       {trust && reviewStatus === 'REJECTED' && trust.governanceStatus?.rejectionReason && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex gap-3">
@@ -292,8 +290,7 @@ export function TaTrustPage() {
           </div>
         </div>
       )}
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
-      {/* Modern Header */}
+      {/* Modern Header */}}
       <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -348,8 +345,6 @@ export function TaTrustPage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-<<<<<<< HEAD
-=======
             {trust && reviewStatus === 'UPDATED_AFTER_APPROVAL' && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -384,7 +379,6 @@ export function TaTrustPage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
->>>>>>> e2e0516d75a5488f31f2a14dc12684a760117c3f
           </div>
 
           {trust && (
