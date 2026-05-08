@@ -140,13 +140,14 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Trust trust = loadTrust(trustId);
         assertDistrictScopeForTrust(trust);
 
-        // Simplified workflow: send-back is now equivalent to reject for Trust.
-        // The CLARIFICATION_REQUESTED loop is removed from Trust workflow.
-        workflowEngineAdaptor.adaptReject(
+        workflowEngineAdaptor.adaptSendBack(
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
 
-        log.info("Trust [{}] REJECTED (via send-back) by userId={}", trustId, currentUserId());
+        trust.setSendBackReason(request.getReason());
+        trustRepository.save(trust);
+
+        log.info("Trust [{}] SENT BACK by userId={}", trustId, currentUserId());
     }
 
     @Override
@@ -254,7 +255,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on approval
         versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         return WorkflowActionResponse.builder()
                 .declarationId(declarationId)
@@ -321,7 +322,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on rejection
         versionService.snapshot(WorkflowEntityType.DECLARATION, declarationId, 1, declaration, claims.userId(), null);
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper call removed — NotificationRouter handles GovernanceDomainEvent.
 
@@ -381,7 +382,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 .authorId(claims.userId())
                 .build());
 
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper removed — event outbox takes over.
 
@@ -446,7 +447,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         auditService.logDataEvent(claims.userId(), claims.role(), "PHYSICAL_VERIFICATION_REQUESTED",
                 "AssetDeclaration", declarationId, "flagged=true");
-        summaryService.refresh(declaration.getTempleId());
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [P3] Manual notificationHelper removed — event outbox takes over.
 

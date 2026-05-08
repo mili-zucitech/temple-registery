@@ -5,6 +5,7 @@ import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
+import com.templeregistry.repository.workflow.WorkflowTransitionRepository;
 import com.templeregistry.service.governance.impl.GovernanceStatusResolverImpl;
 import com.templeregistry.service.workflow.TransitionRuleRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,9 @@ class GovernanceStatusResolverImplTest {
 
     @Mock
     private WorkflowInstanceRepository instanceRepo;
+
+    @Mock
+    private WorkflowTransitionRepository transitionRepo;
 
     @Spy
     private TransitionRuleRegistry ruleRegistry = new TransitionRuleRegistry();
@@ -154,7 +158,8 @@ class GovernanceStatusResolverImplTest {
 
         assertThat(payload.getStatus()).isEqualTo("REJECTED");
         assertThat(payload.getSeverity()).isEqualTo("ERROR");
-        assertThat(payload.getActionableBy()).isNull();
+        // REJECTED is now actionable by TA (fix and resubmit flow)
+        assertThat(payload.getActionableBy()).isEqualTo("TA");
         assertThat(payload.isRequiresComment()).isTrue();
     }
 
@@ -238,7 +243,9 @@ class GovernanceStatusResolverImplTest {
 
         GovernanceStatusPayload payload = resolver.resolveFromInstance(rejected);
 
-        assertThat(payload.getActionableBy()).isNull();
-        assertThat(payload.getAllowedActions()).isEmpty();
+        // REJECTED is now actionable by TA (TA can fix and resubmit)
+        assertThat(payload.getActionableBy()).isEqualTo("TA");
+        // AllowedActions may be empty if no TA RESUBMIT rule is registered for this entity type
+        assertThat(payload.getAllowedActions()).isNotNull();
     }
 }

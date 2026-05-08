@@ -51,7 +51,7 @@ public class Trust extends BaseEntity {
     private String trustPANNumber;
 
     @Convert(converter = AesEncryptionConverter.class)
-    @Column(name = "bank_account_number", nullable = false, length = 255)
+    @Column(name = "bank_account_number", nullable = false, columnDefinition = "TEXT")
     private String bankAccountNumber;
 
     @Column(name = "bank_name_and_branch", nullable = false, length = 255)

@@ -148,6 +148,11 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         current.setPublishedBy(claims.userId());
         currentRepository.save(current);
 
+        // Promote staging fields to the Temple entity so the TA's own profile view
+        // reflects the approved data immediately (Temple entity is the TA-facing read model).
+        promoteToTemple(temple, staging);
+        templeRepository.save(temple);
+
         // Update legacy staging status for backward compatibility
         staging.setStatus(TempleProfileStagingStatus.APPROVED);
         staging.setReviewedAt(LocalDateTime.now());
@@ -271,5 +276,27 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private Temple loadTempleWithGeo(Long templeId) {
         return templeRepository.findWithGeoById(templeId)
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
+    }
+
+    /**
+     * Promotes non-null staging fields to the Temple entity so the TA's profile view
+     * reflects approved content immediately (Temple is the TA-facing read model).
+     * Mirrors TempleProfileStagingServiceImpl#promoteToTemple.
+     */
+    private void promoteToTemple(Temple temple, TempleProfileStaging staging) {
+        if (staging.getContactPersonName() != null)        temple.setContactName(staging.getContactPersonName());
+        if (staging.getContactPersonDesignation() != null) temple.setContactDesignation(staging.getContactPersonDesignation());
+        if (staging.getLanguagesOfWorship() != null)       temple.setLanguagesOfWorship(staging.getLanguagesOfWorship());
+        if (staging.getPhotoFilePath() != null)            temple.setPhotoUrl(staging.getPhotoFilePath());
+        if (staging.getPhone() != null)                    temple.setContactMobile(staging.getPhone());
+        if (staging.getEmail() != null)                    temple.setContactEmail(staging.getEmail());
+        if (staging.getWebsite() != null)                  temple.setWebsite(staging.getWebsite());
+        if (staging.getDescription() != null)              temple.setHistory(staging.getDescription());
+        if (staging.getAnnualFestivals() != null)          temple.setAnnualFestivals(staging.getAnnualFestivals());
+        if (staging.getLandmark() != null)                 temple.setLandmark(staging.getLandmark());
+        if (staging.getHistoricalSignificance() != null)   temple.setHistoricalSignificance(staging.getHistoricalSignificance());
+        if (staging.getBankName() != null)                 temple.setBankName(staging.getBankName());
+        if (staging.getBankIfsc() != null)                 temple.setBankIfsc(staging.getBankIfsc());
+        if (staging.getLinkedInstitutions() != null)       temple.setLinkedInstitutions(staging.getLinkedInstitutions());
     }
 }

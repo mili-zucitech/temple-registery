@@ -411,7 +411,7 @@ export function useDcTempleProfile(templeId: number) {
  * Returns `{ pendingStaging: null }` when the temple has no pending review submission.
  */
 export function useDcPendingProfileStaging(templeId: number, skip = false) {
-  const { data, isLoading, isError } = useGetDcPendingProfileStagingQuery(templeId, {
+  const { data, isLoading, isError, refetch } = useGetDcPendingProfileStagingQuery(templeId, {
     skip: !templeId || skip,
   })
 
@@ -419,6 +419,7 @@ export function useDcPendingProfileStaging(templeId: number, skip = false) {
     pendingStaging: data?.data ?? null,
     isLoading,
     isError,
+    refetch,
   }
 }
 

@@ -41,6 +41,7 @@ class TempleProfileStagingServiceImplTest {
     @Mock OwnershipGuard ownershipGuard;
     @Mock PaginationUtil paginationUtil;
     @Mock com.templeregistry.service.workflow.WorkflowEngine workflowEngine;
+    @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
     @Mock com.templeregistry.service.workflow.VersionService versionService;
     @Mock com.templeregistry.service.clarification.ClarificationEngine clarificationEngine;
     @Mock ActionContextResolver actionContextResolver;
@@ -103,8 +104,13 @@ class TempleProfileStagingServiceImplTest {
         when(templeRepository.findById(2L)).thenReturn(Optional.of(activeTemple));
         TempleProfileStaging pending = TempleProfileStaging.builder().templeId(2L).build();
         pending.setId(101L);
-        when(stagingRepository.findFirstByTempleIdAndStatus(2L, WorkflowStatus.SUBMITTED))
+        // Implementation checks for pending DC-review states via findTopByTempleIdAndStatusInOrderByVersionNumberDesc
+        when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(2L), argThat(list -> list.contains(WorkflowStatus.SUBMITTED))))
                 .thenReturn(Optional.of(pending));
+        // Make workflowEngine.getState return a SUBMITTED instance (used in the error message)
+        lenient().when(workflowEngine.getState(any(), eq(101L))).thenReturn(
+                WorkflowInstance.builder().id(999L).status(WorkflowStatus.SUBMITTED).build());
 
         assertThatThrownBy(() -> stagingService.createOrUpdateDraft(2L, new CreateTempleProfileStagingRequest()))
                 .isInstanceOf(IllegalStateException.class)
@@ -113,19 +119,27 @@ class TempleProfileStagingServiceImplTest {
 
     @Test
     void should_delegate_to_workflow_engine_when_submitForReview() {
-        when(templeRepository.findById(3L)).thenReturn(Optional.of(activeTemple));
+        Temple temple3 = Temple.builder().id(3L).districtId(10L).status(TempleStatus.ACTIVE).build();
+        when(templeRepository.findById(3L)).thenReturn(Optional.of(temple3));
         TempleProfileStaging draft = TempleProfileStaging.builder().templeId(3L).build();
         draft.setId(102L);
         
         when(stagingRepository.findFirstByTempleIdAndStatus(3L, WorkflowStatus.DRAFT))
                 .thenReturn(Optional.of(draft));
+        // No pending review blocking (returns empty)
+        lenient().when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(3L), any())).thenReturn(Optional.empty());
         
         WorkflowInstance instance = mockWorkflow(WorkflowStatus.DRAFT, 1);
-        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
 
         stagingService.submitForReview(3L);
 
-        verify(workflowEngine).execute(eq(instance.getId()), any(), any());
+        verify(workflowEngineAdaptor).adaptSubmit(
+                eq(WorkflowEntityType.TEMPLE_PROFILE),
+                eq(102L),
+                eq(3L),
+                eq(10L),
+                eq(42L));
         verify(versionService).snapshot(eq(WorkflowEntityType.TEMPLE_PROFILE), eq(102L), eq(1), eq(draft), eq(42L), isNull());
     }
 
