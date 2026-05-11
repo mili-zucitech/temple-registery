@@ -158,10 +158,6 @@ export function OverviewTab({
                   <DetailItem label="Alias Name" value={temple.aliasName || '—'} />
                   <DetailItem label="Languages" value={formatList(effectiveLanguages)} />
                   <DetailItem label="PIN Code" value={temple.pinCode || '—'} />
-                  <DetailItem label="Contact Name" value={effectiveContactName || '—'} />
-                  <DetailItem label="Contact Mobile" value={effectivePhone || '—'} />
-                  <DetailItem label="Contact Email" value={effectiveEmail || '—'} />
-                  <DetailItem label="Designation" value={effectiveContactDesignation || '—'} />
                 </div>
               </div>
 
