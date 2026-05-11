@@ -75,6 +75,7 @@ export function TaTrustPage() {
   const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, {
     skip: !templeId,
     refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
   })
   const trust = useMemo(() => trustData?.data?.[0] ?? null, [trustData])
 

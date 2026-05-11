@@ -40,8 +40,8 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
   }, [inputValue])
 
   const { data, isFetching } = useSearchTemplesQuery(
-    { filters: { name: debouncedKeyword }, page: 0, size: 8 },
-    { skip: debouncedKeyword.trim().length < 2 }
+    { filters: { name: debouncedKeyword }, page: 0, size: 10 },
+    { skip: false }
   )
   const results = data?.data?.content ?? []
 
@@ -112,7 +112,7 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
           </div>
         )}
       </div>
-      {open && debouncedKeyword.trim().length >= 2 && (
+      {open && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
           {results.length === 0 && !isFetching ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">No temples found matching "{debouncedKeyword}"</div>
@@ -154,11 +154,12 @@ interface ActionCardProps {
   confirmVariant: 'default' | 'destructive'
   irreversible?: boolean
   onAction: (args: { id: number; reason: string }) => Promise<unknown>
+  onSuccess?: () => void
   isLoading: boolean
   templeId: number | null
 }
 
-function ActionCard({ label, description, icon, accentClass, confirmVariant, irreversible, onAction, isLoading, templeId }: ActionCardProps) {
+function ActionCard({ label, description, icon, accentClass, confirmVariant, irreversible, onAction, onSuccess, isLoading, templeId }: ActionCardProps) {
   const [reason, setReason] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -169,6 +170,7 @@ function ActionCard({ label, description, icon, accentClass, confirmVariant, irr
       toast.success(`Temple #${templeId}: ${label} applied successfully`)
       setReason('')
       setConfirmOpen(false)
+      onSuccess?.()
     } catch (err: any) {
       const msg = err?.data?.message || `Failed to ${label.toLowerCase()} temple #${templeId}`
       toast.error(msg)
@@ -266,6 +268,7 @@ export function TempleGovernancePage() {
             accentClass="bg-amber-400"
             confirmVariant="destructive"
             onAction={(args) => suspend(args).unwrap()}
+            onSuccess={() => setSelectedTemple(null)}
             isLoading={suspending}
             templeId={templeId}
           />
@@ -276,6 +279,7 @@ export function TempleGovernancePage() {
             accentClass="bg-emerald-400"
             confirmVariant="default"
             onAction={(args) => reactivate(args).unwrap()}
+            onSuccess={() => setSelectedTemple(null)}
             isLoading={reactivating}
             templeId={templeId}
           />
@@ -286,6 +290,7 @@ export function TempleGovernancePage() {
             accentClass="bg-blue-400"
             confirmVariant="default"
             onAction={(args) => freeze(args).unwrap()}
+            onSuccess={() => setSelectedTemple(null)}
             isLoading={freezing}
             templeId={templeId}
           />
@@ -297,6 +302,7 @@ export function TempleGovernancePage() {
             confirmVariant="destructive"
             irreversible
             onAction={(args) => archive(args).unwrap()}
+            onSuccess={() => setSelectedTemple(null)}
             isLoading={archiving}
             templeId={templeId}
           />

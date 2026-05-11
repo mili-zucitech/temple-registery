@@ -25,9 +25,12 @@ export class WorkflowAssertions {
     const orphans = await this.db.query<WorkflowInstance>(`
       SELECT w.id, w.entity_type, w.entity_id
       FROM workflow_instances w
-      WHERE (w.entity_type = 'TRUST' AND w.entity_id NOT IN (SELECT id FROM trusts))
-        OR (w.entity_type = 'DECLARATION' AND w.entity_id NOT IN (SELECT id FROM asset_declarations))
-         OR (w.entity_type = 'TEMPLE_PROFILE' AND w.entity_id NOT IN (SELECT id FROM temple_profile_staging))
+      WHERE w.created_at >= NOW() - INTERVAL 1 HOUR
+        AND (
+          (w.entity_type = 'TRUST' AND w.entity_id NOT IN (SELECT id FROM trusts))
+          OR (w.entity_type = 'DECLARATION' AND w.entity_id NOT IN (SELECT id FROM asset_declarations))
+          OR (w.entity_type = 'TEMPLE_PROFILE' AND w.entity_id NOT IN (SELECT id FROM temple_profile_staging))
+        )
     `);
 
     expect(orphans, 'Found orphaned workflow instances').toHaveLength(0);

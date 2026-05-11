@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { extractApiErrorMessage } from '@/lib/apiError'
 import {
-  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase, History
+  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -68,7 +68,6 @@ import {
   StaffTab,
   ContractorsTab,
   DocumentsTab,
-  ProfileHistoryTab,
 } from './tabs'
 
 export function DcTempleProfilePage() {
@@ -317,7 +316,6 @@ export function DcTempleProfilePage() {
                   { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
                   { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
-                  { v: 'history',      label: 'Profile History', icon: <History size={14} />, count: null },
                 ] as const
               ).map((tab) => (
                 <TabsTrigger
@@ -450,10 +448,6 @@ export function DcTempleProfilePage() {
 
           <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DocumentsTab templeId={id} />
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <ProfileHistoryTab templeId={id} />
           </TabsContent>
         </div>
       </Tabs>

@@ -74,7 +74,7 @@ async function taCreateTrust(templeId: number, seed: number): Promise<number> {
 }
 
 test.describe.serial('Trust Workflow', () => {
-  const TEMPLE_ID = 30270;
+  const TEMPLE_ID = 31970;
 
   // Temporarily soft-delete any pre-existing non-E2E trust for the test temple
   // so the one-per-temple constraint doesn't block test trust creation.

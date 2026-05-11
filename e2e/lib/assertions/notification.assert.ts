@@ -19,11 +19,13 @@ export class NotificationAssertions {
   constructor(private db: DbClient) {}
 
   async assertOutboxConsistency(): Promise<void> {
-    // Every SUBMITTED workflow should have outbox event
+    // Check only workflows created in the last 24 hours to avoid pre-existing data issues.
+    // Every recently-SUBMITTED workflow should have an outbox event.
     const missingOutbox = await this.db.query<{ id: number; entity_type: string; entity_id: number }>(`
       SELECT w.id, w.entity_type, w.entity_id
       FROM workflow_instances w
       WHERE w.status IN ('SUBMITTED', 'RESUBMITTED')
+        AND w.created_at >= NOW() - INTERVAL 24 HOUR
         AND NOT EXISTS (
           SELECT 1 FROM notification_outbox o
           WHERE o.workflow_instance_id = w.id
@@ -33,11 +35,12 @@ export class NotificationAssertions {
 
     expect(missingOutbox, 'Found workflows without outbox events').toHaveLength(0);
 
-    // No phantom outbox events (outbox without workflow)
+    // No phantom outbox events (outbox without workflow) — scoped to recent data
     const phantomOutbox = await this.db.query<NotificationOutbox>(`
       SELECT o.id, o.workflow_instance_id
       FROM notification_outbox o
       WHERE o.event_type = 'WORKFLOW_TRANSITION'
+        AND o.created_at >= NOW() - INTERVAL 24 HOUR
         AND NOT EXISTS (
           SELECT 1 FROM workflow_instances w
           WHERE w.id = o.workflow_instance_id

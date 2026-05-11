@@ -68,8 +68,10 @@ export function useDcDashboard() {
     role === USER_ROLES.DISTRICT_COLLECTOR ||
     role === USER_ROLES.DC_STAFF
   const { data, isLoading, isError, refetch } = useGetDcDashboardQuery(undefined, {
-    // Treat cached data as fresh for 5 minutes before re-fetching on mount
-    refetchOnMountOrArgChange: 300,
+    // Treat cached data as fresh for 60 seconds before re-fetching on mount.
+    // Also refetch when the user returns to the tab so KPI counts stay current.
+    refetchOnMountOrArgChange: 60,
+    refetchOnFocus: true,
     skip: !isDcRole,
   })
 

@@ -67,7 +67,7 @@ export function getAvailableActions(
     // TA actions
     canEdit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
     canSubmit: isTA && (status === 'DRAFT' || status === 'REJECTED'),
-    canWithdraw: isTA && (status === 'SUBMITTED' || status === 'CLARIFICATION_REQUIRED'),
+    canWithdraw: false,
     canRespondToClarification:
       isTA &&
       (status === 'CLARIFICATION_REQUIRED' ||

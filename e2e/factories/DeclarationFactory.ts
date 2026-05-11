@@ -22,8 +22,16 @@ export class DeclarationFactory {
     options: { templeId: number; fiscalYear?: string },
     overrides?: Partial<any>
   ): Promise<Declaration> {
+    // Generate a unique fiscal year using the test run seed to avoid
+    // conflicts with pre-existing declarations for the shared test temple.
+    const uniqueFiscalYear = options.fiscalYear || (() => {
+      const seed = context.generateId();
+      const timeSalt = Math.floor(Date.now() / 1000) % 7000;
+      const start = 2100 + ((seed + timeSalt) % 6000);
+      return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+    })();
     const declaration = {
-      financialYear: options.fiscalYear || '2025-26',
+      financialYear: uniqueFiscalYear,
       dueDate: '2026-03-31',
       annualIncome: 0,
       annualExpenditure: 0,

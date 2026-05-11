@@ -45,7 +45,7 @@ export function OverviewTab({
   const hasDcProfileAction = pendingAllowedActions.includes('APPROVE')
     || pendingAllowedActions.includes('RE_APPROVE')
     || pendingAllowedActions.includes('REJECT')
-  const actionablePendingStaging = hasDcProfileAction ? pendingStaging : null
+  const actionablePendingStaging = (hasDcProfileAction && hasPendingData) ? pendingStaging : null
 
   // Effective display values — 2-layer priority for profile-managed fields:
   //   1. Pending staging (TA submitted, awaiting or under DC review) — shows most current TA data

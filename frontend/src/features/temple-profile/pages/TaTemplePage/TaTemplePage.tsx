@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock, XCircle, FileEdit } from 'lucide-react'
+import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock, XCircle, FileEdit, X } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -28,8 +28,10 @@ function fmt(iso?: string | null) {
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const { temple, stagingProfile, profileStatus, profileReviewComment, talukName, hobliName } = useTempleProfile()
+  const { temple, stagingProfile, currentProfile, profileStatus, profileReviewComment, talukName, hobliName } = useTempleProfile()
   const navigate = useNavigate()
+  // Local dismissal for the rejection banner. Auto-resets if status changes away from REJECTED.
+  const [rejectionDismissed, setRejectionDismissed] = useState(false)
 
   const { data: photosData, isLoading: photosLoading } = useGetTemplePhotosQuery(temple?.id!, {
     skip: !temple?.id,
@@ -39,6 +41,9 @@ function OverviewTab() {
 
   const effective = stagingProfile ?? temple
   const effectiveAny = effective as any
+  // bankAccountMasked is not on TempleResponse; fall back to last staging history entry.
+  const effectiveBankAccountMasked =
+    effectiveAny?.bankAccountMasked ?? (currentProfile as any)?.bankAccountMasked ?? null
   // Null-safe photo fallback: staging may exist but have no photoUrl (e.g. first draft with no photo saved).
   // Fall through to temple.photoUrl (presigned by getById) in that case.
   const effectivePhotoUrl = stagingProfile?.photoUrl ?? temple?.photoUrl
@@ -91,11 +96,11 @@ function OverviewTab() {
 
       {/* Profile workflow status banners — driven by profileStatus, NOT temple.verificationStatus */}
 
-      {profileStatus === 'REJECTED' && (
+      {profileStatus === 'REJECTED' && !rejectionDismissed && (
         <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
           <div className="flex items-start gap-3">
-            <XCircle className="mt-0.5 h-5 w-5 text-destructive" />
-            <div className="space-y-1">
+            <XCircle className="mt-0.5 h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1 space-y-1">
               <p className="text-sm font-semibold text-destructive">Profile Update Rejected by DC</p>
               {profileReviewComment ? (
                 <p className="text-sm text-foreground">{profileReviewComment}</p>
@@ -103,6 +108,14 @@ function OverviewTab() {
                 <p className="text-sm text-foreground">Your profile update was rejected. Please review the feedback and create a new draft to resubmit.</p>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => setRejectionDismissed(true)}
+              className="shrink-0 rounded-md p-1 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label="Dismiss rejection notice"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
       )}
@@ -313,7 +326,7 @@ function OverviewTab() {
       </div>
 
       {/* Bank Details */}
-      {(effectiveAny?.bankName || effectiveAny?.bankAccountMasked || effectiveAny?.bankIfsc) && (
+      {(effectiveAny?.bankName || effectiveBankAccountMasked || effectiveAny?.bankIfsc) && (
         <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-card dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-card shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-r from-blue-100/50 via-indigo-50/30 to-transparent dark:from-blue-900/20 dark:via-indigo-900/10">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/10">
@@ -325,7 +338,7 @@ function OverviewTab() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <InfoField label="Bank Name" value={effectiveAny.bankName} />
               <InfoField label="IFSC Code" value={effectiveAny.bankIfsc} />
-              <InfoField label="Account Number" value={effectiveAny.bankAccountMasked} />
+              <InfoField label="Account Number" value={effectiveBankAccountMasked} />
             </div>
           </div>
         </div>

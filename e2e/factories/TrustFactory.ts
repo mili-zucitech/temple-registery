@@ -24,16 +24,17 @@ export class TrustFactory {
     overrides?: Partial<any>
   ): Promise<Trust> {
     const id = context.generateId();
+    // PAN must be exactly 10 chars: 5 alpha + 4 digits + 1 alpha (e.g. ABCDE1234F)
+    const pan4 = String((id % 9000) + 1000); // always 4 digits: 1000-9999
     
     const trust = {
-      templeId: options.templeId,
       trustName: `Test Trust ${id}`,
-      trustRegistrationNumber: `TRN-TEST-${id}`,
+      registrationNumber: `TRN-TEST-${id}`,
       dateOfRegistration: '2020-01-01',
       registeringAuthority: 'Test Authority',
       trustType: 'PUBLIC',
-      panNumber: `ABCDE${id.toString().padStart(4, '0')}F`,
-      bankAccountNumber: `ACC${id}`,
+      panNumber: `ABCDE${pan4}F`,
+      bankAccountNumber: String(100000 + (id % 900000)),
       bankName: 'Test Bank',
       bankBranch: 'Test Branch',
       annualIncome: 1000000,
@@ -41,8 +42,22 @@ export class TrustFactory {
       ...overrides
     };
 
-    const created = await api.post<Trust>('/trusts', trust);
-    context.registerEntityForCleanup('TRUST', created.id);
+    let created: Trust;
+    try {
+      created = await api.post<Trust>(`/temples/${options.templeId}/trusts`, trust);
+      context.registerEntityForCleanup('TRUST', created.id);
+    } catch (err: any) {
+      // If a trust already exists for this temple, fetch and return it
+      if (err.message && err.message.includes('409')) {
+        const existing = await api.get<Trust[]>(`/temples/${options.templeId}/trusts`);
+        if (!existing || existing.length === 0) {
+          throw err;
+        }
+        created = existing[0];
+      } else {
+        throw err;
+      }
+    }
     
     return created;
   }

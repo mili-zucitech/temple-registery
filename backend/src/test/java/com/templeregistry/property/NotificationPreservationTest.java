@@ -424,10 +424,10 @@ class NotificationPreservationTest {
         // Verify the repository method exists
         Class<?> repoClass = com.templeregistry.repository.notification.InAppNotificationRepository.class;
         boolean hasFindAllByUserIdOrderByCreatedAtDesc = Arrays.stream(repoClass.getDeclaredMethods())
-                .anyMatch(m -> m.getName().equals("findAllByUserIdOrderByCreatedAtDesc"));
+                .anyMatch(m -> m.getName().equals("findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc"));
         assertThat(hasFindAllByUserIdOrderByCreatedAtDesc)
                 .as("PRESERVATION 3.8: InAppNotificationRepository must have " +
-                    "findAllByUserIdOrderByCreatedAtDesc() for userId=%d", userId)
+                    "findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc() for userId=%d", userId)
                 .isTrue();
     }
 
@@ -452,11 +452,11 @@ class NotificationPreservationTest {
                     "for userId=%d", userId)
                 .isTrue();
 
-        // Verify countByUserIdAndIsRead exists (used by unread count)
+        // Verify countByUserIdAndIsReadAndDeletedAtIsNull exists (used by unread count)
         boolean hasCountByUserIdAndIsRead = Arrays.stream(repoClass.getDeclaredMethods())
-                .anyMatch(m -> m.getName().equals("countByUserIdAndIsRead"));
+                .anyMatch(m -> m.getName().equals("countByUserIdAndIsReadAndDeletedAtIsNull"));
         assertThat(hasCountByUserIdAndIsRead)
-                .as("PRESERVATION 3.9: InAppNotificationRepository must have countByUserIdAndIsRead() " +
+                .as("PRESERVATION 3.9: InAppNotificationRepository must have countByUserIdAndIsReadAndDeletedAtIsNull() " +
                     "for userId=%d", userId)
                 .isTrue();
     }

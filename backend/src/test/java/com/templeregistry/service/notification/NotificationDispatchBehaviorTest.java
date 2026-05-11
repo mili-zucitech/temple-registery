@@ -7,6 +7,8 @@ import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.event.base.ModuleType;
 import com.templeregistry.event.workflow.GovernanceDomainEvent;
+import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.service.notification.impl.EmailDeliveryService;
 import com.templeregistry.service.notification.impl.NotificationDispatchServiceImpl;
 import com.templeregistry.service.notification.impl.SseNotificationService;
@@ -42,6 +44,8 @@ class NotificationDispatchBehaviorTest {
     @Mock SseNotificationService sseService;
     @Mock NotificationPreferenceService notificationPreferenceService;
     @Mock EmailService emailService;
+    @Mock TempleRepository templeRepository;
+    @Mock UserRepository userRepository;
 
     @InjectMocks
     NotificationDispatchServiceImpl dispatchService;
@@ -88,10 +92,10 @@ class NotificationDispatchBehaviorTest {
 
         verify(notificationService).createInAppNotification(
             eq(RECIPIENT_ID),
-            contains("approved"),
+            contains("Approve"),
             anyString(),
             eq("MEDIUM"),
-            eq("DECLARATION"),
+            eq("DECLARATION_APPROVE"),
             anyString(),       // entityType
             eq(ENTITY_ID),     // entityId
             eq(INSTANCE_ID),   // workflowInstanceId
@@ -139,7 +143,7 @@ class NotificationDispatchBehaviorTest {
 
         verify(notificationService).createInAppNotification(
             eq(RECIPIENT_ID), anyString(), anyString(),
-            eq("HIGH"), eq("DECLARATION"),
+            eq("HIGH"), eq("DECLARATION_REJECT"),
             anyString(),       // entityType
             eq(ENTITY_ID),     // entityId
             eq(INSTANCE_ID),   // workflowInstanceId
