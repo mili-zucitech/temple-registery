@@ -88,12 +88,19 @@ class NotificationDispatchBehaviorTest {
 
         verify(notificationService).createInAppNotification(
             eq(RECIPIENT_ID),
-            contains("approved"),   // title contains "approved"
+            contains("approved"),
             anyString(),
             eq("MEDIUM"),
             eq("DECLARATION"),
-            eq(ENTITY_ID),
-            eq(INSTANCE_ID)
+            anyString(),       // entityType
+            eq(ENTITY_ID),     // entityId
+            eq(INSTANCE_ID),   // workflowInstanceId
+            any(),             // templeId
+            any(),             // templeName
+            any(),             // actionByName
+            any(),             // actionByRole
+            any(),             // redirectUrl
+            any()              // workflowStatus
         );
     }
 
@@ -102,7 +109,8 @@ class NotificationDispatchBehaviorTest {
         dispatchService.dispatch(approveEvent, inAppRule, RECIPIENT_ID);
 
         verify(notificationService, never()).createInAppNotification(
-            eq(ACTOR_ID), anyString(), anyString(), anyString(), anyString(), anyLong(), any()
+            eq(ACTOR_ID), anyString(), anyString(), anyString(), anyString(),
+            anyString(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -131,7 +139,16 @@ class NotificationDispatchBehaviorTest {
 
         verify(notificationService).createInAppNotification(
             eq(RECIPIENT_ID), anyString(), anyString(),
-            eq("HIGH"), eq("DECLARATION"), eq(ENTITY_ID), eq(INSTANCE_ID)
+            eq("HIGH"), eq("DECLARATION"),
+            anyString(),       // entityType
+            eq(ENTITY_ID),     // entityId
+            eq(INSTANCE_ID),   // workflowInstanceId
+            any(),             // templeId
+            any(),             // templeName
+            any(),             // actionByName
+            any(),             // actionByRole
+            any(),             // redirectUrl
+            any()              // workflowStatus
         );
     }
 

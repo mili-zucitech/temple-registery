@@ -150,9 +150,12 @@ export function TaTempleEditPage() {
         // ❗ IMPORTANT: DO NOT PREFILL ACCOUNT NUMBER
         bankAccountNumber: '',
 
+        // Use staging's photoUrl first (presigned). If staging has no photo yet,
+        // fall back to temple.photoUrl so the primary gallery photo is reflected.
         photoFilePath:
           (source as any).photoUrl ??
           (source as any).photoFilePath ??
+          (stagingProfile ? temple?.photoUrl : undefined) ??
           '',
       })
       isFormInitialized.current = true

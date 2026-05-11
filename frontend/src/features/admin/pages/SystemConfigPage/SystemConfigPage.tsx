@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Settings, Search, Clock, Bell, Zap, RotateCcw, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { cn } from '@/lib/utils'
 
 // ─── Metadata map ─────────────────────────────────────────────────────────────
@@ -216,8 +217,8 @@ export function SystemConfigPage() {
       await updateConfig({ key, body: { configValue: value } }).unwrap()
       setEditValues(prev => { const next = { ...prev }; delete next[key]; return next })
       toast.success(`"${CONFIG_METADATA[key]?.label ?? key}" updated successfully`)
-    } catch {
-      toast.error('Failed to update configuration')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update configuration'))
     }
   }
 

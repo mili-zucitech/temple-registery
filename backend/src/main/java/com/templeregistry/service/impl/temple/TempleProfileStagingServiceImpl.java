@@ -21,7 +21,6 @@ import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.util.PaginationUtil;
-import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.workflow.VersionService;
 import com.templeregistry.service.clarification.ClarificationEngine;
 import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
@@ -55,8 +54,6 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
     private final VersionService versionService;
     private final ClarificationEngine clarificationEngine;
-    private final com.templeregistry.service.workflow.ActionContextResolver actionContextResolver;
-    private final FileStorageService fileStorageService;
     private final GovernanceStatusResolver governanceStatusResolver;
 
     @Override
@@ -227,95 +224,6 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     }
 
     @Override
-    @PreAuthorize(RoleConstants.CAN_APPROVE)
-    @Transactional
-    public TempleProfileStagingResponse approve(Long templeId, Long stagingId) {
-        TempleProfileStaging staging = findStagingOrThrow(stagingId);
-        WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
-        
-        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED
-                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW
-                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED) {
-            throw new IllegalStateException(
-                    "Only SUBMITTED, UNDER_REVIEW, or RESUBMITTED staging records can be approved. Current status: " + workflowInstance.getStatus());
-        }
-        Temple temple = findTempleOrThrow(templeId);
-
-        // Mark any previous APPROVED staging as SUPERSEDED via WorkflowEngine
-        stagingRepository.findFirstByTempleIdAndStatus(templeId, com.templeregistry.entity.workflow.WorkflowStatus.APPROVED)
-                .ifPresent(prev -> {
-                    WorkflowInstance prevInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, prev.getId());
-                    workflowEngine.executeSystem(prevInstance.getId(), WorkflowAction.AUTO_SUPERSEDE, "Superseded by stagingId=" + stagingId);
-                });
-
-        // CORRECT: Promote staging fields to the Temple entity ONLY on approval
-        promoteToTemple(temple, staging);
-        templeRepository.save(temple);
-
-        // ── Workflow Engine: execute APPROVE action ─────────────────────────────
-        workflowEngine.execute(
-            workflowInstance.getId(),
-            WorkflowActionRequest.builder()
-                .action(WorkflowAction.APPROVE)
-                .expectedVersion(workflowInstance.getLockVersion())
-                .idempotencyKey(UUID.randomUUID().toString())
-                .build(),
-            actionContextResolver.resolve(ScopeHelper.Claims.fromContext())
-        );
-
-        // [P2] Snapshot on approval using canonical version
-        versionService.snapshot(WorkflowEntityType.TEMPLE_PROFILE, stagingId, workflowInstance.getVersionNumber(), staging, currentUserId(), null);
-
-        log.info("Temple profile staging approved and promoted: stagingId=[{}] templeId=[{}]", stagingId, templeId);
-        
-        // [P3] Manual notificationHelper removed — event outbox takes over.
-
-        return toResponse(staging);
-    }
-
-    @Override
-    @PreAuthorize(RoleConstants.CAN_APPROVE)
-    @Transactional
-    public TempleProfileStagingResponse reject(Long templeId, Long stagingId, String dcComment) {
-        TempleProfileStaging staging = findStagingOrThrow(stagingId);
-        WorkflowInstance workflowInstance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, stagingId);
-        
-        if (workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED
-                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW
-                && workflowInstance.getStatus() != com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED) {
-            throw new IllegalStateException(
-                    "Only SUBMITTED, UNDER_REVIEW, or RESUBMITTED staging records can be rejected. Current status: " + workflowInstance.getStatus());
-        }
-        Temple temple = findTempleOrThrow(templeId);
-
-        // ── Workflow Engine: execute REJECT action ──────────────────────────────
-        workflowEngine.execute(
-            workflowInstance.getId(),
-            WorkflowActionRequest.builder()
-                .action(WorkflowAction.REJECT)
-                .expectedVersion(workflowInstance.getLockVersion())
-                .idempotencyKey(UUID.randomUUID().toString())
-                .comment(dcComment)
-                .build(),
-            actionContextResolver.resolve(ScopeHelper.Claims.fromContext())
-        );
-
-        // Store the DC rejection comment on the staging record so TA can see it
-        staging.setReviewComment(dcComment);
-        stagingRepository.save(staging);
-
-        // [P2] Snapshot on rejection using canonical version
-        versionService.snapshot(WorkflowEntityType.TEMPLE_PROFILE, stagingId, workflowInstance.getVersionNumber(), staging, currentUserId(), null);
-
-        log.info("Temple profile staging rejected: stagingId=[{}] templeId=[{}] reason=[{}]",
-                stagingId, templeId, dcComment);
-        
-        // [P3] Manual notificationHelper removed — event outbox takes over.
-
-        return toResponse(staging);
-    }
-
-    @Override
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public TempleProfileStagingResponse getActiveStagingOrNull(Long templeId) {
@@ -472,39 +380,6 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private void promoteToTemple(Temple temple, TempleProfileStaging staging) {
-        if (staging.getContactPersonName() != null)
-            temple.setContactName(staging.getContactPersonName());
-        if (staging.getContactPersonDesignation() != null)
-            temple.setContactDesignation(staging.getContactPersonDesignation());
-        if (staging.getLanguagesOfWorship() != null)
-            temple.setLanguagesOfWorship(staging.getLanguagesOfWorship());
-        if (staging.getPhotoFilePath() != null)
-            temple.setPhotoUrl(staging.getPhotoFilePath());
-        if (staging.getPhone() != null)
-            temple.setContactMobile(staging.getPhone());
-        if (staging.getEmail() != null)
-            temple.setContactEmail(staging.getEmail());
-        if (staging.getWebsite() != null)
-            temple.setWebsite(staging.getWebsite());
-        if (staging.getDescription() != null)
-            temple.setHistory(staging.getDescription());
-        else if (staging.getHistoricalSignificance() != null)
-            temple.setHistory(staging.getHistoricalSignificance());
-        if (staging.getAnnualFestivals() != null)
-            temple.setAnnualFestivals(staging.getAnnualFestivals());
-        if (staging.getLandmark() != null)
-            temple.setLandmark(staging.getLandmark());
-        if (staging.getHistoricalSignificance() != null)
-            temple.setHistoricalSignificance(staging.getHistoricalSignificance());
-        if (staging.getBankName() != null)
-            temple.setBankName(staging.getBankName());
-        if (staging.getBankIfsc() != null)
-            temple.setBankIfsc(staging.getBankIfsc());
-        if (staging.getLinkedInstitutions() != null)
-            temple.setLinkedInstitutions(staging.getLinkedInstitutions());
-    }
-
     private TempleProfileStagingResponse toResponse(TempleProfileStaging s) {
         WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
 
@@ -517,7 +392,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
 
         String photoUrl = null;
         if (s.getPhotoFilePath() != null && !s.getPhotoFilePath().isBlank()) {
-            photoUrl = fileStorageService.presignedUrl(s.getPhotoFilePath());
+            photoUrl = "/api/v1/temples/" + s.getTempleId() + "/profile-photo/serve";
         }
 
         return TempleProfileStagingResponse.builder()

@@ -53,6 +53,7 @@ vi.mock('@/features/governance/governanceApi', () => ({
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
   },
   useApproveTrustMutation: () => [vi.fn(), { isLoading: false }],
+  useRejectTrustMutation: () => [vi.fn(), { isLoading: false }],
   useSendBackTrustMutation: () => [vi.fn(), { isLoading: false }],
 }))
 

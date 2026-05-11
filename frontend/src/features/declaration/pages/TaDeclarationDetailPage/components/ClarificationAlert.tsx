@@ -1,16 +1,17 @@
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import type { DeclarationStatus } from '../../../declarationTypes'
-import { getAvailableActions } from '../../../declarationPermissions'
 
 interface ClarificationAlertProps {
   status: DeclarationStatus
 }
 
 export function ClarificationAlert({ status }: ClarificationAlertProps) {
-  // Use getAvailableActions to determine if the TA can respond to clarification
-  const actions = getAvailableActions(status, 'TEMPLE_AUTHORITY')
-  const isClarificationPending = actions.canRespondToClarification
+  // Show "Action required" banner ONLY when clarification is actively pending —
+  // i.e., the DC has requested it and the TA has not yet responded.
+  // CLARIFICATION_RESPONDED and RESUBMITTED both mean the TA already acted;
+  // showing "Action required" for those would be misleading.
+  const isClarificationPending = status === 'CLARIFICATION_REQUIRED'
 
   if (!isClarificationPending) return null
 

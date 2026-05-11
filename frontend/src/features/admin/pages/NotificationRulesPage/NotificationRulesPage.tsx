@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Bell, Search, FlaskConical } from 'lucide-react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 export function NotificationRulesPage() {
   const { data, isLoading, isError, refetch } = useListNotificationRulesQuery()
@@ -41,8 +42,8 @@ export function NotificationRulesPage() {
     try {
       await updateRule({ id, body: { enabled } }).unwrap()
       toast.success(`Rule ${enabled ? 'enabled' : 'disabled'}.`)
-    } catch {
-      toast.error('Failed to update rule.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update rule.'))
     } finally {
       setSaving(null)
     }

@@ -11,10 +11,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/temples")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Temples", description = "Temple search, profile staging workflow, and SA-only direct CRUD")
 public class TempleController {
 
@@ -94,6 +98,44 @@ public class TempleController {
         return ResponseEntity.ok(ApiResponse.success("Temple photo deleted.", null));
     }
 
+    @GetMapping("/{templeId}/profile-photo/serve")
+    @Operation(summary = "Serve the primary profile photo for a temple inline (correct Content-Type for img tags)")
+    public ResponseEntity<Resource> serveProfilePhoto(@PathVariable Long templeId) {
+        Resource resource = templeService.serveProfilePhoto(templeId);
+        String contentType = guessImageContentType(resource.getFilename());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
+                .body(resource);
+    }
+
+    @GetMapping("/{templeId}/photos/{photoId}/serve")
+    @Operation(summary = "Serve a temple gallery photo inline (bypasses document table — temple_photos is canonical source)")
+    public ResponseEntity<Resource> serveTemplePhoto(
+            @PathVariable Long templeId,
+            @PathVariable Long photoId) {
+        Resource resource = templeService.serveTemplePhoto(templeId, photoId);
+        String contentType = guessImageContentType(resource.getFilename());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
+                .body(resource);
+    }
+
+    /** Derive a sensible image MIME type from the stored filename extension. */
+    private static String guessImageContentType(String filename) {
+        if (filename == null) return "application/octet-stream";
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png"))  return "image/png";
+        if (lower.endsWith(".gif"))  return "image/gif";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".avif")) return "image/avif";
+        return "application/octet-stream";
+    }
+
     /* â”€â”€ Temple Profile Staging Workflow (TA â†’ DC approval) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @PostMapping("/{templeId}/profile/staging")
@@ -123,26 +165,6 @@ public class TempleController {
             @PathVariable Long stagingId) {
         stagingService.deleteDraftStaging(templeId, stagingId);
         return ResponseEntity.ok(ApiResponse.success("Draft staging deleted.", null));
-    }
-
-    @PostMapping("/{templeId}/profile/approve/{stagingId}")
-    @Operation(summary = "Approve a SUBMITTED profile staging record (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_APPROVE)
-    public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> approve(
-            @PathVariable Long templeId, @PathVariable Long stagingId) {
-        return ResponseEntity.ok(ApiResponse.success("Profile approved.",
-                stagingService.approve(templeId, stagingId)));
-    }
-
-    @PostMapping("/{templeId}/profile/reject/{stagingId}")
-    @Operation(summary = "Reject a SUBMITTED profile staging record with a comment (DC/SA)")
-    @PreAuthorize(RoleConstants.CAN_APPROVE)
-    public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> reject(
-            @PathVariable Long templeId,
-            @PathVariable Long stagingId,
-            @RequestParam String dcComment) {
-        return ResponseEntity.ok(ApiResponse.success("Profile rejected.",
-                stagingService.reject(templeId, stagingId, dcComment)));
     }
 
     @GetMapping("/{templeId}/profile/staging/active")

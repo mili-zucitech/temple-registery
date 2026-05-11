@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Download, FileText, Building2, Clock, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -52,8 +53,8 @@ export function DcExportPage() {
         () => exportTemples({ body: { format: templesFormat } }).unwrap(),
         'temples',
       )
-    } catch {
-      toast.error('Failed to export temples. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to export temples. Please try again.'))
     }
   }
 
@@ -68,8 +69,8 @@ export function DcExportPage() {
         }).unwrap(),
         'declarations',
       )
-    } catch {
-      toast.error('Failed to export declarations. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to export declarations. Please try again.'))
     }
   }
 
@@ -79,8 +80,8 @@ export function DcExportPage() {
         () => exportPending({ body: { format: pendingFormat, status: 'PENDING_REVIEW' } }).unwrap(),
         'pending declarations',
       )
-    } catch {
-      toast.error('Failed to export pending declarations. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to export pending declarations. Please try again.'))
     }
   }
 
@@ -96,8 +97,8 @@ export function DcExportPage() {
         }).unwrap(),
         'approved declarations',
       )
-    } catch {
-      toast.error('Failed to export approved declarations. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to export approved declarations. Please try again.'))
     }
   }
 

@@ -64,6 +64,9 @@ public interface TempleProfileStagingRepository extends JpaRepository<TempleProf
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(s) > 0 FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status = :status")
     boolean existsByTempleIdAndStatus(Long templeId, com.templeregistry.entity.workflow.WorkflowStatus status);
 
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(s) > 0 FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status IN :statuses")
+    boolean existsByTempleIdAndStatusIn(Long templeId, java.util.List<com.templeregistry.entity.workflow.WorkflowStatus> statuses);
+
         private static WorkflowStatus toWorkflowStatus(TempleProfileStagingStatus status) {
                 return switch (status) {
                         case DRAFT -> WorkflowStatus.DRAFT;

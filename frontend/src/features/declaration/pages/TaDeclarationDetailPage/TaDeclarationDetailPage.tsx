@@ -146,13 +146,87 @@ export function TaDeclarationDetailPage() {
     }
   }, [compareVersion, versions])
 
-  // Helper function to map declaration to form request
-  const mapDeclarationToRequest = (_decl: CompleteDeclarationResponse): ResubmitDeclarationRequest => {
+  // Maps an existing declaration response into the resubmit form shape.
+  // All asset item IDs are preserved so the backend can update (not duplicate) existing rows.
+  // clarificationResponse is left blank — the TA must fill it in before submitting.
+  const mapDeclarationToRequest = (decl: CompleteDeclarationResponse): ResubmitDeclarationRequest => {
     return {
-      // Map the declaration fields to the resubmit request format
-      // Add the actual mapping based on your schema
-      // This is a placeholder - adjust according to your actual types
-    } as ResubmitDeclarationRequest
+      financialYear: decl.financialYear ?? '',
+      dueDate: decl.dueDate ?? '',
+      annualIncome: decl.annualIncome ?? undefined,
+      annualExpenditure: decl.annualExpenditure ?? undefined,
+      agriculturalLands: (decl.agriculturalLands ?? []).map((l) => ({
+        id: l.id,
+        surveyNumber: l.surveyNumber ?? undefined,
+        village: l.village ?? undefined,
+        areaAcres: l.areaAcres ?? undefined,
+        ownerOfRecord: l.ownerOfRecord ?? undefined,
+        pattaStatus: l.pattaStatus ?? undefined,
+      })),
+      buildings: (decl.buildings ?? []).map((b) => ({
+        id: b.id,
+        location: b.location ?? undefined,
+        totalAreaSqft: b.totalAreaSqft ?? undefined,
+        yearBuilt: b.yearBuilt ?? undefined,
+        structureType: b.structureType ?? undefined,
+        valuationInr: b.valuationInr ?? undefined,
+      })),
+      leasedProperties: (decl.leasedProperties ?? []).map((p) => ({
+        id: p.id,
+        propertyAddress: p.propertyAddress ?? undefined,
+        lesseeName: p.lesseeName ?? undefined,
+        leaseStartDate: p.leaseStartDate ?? undefined,
+        leaseEndDate: p.leaseEndDate ?? undefined,
+        monthlyRent: p.monthlyRent ?? undefined,
+        agreementDocumentId: p.agreementDocumentId ?? undefined,
+      })),
+      otherLands: (decl.otherLands ?? []).map((o) => ({
+        id: o.id,
+        location: o.location ?? undefined,
+        area: o.area ?? undefined,
+        usageType: o.usageType ?? undefined,
+        revenueDepartmentReference: o.revenueDepartmentReference ?? undefined,
+      })),
+      preciousMetals: (decl.preciousMetals ?? []).map((m) => ({
+        id: m.id,
+        itemDescription: m.itemDescription ?? undefined,
+        metalType: m.metalType ?? undefined,
+        weightGrams: m.weightGrams ?? undefined,
+        purity: m.purity ?? undefined,
+        approximateValueInr: m.approximateValueInr ?? undefined,
+      })),
+      artifacts: (decl.artifacts ?? []).map((a) => ({
+        id: a.id,
+        itemDescription: a.itemDescription ?? undefined,
+        material: a.material ?? undefined,
+        ageOrPeriod: a.ageOrPeriod ?? undefined,
+        provenance: a.provenance ?? undefined,
+        museumGradeClassification: a.museumGradeClassification ?? undefined,
+        approximateValueInr: a.approximateValueInr ?? undefined,
+      })),
+      vehicles: (decl.vehicles ?? []).map((v) => ({
+        id: v.id,
+        registrationNumber: v.registrationNumber ?? undefined,
+        makeModel: v.makeModel ?? undefined,
+        year: v.year ?? undefined,
+        purpose: v.purpose ?? undefined,
+      })),
+      equipment: (decl.equipment ?? []).map((e) => ({
+        id: e.id,
+        itemName: e.itemName ?? undefined,
+        serialNumber: e.serialNumber ?? undefined,
+        approximateValueInr: e.approximateValueInr ?? undefined,
+      })),
+      financialAssets: (decl.financialAssets ?? []).map((f) => ({
+        id: f.id,
+        assetSubtype: f.assetSubtype ?? undefined,
+        bankName: f.bankName ?? undefined,
+        investmentType: f.investmentType ?? undefined,
+        amount: f.amount ?? undefined,
+        maturityDate: f.maturityDate ?? undefined,
+      })),
+      clarificationResponse: '',
+    }
   }
 
   const emptyValues: ResubmitDeclarationRequest = {} as ResubmitDeclarationRequest

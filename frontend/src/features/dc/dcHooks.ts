@@ -3,6 +3,7 @@ import { useAppSelector, useAppDispatch } from '@/app/store'
 import { dcApi } from './dcApi'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { API_BASE } from '@/constants/apiPaths'
 import type { GeoSelection } from '@/features/geo/geoTypes'
 import { USER_ROLES } from '@/constants/roles'
@@ -11,6 +12,7 @@ import {
   useSearchDcTemplesQuery,
   useGetDcTempleProfileQuery,
   useGetDcPendingProfileStagingQuery,
+  useGetDcProfileHistoryQuery,
   useGetDcDeclarationDetailQuery,
   useApproveProfileMutation,
   useRejectProfileMutation,
@@ -164,12 +166,6 @@ export function useDcTempleSearch() {
         return updated
       }, { replace: true })
       setDistrictId(currentUser.districtId ?? null)
-      // eslint-disable-next-line no-console
-      console.log('[TempleSearch] User switch:', {
-        prevUserId,
-        newUserId: currentUser.userId,
-        districtId: currentUser.districtId,
-      })
     }
     prevUserIdRef.current = currentUser.userId
   }, [currentUser?.userId, currentUser?.districtId, dispatch, setSearchParams, refetchContext])
@@ -194,42 +190,6 @@ export function useDcTempleSearch() {
 
   const page = Number(searchParams.get('page') ?? '0')
   const size = Number(searchParams.get('size') ?? '10')
-
-  // Log API request params for debugging
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[TempleSearch] Params', {
-      userId: currentUser?.userId,
-      districtId: searchParams.get('districtId'),
-      talukId: searchParams.get('talukId'),
-      hobliId: searchParams.get('hobliId'),
-      page,
-      size,
-    })
-  }, [currentUser?.userId, searchParams, page, size])
-
-  // Pre-populate districtId + cityId for DC/DC_STAFF only when those params
-  // are absent from the URL (first visit or after a full clear). Uses !has()
-  // guards so an explicit user selection is never overwritten.
-  useEffect(() => {
-    if (!dcContext) return
-    const isDcRole = dcContext.role === 'DISTRICT_COLLECTOR' || dcContext.role === 'DC_STAFF'
-    if (!isDcRole) return
-    if (!dcContext.districtId) return
-
-    // Only write defaults when the params are completely absent — never override
-    // a districtId the user intentionally selected.
-    if (searchParams.has('districtId') && searchParams.has('stateId')) return
-
-    setSearchParams((prev) => {
-      const updated = new URLSearchParams(prev)
-      if (!updated.has('districtId')) updated.set('districtId', String(dcContext.districtId))
-      if (!updated.has('cityId') && dcContext.cityId) updated.set('cityId', String(dcContext.cityId))
-      if (!updated.has('stateId')) updated.set('stateId', '1')
-      updated.set('page', '0')
-      return updated
-    }, { replace: true })
-  }, [dcContext, searchParams, setSearchParams])
 
   const filters: DcTempleSearchFilterRequest & { userId?: number } = useMemo(() => ({
     userId: currentUser?.userId,
@@ -270,17 +230,6 @@ export function useDcTempleSearch() {
     refetchOnMountOrArgChange: true,
     skip: !shouldFetch,
   })
-
-  // Log API call timing for debugging
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[TempleSearch] API call', {
-      shouldFetch,
-      userId: currentUser?.userId,
-      districtId,
-      filters,
-    })
-  }, [shouldFetch, currentUser?.userId, districtId, filters])
 
   const geoSelection: GeoSelection = useMemo(() => ({
     stateId: parseIntParam(searchParams.get('stateId')) ?? 1,
@@ -528,8 +477,8 @@ export function useWorkflowActions() {
         }
         invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
-      } catch {
-        toast.error('Failed to approve declaration. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to approve declaration. Please try again.'))
       }
     },
     [dialog.declarationId, dialog.templeId, approveDeclaration, invalidateDcCaches, closeDialog],
@@ -548,8 +497,8 @@ export function useWorkflowActions() {
         toast.success(result.message ?? 'Declaration rejected.')
         invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
-      } catch {
-        toast.error('Failed to reject declaration. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to reject declaration. Please try again.'))
       }
     },
     [dialog.declarationId, dialog.templeId, rejectDeclaration, invalidateDcCaches, closeDialog],
@@ -568,8 +517,8 @@ export function useWorkflowActions() {
         toast.success(result.message ?? 'Clarification requested.')
         invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
-      } catch {
-        toast.error('Failed to request clarification. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to request clarification. Please try again.'))
       }
     },
     [dialog.declarationId, dialog.templeId, clarifyDeclaration, invalidateDcCaches, closeDialog],
@@ -588,8 +537,8 @@ export function useWorkflowActions() {
         toast.success(result.message ?? 'Flagged for physical verification.')
         invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
-      } catch {
-        toast.error('Failed to flag for physical verification. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to flag for physical verification. Please try again.'))
       }
     },
     [dialog.declarationId, dialog.templeId, flagPhysical, invalidateDcCaches, closeDialog],
@@ -618,8 +567,8 @@ export function useWorkflowActions() {
         toast.success('Site visit scheduled.')
         invalidateDcCaches(dialog.declarationId, dialog.templeId)
         closeDialog()
-      } catch {
-        toast.error('Failed to schedule site visit. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to schedule site visit. Please try again.'))
       }
     },
     [dialog.declarationId, dialog.templeId, scheduleSiteVisit, invalidateDcCaches, closeDialog],
@@ -656,8 +605,8 @@ export function useProfileWorkflowActions() {
         const result = await approveProfile({ stagingId, templeId, body }).unwrap()
         toast.success(result.message ?? 'Profile approved.')
         return true
-      } catch {
-        toast.error('Failed to approve profile. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to approve profile. Please try again.'))
         return false
       }
     },
@@ -670,8 +619,8 @@ export function useProfileWorkflowActions() {
         const result = await rejectProfile({ stagingId, templeId, body }).unwrap()
         toast.success(result.message ?? 'Profile rejected.')
         return true
-      } catch {
-        toast.error('Failed to reject profile. Please try again.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Failed to reject profile. Please try again.'))
         return false
       }
     },
@@ -682,6 +631,24 @@ export function useProfileWorkflowActions() {
     submitApproveProfile,
     submitRejectProfile,
     isSubmitting,
+  }
+}
+
+// ─── useNotifications ─────────────────────────────────────────────────────────
+
+/**
+ * Fetches the temple profile version history for DC review.
+ */
+export function useDcProfileHistory(templeId: number, page = 0, size = 10) {
+  const { data, isLoading, isError } = useGetDcProfileHistoryQuery(
+    { templeId, page, size },
+    { skip: !templeId },
+  )
+  return {
+    history: data?.data?.content ?? [],
+    total: data?.data?.totalElements ?? 0,
+    isLoading,
+    isError,
   }
 }
 
@@ -714,8 +681,8 @@ export function useDcNotifications(page = 0, size = 10) {
     async (id: number) => {
       try {
         await markRead(id).unwrap()
-      } catch {
-        toast.error('Could not mark notification as read.')
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, 'Could not mark notification as read.'))
       }
     },
     [markRead],
@@ -725,8 +692,8 @@ export function useDcNotifications(page = 0, size = 10) {
     try {
       const result = await markAllRead().unwrap()
       toast.success(`${result.data ?? 0} notification(s) marked as read.`)
-    } catch {
-      toast.error('Could not mark notifications as read.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Could not mark notifications as read.'))
     }
   }, [markAllRead])
 

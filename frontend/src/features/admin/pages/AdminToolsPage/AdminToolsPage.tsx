@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import {
   useRebuildSearchSummaryMutation, useGetPhysicalVerificationPendingQuery
 } from '../../adminApi'
@@ -19,8 +20,8 @@ export function AdminToolsPage() {
     try {
       await rebuildSummary().unwrap()
       toast.success('Search summary rebuild queued successfully')
-    } catch {
-      toast.error('Failed to trigger rebuild')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to trigger rebuild'))
     }
   }
 

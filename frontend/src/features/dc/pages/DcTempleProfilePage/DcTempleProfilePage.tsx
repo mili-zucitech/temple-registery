@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import {
-  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
+  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase, History
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -66,7 +67,8 @@ import {
   TrustTab,
   StaffTab,
   ContractorsTab,
-  DocumentsTab
+  DocumentsTab,
+  ProfileHistoryTab,
 } from './tabs'
 
 export function DcTempleProfilePage() {
@@ -281,8 +283,8 @@ export function DcTempleProfilePage() {
                       try {
                         await unflagTemple({ id }).unwrap()
                         toast.success('Temple flag removed.')
-                      } catch {
-                        toast.error('Failed to remove flag. Please try again.')
+                      } catch (err) {
+                        toast.error(extractApiErrorMessage(err, 'Failed to remove flag. Please try again.'))
                       }
                     }}
                     disabled={isUnflagging}
@@ -315,6 +317,7 @@ export function DcTempleProfilePage() {
                   { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
                   { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
+                  { v: 'history',      label: 'Profile History', icon: <History size={14} />, count: null },
                 ] as const
               ).map((tab) => (
                 <TabsTrigger
@@ -417,8 +420,8 @@ export function DcTempleProfilePage() {
                   await approveTrust(trustId).unwrap()
                   toast.success('Trust approved.')
                   refetchProfile()
-                } catch {
-                  toast.error('Failed to approve trust. Please try again.')
+                } catch (err) {
+                  toast.error(extractApiErrorMessage(err, 'Failed to approve trust. Please try again.'))
                 }
               }}
               onRejectTrust={async (trustId, reason) => {
@@ -426,8 +429,8 @@ export function DcTempleProfilePage() {
                   await rejectTrust({ trustId, body: { reason } }).unwrap()
                   toast.success('Trust rejected.')
                   refetchProfile()
-                } catch {
-                  toast.error('Failed to reject trust. Please try again.')
+                } catch (err) {
+                  toast.error(extractApiErrorMessage(err, 'Failed to reject trust. Please try again.'))
                 }
               }}
             />
@@ -447,6 +450,10 @@ export function DcTempleProfilePage() {
 
           <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DocumentsTab templeId={id} />
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <ProfileHistoryTab templeId={id} />
           </TabsContent>
         </div>
       </Tabs>

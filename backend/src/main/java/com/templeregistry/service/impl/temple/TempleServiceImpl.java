@@ -27,6 +27,7 @@ import com.templeregistry.util.PaginationUtil;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -84,7 +85,7 @@ public class TempleServiceImpl implements TempleService {
                 .districtId(dto.getDistrictId())
                 .trustRegistered(dto.isTrustRegistered())
                 .assetDeclarationStatus(dto.getAssetDeclarationStatus())
-                .photoUrl(fileStorageService.presignedUrl(dto.getPhotoUrl()))
+                .photoUrl("/api/v1/temples/" + dto.getId() + "/profile-photo/serve")
                 .build();
             }
             return dto;
@@ -140,7 +141,7 @@ public class TempleServiceImpl implements TempleService {
                 .contactDesignation(dto.getContactDesignation())
                 .contactMobile(dto.getContactMobile())
                 .contactEmail(dto.getContactEmail())
-                .photoUrl(fileStorageService.presignedUrl(dto.getPhotoUrl()))
+                .photoUrl("/api/v1/temples/" + id + "/profile-photo/serve")
                 .website(dto.getWebsite())
                 .languagesOfWorship(dto.getLanguagesOfWorship())
                 .linkedInstitutions(dto.getLinkedInstitutions())
@@ -245,7 +246,7 @@ public class TempleServiceImpl implements TempleService {
                 .contactDesignation(staging.getContactPersonDesignation())
                 .contactMobile(staging.getPhone())
                 .contactEmail(staging.getEmail())
-                .photoUrl(staging.getPhotoFilePath())
+                .photoUrl(staging.getPhotoFilePath() != null && !staging.getPhotoFilePath().isBlank() ? "/api/v1/temples/" + templeId + "/profile-photo/serve" : null)
                 .website(staging.getWebsite())
                 .languagesOfWorship(staging.getLanguagesOfWorship())
                 .linkedInstitutions(staging.getLinkedInstitutions())
@@ -375,7 +376,10 @@ public class TempleServiceImpl implements TempleService {
         return templePhotoRepository.findByTempleIdOrderByDisplayOrderAsc(templeId).stream()
                 .map(photo -> new TemplePhotoDto(
                         photo.getId(),
-                        fileStorageService.presignedUrl(photo.getFilePath()),
+                        // Return a stable serve URL that bypasses the documents table.
+                        // temple_photos is the canonical source — this endpoint reads directly
+                        // from FileStorageService without requiring a Document entity record.
+                        "/api/v1/temples/" + templeId + "/photos/" + photo.getId() + "/serve",
                         photo.isPrimary(),
                         photo.getOriginalFilename(),
                         photo.getCreatedAt(),
@@ -383,6 +387,32 @@ public class TempleServiceImpl implements TempleService {
                         photo.getHeight()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public Resource serveProfilePhoto(Long templeId) {
+        Temple temple = findOrThrow(templeId);
+        if (temple.getPhotoUrl() == null || temple.getPhotoUrl().isBlank()) {
+            throw new EntityNotFoundException("ProfilePhoto", templeId);
+        }
+        return fileStorageService.loadAsResource(temple.getPhotoUrl());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public Resource serveTemplePhoto(Long templeId, Long photoId) {
+        findOrThrow(templeId);
+        TemplePhoto photo = templePhotoRepository.findById(photoId)
+                .orElseThrow(() -> new EntityNotFoundException("TemplePhoto", photoId));
+        // Verify the photo belongs to the requested temple
+        if (!photo.getTemple().getId().equals(templeId)) {
+            throw new EntityNotFoundException("TemplePhoto", photoId);
+        }
+        ownershipGuard.assertOwnsTemple(templeId);
+        return fileStorageService.loadAsResource(photo.getFilePath());
     }
 
     @Override

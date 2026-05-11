@@ -4,13 +4,14 @@ import { useListDocumentsQuery, useLazyGetDocumentUrlQuery } from '@/features/do
 import { Skeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 interface DocumentsTabProps {
   templeId: number
 }
 
 export function DocumentsTab({ templeId }: DocumentsTabProps) {
-  const { data: response, isLoading } = useListDocumentsQuery({
+  const { data: response, isLoading, isError } = useListDocumentsQuery({
     ownerType: 'TEMPLE',
     ownerId: templeId,
     size: 50
@@ -28,6 +29,20 @@ export function DocumentsTab({ templeId }: DocumentsTabProps) {
           ))}
         </div>
       </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <SectionCard title="Verification Documents" icon={<FileText size={18} />} className="shadow-sm border-slate-200">
+        <div className="py-16 flex flex-col items-center justify-center text-center">
+          <div className="size-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
+            <FileText size={32} className="text-red-300" />
+          </div>
+          <p className="text-sm font-semibold text-slate-900 mb-2">Unable to load documents</p>
+          <p className="text-xs font-regular text-slate-500 max-w-[280px]">There was an error fetching the documents. Please refresh the page and try again.</p>
+        </div>
+      </SectionCard>
     )
   }
 
@@ -120,8 +135,8 @@ function DocumentItem({ doc, showLabel = false }: { doc: any, showLabel?: boolea
       } else {
         toast.error('Could not retrieve download URL.')
       }
-    } catch {
-      toast.error('Failed to get document URL.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to get document URL.'))
     }
   }
 

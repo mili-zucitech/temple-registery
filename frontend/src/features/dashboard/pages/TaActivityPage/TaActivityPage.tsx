@@ -69,11 +69,14 @@ function ActivityItem({ notification, onRead, isMarking }: ActivityItemProps) {
 
   const handleClick = () => {
     if (!notification.read) onRead(notification.id)
-    const route = referenceRoute(notification.referenceType, notification.referenceId)
-    if (route) navigate(route)
+    // Prefer redirectUrl (workflow-aware), fallback to legacy referenceRoute
+    const target = notification.redirectUrl
+      ?? referenceRoute(notification.referenceType, notification.referenceId)
+    if (target) navigate(target)
   }
 
-  const isClickable = !!referenceRoute(notification.referenceType, notification.referenceId)
+  const isClickable = !!(notification.redirectUrl
+    ?? referenceRoute(notification.referenceType, notification.referenceId))
 
   return (
     <motion.div
@@ -104,6 +107,9 @@ function ActivityItem({ notification, onRead, isMarking }: ActivityItemProps) {
           {notification.title}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notification.body}</p>
+        {notification.templeName && (
+          <p className="text-[11px] text-primary/70 font-medium mt-0.5">{notification.templeName}</p>
+        )}
       </div>
 
       {/* Meta */}

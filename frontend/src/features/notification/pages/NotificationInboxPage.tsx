@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
-import { Loader2, Search, Settings } from 'lucide-react'
+import { Loader2, Search, Settings, Trash2, CheckCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 export function NotificationInboxPage() {
   const [page, setPage] = useState(0)
@@ -17,68 +19,83 @@ export function NotificationInboxPage() {
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'ALL'>('ALL')
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all')
 
-  const { notifications, totalPages, totalElements, isLoading, isFetching, isError, isMarkingAllRead, markAllRead } =
-    useNotificationInbox(page)
+  const {
+    notifications, totalPages, totalElements,
+    isLoading, isFetching, isError,
+    isMarkingAllRead, isClearing,
+    markAllRead, clearAll,
+  } = useNotificationInbox(page)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  // Filter notifications
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllRead().unwrap()
+      toast.success('All notifications marked as read.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to mark notifications as read.'))
+    }
+  }
+
+  const handleClearAll = async () => {
+    try {
+      await clearAll().unwrap()
+      toast.success('All notifications cleared.')
+      setPage(0)
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to clear notifications.'))
+    }
+  }
+
+  // Client-side filter on current page
   const filteredNotifications = notifications.filter((notification) => {
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       if (
         !notification.title.toLowerCase().includes(query) &&
-        !notification.body.toLowerCase().includes(query)
-      ) {
-        return false
-      }
+        !notification.body.toLowerCase().includes(query) &&
+        !(notification.templeName ?? '').toLowerCase().includes(query)
+      ) return false
     }
-
-    // Priority filter
-    if (priorityFilter !== 'ALL' && notification.priority !== priorityFilter) {
-      return false
-    }
-
-    // Category filter
-    if (categoryFilter !== 'ALL' && notification.category !== categoryFilter) {
-      return false
-    }
-
-    // Tab filter
-    if (activeTab === 'unread' && notification.read) {
-      return false
-    }
-    if (activeTab === 'read' && !notification.read) {
-      return false
-    }
-
+    if (priorityFilter !== 'ALL' && notification.priority !== priorityFilter) return false
+    if (categoryFilter !== 'ALL' && notification.category !== categoryFilter) return false
+    if (activeTab === 'unread' && notification.read) return false
+    if (activeTab === 'read' && !notification.read) return false
     return true
   })
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold">Notifications</h1>
           <p className="text-muted-foreground">
             {totalElements} total • {unreadCount} unread
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link to="/notifications/preferences">
-            <Button variant="outline">
+            <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
               Preferences
             </Button>
           </Link>
           {unreadCount > 0 && (
-            <Button onClick={() => markAllRead()} disabled={isMarkingAllRead}>
-              {isMarkingAllRead ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
+            <Button size="sm" variant="outline" onClick={handleMarkAllRead} disabled={isMarkingAllRead}>
+              {isMarkingAllRead
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <CheckCheck className="h-4 w-4 mr-2" />}
               Mark all read
+            </Button>
+          )}
+          {notifications.length > 0 && (
+            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive"
+              onClick={handleClearAll} disabled={isClearing}>
+              {isClearing
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Trash2 className="h-4 w-4 mr-2" />}
+              Clear all
             </Button>
           )}
         </div>
@@ -87,7 +104,6 @@ export function NotificationInboxPage() {
       {/* Filters */}
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -98,7 +114,6 @@ export function NotificationInboxPage() {
             />
           </div>
 
-          {/* Priority Filter */}
           <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as NotificationPriority | 'ALL')}>
             <SelectTrigger>
               <SelectValue placeholder="Filter by priority" />
@@ -112,7 +127,6 @@ export function NotificationInboxPage() {
             </SelectContent>
           </Select>
 
-          {/* Category Filter */}
           <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as NotificationCategory | 'ALL')}>
             <SelectTrigger>
               <SelectValue placeholder="Filter by category" />
@@ -123,9 +137,6 @@ export function NotificationInboxPage() {
               <SelectItem value="APPROVAL">Approvals</SelectItem>
               <SelectItem value="REJECTION">Rejections</SelectItem>
               <SelectItem value="CLARIFICATION">Clarifications</SelectItem>
-              <SelectItem value="SITE_VISIT">Site Visits</SelectItem>
-              <SelectItem value="REMINDER">Reminders</SelectItem>
-              <SelectItem value="OVERDUE">Overdue</SelectItem>
               <SelectItem value="DOCUMENT">Documents</SelectItem>
               <SelectItem value="SYSTEM">System</SelectItem>
             </SelectContent>
@@ -145,8 +156,18 @@ export function NotificationInboxPage() {
 
         <TabsContent value={activeTab} className="space-y-4 mt-6">
           {isLoading || isFetching ? (
-            <div className="flex items-center justify-center p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Card key={i} className="p-4 animate-pulse">
+                  <div className="flex gap-3">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-1/3 rounded bg-muted" />
+                      <div className="h-3 w-2/3 rounded bg-muted" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           ) : isError ? (
             <Card className="p-12 text-center">
@@ -164,7 +185,6 @@ export function NotificationInboxPage() {
                 ))}
               </div>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-6">
                   <Button

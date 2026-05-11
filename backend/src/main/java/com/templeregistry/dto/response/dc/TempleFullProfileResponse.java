@@ -58,6 +58,13 @@ public class TempleFullProfileResponse {
     // Current approved profile (null if no approved profile yet)
     private ProfileCurrentResponse currentProfile;
 
+    /**
+     * Most recent profile staging record (any status: DRAFT, SUBMITTED, APPROVED, REJECTED …).
+     * Null when the temple has never had a profile staging.
+     * Used by DC portal to surface post-rejection context even when no pending review exists.
+     */
+    private LatestProfileStagingInfo latestProfileStaging;
+
     // ─── Nested summary types ─────────────────────────────────────────
 
     @Getter
@@ -161,5 +168,22 @@ public class TempleFullProfileResponse {
         private String annualFestivals;
         private String landmark;
         private String historicalSignificance;
+    }
+
+    /**
+     * Lightweight snapshot of the most recent profile staging (any status).
+     * Allows DC portal to distinguish "never submitted" from "recently rejected"
+     * without a separate API call.
+     */
+    @Getter
+    @Builder
+    public static class LatestProfileStagingInfo {
+        private Long stagingId;
+        /** Canonical workflow status string, e.g. SUBMITTED, APPROVED, REJECTED. */
+        private String status;
+        /** DC rejection or review comment. Null when not rejected. */
+        private String reviewComment;
+        private Integer versionNumber;
+        private LocalDateTime reviewedAt;
     }
 }

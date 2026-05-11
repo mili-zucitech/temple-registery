@@ -42,10 +42,12 @@ export const governanceApi = createApi({
 
     submitTrust: builder.mutation<ApiResponse<void>, number>({
       query: (trustId) => ({ url: `/governance/trusts/${trustId}/submit`, method: 'POST' }),
-      // Also invalidate DC-side caches so the trust appears immediately in DC dashboard/search
+      // Invalidate both the specific trust entry AND the broad 'Trust' list tag so
+      // getTrustByTemple (which uses { type: 'Trust', id: templeId }) also refetches.
       invalidatesTags: (_r, _e, trustId) => [
         { type: 'GovernanceTrust', id: trustId },
         { type: 'Trust', id: trustId },
+        'Trust',
         'DcDashboard',
         'DcTempleSearch',
       ],
@@ -85,6 +87,8 @@ export const governanceApi = createApi({
       invalidatesTags: (_r, _e, { trustId }) => [
         { type: 'GovernanceTrust', id: trustId },
         { type: 'Trust', id: trustId },
+        'Trust',
+        'DcTempleSearch',
       ],
     }),
 

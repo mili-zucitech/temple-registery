@@ -1,5 +1,6 @@
 package com.templeregistry.service.impl.dc;
 
+import com.templeregistry.dto.request.dc.ApproveProfileRequest;
 import com.templeregistry.dto.request.dc.FlagTempleProfileRequest;
 import com.templeregistry.dto.request.dc.UnflagTempleProfileRequest;
 import com.templeregistry.dto.request.dc.VerifyTempleProfileRequest;
@@ -13,7 +14,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleVerificationService;
-import com.templeregistry.service.temple.TempleProfileStagingService;
+import com.templeregistry.service.dc.TempleProfileWorkflowService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +33,7 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
 
     private final TempleRepository templeRepository;
     private final TempleProfileStagingRepository profileStagingRepository;
-    private final TempleProfileStagingService stagingService;
+    private final TempleProfileWorkflowService workflowService;
     private final JurisdictionGuard jurisdictionGuard;
     private final TempleSearchSummaryService summaryService;
     private final com.templeregistry.service.notification.NotificationHelper notificationHelper;
@@ -45,36 +46,46 @@ public class DcTempleVerificationServiceImpl implements DcTempleVerificationServ
         Temple temple = loadTempleWithGeo(templeId);
         jurisdictionGuard.assertDistrictScope(temple, claims);
 
-        // Auto-approve any pending SUBMITTED staging — DC verification of the temple
-        // implies acceptance of the currently-staged profile data. Without this, TA
-        // would be permanently blocked from creating new drafts after DC uses the direct
-        // verify path instead of the staging approval workflow.
-        profileStagingRepository
-                .findFirstByTempleIdAndStatus(templeId,
-                        com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED)
-                .ifPresent(staging -> {
-                    try {
-                        stagingService.approve(templeId, staging.getId());
-                        log.info("Auto-approved SUBMITTED staging [{}] on temple verify: templeId=[{}]",
-                                staging.getId(), templeId);
-                    } catch (IllegalStateException e) {
-                        // Staging may already have been resolved (race condition) — log and continue.
-                        log.warn("Could not auto-approve staging [{}] during verify (already resolved?): {}",
-                                staging.getId(), e.getMessage());
-                    }
-                });
+        // Auto-approve any pending staging (SUBMITTED / UNDER_REVIEW / RESUBMITTED) via the full
+        // workflow service so that temple_profile_current is written, audit is logged, and search
+        // summary is refreshed.  approveProfile also sets verificationStatus = VERIFIED and sends
+        // the approved notification.
+        //
+        // IMPORTANT: no try-catch here.  approveProfile() is @Transactional(REQUIRED) and shares
+        // this outer transaction.  If we catch its exception, the transaction is already marked
+        // rollback-only by Spring's interceptor, causing UnexpectedRollbackException at commit.
+        // Letting the exception propagate produces a clean failure instead.
+        boolean stagingApproved = false;
+        var pendingStaging = profileStagingRepository
+                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                        templeId,
+                        java.util.List.of(
+                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
+                                com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW,
+                                com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED));
+        if (pendingStaging.isPresent()) {
+            workflowService.approveProfile(
+                    pendingStaging.get().getId(), new ApproveProfileRequest(), claims);
+            stagingApproved = true;
+            log.info("Auto-approved staging [{}] on temple verify: templeId=[{}]",
+                    pendingStaging.get().getId(), templeId);
+        }
 
-        // Reload temple to pick up any field promotions from the staging approval above.
+        // Reload temple to pick up field promotions from approveProfile (if called above).
         temple = templeRepository.findWithGeoById(templeId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Temple not found with id: " + templeId, "TEMPLE_NOT_FOUND"));
 
+        // Re-assert VERIFIED regardless — the direct verify path is an explicit DC override.
         temple.setVerificationStatus(VerificationStatus.VERIFIED);
         temple.setDcRejectionReason(null);
-
         Temple saved = templeRepository.save(temple);
         summaryService.scheduleRefresh(templeId);
-        notificationHelper.notifyTempleApproved(templeId, claims.userId());
+
+        // Only notify if no staging was approved — approveProfile already sends the notification.
+        if (!stagingApproved) {
+            notificationHelper.notifyTempleApproved(templeId, claims.userId());
+        }
 
         log.info("Temple profile verified by DC: templeId=[{}] dcUserId=[{}]", templeId, claims.userId());
 

@@ -129,12 +129,12 @@ export function useTempleProfile() {
   const temple = templeData?.data ?? null
 
   const { data: stagingData, isLoading: stagingLoading } = useGetActiveStagingQuery(
-    templeId!, { skip: !templeId, refetchOnMountOrArgChange: true },
+    templeId!, { skip: !templeId, refetchOnMountOrArgChange: true, refetchOnFocus: true },
   )
   const stagingProfile = stagingData?.data ?? null
   const { data: historyData, isLoading: historyLoading } = useGetStagingHistoryQuery(
     { templeId: templeId!, page: 0, size: 20 },
-    { skip: !templeId },
+    { skip: !templeId, refetchOnMountOrArgChange: true },
   )
   const history = historyData?.data?.content ?? []
   const latestVersion = history.reduce<TempleProfileStagingResponse | null>((latest, item) => {
@@ -210,7 +210,7 @@ export function useTempleProfile() {
         historicalSignificance: (source as any).historicalSignificance ?? '',
         bankName: (source as any).bankName ?? '',
         bankIfsc: (source as any).bankIfsc ?? '',
-        photoFilePath: (source as any).photoFilePath ?? (source as any).photoUrl ?? '',
+        photoFilePath: (source as any).photoFilePath ?? (source as any).photoUrl ?? temple?.photoUrl ?? '',
         bankAccountNumber: '',
       })
     } else if (temple) {
@@ -317,6 +317,10 @@ export function useTempleProfile() {
         linkedInstitutions: serializeTagList(normalizeTagArray((temple as any)?.linkedInstitutions)?.join(', ')),
         description: cleanOptional((temple as any)?.description ?? temple?.history),
         annualFestivals: cleanOptional((temple as any)?.annualFestivals),
+        landmark: cleanOptional(temple?.landmark),
+        historicalSignificance: cleanOptional(temple?.historicalSignificance),
+        bankName: cleanOptional(temple?.bankName),
+        bankIfsc: cleanOptional(temple?.bankIfsc),
       }
       await createOrUpdateDraft({ templeId, body: prefill }).unwrap()
       toast.success('Edit mode activated. A new draft has been created.')

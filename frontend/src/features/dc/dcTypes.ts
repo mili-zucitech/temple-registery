@@ -75,7 +75,10 @@ export const approveProfileSchema = z.object({
 })
 
 export const rejectProfileSchema = z.object({
-  reason: z.string().min(1, 'Rejection reason is required').max(1000),
+  reason: z
+    .string()
+    .min(10, 'Rejection reason must be at least 10 characters.')
+    .max(2000, 'Rejection reason cannot exceed 2000 characters.'),
 })
 
 export const dcFlagSchema = z.object({
@@ -423,6 +426,19 @@ export interface TempleFullProfileResponse {
   contractors: ContractorResponse[]
   declarations: DeclarationSummary[]
   currentProfile: ProfileCurrentResponse | null
+  /**
+   * Most recent profile staging record (any status).
+   * Null when the temple has never submitted a profile.
+   * Used to distinguish "no submissions yet" from "recently rejected".
+   */
+  latestProfileStaging?: {
+    stagingId: number
+    /** Canonical workflow status: SUBMITTED, APPROVED, REJECTED, DRAFT, etc. */
+    status: string
+    reviewComment: string | null
+    versionNumber: number
+    reviewedAt: string | null
+  } | null
 }
 
 export interface BoardMeetingSummary {
@@ -442,7 +458,8 @@ export interface BoardMemberSummary {
   appointmentDate: string | null
   tenureEndDate: string | null
   address: string | null
-  isCurrent: boolean
+  /** JSON wire key is "current" — matches backend @JsonProperty("current") on boolean field. */
+  current: boolean
 }
 
 export interface EmployeeSummary {
@@ -535,4 +552,17 @@ export interface NotificationResponse {
   read: boolean
   readAt: string | null
   createdAt: string
+}
+
+/** A single entry in the DC-side temple profile version history. */
+export interface DcProfileHistoryEntry {
+  stagingId: number
+  versionNumber: number
+  /** Canonical workflow status: APPROVED, REJECTED, SUBMITTED, RESUBMITTED, etc. */
+  status: string
+  submittedAt: string | null
+  submittedBy: number | null
+  reviewedAt: string | null
+  reviewedBy: number | null
+  reviewComment: string | null
 }

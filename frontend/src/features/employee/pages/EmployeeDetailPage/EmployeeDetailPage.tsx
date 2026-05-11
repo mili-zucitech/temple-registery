@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useGetEmployeeByIdQuery } from '@/features/employee/employeeApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,15 +11,18 @@ import { ArrowLeft, User, Briefcase, Phone, MapPin, Calendar, Shield, Award, Has
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data, isLoading, isError } = useGetEmployeeByIdQuery(Number(id), { skip: !id })
+  const { data, isLoading, isError } = useGetEmployeeByIdQuery(Number(id), {
+    skip: !id,
+    refetchOnMountOrArgChange: true,
+  })
 
   const employee = data?.data
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 max-w-6xl mx-auto pb-8">
         <CardSkeleton />
-        <CardSkeleton />
+        <TableBodySkeleton rows={5} cols={2} />
       </div>
     )
   }

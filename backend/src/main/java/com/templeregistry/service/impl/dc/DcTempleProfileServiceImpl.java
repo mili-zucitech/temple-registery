@@ -41,14 +41,19 @@ import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleProfileService;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.trust.TrustValidationService;
+import com.templeregistry.common.PaginatedResponse;
+import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -58,6 +63,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final FileStorageService fileStorageService;
+        private final PaginationUtil paginationUtil;
 
         private final TempleRepository templeRepository;
         private final TempleSearchSummaryRepository summaryRepository;
@@ -185,6 +191,22 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .map(this::toProfileCurrentResponse)
                                 .orElse(null);
 
+                // Latest profile staging (any status) — lets DC distinguish "never submitted"
+                // from "recently rejected" without an extra round-trip.
+                TempleFullProfileResponse.LatestProfileStagingInfo latestProfileStaging =
+                                profileStagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId)
+                                .map(s -> {
+                                        WorkflowInstance wi = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
+                                        return TempleFullProfileResponse.LatestProfileStagingInfo.builder()
+                                                        .stagingId(s.getId())
+                                                        .status(wi.getStatus().name())
+                                                        .reviewComment(s.getReviewComment())
+                                                        .versionNumber(s.getVersionNumber())
+                                                        .reviewedAt(s.getReviewedAt())
+                                                        .build();
+                                })
+                                .orElse(null);
+
                 log.info("DC full profile loaded: templeId={}", templeId);
 
                 return TempleFullProfileResponse.builder()
@@ -201,6 +223,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contractors(contractors)
                                 .declarations(declarations)
                                 .currentProfile(currentProfile)
+                                .latestProfileStaging(latestProfileStaging)
                                 .build();
         }
 
@@ -325,16 +348,40 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                                         com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
                                                         com.templeregistry.entity.workflow.WorkflowStatus.UNDER_REVIEW,
                                                         com.templeregistry.entity.workflow.WorkflowStatus.RESUBMITTED))
-                                .or(() ->
-                                        // Fallback: if no active review exists, return the most recently
-                                        // rejected staging so DC can still see what was reviewed.
-                                        profileStagingRepository
-                                                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
-                                                        templeId,
-                                                        java.util.List.of(
-                                                                com.templeregistry.entity.workflow.WorkflowStatus.REJECTED)))
                                 .map(this::toProfileStagingResponse)
                                 .orElse(null);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        @PreAuthorize(RoleConstants.CAN_READ_ALL)
+        public PaginatedResponse<DcProfileHistoryEntry> getProfileHistory(Long templeId, ScopeHelper.Claims claims, int page, int size) {
+                Temple temple = templeRepository.findWithGeoById(templeId)
+                                .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
+                if (RoleConstants.DISTRICT_COLLECTOR.equals(claims.role())
+                                || RoleConstants.DC_STAFF.equals(claims.role())) {
+                        jurisdictionGuard.assertDistrictScope(temple, claims);
+                }
+                int clamped = paginationUtil.clampSize(size);
+                Page<TempleProfileStaging> rows = profileStagingRepository
+                                .findAllByTempleIdOrderByVersionNumberDesc(templeId, PageRequest.of(page, clamped));
+                Page<DcProfileHistoryEntry> mapped = rows.map(s -> {
+                        WorkflowInstance wi = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
+                        return DcProfileHistoryEntry.builder()
+                                        .stagingId(s.getId())
+                                        .versionNumber(wi.getVersionNumber())
+                                        .status(wi.getStatus().name())
+                                        .submittedAt(wi.getSubmittedAt() != null
+                                                        ? LocalDateTime.ofInstant(wi.getSubmittedAt(), ZoneId.systemDefault())
+                                                        : null)
+                                        .submittedBy(wi.getCreatedBy())
+                                        .reviewedAt(s.getReviewedAt())
+                                        .reviewedBy(s.getReviewedBy())
+                                        .reviewComment(s.getReviewComment())
+                                        .build();
+                });
+                log.info("DC profile history loaded: templeId={} page={} size={}", templeId, page, clamped);
+                return PaginatedResponse.of(mapped);
         }
 
         // ─── Mapping helpers ──────────────────────────────────────────────────────
@@ -363,7 +410,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contactDesignation(t.getContactDesignation())
                                 .contactMobile(t.getContactMobile())
                                 .contactEmail(t.getContactEmail())
-                                .photoUrl(fileStorageService.presignedUrl(t.getPhotoUrl()))
+                                .photoUrl(t.getPhotoUrl() != null && !t.getPhotoUrl().isBlank() ? "/api/v1/temples/" + t.getId() + "/profile-photo/serve" : null)
                                 .website(t.getWebsite())
                                 .languagesOfWorship(t.getLanguagesOfWorship())
                                 .linkedInstitutions(t.getLinkedInstitutions())
@@ -545,7 +592,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .website(p.getWebsite())
                                 .contactPersonName(p.getContactPersonName())
                                 .contactPersonDesignation(p.getContactPersonDesignation())
-                                .photoUrl(fileStorageService.presignedUrl(p.getPhotoFilePath()))
+                                .photoUrl(p.getPhotoFilePath() != null && !p.getPhotoFilePath().isBlank() ? "/api/v1/temples/" + p.getTempleId() + "/profile-photo/serve" : null)
                                 .bankName(p.getBankName())
                                 .bankAccountMasked(maskBankAccount(p.getBankAccountNumberEncrypted()))
                                 .bankIfsc(p.getBankIfsc())
@@ -582,7 +629,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .contactPersonDesignation(s.getContactPersonDesignation())
                                 .phone(s.getPhone())
                                 .email(s.getEmail())
-                                .photoUrl(fileStorageService.presignedUrl(s.getPhotoFilePath()))
+                                .website(s.getWebsite())
+                                .photoUrl(s.getPhotoFilePath() != null && !s.getPhotoFilePath().isBlank() ? "/api/v1/temples/" + s.getTempleId() + "/profile-photo/serve" : null)
                                 .bankName(s.getBankName())
                                 .bankAccountNumberMasked(maskBankAccount(s.getBankAccountNumberEncrypted()))
                                 .bankIfsc(s.getBankIfsc())
@@ -594,6 +642,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .historicalSignificance(s.getHistoricalSignificance())
                                 .submittedAt(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
                                 .submittedBy(instance.getCreatedBy())
+                                .reviewComment(s.getReviewComment())
                                 .build();
         }
 

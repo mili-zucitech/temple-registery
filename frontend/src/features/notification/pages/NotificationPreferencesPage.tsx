@@ -8,6 +8,7 @@ import { Loader2, Bell, Mail, Save } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 interface PreferenceState {
   moduleType: ModuleType
@@ -85,8 +86,8 @@ export function NotificationPreferencesPage() {
       await updatePreferences({ preferences }).unwrap()
       setHasChanges(false)
       toast.success('Preferences saved')
-    } catch {
-      toast.error('Failed to save preferences. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save preferences. Please try again.'))
     }
   }
 

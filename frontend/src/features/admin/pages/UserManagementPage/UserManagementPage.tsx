@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import {
   useListUsersQuery, useDeactivateUserMutation, useActivateUserMutation,
   useCreateUserMutation, useUpdateUserMutation,

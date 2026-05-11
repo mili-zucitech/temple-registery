@@ -53,7 +53,10 @@ export const templeApi = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'TempleStaging', id: `active-${templeId}` }],
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'TempleStaging', id: `active-${templeId}` },
+        { type: 'TempleStaging', id: `history-${templeId}` },
+      ],
     }),
 
     submitForReview: builder.mutation<ApiResponse<TempleProfileStagingResponse>, number>({
@@ -63,6 +66,7 @@ export const templeApi = createApi({
       }),
       invalidatesTags: (_r, _e, templeId) => [
         { type: 'TempleStaging', id: `active-${templeId}` },
+        { type: 'TempleStaging', id: `history-${templeId}` },
         { type: 'TempleCurrentProfile', id: templeId },
         { type: 'Temple', id: templeId },
       ],
@@ -94,7 +98,10 @@ export const templeApi = createApi({
           body: formData,
         }
       },
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'TemplePhotos', id }],
+      invalidatesTags: (_r, _e, { id }) => [
+        { type: 'TemplePhotos', id },
+        { type: 'Temple', id },
+      ],
     }),
 
     uploadTemplePhotos: builder.mutation<ApiResponse<string[]>, { id: number; files: File[] }>({
@@ -107,9 +114,13 @@ export const templeApi = createApi({
           body: formData,
         }
       },
-      // Only invalidate TemplePhotos — do NOT invalidate Temple or TempleStaging.
-      // Invalidating those triggers isLoading cycle which causes form.reset() and loses entered data.
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'TemplePhotos', id }],
+      // Invalidate TemplePhotos so the gallery refreshes. Also invalidate Temple so that
+      // temple.photoUrl updates after the first primary photo is uploaded. The TaTempleEditPage
+      // guards against re-initializing the form via isFormInitialized.current, so this is safe.
+      invalidatesTags: (_r, _e, { id }) => [
+        { type: 'TemplePhotos', id },
+        { type: 'Temple', id },
+      ],
     }),
 
     getTemplePhotos: builder.query<ApiResponse<TemplePhotoDto[]>, number>({
@@ -122,7 +133,12 @@ export const templeApi = createApi({
         url: `/temples/${templeId}/photos/${photoId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (_r, _e, { templeId }) => [{ type: 'TemplePhotos', id: templeId }],
+      // Invalidate TemplePhotos AND Temple: if the deleted photo was the primary,
+      // temple.photoUrl changes and the profile photo serve endpoint must re-evaluate.
+      invalidatesTags: (_r, _e, { templeId }) => [
+        { type: 'TemplePhotos', id: templeId },
+        { type: 'Temple', id: templeId },
+      ],
     }),
 
     deleteProfileStaging: builder.mutation<ApiResponse<void>, { templeId: number; stagingId: number }>({

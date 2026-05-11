@@ -1,5 +1,6 @@
 package com.templeregistry.entity.dc;
 
+import com.templeregistry.util.AesEncryptionConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -59,6 +60,7 @@ public class TempleProfileHistory {
     @Column(name = "bank_name", length = 100)
     private String bankName;
 
+    @Convert(converter = AesEncryptionConverter.class)
     @Column(name = "bank_account_number_encrypted", columnDefinition = "TEXT")
     private String bankAccountNumberEncrypted;
 

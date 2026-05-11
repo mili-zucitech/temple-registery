@@ -89,6 +89,20 @@ describe('notificationApi — mutation invalidatesTags', () => {
     expect(block).toContain("'Notification'")
   })
 
+  it('should_deleteNotification_invalidate_Notification_tag', () => {
+    const block = sliceEndpoint(src(), 'deleteNotification', 'mutation')
+    expect(block).not.toBeNull()
+    expect(block).toContain('invalidatesTags')
+    expect(block).toContain("'Notification'")
+  })
+
+  it('should_clearAllNotifications_invalidate_Notification_tag', () => {
+    const block = sliceEndpoint(src(), 'clearAllNotifications', 'mutation')
+    expect(block).not.toBeNull()
+    expect(block).toContain('invalidatesTags')
+    expect(block).toContain("'Notification'")
+  })
+
   it('should_updatePreferences_invalidate_NotificationPreference_tag', () => {
     const block = sliceEndpoint(src(), 'updatePreferences', 'mutation')
     expect(block).not.toBeNull()
@@ -97,14 +111,32 @@ describe('notificationApi — mutation invalidatesTags', () => {
   })
 })
 
+// ─── Delete endpoints use DELETE method ────────────────────────────────────────
+
+describe('notificationApi — delete endpoint methods', () => {
+  it('should_deleteNotification_use_DELETE_method', () => {
+    const block = sliceEndpoint(src(), 'deleteNotification', 'mutation')
+    expect(block).not.toBeNull()
+    expect(block).toContain("method: 'DELETE'")
+  })
+
+  it('should_clearAllNotifications_use_DELETE_method', () => {
+    const block = sliceEndpoint(src(), 'clearAllNotifications', 'mutation')
+    expect(block).not.toBeNull()
+    expect(block).toContain("method: 'DELETE'")
+  })
+})
+
 // ─── Exported hooks ───────────────────────────────────────────────────────────
 
 describe('notificationApi — exported hooks', () => {
   const EXPECTED_HOOKS = [
     'useListNotificationsQuery',
+    'useGetUnreadCountQuery',
     'useMarkReadMutation',
     'useMarkAllReadMutation',
-    'useGetUnreadCountQuery',
+    'useDeleteNotificationMutation',
+    'useClearAllNotificationsMutation',
     'useGetPreferencesQuery',
     'useUpdatePreferencesMutation',
   ]
@@ -114,6 +146,27 @@ describe('notificationApi — exported hooks', () => {
       expect(src()).toContain(hook)
     })
   }
+})
+
+// ─── Rich context fields in NotificationResponse ─────────────────────────────
+
+describe('notificationApi — NotificationResponse rich fields', () => {
+  const EXPECTED_FIELDS = [
+    'notificationType',
+    'redirectUrl',
+    'templeId',
+    'templeName',
+    'actionByName',
+    'actionByRole',
+    'workflowStatus',
+  ]
+
+  it('should_define_all_rich_context_fields', () => {
+    const source = src()
+    for (const field of EXPECTED_FIELDS) {
+      expect(source, `NotificationResponse missing field: ${field}`).toContain(field)
+    }
+  })
 })
 
 // ─── ModuleType completeness ──────────────────────────────────────────────────

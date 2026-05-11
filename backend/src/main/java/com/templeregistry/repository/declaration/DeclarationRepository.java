@@ -125,4 +125,22 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
      * Find overdue declarations for a district (paginated).
      */
     Page<AssetDeclaration> findByIsOverdueTrueAndDistrictId(Long districtId, Pageable pageable);
+
+    /**
+     * Check if the temple has at least one declaration with the given status.
+     * Used by TempleSearchSummaryService for hasApprovedDeclaration flag.
+     */
+    boolean existsByTempleIdAndStatus(Long templeId, DeclarationStatus status);
+
+    /**
+     * Count declarations for a temple by status set.
+     * Used by TempleSearchSummaryService to populate pendingDeclarations counter.
+     */
+    long countByTempleIdAndStatusIn(Long templeId, List<DeclarationStatus> statuses);
+
+    /**
+     * Count declarations for a temple with a single status.
+     * Used by TempleSearchSummaryService to populate overdueDeclarations counter.
+     */
+    long countByTempleIdAndStatus(Long templeId, DeclarationStatus status);
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
+import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock, XCircle, FileEdit } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
@@ -13,6 +13,7 @@ import { InfoRow } from '../../components/InfoRow'
 import { TagDisplay } from '../../components/TagDisplay'
 import { VersionDetailView } from '../../components/VersionDetailView'
 import { ImageGallery } from '../../components/ImageGallery'
+import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
 
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useProfileHistory, useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
@@ -38,6 +39,9 @@ function OverviewTab() {
 
   const effective = stagingProfile ?? temple
   const effectiveAny = effective as any
+  // Null-safe photo fallback: staging may exist but have no photoUrl (e.g. first draft with no photo saved).
+  // Fall through to temple.photoUrl (presigned by getById) in that case.
+  const effectivePhotoUrl = stagingProfile?.photoUrl ?? temple?.photoUrl
 
 
   const handleEdit = () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
@@ -47,7 +51,10 @@ function OverviewTab() {
     profileStatus === 'REJECTED' ? 'Create New Draft' : 'Edit Profile'
 
   const district = temple?.districtName ?? undefined
-  const locationParts = [temple?.landmark, talukName, hobliName, district].filter(Boolean)
+  // Profile-managed field — read from staging first (TA edits reflected immediately),
+  // fall back to the approved temple entity value.
+  const effectiveLandmark = (effectiveAny?.landmark ?? temple?.landmark) || null
+  const locationParts = [effectiveLandmark, talukName, hobliName, district].filter(Boolean)
 
 
   let parsedLinked = effective?.linkedInstitutions
@@ -67,6 +74,7 @@ function OverviewTab() {
   return (
     <div className="space-y-4 animate-in fade-in-50 duration-300">
 
+      {/* DC-flagged temple entity — separate from profile workflow rejection */}
       {temple?.verificationStatus === 'FLAGGED' && (
         <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
           <div className="flex items-start gap-3">
@@ -81,7 +89,49 @@ function OverviewTab() {
         </div>
       )}
 
-      {temple?.verificationStatus === 'VERIFIED' && (
+      {/* Profile workflow status banners — driven by profileStatus, NOT temple.verificationStatus */}
+
+      {profileStatus === 'REJECTED' && (
+        <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <XCircle className="mt-0.5 h-5 w-5 text-destructive" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-destructive">Profile Update Rejected by DC</p>
+              {profileReviewComment ? (
+                <p className="text-sm text-foreground">{profileReviewComment}</p>
+              ) : (
+                <p className="text-sm text-foreground">Your profile update was rejected. Please review the feedback and create a new draft to resubmit.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED') && (
+        <div className="rounded-xl border-2 border-info/30 bg-info/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 text-info" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-info-foreground">Under DC Review</p>
+              <p className="text-sm text-foreground">Your temple profile is currently under review by the District Collector. Editing is locked until a decision is made.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profileStatus === 'UPDATED_AFTER_APPROVAL' && (
+        <div className="rounded-xl border-2 border-amber-300/50 bg-amber-50/80 dark:bg-amber-950/30 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <FileEdit className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Profile Update Draft Ready</p>
+              <p className="text-sm text-foreground">You have an unsaved draft with profile updates. Submit it for DC review when ready.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(profileStatus === 'APPROVED' || (profileStatus === 'NOT_STARTED' && temple?.verificationStatus === 'VERIFIED')) && (
         <div className="rounded-xl border-2 border-success/30 bg-success/10 p-4 shadow-sm">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
@@ -93,24 +143,12 @@ function OverviewTab() {
         </div>
       )}
 
-      {temple?.verificationStatus === 'UNDER_REVIEW' && (
-        <div className="rounded-xl border-2 border-info/30 bg-info/10 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <Clock className="mt-0.5 h-5 w-5 text-info" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-info-foreground">Under DC Review</p>
-              <p className="text-sm text-foreground">Your temple profile is currently under review by the District Collector.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-end">
         <Button
           onClick={handleEdit}
-          disabled={temple?.verificationStatus === 'UNDER_REVIEW'}
+          disabled={profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED'}
           className="bg-gradient-gold shadow-gold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium"
-          title={temple?.verificationStatus === 'UNDER_REVIEW' ? 'Editing locked while under DC review' : undefined}
+          title={(profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED') ? 'Editing locked while under DC review' : undefined}
         >
           <span className="mr-2">✎</span>
           {editLabel}
@@ -155,9 +193,9 @@ function OverviewTab() {
             {/* Profile Photo */}
             <div className="w-full lg:w-72 shrink-0">
               <div className="relative overflow-hidden rounded-lg border-2 border-border/50 bg-muted aspect-[4/3] shadow-md group sticky top-6">
-                {effective?.photoUrl ? (
+                {effectivePhotoUrl ? (
                   <img
-                    src={`${import.meta.env.VITE_BASE_URL}${effective.photoUrl}`}
+                    src={`${import.meta.env.VITE_BASE_URL}${effectivePhotoUrl}`}
                     alt={`${temple?.name ?? 'Temple'} profile`}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
@@ -223,7 +261,7 @@ function OverviewTab() {
               {temple?.doorNumber && <InfoField label="Door No." value={temple.doorNumber} compact />}
               {temple?.street && <InfoField label="Street" value={temple.street} compact />}
               {temple?.villageTown && <InfoField label="Village / Town" value={temple.villageTown} compact />}
-              {temple?.landmark && <InfoField label="Landmark" value={temple.landmark} compact />}
+              {effectiveLandmark && <InfoField label="Landmark" value={effectiveLandmark} compact />}
               {temple?.pinCode && <InfoField label="PIN Code" value={temple.pinCode} compact />}
             </div>
             {locationParts.length > 0 && (
@@ -307,7 +345,7 @@ function OverviewTab() {
               templeId={temple.id}
               photos={photos}
               isLoading={photosLoading}
-              canDelete={profileStatus !== 'SUBMITTED'}
+              canDelete={profileStatus !== 'SUBMITTED' && profileStatus !== 'RESUBMITTED'}
             />
           )}
         </div>
@@ -339,10 +377,15 @@ function InfoField({ label, value, multiline = false, compact = false }: { label
 
 // ── History Tab ────────────────────────────────────────────────────────────────
 
+const HISTORY_EXCLUDED_STATUSES = ['DRAFT', 'UPDATED_AFTER_APPROVAL']
+
 function HistoryTab() {
   const { data, isLoading } = useProfileHistory(true)
   const [selected, setSelected] = useState<TempleProfileStagingResponse | null>(null)
-  const history = data?.data?.content ?? []
+  // Exclude draft/in-progress rows — history shows only submitted and reviewed versions.
+  const history = (data?.data?.content ?? []).filter(
+    (item) => !HISTORY_EXCLUDED_STATUSES.includes(item.statusLabel ?? '')
+  )
   const approvedCount = history.filter((item) => item.statusLabel === 'APPROVED').length
   const rejectedCount = history.filter((item) => item.statusLabel === 'REJECTED').length
 
@@ -417,7 +460,7 @@ function HistoryTab() {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export function TaTemplePage() {
-  const { temple, isLoading, isError } = useTempleProfile()
+  const { temple, stagingProfile, currentProfile, isLoading, isError } = useTempleProfile()
   const [activeTab, setActiveTab] = useState('overview')
 
   if (isLoading) return (
@@ -436,6 +479,8 @@ export function TaTemplePage() {
       />
     )
   }
+
+  const governanceWorkflowInstanceId = stagingProfile?.workflowInstanceId ?? currentProfile?.workflowInstanceId
 
   return (
     <div className="space-y-4">
@@ -489,6 +534,16 @@ export function TaTemplePage() {
           >
             History
           </button>
+          <button
+            onClick={() => setActiveTab('governance')}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'governance'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Governance
+          </button>
         </div>
 
         <TabsContent value="overview" className="mt-4 animate-in fade-in-50 duration-300">
@@ -497,6 +552,22 @@ export function TaTemplePage() {
 
         <TabsContent value="history" className="mt-4 animate-in fade-in-50 duration-300">
           <HistoryTab />
+        </TabsContent>
+
+        <TabsContent value="governance" className="mt-4 animate-in fade-in-50 duration-300">
+          {governanceWorkflowInstanceId ? (
+            <WorkflowGovernancePanel
+              workflowInstanceId={governanceWorkflowInstanceId}
+              entityType="TEMPLE_PROFILE"
+              viewerRole="TA"
+            />
+          ) : (
+            <EmptyState
+              title="Governance not available"
+              description="Submit your temple profile for DC review to enable governance tracking."
+              icon={<Building2 size={32} />}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -22,6 +22,9 @@ import com.templeregistry.repository.dc.TempleProfileCurrentRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
+import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowInstance;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
@@ -36,7 +39,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -297,19 +302,31 @@ class TaDashboardServiceImplTest {
     @Test
     void should_returnActivity_when_stagingRecordHasBeenReviewed() {
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime submittedAt = now.minusDays(2);
         TempleProfileStaging staging = TempleProfileStaging.builder()
                 .templeId(TEMPLE_ID)
                 .status(TempleProfileStagingStatus.APPROVED)
-                .submittedAt(now.minusDays(2))
                 .reviewedAt(now.minusDays(1))
                 .build();
         staging.setId(200L);
         when(stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(eq(TEMPLE_ID)))
                 .thenReturn(Optional.of(staging));
+        // BUG-4 FIX: lastSubmission now comes from WorkflowInstance.submittedAt, not staging.submittedAt.
+        WorkflowInstance wi = WorkflowInstance.builder()
+                .entityType(WorkflowEntityType.TEMPLE_PROFILE)
+                .entityId(200L)
+                .templeId(TEMPLE_ID)
+                .districtId(1L)
+                .status(WorkflowStatus.APPROVED)
+                .versionNumber(1)
+                .submittedAt(submittedAt.atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        when(workflowInstanceRepository.findByTempleIdAndEntityType(eq(TEMPLE_ID), eq(WorkflowEntityType.TEMPLE_PROFILE)))
+                .thenReturn(List.of(wi));
 
         TaActivityResponse result = taDashboardService.getActivitySummary(claims);
 
-        assertThat(result.getLastSubmission()).isEqualTo(now.minusDays(2));
+        assertThat(result.getLastSubmission()).isEqualTo(submittedAt);
         assertThat(result.getLastReviewedAt()).isEqualTo(now.minusDays(1));
         assertThat(result.getLastReviewAction()).isEqualTo("APPROVED");
     }
@@ -351,5 +368,61 @@ class TaDashboardServiceImplTest {
 
         assertThat(result.getStatus()).isEqualTo("REJECTED");
         assertThat(result.getReviewComment()).isEqualTo("Contact person name is missing");
+    }
+
+    // ─── Version number propagated from WorkflowInstance ──────────────────────
+
+    @Test
+    void should_returnVersionFromWorkflowInstance_when_currentProfileMapped() {
+        TempleProfileCurrent current = TempleProfileCurrent.builder()
+                .id(1L).templeId(TEMPLE_ID)
+                .contactPersonName("Suresh Kumar")
+                .contactPersonDesignation("Trustee")
+                .bankAccountNumberEncrypted("00001234")
+                .publishedAt(LocalDateTime.now().minusDays(5))
+                .build();
+
+        WorkflowInstance approvedWi = WorkflowInstance.builder()
+                .entityType(WorkflowEntityType.TEMPLE_PROFILE)
+                .entityId(1L)
+                .templeId(TEMPLE_ID)
+                .districtId(1L)
+                .status(WorkflowStatus.APPROVED)
+                .versionNumber(3)
+                .submittedAt(java.time.Instant.now().minusSeconds(86400))
+                .build();
+
+        when(currentRepository.findByTempleId(TEMPLE_ID)).thenReturn(Optional.of(current));
+        when(workflowInstanceRepository.findByTempleIdAndEntityType(
+                eq(TEMPLE_ID), eq(WorkflowEntityType.TEMPLE_PROFILE)))
+                .thenReturn(List.of(approvedWi));
+
+        TaCurrentProfileResponse result = taDashboardService.getCurrentProfile(claims);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getVersion()).isEqualTo(3);
+    }
+
+    // ─── Profile photo URL uses serve endpoint ─────────────────────────────────
+
+    @Test
+    void should_returnServeUrl_when_currentProfileHasPhotoFilePath() {
+        TempleProfileCurrent current = TempleProfileCurrent.builder()
+                .id(2L).templeId(TEMPLE_ID)
+                .photoFilePath("temples/10/photos/abc123.jpg")
+                .bankAccountNumberEncrypted("00001234")
+                .publishedAt(LocalDateTime.now().minusDays(1))
+                .build();
+
+        when(currentRepository.findByTempleId(TEMPLE_ID)).thenReturn(Optional.of(current));
+        when(workflowInstanceRepository.findByTempleIdAndEntityType(
+                eq(TEMPLE_ID), eq(WorkflowEntityType.TEMPLE_PROFILE)))
+                .thenReturn(List.of());
+
+        TaCurrentProfileResponse result = taDashboardService.getCurrentProfile(claims);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getPhotoFilePath())
+                .isEqualTo("/api/v1/temples/" + TEMPLE_ID + "/profile-photo/serve");
     }
 }

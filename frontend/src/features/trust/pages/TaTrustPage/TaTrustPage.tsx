@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import {
   useGetTrustByTempleQuery, useCreateTrustMutation, useUpdateTrustMutation,
@@ -19,7 +20,7 @@ import {
 } from '@/features/trust/trustTypes'
 import { mapBoardMemberToForm } from '@/features/trust/trustMappers'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,20 +72,23 @@ export function TaTrustPage() {
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
 
-  const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, { skip: !templeId })
+  const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, {
+    skip: !templeId,
+    refetchOnMountOrArgChange: true,
+  })
   const trust = useMemo(() => trustData?.data?.[0] ?? null, [trustData])
 
   const { data: membersData, isLoading: membersLoading } = useGetBoardMembersQuery(
     { trustId: trust?.id! },
-    { skip: !trust?.id || tab !== 'board' }
+    { skip: !trust?.id || tab !== 'board', refetchOnMountOrArgChange: true }
   )
   const { data: financialsData, isLoading: financialsLoading } = useListFinancialsQuery(
     { trustId: trust?.id! },
-    { skip: !trust?.id || tab !== 'financials' }
+    { skip: !trust?.id || tab !== 'financials', refetchOnMountOrArgChange: true }
   )
   const { data: meetingsData, isLoading: meetingsLoading } = useListBoardMeetingsQuery(
     { trustId: trust?.id!, page, size: DEFAULT_PAGE_SIZE },
-    { skip: !trust?.id || tab !== 'meetings' }
+    { skip: !trust?.id || tab !== 'meetings', refetchOnMountOrArgChange: true }
   )
 
   const reviewStatus = trust?.governanceStatus?.status ?? 'DRAFT'
@@ -157,8 +161,8 @@ export function TaTrustPage() {
         toast.success('Trust registered successfully')
       }
       setShowTrustForm(false)
-    } catch {
-      toast.error('Failed to save trust details')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save trust details'))
     }
   }
 
@@ -191,8 +195,8 @@ export function TaTrustPage() {
       toast.success('Board member added')
       memberForm.reset()
       setShowMemberForm(false)
-    } catch {
-      toast.error('Failed to add board member')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to add board member'))
     }
   }
 
@@ -203,8 +207,8 @@ export function TaTrustPage() {
       toast.success('Financial statement submitted')
       financialForm.reset()
       setShowFinancialForm(false)
-    } catch {
-      toast.error('Failed to submit financial statement')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to submit financial statement'))
     }
   }
 
@@ -231,8 +235,8 @@ export function TaTrustPage() {
       meetingForm.reset()
       setMeetingFile(null)
       setShowMeetingForm(false)
-    } catch {
-      toast.error('Failed to record board meeting')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to record board meeting'))
     }
   }
 
@@ -241,8 +245,8 @@ export function TaTrustPage() {
     try {
       await deleteBoardMember({ trustId: trust.id, memberId }).unwrap()
       toast.success('Board member removed')
-    } catch {
-      toast.error('Failed to remove board member')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to remove board member'))
     }
   }
 
@@ -253,8 +257,8 @@ export function TaTrustPage() {
       toast.success('Board member updated')
       updateMemberForm.reset()
       setEditingMemberId(null)
-    } catch {
-      toast.error('Failed to update board member')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update board member'))
     }
   }
 
@@ -271,8 +275,16 @@ export function TaTrustPage() {
     ? [...allCurrentMembers, ...allPastMembers].find(m => m.id === viewingMemberId)
     : null
 
-  if (trustLoading) {
-    return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>
+  // Show skeleton while user context (templeId) or trust data are loading.
+  // This prevents "Trust not registered" from flashing before the data arrives.
+  if (!templeId || trustLoading) {
+    return (
+      <div className="space-y-5 pb-10">
+        <CardSkeleton />
+        <TableBodySkeleton rows={1} cols={5} />
+        <TableBodySkeleton rows={4} cols={3} />
+      </div>
+    )
   }
 
   return (
@@ -290,7 +302,7 @@ export function TaTrustPage() {
           </div>
         </div>
       )}
-      {/* Modern Header */}}
+      {/* Modern Header */}
       <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 via-card to-secondary/5 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -334,8 +346,8 @@ export function TaTrustPage() {
                         try {
                           await submitTrust(trust.id).unwrap()
                           toast.success('Trust submitted for DC review.')
-                        } catch {
-                          toast.error('Could not submit trust. Please try again.')
+                        } catch (err) {
+                          toast.error(extractApiErrorMessage(err, 'Could not submit trust. Please try again.'))
                         }
                       }}
                     >
@@ -368,8 +380,42 @@ export function TaTrustPage() {
                         try {
                           await submitTrust(trust.id).unwrap()
                           toast.success('Trust resubmitted for DC review.')
-                        } catch {
-                          toast.error('Could not resubmit trust. Please try again.')
+                        } catch (err) {
+                          toast.error(extractApiErrorMessage(err, 'Could not resubmit trust. Please try again.'))
+                        }
+                      }}
+                    >
+                      {submittingTrust ? 'Submitting…' : 'Yes, resubmit'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {trust && reviewStatus === 'REJECTED' && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
+                    Resubmit for DC Review
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Resubmit after Rejection?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Your updated trust details will be sent back to the District Collector
+                      for a fresh review.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={submittingTrust}
+                      onClick={async () => {
+                        try {
+                          await submitTrust(trust.id).unwrap()
+                          toast.success('Trust resubmitted for DC review.')
+                        } catch (err) {
+                          toast.error(extractApiErrorMessage(err, 'Could not resubmit trust. Please try again.'))
                         }
                       }}
                     >
@@ -506,7 +552,17 @@ export function TaTrustPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <StatusBadge status={reviewStatus} />
-                      <Button variant="outline" size="sm" onClick={() => setShowTrustForm(true)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'}
+                        title={
+                          reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'
+                            ? 'Trust is currently under DC review — editing is locked'
+                            : undefined
+                        }
+                        onClick={() => setShowTrustForm(true)}
+                      >
                         <Edit size={14} className="mr-1.5" />
                         Edit
                       </Button>
@@ -515,6 +571,12 @@ export function TaTrustPage() {
                   {trust.sendBackReason && (
                     <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
                       <strong>DC feedback:</strong> {trust.sendBackReason}
+                    </div>
+                  )}
+                  {(reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW') && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 flex items-center gap-2">
+                      <AlertCircle size={14} className="shrink-0" />
+                      <span>Trust is currently under DC review. Editing is locked until DC responds.</span>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -602,7 +664,7 @@ export function TaTrustPage() {
                 </form>
               </Form>
             )}
-            {membersLoading ? <CardSkeleton /> : (
+            {membersLoading ? <TableBodySkeleton rows={4} cols={5} /> : (
               <>
                 {/* Member Type Tabs */}
                 <div className="inline-flex rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm">
@@ -779,7 +841,7 @@ export function TaTrustPage() {
                 </form>
               </Form>
             )}
-            {meetingsLoading ? <CardSkeleton /> : (
+            {meetingsLoading ? <TableBodySkeleton rows={3} cols={2} /> : (
               meetings.length === 0 ? (
                 <EmptyState title="No meetings recorded" description="Record meetings and attach minutes for governance review." />
               ) : (
@@ -824,7 +886,7 @@ export function TaTrustPage() {
                 </form>
               </Form>
             )}
-            {financialsLoading ? <CardSkeleton /> : (
+            {financialsLoading ? <TableBodySkeleton rows={3} cols={4} /> : (
               financials.length === 0 ? (
                 <EmptyState title="No financial statements" description="Submit one record for each financial year." />
               ) : (
