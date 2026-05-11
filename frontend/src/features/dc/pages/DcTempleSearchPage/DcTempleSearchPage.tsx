@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -112,8 +113,8 @@ export function DcTempleSearchPage() {
       } else if (result.data?.status === 'ASYNC_ACCEPTED') {
         toast.success('Export is being prepared. You will be notified when it is ready to download.')
       }
-    } catch {
-      toast.error('Export failed. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Export failed. Please try again.'))
     }
   }
 

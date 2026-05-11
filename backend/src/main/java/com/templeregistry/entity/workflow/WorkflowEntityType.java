@@ -22,5 +22,14 @@ public enum WorkflowEntityType {
      * Note: board member versioning is managed via parent Trust snapshot.
      * Individual board member workflow is governed independently.
      */
-    BOARD_MEMBER
+    BOARD_MEMBER,
+
+    /** Employee record. Used for routing notifications to the employees module. */
+    EMPLOYEE,
+
+    /** Contractor record. Used for routing notifications to the contractors module. */
+    CONTRACTOR,
+
+    /** Document record. Used for routing notifications to the documents module. */
+    DOCUMENT
 }

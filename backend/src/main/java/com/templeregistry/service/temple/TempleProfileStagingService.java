@@ -23,19 +23,6 @@ public interface TempleProfileStagingService {
      */
     TempleProfileStagingResponse submitForReview(Long templeId);
 
-    /**
-     * Approve a PENDING_REVIEW staging record (DC/SA only).
-     * Promotes staging fields to the Temple entity; marks any previous APPROVED record SUPERSEDED.
-     * Fires notification event #4.
-     */
-    TempleProfileStagingResponse approve(Long templeId, Long stagingId);
-
-    /**
-     * Reject a PENDING_REVIEW staging record (DC/SA only).
-     * Sets status to REJECTED with dc comment; fires notification event #5.
-     */
-    TempleProfileStagingResponse reject(Long templeId, Long stagingId, String dcComment);
-
     /** Returns the active (DRAFT or PENDING_REVIEW) staging record, or null if none exists. */
     TempleProfileStagingResponse getActiveStagingOrNull(Long templeId);
 

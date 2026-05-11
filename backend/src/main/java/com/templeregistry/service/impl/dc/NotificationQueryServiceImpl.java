@@ -35,7 +35,8 @@ public class NotificationQueryServiceImpl implements NotificationQueryService {
         int clampedSize = Math.min(size, MAX_PAGE_SIZE);
         return PaginatedResponse.of(
                 notificationRepository
-                        .findAllByUserIdOrderByCreatedAtDesc(claims.userId(), PageRequest.of(page, clampedSize))
+                        .findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(
+                                claims.userId(), PageRequest.of(page, clampedSize))
                         .map(this::toResponse));
     }
 
@@ -72,16 +73,47 @@ public class NotificationQueryServiceImpl implements NotificationQueryService {
     @Transactional(readOnly = true)
     @PreAuthorize(RoleConstants.CAN_READ_ALL)
     public long countUnread(ScopeHelper.Claims claims) {
-        return notificationRepository.countByUserIdAndIsRead(claims.userId(), false);
+        return notificationRepository.countByUserIdAndIsReadAndDeletedAtIsNull(claims.userId(), false);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_WRITE_DC)
+    public void deleteNotification(Long notificationId, ScopeHelper.Claims claims) {
+        int updated = notificationRepository.softDeleteById(notificationId, claims.userId());
+        if (updated == 0) {
+            throw new EntityNotFoundException("Notification", notificationId);
+        }
+        log.debug("Notification [{}] soft-deleted by userId={}", notificationId, claims.userId());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(RoleConstants.CAN_WRITE_DC)
+    public int clearAll(ScopeHelper.Claims claims) {
+        int count = notificationRepository.softDeleteAllByUserId(claims.userId());
+        log.info("Cleared {} notification(s) for userId={}", count, claims.userId());
+        return count;
     }
 
     private NotificationResponse toResponse(InAppNotification n) {
         return NotificationResponse.builder()
                 .id(n.getId())
+                .notificationType(n.getNotificationType())
                 .title(n.getTitle())
                 .body(n.getBody())
+                .priority(n.getPriority())
+                .category(n.getCategory())
+                .actionUrl(n.getActionUrl())
+                .redirectUrl(n.getRedirectUrl())
                 .referenceType(n.getReferenceType())
                 .referenceId(n.getReferenceId())
+                .workflowInstanceId(n.getWorkflowInstanceId())
+                .templeId(n.getTempleId())
+                .templeName(n.getTempleName())
+                .actionByName(n.getActionByName())
+                .actionByRole(n.getActionByRole())
+                .workflowStatus(n.getWorkflowStatus())
                 .read(n.isRead())
                 .readAt(n.getReadAt())
                 .createdAt(n.getCreatedAt())

@@ -8,12 +8,12 @@ import { formatCurrency } from '../utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import type { BoardMemberSummary, TrustFinancialSummary, BoardMeetingSummary } from '@/features/dc/dcTypes'
+import type { BoardMemberSummary, DcTrustSummary, TrustFinancialSummary, BoardMeetingSummary } from '@/features/dc/dcTypes'
 
 const MEMBERS_PAGE_SIZE = 10
 
 interface TrustTabProps {
-  trust: any | null
+  trust: DcTrustSummary | null
   boardMembers: {
     current: BoardMemberSummary[]
     past: BoardMemberSummary[]
@@ -259,7 +259,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0 ml-auto">
-                    {viewingMember.isCurrent ? (
+                    {viewingMember.current ? (
                       <span className="inline-flex items-center mr-5 gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600 whitespace-nowrap">
                         <CheckCircle2 size={12} />
                         Current

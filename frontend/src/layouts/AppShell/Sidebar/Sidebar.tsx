@@ -25,6 +25,7 @@ function getDcNavItems(): NavItem[] {
     { label: 'Temples', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
     { label: 'Declarations', to: ROUTE_PATHS.DC_DECLARATIONS, icon: <ClipboardList size={16} /> },
     { label: 'Export', to: ROUTE_PATHS.DC_EXPORT, icon: <Download size={16} /> },
+    { label: 'Activity', to: ROUTE_PATHS.DC_ACTIVITY, icon: <Activity size={16} /> },
   ]
 }
 

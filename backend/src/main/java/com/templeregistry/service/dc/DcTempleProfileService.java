@@ -1,6 +1,8 @@
 package com.templeregistry.service.dc;
 
+import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.response.dc.DeclarationDetailResponse;
+import com.templeregistry.dto.response.dc.DcProfileHistoryEntry;
 import com.templeregistry.dto.response.dc.ProfileStagingResponse;
 import com.templeregistry.dto.response.dc.TempleFullProfileResponse;
 import com.templeregistry.security.ScopeHelper;
@@ -29,4 +31,11 @@ public interface DcTempleProfileService {
      * dc_e2e Section 4.4.
      */
     ProfileStagingResponse getPendingProfileStaging(Long templeId, ScopeHelper.Claims claims);
+
+    /**
+     * Returns the full profile submission history for a temple, ordered by version descending.
+     * Includes all statuses (APPROVED, REJECTED, SUBMITTED, etc.).
+     * dc_e2e Section 4.5.
+     */
+    PaginatedResponse<DcProfileHistoryEntry> getProfileHistory(Long templeId, ScopeHelper.Claims claims, int page, int size);
 }

@@ -1,4 +1,4 @@
-import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, CreditCard, Globe, ChevronDown, ChevronUp } from 'lucide-react'
+import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, CreditCard, Globe, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
@@ -29,24 +29,55 @@ export function OverviewTab({
   const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
   const currentProfile = profile.currentProfile
 
-  // Effective display values — priority: pending staging (TA submitted, awaiting DC review)
-  // → current approved profile → temples table (only updated on approval).
-  // This ensures DC sees the submitted data immediately after TA submits for review.
-  const effectiveContactName = pendingStaging?.contactPersonName || currentProfile?.contactPersonName || temple.contactName
-  const effectiveContactDesignation = pendingStaging?.contactPersonDesignation || currentProfile?.contactPersonDesignation || temple.contactDesignation
-  const effectivePhone = pendingStaging?.phone || currentProfile?.phone || temple.contactMobile
-  const effectiveEmail = pendingStaging?.email || currentProfile?.email || temple.contactEmail
-  const effectivePhotoUrl = pendingStaging?.photoUrl || currentProfile?.photoUrl || temple.photoUrl
-  const effectiveLanguages = pendingStaging?.languagesOfWorship || currentProfile?.languagesOfWorship || temple.languagesOfWorship
+  const pendingGovernance = pendingStaging?.governanceStatus
+  const pendingAllowedActions = pendingGovernance?.allowedActions ?? []
+
+  // Data visibility: show pending staging data whenever the workflow is in a DC-review state,
+  // regardless of whether action buttons are shown (e.g. UNDER_REVIEW shows data but may not
+  // expose APPROVE/REJECT until the DC explicitly triggers those actions).
+  const hasPendingData = pendingStaging !== null
+    && pendingStaging !== undefined
+    && ['SUBMITTED', 'UNDER_REVIEW', 'RESUBMITTED'].includes(pendingStaging.status)
+  const displayPendingStaging = hasPendingData ? pendingStaging : null
+
+  // Action visibility: approve/reject buttons only appear when the backend explicitly
+  // returns those actions as allowed (sourced from TransitionRuleRegistry).
+  const hasDcProfileAction = pendingAllowedActions.includes('APPROVE')
+    || pendingAllowedActions.includes('RE_APPROVE')
+    || pendingAllowedActions.includes('REJECT')
+  const actionablePendingStaging = hasDcProfileAction ? pendingStaging : null
+
+  // Effective display values — 2-layer priority for profile-managed fields:
+  //   1. Pending staging (TA submitted, awaiting or under DC review) — shows most current TA data
+  //   2. Approved currentProfile — last approved snapshot from temple_profile_current
+  //   No fallback to temple.* for these fields: temples holds identity data, not the
+  //   profile-managed contact/bank set. Falling back to temple would show stale pre-approval
+  //   data after a rejection or re-submission cycle.
+  const effectiveContactName = displayPendingStaging?.contactPersonName || currentProfile?.contactPersonName || null
+  const effectiveContactDesignation = displayPendingStaging?.contactPersonDesignation || currentProfile?.contactPersonDesignation || null
+  const effectivePhone = displayPendingStaging?.phone || currentProfile?.phone || null
+  const effectiveEmail = displayPendingStaging?.email || currentProfile?.email || null
+  const effectiveWebsite = displayPendingStaging?.website || currentProfile?.website || temple.website || null
+  const effectivePhotoUrl = displayPendingStaging?.photoUrl || currentProfile?.photoUrl || temple.photoUrl
+  const effectiveLanguages = displayPendingStaging?.languagesOfWorship || currentProfile?.languagesOfWorship || temple.languagesOfWorship
   // Bank details — pendingStaging uses bankAccountNumberMasked, currentProfile uses bankAccountMasked
-  const effectiveBankName = pendingStaging?.bankName || currentProfile?.bankName || temple.bankName
-  const effectiveBankIfsc = pendingStaging?.bankIfsc || currentProfile?.bankIfsc || temple.bankIfsc
-  const effectiveBankAccountMasked = pendingStaging?.bankAccountNumberMasked || currentProfile?.bankAccountMasked
-  // Whether any contact field is sourced from a pending (unapproved) staging record
-  const hasUnreviewedData = !!(pendingStaging && ['SUBMITTED', 'UNDER_REVIEW', 'RESUBMITTED'].includes(pendingStaging.status) && (
-    pendingStaging.contactPersonName || pendingStaging.phone ||
-    pendingStaging.email || pendingStaging.languagesOfWorship ||
-    pendingStaging.bankName
+  const effectiveBankName = displayPendingStaging?.bankName || currentProfile?.bankName || null
+  const effectiveBankIfsc = displayPendingStaging?.bankIfsc || currentProfile?.bankIfsc || null
+  const effectiveBankAccountMasked = displayPendingStaging?.bankAccountNumberMasked || currentProfile?.bankAccountMasked || null
+  // Profile content fields — previously missing from DC view
+  const effectiveDescription = displayPendingStaging?.description || currentProfile?.description || null
+  const effectiveLandmark = displayPendingStaging?.landmark || currentProfile?.landmark || temple.landmark || null
+  const effectiveHistoricalSignificance = displayPendingStaging?.historicalSignificance || currentProfile?.historicalSignificance || temple.historicalSignificance || null
+  const effectiveAnnualFestivals = displayPendingStaging?.annualFestivals || currentProfile?.annualFestivals || temple.annualFestivals || null
+  const effectiveLinkedInstitutions = displayPendingStaging?.linkedInstitutions || currentProfile?.linkedInstitutions || temple.linkedInstitutions || null
+  // Whether any profile field is sourced from a pending (unapproved) staging record
+  const hasUnreviewedData = !!(displayPendingStaging && (
+    displayPendingStaging.contactPersonName || displayPendingStaging.phone ||
+    displayPendingStaging.email || displayPendingStaging.languagesOfWorship ||
+    displayPendingStaging.bankName || displayPendingStaging.description ||
+    displayPendingStaging.landmark || displayPendingStaging.website ||
+    displayPendingStaging.historicalSignificance || displayPendingStaging.annualFestivals ||
+    displayPendingStaging.linkedInstitutions
   ))
 
   const pendingReviewDecls = useMemo(() =>
@@ -126,7 +157,6 @@ export function OverviewTab({
                   <DetailItem label="Registration No." value={temple.registrationNumber || '—'} />
                   <DetailItem label="Alias Name" value={temple.aliasName || '—'} />
                   <DetailItem label="Languages" value={formatList(effectiveLanguages)} />
-                  <DetailItem label="Door Number" value={temple.doorNumber || '—'} />
                   <DetailItem label="PIN Code" value={temple.pinCode || '—'} />
                   <DetailItem label="Contact Name" value={effectiveContactName || '—'} />
                   <DetailItem label="Contact Mobile" value={effectivePhone || '—'} />
@@ -194,6 +224,11 @@ export function OverviewTab({
                     }
                   />
                 </div>
+                {effectiveLandmark && (
+                  <div className="col-span-2">
+                    <DetailItem label="Landmark" value={effectiveLandmark} />
+                  </div>
+                )}
               </dl>
             </div>
           </div>
@@ -225,6 +260,12 @@ export function OverviewTab({
                       <a href={`mailto:${effectiveEmail}`} className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
                         <Shield size={10} className="text-purple-400" />
                         {effectiveEmail}
+                      </a>
+                    )}
+                    {effectiveWebsite && (
+                      <a href={effectiveWebsite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[10px] font-regular text-slate-600 hover:text-purple-600 transition-colors">
+                        <Globe size={10} className="text-purple-400" />
+                        {effectiveWebsite}
                       </a>
                     )}
                   </div>
@@ -311,7 +352,7 @@ export function OverviewTab({
                   <CreditCard size={14} className="text-white" />
                 </div>
                 <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Bank Account</h2>
-                {hasUnreviewedData && (pendingStaging?.bankName || pendingStaging?.bankIfsc || pendingStaging?.bankAccountNumberMasked) && (
+                {hasUnreviewedData && (actionablePendingStaging?.bankName || actionablePendingStaging?.bankIfsc || actionablePendingStaging?.bankAccountNumberMasked) && (
                   <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
                     Pending Review
                   </span>
@@ -328,6 +369,49 @@ export function OverviewTab({
           )}
         </div>
 
+        {/* Heritage & Profile Content — full-width, shown only when content exists */}
+        {(effectiveDescription || effectiveHistoricalSignificance || effectiveAnnualFestivals || effectiveLinkedInstitutions) && (
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
+            <div className="px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50 flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md">
+                <BookOpen size={16} className="text-white" />
+              </div>
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Heritage & Profile Content</h2>
+              {hasUnreviewedData && (
+                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                  Pending Review
+                </span>
+              )}
+            </div>
+            <div className="p-3 space-y-3">
+              {effectiveDescription && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{effectiveDescription}</p>
+                </div>
+              )}
+              {effectiveHistoricalSignificance && (
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Historical Significance</p>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{effectiveHistoricalSignificance}</p>
+                </div>
+              )}
+              {effectiveAnnualFestivals && (
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Annual Festivals</p>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{effectiveAnnualFestivals}</p>
+                </div>
+              )}
+              {effectiveLinkedInstitutions && (
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Linked Institutions</p>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{formatList(effectiveLinkedInstitutions)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Temple Profile Governance — single card that cycles:
              Approved → Pending Review (when update submitted) → Approved.
              When pendingStaging exists, the card shows the update-under-review state
@@ -335,26 +419,23 @@ export function OverviewTab({
              current temple verification state (Verified / Pending / Flagged) with
              the Verify / Flag temple-entity actions. */}
         {(() => {
-          if (pendingStaging && onApproveProfile && onRejectProfile) {
+          if (actionablePendingStaging && onApproveProfile && onRejectProfile) {
             // An update from the TA is awaiting DC review — show the governance card
             // for the profile staging, not the old verified state.
-            const govStatus = pendingStaging.governanceStatus
-            const canApprove = govStatus
-              ? (govStatus.allowedActions?.includes('APPROVE') || govStatus.allowedActions?.includes('RE_APPROVE')) ?? true
-              : true
-            const canReject = govStatus
-              ? govStatus.allowedActions?.includes('REJECT') ?? true
-              : true
+            const govStatus = actionablePendingStaging.governanceStatus
+            const canApprove = !!(govStatus?.allowedActions?.includes('APPROVE')
+              || govStatus?.allowedActions?.includes('RE_APPROVE'))
+            const canReject = !!govStatus?.allowedActions?.includes('REJECT')
             return (
               <div className="rounded-xl overflow-hidden border border-amber-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
                 <GovernanceActionPanel
                   entityName="Temple Profile Update"
                   isVerified={false}
-                  canonicalStatus={govStatus?.status ?? pendingStaging.status}
+                  canonicalStatus={govStatus?.status ?? actionablePendingStaging.status}
                   canAct={canAct && (canApprove || canReject)}
                   onVerify={onApproveProfile}
                   onReject={onRejectProfile}
-                  statusHint={`Version ${pendingStaging.version} · Submitted ${pendingStaging.submittedAt ? new Date(pendingStaging.submittedAt).toLocaleDateString() : 'recently'}`}
+                  statusHint={`Version ${actionablePendingStaging.version} · Submitted ${actionablePendingStaging.submittedAt ? new Date(actionablePendingStaging.submittedAt).toLocaleDateString() : 'recently'}`}
                 />
               </div>
             )
@@ -362,12 +443,35 @@ export function OverviewTab({
           // No pending update — show current temple verification / oversight state.
           const isVerified = temple.verificationStatus === 'VERIFIED'
           const flagReason = temple.verificationStatus === 'FLAGGED' ? (temple.dcFlagReason ?? 'Flagged by DC') : null
+          // Expose the latest staging status so DC can see "Rejected" even after the staging
+          // is no longer in a pending-review state (it was rejected and is no longer actionable).
+          const latestStaging = profile.latestProfileStaging
+          const latestStagingStatus = latestStaging?.status ?? null
+          const latestStagingRejected = latestStagingStatus === 'REJECTED'
+          const reviewedAtDisplay = latestStaging?.reviewedAt
+            ? new Date(latestStaging.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : null
+          // When the latest staging was rejected but the temple is already verified (prior
+          // approved profile exists), surface a combined view: temple oversight is still
+          // VERIFIED but the most recent update attempt was rejected.
+          const overrideCanonicalStatus = latestStagingRejected && !isVerified
+            ? 'REJECTED'
+            : (isVerified ? 'APPROVED' : latestStagingStatus ?? undefined)
+          const overrideRejectionReason = latestStagingRejected
+            ? (latestStaging?.reviewComment ?? null)
+            : null
+          const statusHintText = latestStagingRejected && isVerified
+            ? `Profile active · Latest update (v${latestStaging?.versionNumber}) rejected${reviewedAtDisplay ? ' on ' + reviewedAtDisplay : ''}`
+            : undefined
           return (
             <div className="rounded-xl overflow-hidden border border-slate-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
               <GovernanceActionPanel
                 entityName="Temple Oversight"
                 isVerified={isVerified}
                 flagReason={flagReason}
+                canonicalStatus={overrideCanonicalStatus}
+                rejectionReason={overrideRejectionReason}
+                statusHint={statusHintText}
                 canAct={canAct}
                 onVerify={onVerifyTemple}
                 onFlag={onFlagTemple}

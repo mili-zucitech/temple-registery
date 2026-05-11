@@ -40,10 +40,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 
 @Service
 @RequiredArgsConstructor
@@ -74,8 +76,14 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         Temple temple = findTempleOrThrow(templeId);
         Optional<TempleProfileStaging> latestStaging =
                 stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId);
+        // BUG-2 FIX: entityId in WorkflowInstance is the staging row PK, not the templeId.
+        // Use findByTempleIdAndEntityType to find all profile workflow instances for this temple,
+        // then pick the latest non-superseded one as the canonical status.
         Optional<WorkflowInstance> wfInstance =
-                workflowInstanceRepository.findByEntityTypeAndEntityId(WorkflowEntityType.TEMPLE_PROFILE, templeId);
+                workflowInstanceRepository.findByTempleIdAndEntityType(templeId, WorkflowEntityType.TEMPLE_PROFILE)
+                        .stream()
+                        .filter(wi -> wi.getStatus() != WorkflowStatus.SUPERSEDED)
+                        .max(Comparator.comparing(WorkflowInstance::getVersionNumber));
 
         boolean hasApprovedProfile = currentRepository.existsByTempleId(templeId);
         // Use canonical workflow status when a workflow instance exists; fall back to staging status
@@ -118,9 +126,17 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public TaCurrentProfileResponse getCurrentProfile(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
-        return currentRepository.findByTempleId(claims.templeId())
-                .map(this::toCurrentProfileResponse)
-                .orElse(null);
+        Optional<TempleProfileCurrent> current = currentRepository.findByTempleId(claims.templeId());
+        if (current.isEmpty()) return null;
+        int approvedVersion = workflowInstanceRepository
+                .findByTempleIdAndEntityType(claims.templeId(), WorkflowEntityType.TEMPLE_PROFILE)
+                .stream()
+                .filter(wi -> wi.getStatus() == WorkflowStatus.APPROVED
+                        || wi.getStatus() == WorkflowStatus.RE_APPROVED)
+                .mapToInt(WorkflowInstance::getVersionNumber)
+                .max()
+                .orElse(0);
+        return toCurrentProfileResponse(current.get(), approvedVersion);
     }
 
     // ─── Staging profile ──────────────────────────────────────────────────────
@@ -183,9 +199,14 @@ public class TaDashboardServiceImpl implements TaDashboardService {
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public TaProfileStatusResponse getProfileStatus(ScopeHelper.Claims claims) {
         ownershipGuard.assertOwnsTemple(claims.templeId());
+        // BUG-2 FIX: entityId in WorkflowInstance is the staging row PK, not the templeId.
+        // Use findByTempleIdAndEntityType and pick the latest non-superseded instance.
         Optional<WorkflowInstance> wfInstance =
-                workflowInstanceRepository.findByEntityTypeAndEntityId(
-                        WorkflowEntityType.TEMPLE_PROFILE, claims.templeId());
+                workflowInstanceRepository.findByTempleIdAndEntityType(
+                        claims.templeId(), WorkflowEntityType.TEMPLE_PROFILE)
+                        .stream()
+                        .filter(wi -> wi.getStatus() != WorkflowStatus.SUPERSEDED)
+                        .max(Comparator.comparing(WorkflowInstance::getVersionNumber));
 
         if (wfInstance.isPresent()) {
             WorkflowInstance wi = wfInstance.get();
@@ -262,6 +283,16 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         }
 
         TempleProfileStaging s = latest.get();
+        // BUG-4 FIX: staging.getSubmittedAt() is @Transient and always null.
+        // The canonical submission timestamp lives in WorkflowInstance.submittedAt.
+        LocalDateTime lastSubmission = workflowInstanceRepository
+                .findByTempleIdAndEntityType(claims.templeId(), WorkflowEntityType.TEMPLE_PROFILE)
+                .stream()
+                .filter(wi -> wi.getSubmittedAt() != null)
+                .max(Comparator.comparing(WorkflowInstance::getVersionNumber))
+                .map(wi -> LocalDateTime.ofInstant(wi.getSubmittedAt(), ZoneId.systemDefault()))
+                .orElse(null);
+
         String lastReviewAction = null;
         if (s.getReviewedAt() != null) {
             if (s.getStatus() == TempleProfileStagingStatus.APPROVED) lastReviewAction = "APPROVED";
@@ -270,7 +301,7 @@ public class TaDashboardServiceImpl implements TaDashboardService {
 
         return TaActivityResponse.builder()
                 .lastProfileUpdate(s.getUpdatedAt())
-                .lastSubmission(s.getSubmittedAt())
+                .lastSubmission(lastSubmission)
                 .lastReviewedAt(s.getReviewedAt())
                 .lastReviewAction(lastReviewAction)
                 .build();
@@ -354,7 +385,7 @@ public class TaDashboardServiceImpl implements TaDashboardService {
      * Maps TempleProfileCurrent → TaCurrentProfileResponse.
      * Bank account decrypted by JPA AttributeConverter; masked to last 4 per VAL-008.
      */
-    private TaCurrentProfileResponse toCurrentProfileResponse(TempleProfileCurrent c) {
+    private TaCurrentProfileResponse toCurrentProfileResponse(TempleProfileCurrent c, int version) {
         String masked = null;
         if (c.getBankAccountNumberEncrypted() != null
                 && c.getBankAccountNumberEncrypted().length() >= 4) {
@@ -364,12 +395,15 @@ public class TaDashboardServiceImpl implements TaDashboardService {
         return TaCurrentProfileResponse.builder()
                 .id(c.getId())
                 .templeId(c.getTempleId())
+                .version(version)
                 .phone(c.getPhone())
                 .email(c.getEmail())
                 .website(c.getWebsite())
                 .contactPersonName(c.getContactPersonName())
                 .contactPersonDesignation(c.getContactPersonDesignation())
-                .photoFilePath(c.getPhotoFilePath())
+                .photoFilePath(c.getPhotoFilePath() != null && !c.getPhotoFilePath().isBlank()
+                        ? "/api/v1/temples/" + c.getTempleId() + "/profile-photo/serve"
+                        : null)
                 .bankAccountMasked(masked)
                 .bankName(c.getBankName())
                 .bankIfsc(c.getBankIfsc())

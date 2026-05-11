@@ -8,6 +8,7 @@ import com.templeregistry.entity.dc.TempleProfileHistory;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
+import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
@@ -28,7 +29,6 @@ import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.workflow.ActionContextResolver;
 import com.templeregistry.service.workflow.WorkflowActionRequest;
 import com.templeregistry.service.workflow.WorkflowEngine;
-import com.templeregistry.util.StatusTransitionValidator;
 import com.templeregistry.service.workflow.ActionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +75,6 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
     private final TempleSearchSummaryService summaryService;
     private final AuditService auditService;
     private final GovernanceAuditService governanceAuditService;
-    private final StatusTransitionValidator transitionValidator;
     private final WorkflowEngine workflowEngine;
     private final ActionContextResolver actionContextResolver;
 
@@ -151,10 +150,14 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         // Promote staging fields to the Temple entity so the TA's own profile view
         // reflects the approved data immediately (Temple entity is the TA-facing read model).
         promoteToTemple(temple, staging);
+        temple.setVerificationStatus(VerificationStatus.VERIFIED);
+        temple.setDcRejectionReason(null);
         templeRepository.save(temple);
 
-        // Update legacy staging status for backward compatibility
+        // Update legacy staging status for backward compatibility.
+        // Null out reviewComment so approved staging rows never leak a prior rejection reason.
         staging.setStatus(TempleProfileStagingStatus.APPROVED);
+        staging.setReviewComment(null);
         staging.setReviewedAt(LocalDateTime.now());
         staging.setReviewedBy(claims.userId());
         stagingRepository.save(staging);

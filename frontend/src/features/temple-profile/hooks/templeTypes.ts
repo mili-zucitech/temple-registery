@@ -157,6 +157,8 @@ export interface TempleProfileStagingResponse {
   templeId: number
   versionNumber: number
   statusLabel: TempleProfileStagingStatus
+  /** Workflow instance ID — used by WorkflowGovernancePanel */
+  workflowInstanceId?: number
   phone?: string
   email?: string
   website?: string
@@ -256,6 +258,9 @@ export interface TaCurrentProfileResponse {
   website?: string
   contactPersonName?: string
   contactPersonDesignation?: string
+  /** Backend serializes as "photoFilePath" — use this field to get the approved photo path. */
+  photoFilePath?: string
+  /** Alias kept for backward compatibility. Backend sends "photoFilePath", not "photoUrl". */
   photoUrl?: string
   bankAccountMasked?: string
   bankName?: string

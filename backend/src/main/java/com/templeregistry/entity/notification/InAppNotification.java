@@ -36,14 +36,40 @@ public class InAppNotification {
     @Column(name = "category", length = 30)
     private String category;  // SUBMISSION, APPROVAL, REJECTION, etc.
 
+    /** Canonical event type, e.g. TEMPLE_PROFILE_APPROVED, TRUST_REJECTED. */
+    @Column(name = "notification_type", length = 50)
+    private String notificationType;
+
     @Column(name = "action_url", length = 255)
     private String actionUrl;
+
+    /** Deep-link the frontend should navigate to when the user clicks this notification. */
+    @Column(name = "redirect_url", length = 512)
+    private String redirectUrl;
 
     @Column(name = "reference_id")
     private Long referenceId;
 
     @Column(name = "reference_type", length = 32)
     private String referenceType;
+
+    /** Owning temple — denormalised for efficient inbox queries without a JOIN. */
+    @Column(name = "temple_id")
+    private Long templeId;
+
+    @Column(name = "temple_name", length = 255)
+    private String templeName;
+
+    /** Full name of the user who triggered the workflow event. */
+    @Column(name = "action_by_name", length = 255)
+    private String actionByName;
+
+    @Column(name = "action_by_role", length = 50)
+    private String actionByRole;
+
+    /** WorkflowStatus after the transition, e.g. APPROVED, REJECTED. */
+    @Column(name = "workflow_status", length = 50)
+    private String workflowStatus;
 
     @Column(name = "is_read", nullable = false)
     private boolean isRead;
@@ -64,6 +90,10 @@ public class InAppNotification {
 
     @Column(name = "acknowledged_by")
     private Long acknowledgedBy;
+
+    /** Soft-delete timestamp. NULL = visible; non-NULL = hidden from inbox. */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @Column(name = "idempotency_key", length = 255, unique = true)
     private String idempotencyKey;

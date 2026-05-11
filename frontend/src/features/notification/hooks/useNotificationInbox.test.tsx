@@ -13,7 +13,9 @@ import { rootReducer } from '@/app/rootReducer'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockMarkAllRead = vi.fn()
+const mockMarkAllRead        = vi.fn()
+const mockDeleteNotification = vi.fn()
+const mockClearAll           = vi.fn()
 
 vi.mock('../notificationApi', () => ({
   notificationApi: {
@@ -21,11 +23,18 @@ vi.mock('../notificationApi', () => ({
     reducer: (s = {}) => s,
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
   },
-  useListNotificationsQuery: vi.fn(),
-  useMarkAllReadMutation:    vi.fn(),
+  useListNotificationsQuery:        vi.fn(),
+  useMarkAllReadMutation:           vi.fn(),
+  useDeleteNotificationMutation:    vi.fn(),
+  useClearAllNotificationsMutation: vi.fn(),
 }))
 
-import { useListNotificationsQuery, useMarkAllReadMutation } from '../notificationApi'
+import {
+  useListNotificationsQuery,
+  useMarkAllReadMutation,
+  useDeleteNotificationMutation,
+  useClearAllNotificationsMutation,
+} from '../notificationApi'
 import { useNotificationInbox } from './useNotificationInbox'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,14 +60,18 @@ describe('useNotificationInbox', () => {
     vi.mocked(useMarkAllReadMutation).mockReturnValue(
       [mockMarkAllRead, { isLoading: false }] as ReturnType<typeof useMarkAllReadMutation>
     )
+    vi.mocked(useDeleteNotificationMutation).mockReturnValue(
+      [mockDeleteNotification, { isLoading: false }] as ReturnType<typeof useDeleteNotificationMutation>
+    )
+    vi.mocked(useClearAllNotificationsMutation).mockReturnValue(
+      [mockClearAll, { isLoading: false }] as ReturnType<typeof useClearAllNotificationsMutation>
+    )
   })
 
   it('should_returnNotificationsAndPagination_when_querySucceeds', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
       data: { success: true, message: 'OK', data: { content: notifications, page: 0, size: 20, totalElements: 2, totalPages: 1, last: true } },
-      isLoading: false,
-      isFetching: false,
-      isError: false,
+      isLoading: false, isFetching: false, isError: false,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
@@ -73,10 +86,7 @@ describe('useNotificationInbox', () => {
 
   it('should_returnEmptyArrayAndZeroPagination_when_dataIsUndefined', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      isError: false,
+      data: undefined, isLoading: false, isFetching: false, isError: false,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
@@ -88,10 +98,7 @@ describe('useNotificationInbox', () => {
 
   it('should_setIsLoading_when_queryIsInFlight', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isFetching: true,
-      isError: false,
+      data: undefined, isLoading: true, isFetching: true, isError: false,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
@@ -102,10 +109,7 @@ describe('useNotificationInbox', () => {
 
   it('should_setIsError_when_queryFails', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      isError: true,
+      data: undefined, isLoading: false, isFetching: false, isError: true,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
@@ -115,10 +119,7 @@ describe('useNotificationInbox', () => {
 
   it('should_passPageParamToQuery_when_pageChanges', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetching: false,
-      isError: false,
+      data: undefined, isLoading: false, isFetching: false, isError: false,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     renderHook(() => useNotificationInbox(3), { wrapper: Wrapper })
@@ -132,17 +133,41 @@ describe('useNotificationInbox', () => {
     mockMarkAllRead.mockResolvedValueOnce({ data: {} })
     vi.mocked(useListNotificationsQuery).mockReturnValue({
       data: { success: true, message: 'OK', data: { content: notifications, page: 0, size: 20, totalElements: 2, totalPages: 1, last: true } },
-      isLoading: false,
-      isFetching: false,
-      isError: false,
+      isLoading: false, isFetching: false, isError: false,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
 
-    await act(async () => {
-      await result.current.markAllRead()
-    })
+    await act(async () => { await result.current.markAllRead() })
 
     expect(mockMarkAllRead).toHaveBeenCalled()
+  })
+
+  it('should_callDeleteNotification_when_deleteNotificationInvoked', async () => {
+    mockDeleteNotification.mockReturnValueOnce({ unwrap: () => Promise.resolve({}) })
+    vi.mocked(useListNotificationsQuery).mockReturnValue({
+      data: { success: true, message: 'OK', data: { content: notifications, page: 0, size: 20, totalElements: 2, totalPages: 1, last: true } },
+      isLoading: false, isFetching: false, isError: false,
+    } as ReturnType<typeof useListNotificationsQuery>)
+
+    const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
+
+    await act(async () => { await result.current.deleteNotification(1) })
+
+    expect(mockDeleteNotification).toHaveBeenCalledWith(1)
+  })
+
+  it('should_callClearAll_when_clearAllInvoked', async () => {
+    mockClearAll.mockReturnValueOnce({ unwrap: () => Promise.resolve({}) })
+    vi.mocked(useListNotificationsQuery).mockReturnValue({
+      data: { success: true, message: 'OK', data: { content: notifications, page: 0, size: 20, totalElements: 2, totalPages: 1, last: true } },
+      isLoading: false, isFetching: false, isError: false,
+    } as ReturnType<typeof useListNotificationsQuery>)
+
+    const { result } = renderHook(() => useNotificationInbox(0), { wrapper: Wrapper })
+
+    await act(async () => { await result.current.clearAll() })
+
+    expect(mockClearAll).toHaveBeenCalled()
   })
 })

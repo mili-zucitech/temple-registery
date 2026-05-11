@@ -3,11 +3,15 @@ package com.templeregistry.service.impl.temple;
 import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.entity.trust.TrustStatus;
+import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
+import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +34,8 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
     private final TempleRepository templeRepository;
     private final TempleSearchSummaryRepository summaryRepository;
     private final TempleProfileStagingRepository stagingRepository;
+    private final TrustRepository trustRepository;
+    private final DeclarationRepository declarationRepository;
     private final ApplicationContext applicationContext;
 
     @Override
@@ -104,13 +110,31 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                 .yearEstablished(t.getYearEstablished())
                 .photoUrl(t.getPhotoUrl())
-                // DC module counters — pendingProfileReview computed live; others re-populated by DC refresh
-                .pendingDeclarations(0)
-                .overdueDeclarations(0)
+                // DC module counters — computed live on each summary refresh
+                .pendingDeclarations((int) declarationRepository.countByTempleIdAndStatusIn(
+                        t.getId(),
+                        java.util.List.of(
+                                DeclarationStatus.SUBMITTED,
+                                DeclarationStatus.UNDER_REVIEW,
+                                DeclarationStatus.CLARIFICATION_REQUIRED,
+                                DeclarationStatus.CLARIFICATION_RESPONDED,
+                                DeclarationStatus.SITE_VISIT_SCHEDULED,
+                                DeclarationStatus.SITE_VISIT_COMPLETED,
+                                DeclarationStatus.VERIFIED
+                        )))
+                .overdueDeclarations((int) declarationRepository.countByTempleIdAndStatus(
+                        t.getId(), DeclarationStatus.OVERDUE))
                 .pendingProfileReview(
-                        stagingRepository.existsByTempleIdAndStatus(t.getId(), WorkflowStatus.SUBMITTED) ? 1 : 0)
-                .hasActiveTrust(false)
-                .hasApprovedDeclaration(false)
+                        stagingRepository.existsByTempleIdAndStatusIn(
+                                t.getId(),
+                                java.util.List.of(
+                                        WorkflowStatus.SUBMITTED,
+                                        WorkflowStatus.UNDER_REVIEW,
+                                        WorkflowStatus.RESUBMITTED)) ? 1 : 0)
+                .hasActiveTrust(trustRepository.existsByTempleIdAndStatusAndDeletedFalse(
+                        t.getId(), TrustStatus.ACTIVE))
+                .hasApprovedDeclaration(declarationRepository.existsByTempleIdAndStatus(
+                        t.getId(), DeclarationStatus.APPROVED))
                 .lastDeclarationAt(null)
                 .lastProfileUpdateAt(null)
                 .build();

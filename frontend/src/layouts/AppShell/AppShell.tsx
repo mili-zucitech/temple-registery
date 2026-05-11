@@ -8,6 +8,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dc/temples': 'Temple Search',
   '/dc/declarations': 'Declarations',
   '/dc/export': 'Export Reports',
+  '/dc/activity': 'Activity',
   '/ta/dashboard': 'Dashboard',
   '/ta/temple': 'Temple Profile',
   '/ta/trust': 'Trust & Board',

@@ -5,7 +5,7 @@ import { useGetContractorByIdQuery } from '@/features/contractor/contractorApi'
 import { SERVICE_TYPE_LABELS, PAYMENT_STATUS_LABELS } from '@/features/contractor/contractorTypes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 
 const SERVICE_TYPE_COLORS = {
@@ -29,6 +29,7 @@ export function ContractorDetailPage() {
 
   const { data, isLoading, isError } = useGetContractorByIdQuery(Number(id), {
     skip: !id,
+    refetchOnMountOrArgChange: true,
   })
 
   const contractor = data?.data
@@ -54,7 +55,7 @@ export function ContractorDetailPage() {
     return (
       <div className="space-y-6">
         <CardSkeleton />
-        <CardSkeleton />
+        <TableBodySkeleton rows={4} cols={2} />
       </div>
     )
   }

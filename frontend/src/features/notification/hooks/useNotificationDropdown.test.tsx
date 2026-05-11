@@ -13,8 +13,10 @@ import { rootReducer } from '@/app/rootReducer'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockRefetch     = vi.fn()
-const mockMarkAllRead = vi.fn()
+const mockRefetch              = vi.fn()
+const mockMarkAllRead          = vi.fn()
+const mockDeleteNotification   = vi.fn()
+const mockClearAll             = vi.fn()
 
 vi.mock('../notificationApi', () => ({
   notificationApi: {
@@ -22,11 +24,18 @@ vi.mock('../notificationApi', () => ({
     reducer: (s = {}) => s,
     middleware: () => (next: (a: unknown) => unknown) => (a: unknown) => next(a),
   },
-  useListNotificationsQuery: vi.fn(),
-  useMarkAllReadMutation:    vi.fn(),
+  useListNotificationsQuery:       vi.fn(),
+  useMarkAllReadMutation:          vi.fn(),
+  useDeleteNotificationMutation:   vi.fn(),
+  useClearAllNotificationsMutation: vi.fn(),
 }))
 
-import { useListNotificationsQuery, useMarkAllReadMutation } from '../notificationApi'
+import {
+  useListNotificationsQuery,
+  useMarkAllReadMutation,
+  useDeleteNotificationMutation,
+  useClearAllNotificationsMutation,
+} from '../notificationApi'
 import { useNotificationDropdown } from './useNotificationDropdown'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,14 +67,18 @@ describe('useNotificationDropdown', () => {
     vi.mocked(useMarkAllReadMutation).mockReturnValue(
       [mockMarkAllRead, { isLoading: false }] as ReturnType<typeof useMarkAllReadMutation>
     )
+    vi.mocked(useDeleteNotificationMutation).mockReturnValue(
+      [mockDeleteNotification, { isLoading: false }] as ReturnType<typeof useDeleteNotificationMutation>
+    )
+    vi.mocked(useClearAllNotificationsMutation).mockReturnValue(
+      [mockClearAll, { isLoading: false }] as ReturnType<typeof useClearAllNotificationsMutation>
+    )
   })
 
   it('should_returnNotificationsAndHasUnread_when_querySucceeds', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: { success: true, message: 'OK', data: { content: [unreadNotification, readNotification], page: 0, size: 5, totalElements: 2, totalPages: 1, last: true } },
-      isLoading: false,
-      isError: false,
-      refetch: mockRefetch,
+      data: { success: true, message: 'OK', data: { content: [unreadNotification, readNotification], page: 0, size: 8, totalElements: 2, totalPages: 1, last: true } },
+      isLoading: false, isError: false, refetch: mockRefetch,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
@@ -78,10 +91,8 @@ describe('useNotificationDropdown', () => {
 
   it('should_setHasUnreadFalse_when_allNotificationsAreRead', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: { success: true, message: 'OK', data: { content: [readNotification], page: 0, size: 5, totalElements: 1, totalPages: 1, last: true } },
-      isLoading: false,
-      isError: false,
-      refetch: mockRefetch,
+      data: { success: true, message: 'OK', data: { content: [readNotification], page: 0, size: 8, totalElements: 1, totalPages: 1, last: true } },
+      isLoading: false, isError: false, refetch: mockRefetch,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
@@ -91,10 +102,7 @@ describe('useNotificationDropdown', () => {
 
   it('should_returnEmptyNotifications_when_dataIsUndefined', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: false,
-      refetch: mockRefetch,
+      data: undefined, isLoading: false, isError: false, refetch: mockRefetch,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
@@ -105,10 +113,7 @@ describe('useNotificationDropdown', () => {
 
   it('should_setIsError_when_queryFails', () => {
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: true,
-      refetch: mockRefetch,
+      data: undefined, isLoading: false, isError: true, refetch: mockRefetch,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
@@ -120,19 +125,43 @@ describe('useNotificationDropdown', () => {
   it('should_callMarkAllReadAndRefetch_when_handleMarkAllReadInvoked', async () => {
     mockMarkAllRead.mockReturnValueOnce({ unwrap: () => Promise.resolve({ data: {} }) })
     vi.mocked(useListNotificationsQuery).mockReturnValue({
-      data: { success: true, message: 'OK', data: { content: [unreadNotification], page: 0, size: 5, totalElements: 1, totalPages: 1, last: true } },
-      isLoading: false,
-      isError: false,
-      refetch: mockRefetch,
+      data: { success: true, message: 'OK', data: { content: [unreadNotification], page: 0, size: 8, totalElements: 1, totalPages: 1, last: true } },
+      isLoading: false, isError: false, refetch: mockRefetch,
     } as ReturnType<typeof useListNotificationsQuery>)
 
     const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
 
-    await act(async () => {
-      await result.current.handleMarkAllRead()
-    })
+    await act(async () => { await result.current.handleMarkAllRead() })
 
     expect(mockMarkAllRead).toHaveBeenCalled()
     expect(mockRefetch).toHaveBeenCalled()
+  })
+
+  it('should_callDeleteNotification_when_handleDeleteInvoked', async () => {
+    mockDeleteNotification.mockReturnValueOnce({ unwrap: () => Promise.resolve({}) })
+    vi.mocked(useListNotificationsQuery).mockReturnValue({
+      data: { success: true, message: 'OK', data: { content: [unreadNotification], page: 0, size: 8, totalElements: 1, totalPages: 1, last: true } },
+      isLoading: false, isError: false, refetch: mockRefetch,
+    } as ReturnType<typeof useListNotificationsQuery>)
+
+    const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
+
+    await act(async () => { await result.current.handleDelete(1) })
+
+    expect(mockDeleteNotification).toHaveBeenCalledWith(1)
+  })
+
+  it('should_callClearAll_when_handleClearAllInvoked', async () => {
+    mockClearAll.mockReturnValueOnce({ unwrap: () => Promise.resolve({}) })
+    vi.mocked(useListNotificationsQuery).mockReturnValue({
+      data: { success: true, message: 'OK', data: { content: [unreadNotification], page: 0, size: 8, totalElements: 1, totalPages: 1, last: true } },
+      isLoading: false, isError: false, refetch: mockRefetch,
+    } as ReturnType<typeof useListNotificationsQuery>)
+
+    const { result } = renderHook(() => useNotificationDropdown(), { wrapper: Wrapper })
+
+    await act(async () => { await result.current.handleClearAll() })
+
+    expect(mockClearAll).toHaveBeenCalled()
   })
 })

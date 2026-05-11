@@ -105,7 +105,6 @@ export function TaTempleReviewPage() {
       </SectionCard>
 
       <SectionCard title="Location">
-        <InfoRow label="Door Number" value={temple.doorNumber} />
         <InfoRow label="Street" value={temple.street} />
         <InfoRow label="Village / Town" value={temple.villageTown ?? temple.city} />
         <InfoRow label="Landmark" value={source?.landmark ?? temple.landmark} />

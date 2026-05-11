@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useAppDispatch } from '@/app/store'
+import { resetAllApiCaches } from '@/app/store'
 import { setCurrentUser, clearCurrentUser } from './authSlice'
 import {
   useLoginMutation,
@@ -19,7 +21,6 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
 import type { UseFormSetError } from 'react-hook-form'
 import type { LoginRequest, MfaVerifyRequest, MfaChallengeResponse, AuthTokenResponse } from './authTypes'
-import { templeApi } from '../temple-profile/hooks/templeApi'
 import { resetFilters } from '../temple-profile/hooks/templeSlice'
 
 export function useCurrentUser() {
@@ -72,8 +73,8 @@ export function useLogin() {
         toast.success('Login successful')
         navigate(getDashboardPath(meta.role))
       }
-    } catch {
-      toast.error('Login failed. Please check your credentials.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Login failed. Please check your credentials.'))
     }
   }
 
@@ -108,8 +109,8 @@ export function useMfaVerify() {
       }
       toast.success('Verification successful')
       navigate(getDashboardPath(meta.role))
-    } catch {
-      const message = 'Invalid or expired OTP. Please try again.'
+    } catch (err) {
+      const message = extractApiErrorMessage(err, 'Invalid or expired OTP. Please try again.')
       if (setError) {
         setError('mfaCode', { message })
       } else {
@@ -129,8 +130,9 @@ export function useLogout() {
   const handleLogout = async () => {
     await logout()
     dispatch(clearCurrentUser())
-    dispatch(authApi.util.resetApiState())
-    dispatch(templeApi.util.resetApiState())
+    // Reset ALL 17 RTK Query caches so the next user never sees stale data
+    // from the previous session (e.g. a different District Collector's dashboard).
+    dispatch(resetAllApiCaches())
     dispatch(resetFilters())
     navigate(ROUTE_PATHS.LOGIN)
   }
@@ -151,8 +153,8 @@ export function useRegister() {
 
       toast.success('Registration submitted. Your account is pending activation by the Super Admin.')
       navigate(ROUTE_PATHS.LOGIN)
-    } catch {
-      toast.error('Registration failed. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Registration failed. Please try again.'))
     }
   }
 

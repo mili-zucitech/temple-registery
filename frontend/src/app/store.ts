@@ -80,3 +80,28 @@ export type AppDispatch = typeof store.dispatch
 export const useAppDispatch = () => useDispatch<AppDispatch>()
 export const useAppSelector = <T>(selector: (state: RootState) => T): T =>
   useSelector<RootState, T>(selector)
+
+/**
+ * Resets every RTK Query API cache in the store.
+ * Call on logout to prevent stale data from a previous user session
+ * being briefly shown to the next user who logs in on the same browser.
+ */
+export const resetAllApiCaches = () => (dispatch: AppDispatch) => {
+  dispatch(authApi.util.resetApiState())
+  dispatch(geoApi.util.resetApiState())
+  dispatch(templeApi.util.resetApiState())
+  dispatch(trustApi.util.resetApiState())
+  dispatch(employeeApi.util.resetApiState())
+  dispatch(contractorApi.util.resetApiState())
+  dispatch(declarationApi.util.resetApiState())
+  dispatch(documentApi.util.resetApiState())
+  dispatch(notificationApi.util.resetApiState())
+  dispatch(exportApi.util.resetApiState())
+  dispatch(adminApi.util.resetApiState())
+  dispatch(dcApi.util.resetApiState())
+  dispatch(governanceApi.util.resetApiState())
+  dispatch(workflowApi.util.resetApiState())
+  dispatch(governanceV2Api.util.resetApiState())
+  dispatch(auditorApi.util.resetApiState())
+  dispatch(viewerApi.util.resetApiState())
+}

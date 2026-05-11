@@ -1,11 +1,14 @@
 package com.templeregistry.controller.dc;
 
 import com.templeregistry.common.ApiResponse;
+import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.dc.ApproveProfileRequest;
 import com.templeregistry.dto.request.dc.RejectProfileRequest;
+import com.templeregistry.dto.response.dc.DcProfileHistoryEntry;
 import com.templeregistry.dto.response.dc.WorkflowActionResponse;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.dc.DcTempleProfileService;
 import com.templeregistry.service.dc.TempleProfileWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class DcProfileController {
 
     private final TempleProfileWorkflowService templeProfileWorkflowService;
+    private final DcTempleProfileService dcTempleProfileService;
 
     @PostMapping("/{stagingId}/approve")
     @Operation(summary = "Approve a temple profile staging submission. Promotes content to current profile and archives the previous.")
@@ -42,6 +46,17 @@ public class DcProfileController {
             @Valid @RequestBody RejectProfileRequest request) {
         WorkflowActionResponse result = templeProfileWorkflowService.rejectProfile(stagingId, request, currentClaims());
         return ResponseEntity.ok(ApiResponse.success("Profile rejected.", result));
+    }
+
+    @GetMapping("/temples/{templeId}/history")
+    @Operation(summary = "Get the full profile submission history for a temple (DC portal).")
+    public ResponseEntity<ApiResponse<PaginatedResponse<DcProfileHistoryEntry>>> getProfileHistory(
+            @PathVariable Long templeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PaginatedResponse<DcProfileHistoryEntry> result =
+                dcTempleProfileService.getProfileHistory(templeId, currentClaims(), page, size);
+        return ResponseEntity.ok(ApiResponse.success("Profile history retrieved.", result));
     }
 
     private ScopeHelper.Claims currentClaims() {

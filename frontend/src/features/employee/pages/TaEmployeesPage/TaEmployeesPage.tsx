@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import {
   useListEmployeesQuery, useCreateEmployeeMutation,
@@ -14,7 +15,7 @@ import {
   type CreateEmployeeRequest, type UpdateEmployeeRequest, type EmployeeResponse,
 } from '@/features/employee/employeeTypes'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
-import { Eye, Plus, Pencil, Trash2, Users } from 'lucide-react'
+import { Eye, Plus, Pencil, Trash2, Users, Search, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 
 type FormMode = 'create' | 'edit' | null
@@ -40,13 +41,14 @@ export function TaEmployeesPage() {
   const [page, setPage] = useState(0)
   const [mode, setMode] = useState<FormMode>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeResponse | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
 
   const { data, isLoading, isError, refetch } = useListEmployeesQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
-    { skip: !templeId }
+    { skip: !templeId, refetchOnMountOrArgChange: true }
   )
 
   const [createEmployee, { isLoading: creating }] = useCreateEmployeeMutation()
@@ -56,6 +58,17 @@ export function TaEmployeesPage() {
   const employees = data?.data?.content ?? []
   const totalPages = data?.data?.totalPages ?? 0
   const totalElements = data?.data?.totalElements ?? 0
+
+  const filteredEmployees = useMemo(() => {
+    if (!searchQuery.trim()) return employees
+    const q = searchQuery.toLowerCase()
+    return employees.filter(
+      (emp) =>
+        emp.fullName.toLowerCase().includes(q) ||
+        (emp.designation ?? '').toLowerCase().includes(q) ||
+        (emp.employeeRef ?? '').toLowerCase().includes(q)
+    )
+  }, [employees, searchQuery])
 
   const createForm = useForm<CreateEmployeeRequest>({
     resolver: zodResolver(createEmployeeSchema),
@@ -93,8 +106,8 @@ export function TaEmployeesPage() {
       await createEmployee({ templeId, body: values }).unwrap()
       toast.success('Employee added successfully')
       closeForm()
-    } catch {
-      toast.error('Failed to add employee')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to add employee'))
     }
   }
 
@@ -104,8 +117,8 @@ export function TaEmployeesPage() {
       await updateEmployee({ id: selectedEmployee.id, body: values }).unwrap()
       toast.success('Employee updated successfully')
       closeForm()
-    } catch {
-      toast.error('Failed to update employee')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update employee'))
     }
   }
 
@@ -113,8 +126,8 @@ export function TaEmployeesPage() {
     try {
       await deleteEmployee(id).unwrap()
       toast.success('Employee removed successfully')
-    } catch {
-      toast.error('Failed to remove employee')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to remove employee'))
     }
   }
 
@@ -373,9 +386,9 @@ export function TaEmployeesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-3"><CardSkeleton /><CardSkeleton /></div>
+      {/* Search + Table */}
+      {!templeId || isLoading ? (
+        <TableBodySkeleton rows={6} cols={7} />
       ) : employees.length === 0 ? (
         <EmptyState
           title="No employees yet"
@@ -384,6 +397,25 @@ export function TaEmployeesPage() {
         />
       ) : (
         <div className="rounded-lg border border-border overflow-hidden bg-card shadow-sm">
+          {/* Search bar */}
+          <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
+            <Search className="size-4 text-muted-foreground shrink-0" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0) }}
+              placeholder="Search by name, designation or employee ID…"
+              className="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 border-b border-border">
@@ -398,7 +430,13 @@ export function TaEmployeesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {employees.map((emp) => (
+                {filteredEmployees.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                      No employees match "{searchQuery}"
+                    </td>
+                  </tr>
+                ) : filteredEmployees.map((emp) => (
                   <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">

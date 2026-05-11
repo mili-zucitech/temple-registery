@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useGetDeclarationQuery, useApproveDeclarationMutation, useRejectDeclarationMutation, useRequestClarificationMutation } from '../../declarationApi'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -51,8 +52,8 @@ export function DeclarationReviewPage() {
       await approve(id).unwrap()
       toast.success('Declaration approved')
       navigate(-1)
-    } catch {
-      toast.error('Failed to approve declaration')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to approve declaration'))
     }
   }
 
@@ -68,8 +69,8 @@ export function DeclarationReviewPage() {
       form.reset()
       setActiveAction(null)
       navigate(-1)
-    } catch {
-      toast.error('Action failed. Please try again.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Action failed. Please try again.'))
     }
   }
 
@@ -135,8 +136,10 @@ export function DeclarationReviewPage() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleApprove}>Approve</AlertDialogAction>
+                  <AlertDialogCancel disabled={approving}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleApprove} disabled={approving}>
+                    {approving ? 'Approving…' : 'Approve'}
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

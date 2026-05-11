@@ -58,6 +58,20 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Notification acknowledged."));
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Soft-delete a single notification")
+    public ResponseEntity<ApiResponse<Void>> deleteNotification(@PathVariable Long id) {
+        notificationService.deleteNotification(id, currentUserId());
+        return ResponseEntity.ok(ApiResponse.success("Notification deleted."));
+    }
+
+    @DeleteMapping("/clear-all")
+    @Operation(summary = "Soft-delete all notifications for the current user")
+    public ResponseEntity<ApiResponse<Integer>> clearAll() {
+        int count = notificationService.clearAll(currentUserId());
+        return ResponseEntity.ok(ApiResponse.success(count + " notification(s) cleared.", count));
+    }
+
     @GetMapping("/unread-count")
     @Operation(summary = "Returns the count of unread notifications for the current user")
     public ResponseEntity<ApiResponse<Long>> unreadCount() {

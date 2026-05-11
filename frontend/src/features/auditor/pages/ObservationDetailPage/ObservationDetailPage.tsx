@@ -10,6 +10,7 @@ import { useAppSelector } from '@/app/store'
 import { USER_ROLES } from '@/constants/roles'
 import { ArrowLeft, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 const SEVERITY_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   LOW: 'outline',
@@ -46,8 +47,8 @@ export function ObservationDetailPage() {
     setCloseError(null)
     try {
       await closeObs({ id: Number(id), resolutionNote }).unwrap()
-    } catch {
-      setCloseError('Failed to close observation. Please try again.')
+    } catch (err) {
+      setCloseError(extractApiErrorMessage(err, 'Failed to close observation. Please try again.'))
     }
   }
 
@@ -58,8 +59,8 @@ export function ObservationDetailPage() {
     try {
       await assignObs({ id: Number(id), assignedToUserId: uid }).unwrap()
       setAssignUserId('')
-    } catch {
-      setAssignError('Failed to assign observation. Please try again.')
+    } catch (err) {
+      setAssignError(extractApiErrorMessage(err, 'Failed to assign observation. Please try again.'))
     }
   }
 

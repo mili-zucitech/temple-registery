@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { ArrowLeft, Briefcase, FileText, Upload, Eye, Download, Trash2 } from 'lucide-react'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
@@ -42,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 
 interface UploadedDocument {
   id: number
@@ -73,10 +74,10 @@ export function ContractorFormPage() {
   const [deleteDocument] = useSoftDeleteDocumentMutation()
   const [getDocumentUrl] = useLazyGetDocumentUrlQuery()
 
-  // Fetch existing documents via RTK Query instead of raw fetch (C1 fix)
+  // Fetch existing documents linked to this contractor (C1: use contractorId as ownerId)
   const { data: existingDocsData } = useListDocumentsQuery(
-    { ownerType: 'CONTRACTOR', ownerId: templeId!, page: 0, size: 50 },
-    { skip: !isEditMode || !templeId }
+    { ownerType: 'CONTRACTOR', ownerId: Number(id), page: 0, size: 50 },
+    { skip: !isEditMode || !id }
   )
 
   const form = useForm<CreateContractorRequest>({
@@ -149,8 +150,8 @@ export function ContractorFormPage() {
           return response.data
         }
         return null
-      } catch (error) {
-        toast.error(`Failed to upload ${file.name}`)
+      } catch (err) {
+        toast.error(extractApiErrorMessage(err, `Failed to upload ${file.name}`))
         return null
       }
     })
@@ -178,8 +179,8 @@ export function ContractorFormPage() {
         currentDocIds.filter((id) => id !== docId)
       )
       toast.success('Document deleted successfully')
-    } catch (error) {
-      toast.error('Failed to delete document')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete document'))
     }
   }
 
@@ -223,8 +224,8 @@ export function ContractorFormPage() {
         toast.success('Contractor added successfully')
       }
       navigate(ROUTE_PATHS.TA_CONTRACTORS)
-    } catch (error) {
-      toast.error(`Failed to ${isEditMode ? 'update' : 'add'} contractor`)
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, `Failed to ${isEditMode ? 'update' : 'add'} contractor`))
     }
   }
 
@@ -232,7 +233,7 @@ export function ContractorFormPage() {
     return (
       <div className="space-y-6">
         <CardSkeleton />
-        <CardSkeleton />
+        <TableBodySkeleton rows={4} cols={2} />
       </div>
     )
   }

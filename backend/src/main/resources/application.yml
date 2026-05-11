@@ -1,92 +1,111 @@
 spring:
+  application:
+    name: temple-registry-backend
+
+  profiles:
+    default: dev
+
   datasource:
     url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: 3Nkwm2fKtuGqoiu.root
-    password: 6sXYNlDhrX80xnDz
+    username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
+    password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
+
     hikari:
-      # How long to wait for a connection from the pool before throwing
       connection-timeout: 20000
-      # Validate connections before handing them out — catches stale/closed connections
       connection-test-query: SELECT 1
-      # How long a connection can sit idle before being evicted (4 min — under TiDB's ~5 min server timeout)
       idle-timeout: 240000
-      # Max lifetime of any connection regardless of activity (9 min — well under TiDB's 10 min limit)
       max-lifetime: 540000
-      # Send a keepalive ping every 2 minutes to prevent server-side idle timeout
       keepalive-time: 120000
-      # Pool size — keep small for TiDB Cloud free tier
       minimum-idle: 2
       maximum-pool-size: 8
+      connection-init-sql: "SET tidb_enable_noop_functions=1"
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
+
+    properties:
+      hibernate:
+        format_sql: false
 
   flyway:
     enabled: true
-    validate-on-migrate: true
+    validate-on-migrate: false
     repair-on-migrate: true
 
   security:
     debug: false
 
+  mail:
+    enabled: false
+    host: smtp.gmail.com
+    port: 587
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+
+          starttls:
+            enable: true
+            required: true
+
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 springdoc:
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
+
   api-docs:
     path: /v3/api-docs
+
+trm:
+  export:
+    base-dir: ./exports
 
 app:
   jwt:
     private-key-path: classpath:keys/jwt-private.pem
     public-key-path: classpath:keys/jwt-public.pem
-    access-token-expiry-ms: 18000000  # 5 hours (5 * 60 * 60 * 1000 ms)
+    access-token-expiry-ms: 18000000
+
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
+
   encryption:
-    key: ${APP_ENCRYPTION_KEY}
+    key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
+
   hmac:
-    key: ${APP_HMAC_KEY}
+    key: ${APP_HMAC_KEY:TempleRegHmacDev32ByteKey!Repl!!}
+
   storage:
     base-dir: ./uploads
-  base-url: ${APP_BASE_URL}
+
+  base-url: ${APP_BASE_URL:http://localhost:3000}
+
   notification:
-    email-enabled: true
+    email-enabled: false
+
   legacy:
     enabled: false
 
-spring.mail:
-  enabled: ${SPRING_MAIL_ENABLED:false}
-  host: smtp.gmail.com
-  port: 587
-  username: ${EMAIL_USERNAME}
-  password: ${EMAIL_PASSWORD:}
-  properties:
-    mail:
-      smtp:
-        auth: true
-        starttls:
-          enable: true
-          required: true
-        connectiontimeout: 5000
-        timeout: 5000
-        writetimeout: 5000
-
 logging:
   level:
-    root: DEBUG
+    root: INFO
     com.templeregistry: DEBUG
-    org.springframework: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.boot: DEBUG
-    org.hibernate: DEBUG
-    org.hibernate.SQL: DEBUG
-
-debug: true
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
 
 management:
   health:
     mail:
-      enabled: ${SPRING_MAIL_ENABLED:false}
+      enabled: false
+
+debug: false

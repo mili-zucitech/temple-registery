@@ -9,6 +9,7 @@ import type {
   TempleFullProfileResponse,
   DeclarationDetailResponse,
   ProfileStagingResponse,
+  DcProfileHistoryEntry,
   WorkflowActionResponse,
   ApproveProfileRequest,
   RejectProfileRequest,
@@ -71,6 +72,17 @@ export const dcApi = createApi({
     getDcPendingProfileStaging: builder.query<ApiResponse<ProfileStagingResponse>, number>({
       query: (templeId) => `/dc/temples/${templeId}/profile/pending`,
       providesTags: (_r, _e, templeId) => [{ type: 'DcProfileStaging', id: templeId }],
+    }),
+
+    getDcProfileHistory: builder.query<
+      ApiResponse<PaginatedResponse<DcProfileHistoryEntry>>,
+      { templeId: number; page?: number; size?: number }
+    >({
+      query: ({ templeId, page = 0, size = 10 }) => ({
+        url: `/dc/profiles/temples/${templeId}/history`,
+        params: { page, size },
+      }),
+      providesTags: (_r, _e, { templeId }) => [{ type: 'DcProfileStaging', id: templeId }],
     }),
 
     // ─── Declaration Detail (read-only) ───────────────────────────────────────
@@ -268,6 +280,7 @@ export const {
   useSearchDcTemplesQuery,
   useGetDcTempleProfileQuery,
   useGetDcPendingProfileStagingQuery,
+  useGetDcProfileHistoryQuery,
   useGetDcDeclarationDetailQuery,
   useApproveProfileMutation,
   useRejectProfileMutation,

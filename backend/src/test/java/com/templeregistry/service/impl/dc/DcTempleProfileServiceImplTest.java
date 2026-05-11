@@ -14,6 +14,7 @@ import com.templeregistry.entity.trust.Trust;
 import com.templeregistry.entity.trust.TrustStatus;
 import com.templeregistry.entity.trust.TrustType;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
+import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.dc.*;
@@ -51,6 +52,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class DcTempleProfileServiceImplTest {
@@ -307,6 +309,26 @@ class DcTempleProfileServiceImplTest {
 
         assertThatThrownBy(() -> service.getFullProfile(999L, SUPER_ADMIN_CLAIMS))
                 .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void should_returnNullPendingProfile_when_onlyRejectedHistoryExists() {
+        Temple temple = templeWithFullGeo();
+        temple.setId(11L);
+        when(templeRepository.findWithGeoById(11L)).thenReturn(Optional.of(temple));
+        when(profileStagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(11L),
+                eq(List.of(WorkflowStatus.SUBMITTED, WorkflowStatus.UNDER_REVIEW, WorkflowStatus.RESUBMITTED))))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.getPendingProfileStaging(11L, DC_CLAIMS)).isNull();
+
+        verify(profileStagingRepository).findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(11L),
+                eq(List.of(WorkflowStatus.SUBMITTED, WorkflowStatus.UNDER_REVIEW, WorkflowStatus.RESUBMITTED)));
+        verify(profileStagingRepository, never()).findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(11L),
+                eq(List.of(WorkflowStatus.REJECTED)));
     }
 
     // ── Test: DcTrustSummary canonical governanceStatus ───────────────────────

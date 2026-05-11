@@ -3,6 +3,7 @@ import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from '
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { CheckCircle2, ChevronRight, Paperclip, Plus, Save, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
   createDeclarationSchema,
@@ -111,8 +112,8 @@ export function DeclarationCreatePage() {
       if (id) {
         toast.success('Draft saved successfully.')
       }
-    } catch {
-      toast.error('Failed to save draft.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save draft.'))
     }
   })
 
@@ -123,8 +124,8 @@ export function DeclarationCreatePage() {
       await submitDeclaration(id).unwrap()
       toast.success('Declaration submitted for DC review.')
       navigate(ROUTE_PATHS.TA_DECLARATION_DETAIL.replace(':id', String(id)))
-    } catch {
-      toast.error('Failed to submit declaration.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to submit declaration.'))
     }
   })
 
@@ -160,8 +161,8 @@ export function DeclarationCreatePage() {
         })
         toast.success('Lease agreement PDF uploaded.')
       }
-    } catch {
-      toast.error('Failed to upload PDF.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to upload PDF.'))
     }
   }
 
@@ -719,8 +720,8 @@ function LeaseUploader({ index, declarationId }: { index: number; declarationId:
                   setValue(`leasedProperties.${index}.agreementDocumentId`, nextId, { shouldDirty: true })
                   toast.success('Lease agreement uploaded.')
                 }
-              } catch {
-                toast.error('Failed to upload the lease agreement.')
+              } catch (err) {
+                toast.error(extractApiErrorMessage(err, 'Failed to upload the lease agreement.'))
               }
             }}
           />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { Briefcase, Plus, Eye, Pencil, Trash2, Filter } from 'lucide-react'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
@@ -15,7 +16,7 @@ import {
   SERVICE_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
 } from '@/features/contractor/contractorTypes'
-import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { CardSkeleton, TableBodySkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -67,7 +68,7 @@ export function TaContractorsPage() {
 
   const { data, isLoading, isError, refetch } = useListContractorsQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
-    { skip: !templeId }
+    { skip: !templeId, refetchOnMountOrArgChange: true }
   )
 
   const [deleteContractor, { isLoading: deleting }] = useDeleteContractorMutation()
@@ -95,8 +96,8 @@ export function TaContractorsPage() {
       toast.success('Contractor deleted successfully')
       setDeleteDialogOpen(false)
       setSelectedContractor(null)
-    } catch {
-      toast.error('Failed to delete contractor')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete contractor'))
     }
   }
 
@@ -181,11 +182,8 @@ export function TaContractorsPage() {
       </div>
 
       {/* Table */}
-      {isLoading ? (
-        <div className="space-y-3">
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
+      {!templeId || isLoading ? (
+        <TableBodySkeleton rows={6} cols={6} />
       ) : filteredContractors.length === 0 ? (
         <EmptyState
           title="No contractors found"

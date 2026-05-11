@@ -8,14 +8,26 @@ export type ModuleType = 'TEMPLE' | 'TRUST' | 'EMPLOYEE' | 'CONTRACTOR' | 'DECLA
 
 export interface NotificationResponse {
   id: number
+  /** Canonical event type, e.g. TEMPLE_PROFILE_APPROVED, TRUST_REJECTED. */
+  notificationType?: string
   title: string
   body: string
   priority?: NotificationPriority
   category?: NotificationCategory
   actionUrl?: string
+  /** Deep-link target — use this for navigation on click. Prefer over actionUrl. */
+  redirectUrl?: string
   referenceType?: string
   referenceId?: number
   workflowInstanceId?: number
+  /** Owning temple ID — used for DC deep-linking. */
+  templeId?: number
+  /** Denormalised temple name shown in the notification body. */
+  templeName?: string
+  /** Full name of the user who triggered the event. */
+  actionByName?: string
+  actionByRole?: string
+  workflowStatus?: string
   read: boolean
   readAt?: string
   createdAt: string
@@ -48,27 +60,43 @@ export const notificationApi = createApi({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/notifications', params: { page, size } }),
       providesTags: ['Notification'],
     }),
-    
-    markRead: builder.mutation<ApiResponse<void>, number>({
-      query: (id) => ({ url: `/notifications/${id}/read`, method: 'POST' }),
-      invalidatesTags: ['Notification'],
-    }),
-    
-    markAllRead: builder.mutation<ApiResponse<void>, void>({
-      query: () => ({ url: '/notifications/read-all', method: 'POST' }),
-      invalidatesTags: ['Notification'],
-    }),
 
     getUnreadCount: builder.query<ApiResponse<number>, void>({
       query: () => '/notifications/unread-count',
       providesTags: ['Notification'],
     }),
-    
+
+    // ── Mark read ──────────────────────────────────────────────────────────
+
+    markRead: builder.mutation<ApiResponse<void>, number>({
+      query: (id) => ({ url: `/notifications/${id}/read`, method: 'POST' }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    markAllRead: builder.mutation<ApiResponse<void>, void>({
+      query: () => ({ url: '/notifications/read-all', method: 'POST' }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    // ── Delete ─────────────────────────────────────────────────────────────
+
+    deleteNotification: builder.mutation<ApiResponse<void>, number>({
+      query: (id) => ({ url: `/notifications/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    clearAllNotifications: builder.mutation<ApiResponse<number>, void>({
+      query: () => ({ url: '/notifications/clear-all', method: 'DELETE' }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    // ── Preferences ────────────────────────────────────────────────────────
+
     getPreferences: builder.query<ApiResponse<NotificationPreferenceResponse[]>, void>({
       query: () => '/notification-preferences',
       providesTags: ['NotificationPreference'],
     }),
-    
+
     updatePreferences: builder.mutation<ApiResponse<NotificationPreferenceResponse[]>, UpdatePreferencesRequest>({
       query: (body) => ({
         url: '/notification-preferences',
@@ -82,9 +110,11 @@ export const notificationApi = createApi({
 
 export const {
   useListNotificationsQuery,
+  useGetUnreadCountQuery,
   useMarkReadMutation,
   useMarkAllReadMutation,
-  useGetUnreadCountQuery,
+  useDeleteNotificationMutation,
+  useClearAllNotificationsMutation,
   useGetPreferencesQuery,
   useUpdatePreferencesMutation,
 } = notificationApi

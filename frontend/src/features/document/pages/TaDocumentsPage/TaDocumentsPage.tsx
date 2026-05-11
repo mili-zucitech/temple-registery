@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import {
   useListDocumentsQuery, useUploadDocumentMutation,
@@ -95,8 +96,8 @@ export function TaDocumentsPage() {
       toast.success(`${file.name} uploaded successfully`)
       setLabelInput('')
       if (fileInputRef.current) fileInputRef.current.value = ''
-    } catch {
-      toast.error('Failed to upload document')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to upload document'))
     }
   }, [templeId, labelInput, uploadDocument])
 
@@ -129,8 +130,8 @@ export function TaDocumentsPage() {
     try {
       await softDeleteDocument(doc.id).unwrap()
       toast.success(`${doc.originalFilename} removed`)
-    } catch {
-      toast.error('Failed to remove document')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to remove document'))
     }
   }
 

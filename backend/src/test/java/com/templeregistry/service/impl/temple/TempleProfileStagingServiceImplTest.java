@@ -145,44 +145,17 @@ class TempleProfileStagingServiceImplTest {
 
     @Test
     void should_approve_staging_and_supersede_previous_via_system_action() {
-        TempleProfileStaging pendingStaging = TempleProfileStaging.builder().templeId(4L).build();
-        pendingStaging.setId(200L);
-        TempleProfileStaging previousApproved = TempleProfileStaging.builder().templeId(4L).build();
-        previousApproved.setId(199L);
-
-        when(stagingRepository.findById(200L)).thenReturn(Optional.of(pendingStaging));
-        when(templeRepository.findById(4L)).thenReturn(Optional.of(activeTemple));
-        
-        // Mock current instance
-        WorkflowInstance currentInstance = mockWorkflow(WorkflowStatus.SUBMITTED, 2);
-        
-        // Mock previous instance
-        WorkflowInstance prevInstance = WorkflowInstance.builder().id(888L).status(WorkflowStatus.APPROVED).build();
-        when(stagingRepository.findFirstByTempleIdAndStatus(4L, WorkflowStatus.APPROVED))
-                .thenReturn(Optional.of(previousApproved));
-        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 199L)).thenReturn(prevInstance);
-        
-        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
-
-        stagingService.approve(4L, 200L);
-
-        verify(workflowEngine).executeSystem(eq(888L), eq(com.templeregistry.entity.workflow.WorkflowAction.AUTO_SUPERSEDE), anyString());
-        verify(workflowEngine).execute(eq(currentInstance.getId()), any(), any());
-        verify(templeRepository).save(any());
+        // This test validates TempleProfileWorkflowServiceImpl.approveProfile(),
+        // which is now the canonical approval path. Coverage exists in
+        // TempleProfileWorkflowServiceImplTest. This placeholder is kept to
+        // document that staging.approve() has been intentionally removed from
+        // the TempleProfileStagingService contract (dual-path elimination).
+        // The method no longer exists on TempleProfileStagingService.
     }
 
     @Test
     void should_reject_staging_via_workflow_engine() {
-        TempleProfileStaging pendingStaging = TempleProfileStaging.builder().templeId(5L).build();
-        pendingStaging.setId(300L);
-        when(stagingRepository.findById(300L)).thenReturn(Optional.of(pendingStaging));
-        when(templeRepository.findById(5L)).thenReturn(Optional.of(activeTemple));
-        
-        WorkflowInstance instance = mockWorkflow(WorkflowStatus.SUBMITTED, 1);
-        when(actionContextResolver.resolve(any())).thenReturn(mock(com.templeregistry.service.workflow.ActionContext.class));
-
-        stagingService.reject(5L, 300L, "Fix bank details");
-
-        verify(workflowEngine).execute(eq(instance.getId()), argThat(req -> req.getAction() == com.templeregistry.entity.workflow.WorkflowAction.REJECT), any());
+        // Similarly, staging.reject() has been removed from TempleProfileStagingService.
+        // Full coverage for the reject path lives in TempleProfileWorkflowServiceImplTest.
     }
 }

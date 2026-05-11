@@ -71,14 +71,14 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationResponse> listNotifications(Long userId, Pageable pageable) {
-        return inAppRepository.findAllByUserIdOrderByCreatedAtDesc(userId, pageable)
+        return inAppRepository.findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(userId, pageable)
                 .map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public long countUnread(Long userId) {
-        return inAppRepository.countByUserIdAndIsRead(userId, false);
+        return inAppRepository.countByUserIdAndIsReadAndDeletedAtIsNull(userId, false);
     }
 
     @Override
@@ -95,73 +95,116 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("Notification acknowledged: id=[{}] by userId=[{}]", notificationId, userId);
     }
 
+    @Override
+    @Transactional
+    public void deleteNotification(Long notificationId, Long userId) {
+        int updated = inAppRepository.softDeleteById(notificationId, userId);
+        if (updated == 0) {
+            throw new EntityNotFoundException("Notification", notificationId);
+        }
+        log.debug("Notification [{}] soft-deleted by userId=[{}]", notificationId, userId);
+    }
+
+    @Override
+    @Transactional
+    public int clearAll(Long userId) {
+        int count = inAppRepository.softDeleteAllByUserId(userId);
+        log.info("Cleared {} notification(s) for userId=[{}]", count, userId);
+        return count;
+    }
+
     /**
-     * Full implementation of createInAppNotification() for v2 workflow engine pipeline.
-     * Persists workflowInstanceId on InAppNotification for frontend deep-link.
-     *
-     * NOT @Async — must run synchronously within the dispatch() REQUIRES_NEW transaction
-     * so that any save failure is immediately visible to the caller and not silently dropped.
+     * Full workflow-aware in-app notification persistence.
+     * Idempotency key includes notificationType so SUBMIT and APPROVE for the same entity both persist.
+     * NOT @Async — runs within the caller's REQUIRES_NEW transaction.
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void createInAppNotification(Long recipientId, String title, String body,
-                                         String priority, String entityType,
-                                         Long entityId, Long workflowInstanceId) {
+    public void createInAppNotification(
+            Long recipientId,
+            String title,
+            String body,
+            String priority,
+            String notificationType,
+            String entityType,
+            Long entityId,
+            Long workflowInstanceId,
+            Long templeId,
+            String templeName,
+            String actionByName,
+            String actionByRole,
+            String redirectUrl,
+            String workflowStatus) {
         if (recipientId == null) {
             log.warn("[FLOW_4] createInAppNotification called with null recipientId — skipping");
             return;
         }
-        // Compute a stable idempotency key so the deduplication guard and unique index are effective.
         String idempotencyKey = String.join("|",
-            String.valueOf(recipientId), entityType,
-            String.valueOf(entityId), String.valueOf(workflowInstanceId));
-        log.info("[FLOW_4] saving in_app recipientId={} entityType={} entityId={} wfInstanceId={} idempotencyKey={}",
-            recipientId, entityType, entityId, workflowInstanceId, idempotencyKey);
+                String.valueOf(recipientId),
+                notificationType != null ? notificationType : entityType,
+                String.valueOf(entityId),
+                String.valueOf(workflowInstanceId));
+        log.info("[FLOW_4] saving in_app recipientId={} type={} entityId={} key={}",
+                recipientId, notificationType, entityId, idempotencyKey);
+        // dummy block opener to align with the replaced signature
+        if (true) {
         try {
             InAppNotification saved = inAppRepository.save(InAppNotification.builder()
                     .userId(recipientId)
                     .title(title)
                     .body(body)
+                    .priority(priority)
+                    .notificationType(notificationType)
                     .referenceType(entityType)
                     .referenceId(entityId)
                     .workflowInstanceId(workflowInstanceId)
+                    .templeId(templeId)
+                    .templeName(templeName)
+                    .actionByName(actionByName)
+                    .actionByRole(actionByRole)
+                    .redirectUrl(redirectUrl)
+                    .workflowStatus(workflowStatus)
                     .idempotencyKey(idempotencyKey)
                     .isRead(false)
                     .build());
-            log.info("[FLOW_5] save success id={} recipientId={} entityType={} entityId={}",
-                saved.getId(), recipientId, entityType, entityId);
+            log.info("[FLOW_5] saved id={} recipientId={} type={} entityId={}",
+                    saved.getId(), recipientId, notificationType, entityId);
             eventRepository.save(NotificationEvent.builder()
                     .recipientId(recipientId)
-                    .eventType(entityType + "_WORKFLOW")
+                    .eventType(notificationType != null ? notificationType : entityType + "_WORKFLOW")
                     .referenceId(entityId)
                     .referenceType(entityType)
                     .channel("IN_APP")
                     .status("SENT")
                     .build());
         } catch (org.springframework.dao.DataIntegrityViolationException dedupEx) {
-            // Duplicate idempotency_key — this notification was already delivered (fast-path or retry).
             log.info("[FLOW_5] dedup skip — in_app already exists for key={}: {}", idempotencyKey, dedupEx.getMessage());
         } catch (Exception ex) {
-            // Log the exact cause; do NOT attempt a DB write here — the session may be
-            // marked rollback-only after the failed save, which would throw a second exception.
-            log.error("[FLOW_5] FAILED saving in_app recipientId={} entityType={} entityId={} cause={}",
-                recipientId, entityType, entityId, ex.getMessage(), ex);
-            // Re-throw so the caller (dispatch try-catch) can log the failure at the dispatch level.
+            log.error("[FLOW_5] FAILED saving in_app recipientId={} type={} entityId={} cause={}",
+                    recipientId, notificationType, entityId, ex.getMessage(), ex);
             throw ex;
         }
+        } // end if (true) dummy
     }
 
     private NotificationResponse toResponse(InAppNotification n) {
         return NotificationResponse.builder()
                 .id(n.getId())
+                .notificationType(n.getNotificationType())
                 .title(n.getTitle())
                 .body(n.getBody())
                 .priority(n.getPriority())
                 .category(n.getCategory())
                 .actionUrl(n.getActionUrl())
+                .redirectUrl(n.getRedirectUrl())
                 .referenceType(n.getReferenceType())
                 .referenceId(n.getReferenceId())
                 .workflowInstanceId(n.getWorkflowInstanceId())
+                .templeId(n.getTempleId())
+                .templeName(n.getTempleName())
+                .actionByName(n.getActionByName())
+                .actionByRole(n.getActionByRole())
+                .workflowStatus(n.getWorkflowStatus())
                 .read(n.isRead())
                 .readAt(n.getReadAt())
                 .createdAt(n.getCreatedAt())

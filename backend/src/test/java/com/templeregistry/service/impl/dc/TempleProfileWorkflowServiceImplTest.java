@@ -8,6 +8,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleProfileStagingStatus;
 import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.entity.temple.VerificationStatus;
 import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
@@ -123,6 +124,8 @@ class TempleProfileWorkflowServiceImplTest {
         WorkflowActionResponse result = service.approveProfile(100L, approveReq, dcClaims);
 
         assertThat(result.getNewStatus()).isEqualTo("APPROVED");
+        assertThat(activeTemple.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
+        assertThat(activeTemple.getDcRejectionReason()).isNull();
         verify(workflowEngine).execute(eq(999L),
                 argThat(req -> req.getAction() == WorkflowAction.APPROVE), any());
     }
@@ -247,5 +250,47 @@ class TempleProfileWorkflowServiceImplTest {
         assertThatThrownBy(() -> service.rejectProfile(800L, rejectReq800, dcClaims))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("REJECTED");
+    }
+
+    // ── Approve: reviewComment is cleared ────────────────────────────────────
+
+    @Test
+    void should_nullReviewComment_when_profileApproved() {
+        // Arrange: staging previously had a rejection comment
+        TempleProfileStaging staging = stagingWith(900L, 1L);
+        staging.setReviewComment("Prior rejection reason from DC");
+        when(stagingRepository.findById(900L)).thenReturn(Optional.of(staging));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(activeTemple));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 900L))
+                .thenReturn(workflowAt(991L, WorkflowStatus.SUBMITTED));
+
+        ApproveProfileRequest req = new ApproveProfileRequest();
+        ReflectionTestUtils.setField(req, "remarks", "Approved after fix");
+
+        // Act
+        service.approveProfile(900L, req, dcClaims);
+
+        // Assert: staging.reviewComment must be null after approval
+        assertThat(staging.getReviewComment()).isNull();
+    }
+
+    // ── Approve: dcRejectionReason cleared on temple entity ──────────────────
+
+    @Test
+    void should_clearDcRejectionReason_when_profileApproved() {
+        activeTemple.setDcRejectionReason("Temple was flagged for incomplete address");
+        TempleProfileStaging staging = stagingWith(901L, 1L);
+        when(stagingRepository.findById(901L)).thenReturn(Optional.of(staging));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(activeTemple));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 901L))
+                .thenReturn(workflowAt(990L, WorkflowStatus.SUBMITTED));
+
+        ApproveProfileRequest req = new ApproveProfileRequest();
+        ReflectionTestUtils.setField(req, "remarks", "Clear and approve");
+
+        service.approveProfile(901L, req, dcClaims);
+
+        assertThat(activeTemple.getDcRejectionReason()).isNull();
+        assertThat(activeTemple.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
     }
 }

@@ -3,6 +3,7 @@ package com.templeregistry.service.temple;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.temple.*;
 import com.templeregistry.dto.response.temple.*;
+import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -26,6 +27,18 @@ public interface TempleService {
     List<String> uploadTemplePhotos(Long templeId, List<MultipartFile> files);
 
     List<TemplePhotoDto> getTemplePhotos(Long templeId);
+
+    /**
+     * Directly serve a temple gallery photo by its ID.
+     * Bypasses the documents table — temple_photos is the canonical source for gallery images.
+     */
+    Resource serveTemplePhoto(Long templeId, Long photoId);
+
+    /**
+     * Serve the primary profile photo for a temple inline (correct Content-Type for img tags).
+     * Reads temple.photoUrl (raw storage key) and streams the file.
+     */
+    Resource serveProfilePhoto(Long templeId);
 
     void deleteTemplePhoto(Long templeId, Long photoId);
 
