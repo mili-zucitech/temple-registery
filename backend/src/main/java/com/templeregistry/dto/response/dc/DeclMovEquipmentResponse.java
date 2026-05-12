@@ -8,8 +8,8 @@ import java.math.BigDecimal;
 @Getter @Builder
 public class DeclMovEquipmentResponse {
     private Long id;
-    private String description;
+    private String itemName;
+    private String serialNumber;
     private Integer quantity;
-    private BigDecimal unitValue;
-    private BigDecimal totalValue;
+    private BigDecimal estimatedValueInr;
 }

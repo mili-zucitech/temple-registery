@@ -93,6 +93,26 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.35);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
   }
 
   h1 {
@@ -202,5 +222,24 @@
   }
   .scrollbar-gold::-webkit-scrollbar-thumb:hover {
     background: hsl(36 80% 50% / 0.7);
+  }
+
+  /* Sidebar dark-background scrollbar — used for nav area */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(36 80% 50% / 0.3) transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(36 80% 50% / 0.3);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(36 80% 50% / 0.55);
   }
 }

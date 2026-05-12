@@ -498,7 +498,7 @@ public class TrustServiceImpl implements TrustService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     @PreAuthorize("isAuthenticated()")
     public Resource downloadMeetingMinutes(Long trustId, Long meetingId) {
         BoardMeeting meeting = findMeeting(trustId, meetingId);

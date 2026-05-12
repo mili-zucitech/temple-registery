@@ -135,21 +135,21 @@ export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarP
       {/* Logo Section */}
       <div className={cn(
         "flex h-16 items-center border-b border-sidebar-border/50 transition-all duration-300 relative",
-        collapsed ? "lg:justify-center lg:px-3" : "justify-between px-6"
+        collapsed ? "lg:justify-center lg:px-3" : "justify-between px-4"
       )}>
         <div className={cn(
-          "flex items-center gap-3 min-w-0 transition-all duration-300",
+          "flex items-center gap-2.5 min-w-0 transition-all duration-300",
           collapsed && "lg:flex-col lg:gap-0"
         )}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-gold shadow-gold cursor-pointer hover:scale-110 transition-transform flex-shrink-0">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-gold shadow-gold cursor-pointer hover:scale-110 transition-transform">
             <span className="text-sm font-bold text-white tracking-tighter">TR</span>
           </div>
           <div className={cn(
-            "flex flex-col transition-all duration-300 overflow-hidden",
+            "flex flex-col justify-center transition-all duration-300 overflow-hidden",
             collapsed ? "lg:w-0 lg:h-0 lg:opacity-0" : "w-auto opacity-100"
           )}>
-            <p className="text-sm font-display font-bold text-sidebar-foreground leading-none tracking-tight whitespace-nowrap">Temple Registry</p>
-            <p className="text-[10px] text-sidebar-foreground/50 font-medium leading-none mt-1 uppercase tracking-wider whitespace-nowrap">Karnataka HR&CE</p>
+            <p className="text-sm font-display font-bold text-sidebar-foreground leading-tight tracking-tight whitespace-nowrap">Temple Registry</p>
+            <p className="text-[9px] text-sidebar-foreground/50 font-medium leading-tight uppercase tracking-wider whitespace-nowrap">Karnataka HR&amp;CE</p>
           </div>
         </div>
         
@@ -222,22 +222,22 @@ export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarP
 
       {/* User Info & Actions Section */}
       <div className={cn(
-        "border-t border-sidebar-border/50 bg-sidebar-accent/30 transition-all duration-300",
-        collapsed ? "lg:p-2" : "p-4"
+        "border-t border-sidebar-border/50 transition-all duration-300",
+        collapsed ? "lg:p-2" : "px-3 py-2"
       )}>
         <Button
           variant="ghost"
           size="sm"
           className={cn(
-            "w-full rounded-xl text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-all group",
-            collapsed ? "lg:justify-center lg:p-3" : "justify-start gap-3 px-3 py-5"
+            "w-full rounded-lg text-sidebar-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-all group",
+            collapsed ? "lg:justify-center lg:p-3" : "justify-start gap-3 px-3 py-2.5"
           )}
           onClick={handleLogout}
           title={collapsed ? "Sign Out" : undefined}
         >
-          <LogOut size={16} className="transition-transform group-hover:scale-110 flex-shrink-0" />
+          <LogOut size={15} className="transition-transform group-hover:scale-110 flex-shrink-0" />
           <span className={cn(
-            "font-semibold text-xs uppercase tracking-widest transition-all duration-300 overflow-hidden whitespace-nowrap",
+            "font-medium text-xs uppercase tracking-widest transition-all duration-300 overflow-hidden whitespace-nowrap",
             collapsed ? "lg:w-0 lg:opacity-0 lg:absolute" : "w-auto opacity-100"
           )}>
             Sign Out

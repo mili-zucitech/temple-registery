@@ -8,8 +8,11 @@ import java.math.BigDecimal;
 @Getter @Builder
 public class DeclMovArtifactResponse {
     private Long id;
-    private String name;
-    private String description;
-    private BigDecimal estimatedValue;
-    private String storageLocation;
+    private String itemDescription;
+    private String material;
+    private String ageOrPeriod;
+    private String provenance;
+    private String museumGradeClassification;
+    private BigDecimal approximateValueInr;
+    private BigDecimal estimatedValueInr;
 }

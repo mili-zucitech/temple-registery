@@ -173,6 +173,19 @@ public class TrustController {
                 .body(resource);
     }
 
+    @GetMapping("/trusts/{trustId}/meetings/{meetingId}/minutes/preview")
+    @Operation(summary = "Preview meeting minutes PDF inline in browser")
+    @PreAuthorize(RoleConstants.CAN_READ_ALL + " or " + RoleConstants.TEMPLE_AUTHORITY_ONLY)
+    public ResponseEntity<Resource> previewMeetingMinutes(
+            @PathVariable Long trustId,
+            @PathVariable Long meetingId) {
+        Resource resource = trustService.downloadMeetingMinutes(trustId, meetingId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"meeting-minutes-" + meetingId + ".pdf\"")
+                .body(resource);
+    }
+
     @DeleteMapping("/trusts/{id}")
     @Operation(summary = "Soft-delete a trust")
     @PreAuthorize(RoleConstants.ADMIN_ONLY)

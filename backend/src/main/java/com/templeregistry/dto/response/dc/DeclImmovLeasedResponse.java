@@ -9,7 +9,11 @@ import java.time.LocalDate;
 @Getter @Builder
 public class DeclImmovLeasedResponse {
     private Long id;
+    private String propertyAddress;
     private String lesseeName;
-    private LocalDate leaseExpiry;
+    private LocalDate leaseStartDate;
+    private LocalDate leaseEndDate;
+    private BigDecimal monthlyRent;
     private BigDecimal annualRent;
+    private Long agreementDocumentId;
 }

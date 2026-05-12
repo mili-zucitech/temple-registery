@@ -1,20 +1,15 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock, XCircle, FileEdit, X } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { TempleGradeBadge } from '@/components/data-display/StatusBadge/TempleGradeBadge'
-import { StatusBanner } from '../../components/StatusBanner'
-import { SectionCard } from '../../components/SectionCard'
-import { InfoRow } from '../../components/InfoRow'
 import { TagDisplay } from '../../components/TagDisplay'
 import { VersionDetailView } from '../../components/VersionDetailView'
 import { ImageGallery } from '../../components/ImageGallery'
-import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
-
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useProfileHistory, useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
 import { useGetTemplePhotosQuery } from '../../hooks/templeApi'
@@ -45,15 +40,15 @@ function OverviewTab() {
   const effectiveBankAccountMasked =
     effectiveAny?.bankAccountMasked ?? (currentProfile as any)?.bankAccountMasked ?? null
   // Null-safe photo fallback: staging may exist but have no photoUrl (e.g. first draft with no photo saved).
-  // Fall through to temple.photoUrl (presigned by getById) in that case.
-  const effectivePhotoUrl = stagingProfile?.photoUrl ?? temple?.photoUrl
+  // currentProfile is the latest approved staging version (has photoUrl). Fall through to temple.photoUrl last.
+  const effectivePhotoUrl = stagingProfile?.photoUrl ?? currentProfile?.photoUrl ?? temple?.photoUrl
 
 
   const handleEdit = () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
 
   const editLabel =
     profileStatus === 'DRAFT' ? 'Continue Editing' :
-    profileStatus === 'REJECTED' ? 'Create New Draft' : 'Edit Profile'
+      profileStatus === 'REJECTED' ? 'Create New Draft' : 'Edit Profile'
 
   const district = temple?.districtName ?? undefined
   // Profile-managed field — read from staging first (TA edits reflected immediately),
@@ -66,27 +61,27 @@ function OverviewTab() {
   if (typeof parsedLinked === 'string' && parsedLinked.startsWith('[')) {
     try {
       parsedLinked = JSON.parse(parsedLinked).join(', ')
-    } catch {}
+    } catch { }
   }
 
   let parsedLanguages = effective?.languagesOfWorship
   if (typeof parsedLanguages === 'string' && parsedLanguages.startsWith('[')) {
     try {
       parsedLanguages = JSON.parse(parsedLanguages).join(', ')
-    } catch {}
+    } catch { }
   }
 
   return (
     <div className="space-y-4 animate-in fade-in-50 duration-300">
 
-      {/* DC-flagged temple entity — separate from profile workflow rejection */}
+      {/* DC-flagged banner */}
       {temple?.verificationStatus === 'FLAGGED' && (
-        <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
+        <div className="rounded-xl border-l-4 border-destructive bg-destructive/5 p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
-            <div className="space-y-1">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive shrink-0" />
+            <div>
               <p className="text-sm font-semibold text-destructive">Flagged By District Collector</p>
-              <p className="text-sm text-foreground">
+              <p className="text-sm text-foreground mt-0.5">
                 {temple.dcRejectionReason?.trim() || 'Your profile was flagged. Please update the profile details and resubmit for review.'}
               </p>
             </div>
@@ -94,19 +89,16 @@ function OverviewTab() {
         </div>
       )}
 
-      {/* Profile workflow status banners — driven by profileStatus, NOT temple.verificationStatus */}
-
+      {/* Rejection banner */}
       {profileStatus === 'REJECTED' && !rejectionDismissed && (
-        <div className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4 shadow-sm">
+        <div className="rounded-xl border-l-4 border-destructive bg-destructive/5 p-4">
           <div className="flex items-start gap-3">
             <XCircle className="mt-0.5 h-5 w-5 text-destructive shrink-0" />
-            <div className="flex-1 space-y-1">
+            <div className="flex-1">
               <p className="text-sm font-semibold text-destructive">Profile Update Rejected by DC</p>
-              {profileReviewComment ? (
-                <p className="text-sm text-foreground">{profileReviewComment}</p>
-              ) : (
-                <p className="text-sm text-foreground">Your profile update was rejected. Please review the feedback and create a new draft to resubmit.</p>
-              )}
+              <p className="text-sm text-foreground mt-0.5">
+                {profileReviewComment || 'Your profile update was rejected. Please review the feedback and create a new draft to resubmit.'}
+              </p>
             </div>
             <button
               type="button"
@@ -120,42 +112,46 @@ function OverviewTab() {
         </div>
       )}
 
+      {/* Under review banner */}
       {(profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED') && (
-        <div className="rounded-xl border-2 border-info/30 bg-info/10 p-4 shadow-sm">
+        <div className="rounded-xl border-l-4 border-blue-400 bg-blue-50 dark:bg-blue-950/30 p-4">
           <div className="flex items-start gap-3">
-            <Clock className="mt-0.5 h-5 w-5 text-info" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-info-foreground">Under DC Review</p>
-              <p className="text-sm text-foreground">Your temple profile is currently under review by the District Collector. Editing is locked until a decision is made.</p>
+            <Clock className="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">Under DC Review</p>
+              <p className="text-sm text-blue-800/80 dark:text-blue-200/80 mt-0.5">Your temple profile is under review by the District Collector. Editing is locked until a decision is made.</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Draft pending submit */}
       {profileStatus === 'UPDATED_AFTER_APPROVAL' && (
-        <div className="rounded-xl border-2 border-amber-300/50 bg-amber-50/80 dark:bg-amber-950/30 p-4 shadow-sm">
+        <div className="rounded-xl border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-4">
           <div className="flex items-start gap-3">
-            <FileEdit className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Profile Update Draft Ready</p>
-              <p className="text-sm text-foreground">You have an unsaved draft with profile updates. Submit it for DC review when ready.</p>
+            <FileEdit className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Profile Update Draft Ready</p>
+              <p className="text-sm text-amber-800/80 dark:text-amber-200/80 mt-0.5">You have an unsaved draft with profile updates. Submit it for DC review when ready.</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Verified banner */}
       {(profileStatus === 'APPROVED' || (profileStatus === 'NOT_STARTED' && temple?.verificationStatus === 'VERIFIED')) && (
-        <div className="rounded-xl border-2 border-success/30 bg-success/10 p-4 shadow-sm">
+        <div className="rounded-xl border-l-4 border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-success">Verified By District Collector</p>
-              <p className="text-sm text-foreground">Your temple profile has been verified by the District Collector.</p>
+            <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Verified By District Collector</p>
+              <p className="text-sm text-emerald-800/80 dark:text-emerald-200/80 mt-0.5">Your temple profile has been verified by the District Collector.</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Edit action */}
       <div className="flex items-center justify-end">
         <Button
           onClick={handleEdit}
@@ -168,19 +164,19 @@ function OverviewTab() {
         </Button>
       </div>
 
-      {/* About Temple Section */}
-      <div className="rounded-lg border border-border/60 bg-gradient-to-br from-card via-card/95 to-muted/20 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10">
-            <Building2 size={14} className="text-primary" />
+      {/* ── Temple Identity & Photo ── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 flex items-center gap-2.5">
+          <div className="size-7 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-sm">
+            <Building2 size={14} className="text-white" />
           </div>
-          <h3 className="text-sm font-semibold text-foreground tracking-tight">About Temple</h3>
+          <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">About Temple</h3>
         </div>
         <div className="p-4">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Main Info */}
-            <div className="flex-1 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Details grid */}
+            <div className="flex-1 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InfoField label="Temple Name" value={temple?.name} />
                 <InfoField label="Registration No." value={temple?.registrationNumber} />
                 <InfoField label="Primary Deity" value={temple?.primaryDeity} />
@@ -189,103 +185,98 @@ function OverviewTab() {
                   <InfoField label="Year Established" value={temple.yearEstablished} />
                 )}
               </div>
-              
+
               {((effective as any)?.description ?? temple?.history) && (
-                <div className="pt-2 border-t border-border/50">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                   <InfoField label="Description" value={(effective as any)?.description ?? temple?.history} multiline />
                 </div>
               )}
-              
+
               {effective?.historicalSignificance && (
-                <div className="pt-2 border-t border-border/50">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                   <InfoField label="Historical Significance" value={effective.historicalSignificance} multiline />
                 </div>
               )}
             </div>
 
-            {/* Profile Photo */}
-            <div className="w-full lg:w-72 shrink-0">
-              <div className="relative overflow-hidden rounded-lg border-2 border-border/50 bg-muted aspect-[4/3] shadow-md group sticky top-6">
+            {/* Profile photo */}
+            <div className="w-full lg:w-56 shrink-0 flex flex-col items-center gap-2">
+              <div className="relative w-full aspect-square rounded-xl overflow-hidden border-2 border-orange-200/60 dark:border-orange-800/40 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 shadow-md group">
                 {effectivePhotoUrl ? (
                   <img
                     src={`${import.meta.env.VITE_BASE_URL}${effectivePhotoUrl}`}
-                    alt={`${temple?.name ?? 'Temple'} profile`}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    alt={`${temple?.name ?? 'Temple'} profile photo`}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center w-full h-full">
-                    <Building2 size={48} className="text-muted-foreground/30" />
-                    <span className="text-xs text-muted-foreground mt-2">No Photo</span>
+                  <div className="flex flex-col items-center justify-center w-full h-full gap-2">
+                    <Building2 size={40} className="text-orange-300" />
+                    <span className="text-xs text-slate-400 font-medium">No Photo</span>
                   </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Primary Photo</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Cultural Details */}
-      <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-gradient-to-br from-amber-50/80 via-orange-50/50 to-card dark:from-amber-950/30 dark:via-orange-950/20 dark:to-card shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200/60 dark:border-amber-800/40 bg-gradient-to-r from-amber-100/50 via-orange-50/30 to-transparent dark:from-amber-900/20 dark:via-orange-900/10">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/10">
-            <BookOpen size={14} className="text-amber-700 dark:text-amber-400" />
+      {/* ── Cultural & Religious Details ── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200/60 dark:border-amber-800/40 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-amber-100 dark:border-amber-900/40 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 flex items-center gap-2.5">
+          <div className="size-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm">
+            <BookOpen size={14} className="text-white" />
           </div>
-          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 tracking-tight">Cultural & Religious Details</h3>
+          <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Cultural & Religious Details</h3>
         </div>
-        <div className="p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-            <span className="text-xs font-semibold text-amber-900 dark:text-amber-100 sm:w-40 shrink-0">Languages of Worship</span>
-            <div className="flex-1">
-              <TagDisplay value={parsedLanguages} />
-            </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Languages of Worship</p>
+            <TagDisplay value={parsedLanguages} />
           </div>
-          
+
           {effective?.annualFestivals && (
-            <div className="pt-2 border-t border-amber-200/50 dark:border-amber-800/30">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-                <span className="text-xs font-semibold text-amber-900 dark:text-amber-100 sm:w-40 shrink-0">Annual Festivals</span>
-                <p className="flex-1 text-xs text-foreground whitespace-pre-wrap leading-relaxed">{effective.annualFestivals}</p>
-              </div>
+            <div className="pt-3 border-t border-amber-100 dark:border-amber-900/30">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Annual Festivals</p>
+              <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{effective.annualFestivals}</p>
             </div>
           )}
-          
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/30">
-            <span className="text-xs font-semibold text-amber-900 dark:text-amber-100 sm:w-40 shrink-0">Linked Institutions</span>
-            <div className="flex-1">
-              <TagDisplay value={parsedLinked} emptyLabel="None listed" />
-            </div>
+
+          <div className="pt-3 border-t border-amber-100 dark:border-amber-900/30">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Linked Institutions</p>
+            <TagDisplay value={parsedLinked} emptyLabel="None listed" />
           </div>
         </div>
       </div>
 
-      {/* Location & Contact Grid */}
+      {/* ── Location & Contact ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Location Card */}
-        <div className="rounded-lg border border-border/60 bg-gradient-to-br from-card via-card/95 to-muted/20 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10">
-              <MapPin size={14} className="text-primary" />
+        {/* Location */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 flex items-center gap-2.5">
+            <div className="size-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
+              <MapPin size={14} className="text-white" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground tracking-tight">Location & Address</h3>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Location & Address</h3>
           </div>
           <div className="p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {temple?.doorNumber && <InfoField label="Door No." value={temple.doorNumber} compact />}
-              {temple?.street && <InfoField label="Street" value={temple.street} compact />}
-              {temple?.villageTown && <InfoField label="Village / Town" value={temple.villageTown} compact />}
-              {effectiveLandmark && <InfoField label="Landmark" value={effectiveLandmark} compact />}
-              {temple?.pinCode && <InfoField label="PIN Code" value={temple.pinCode} compact />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {temple?.doorNumber && <InfoField label="Door No." value={temple.doorNumber} />}
+              {temple?.street && <InfoField label="Street" value={temple.street} />}
+              {temple?.villageTown && <InfoField label="Village / Town" value={temple.villageTown} />}
+              {effectiveLandmark && <InfoField label="Landmark" value={effectiveLandmark} />}
+              {temple?.pinCode && <InfoField label="PIN Code" value={temple.pinCode} />}
             </div>
             {locationParts.length > 0 && (
-              <div className="pt-2 border-t border-border/50">
-                <InfoField label="Full Location" value={locationParts.join(' · ')} />
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Administrative Location</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">{locationParts.join(' · ')}</p>
               </div>
             )}
-            
             {temple?.latitude != null && temple.longitude != null && (
-              <div className="pt-2 border-t border-border/50">
-                <div className="overflow-hidden rounded-lg border border-border/50 shadow-sm" style={{height: '180px'}}>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="overflow-hidden rounded-lg border border-emerald-200/60 shadow-sm" style={{ height: 200 }}>
                   <iframe
                     title="Temple Location on Google Maps"
                     width="100%"
@@ -301,38 +292,36 @@ function OverviewTab() {
           </div>
         </div>
 
-        {/* Contact Information Card */}
-        <div className="rounded-lg border border-border/60 bg-gradient-to-br from-card via-card/95 to-muted/20 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10">
-              <Phone size={14} className="text-primary" />
+        {/* Contact */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-purple-200/60 dark:border-purple-800/40 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-purple-100 dark:border-purple-900/40 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/20 flex items-center gap-2.5">
+            <div className="size-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
+              <Phone size={14} className="text-white" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground tracking-tight">Contact Information</h3>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Contact Information</h3>
           </div>
-          <div className="p-4">
-            <div className="grid grid-cols-1 gap-2">
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3">
               <InfoField label="Contact Person" value={effectiveAny?.contactPersonName ?? temple?.contactName} />
               <InfoField label="Designation" value={effectiveAny?.contactPersonDesignation ?? temple?.contactDesignation} />
               <InfoField label="Phone" value={effectiveAny?.phone ?? temple?.contactMobile} />
               <InfoField label="Email" value={effectiveAny?.email ?? temple?.contactEmail} />
               {effectiveAny?.website && (
-                <div className="pt-2 border-t border-border/50">
-                  <InfoField label="Website" value={effectiveAny.website} />
-                </div>
+                <InfoField label="Website" value={effectiveAny.website} />
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bank Details */}
+      {/* ── Bank Details ── */}
       {(effectiveAny?.bankName || effectiveBankAccountMasked || effectiveAny?.bankIfsc) && (
-        <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-card dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-card shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-r from-blue-100/50 via-indigo-50/30 to-transparent dark:from-blue-900/20 dark:via-indigo-900/10">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/10">
-              <Link2 size={14} className="text-blue-700 dark:text-blue-400" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-blue-200/60 dark:border-blue-800/40 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-blue-100 dark:border-blue-900/40 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 flex items-center gap-2.5">
+            <div className="size-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+              <Link2 size={14} className="text-white" />
             </div>
-            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 tracking-tight">Bank Details (Hundi/Donation)</h3>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Bank Details (Hundi / Donation)</h3>
           </div>
           <div className="p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -344,13 +333,13 @@ function OverviewTab() {
         </div>
       )}
 
-      {/* Photo Gallery */}
-      <div className="rounded-lg border border-border/60 bg-gradient-to-br from-card via-card/95 to-muted/20 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10">
-            <Image size={14} className="text-primary" />
+      {/* ── Photo Gallery ── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900 dark:to-slate-800 flex items-center gap-2.5">
+          <div className="size-7 rounded-lg bg-gradient-to-br from-slate-500 to-gray-600 flex items-center justify-center shadow-sm">
+            <Image size={14} className="text-white" />
           </div>
-          <h3 className="text-sm font-semibold text-foreground tracking-tight">Temple Photo Gallery</h3>
+          <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Temple Photo Gallery</h3>
         </div>
         <div className="p-4">
           {temple?.id && (
@@ -367,22 +356,23 @@ function OverviewTab() {
   )
 }
 
-// Helper component for consistent info field styling
-function InfoField({ label, value, multiline = false, compact = false }: { label: string; value?: string | number | null; multiline?: boolean; compact?: boolean }) {
+// ── Info Field Helper ──────────────────────────────────────────────────────────
+
+function InfoField({ label, value, multiline = false }: { label: string; value?: string | number | null; multiline?: boolean; compact?: boolean }) {
   const display = value != null && value !== '' ? String(value) : '—'
   const isEmpty = display === '—'
 
   return (
-    <div className={`rounded-lg border border-border/60 bg-gradient-to-br from-background/80 to-muted/30 shadow-sm ${compact ? 'p-2' : 'p-2.5'}`}>
-      <div className={`text-[9px] font-medium uppercase tracking-wider text-muted-foreground ${compact ? 'mb-0.5' : 'mb-1'}`}>{label}</div>
+    <div className="space-y-1">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
       {multiline ? (
-        <p className={`text-xs font-medium whitespace-pre-wrap leading-relaxed ${isEmpty ? 'text-muted-foreground/60 italic' : 'text-foreground'}`}>
+        <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isEmpty ? 'text-slate-400 italic' : 'text-slate-800 dark:text-slate-200'}`}>
           {display}
         </p>
       ) : (
-        <div className={`${compact ? 'text-xs' : 'text-sm'} font-semibold truncate ${isEmpty ? 'text-muted-foreground/60 italic' : 'text-foreground'}`}>
+        <p className={`text-sm font-semibold break-words ${isEmpty ? 'text-slate-400 italic font-normal' : 'text-slate-800 dark:text-slate-200'}`}>
           {display}
-        </div>
+        </p>
       )}
     </div>
   )
@@ -454,7 +444,7 @@ function HistoryTab() {
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{fmt(v.submittedAt)}</td>
                 <td className="px-4 py-3 text-muted-foreground">{fmt(v.reviewedAt)}</td>
-                <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
+                <td className="px-4 py-3 text-muted-foreground whitespace-normal break-words max-w-xs">
                   {v.reviewComment ?? '—'}
                 </td>
               </tr>
@@ -493,96 +483,76 @@ export function TaTemplePage() {
     )
   }
 
-  const governanceWorkflowInstanceId = stagingProfile?.workflowInstanceId ?? currentProfile?.workflowInstanceId
-
   return (
-    <div className="space-y-4">
-      {/* Hero Card - Responsive and styled like dashboard */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-gold px-4 py-3.5 shadow-gold border border-border">
+    <div className="space-y-0">
+      {/* ── Hero Header ── */}
+      <div
+        className="relative overflow-hidden rounded-t-xl px-5 py-5 shadow-lg"
+        style={{
+          background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+          boxShadow: '0 4px 20px hsl(36 80% 50% / 0.25)',
+        }}
+      >
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15 pointer-events-none" />
         <div className="absolute right-20 -bottom-10 h-28 w-28 rounded-full bg-white/10 pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 relative">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 border border-white/30 backdrop-blur-sm">
-                <Building2 size={18} className="text-white" />
-              </div>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-white leading-tight truncate">{temple.name}</h1>
-              <TempleGradeBadge grade={temple.grade} />
-              
+        <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 border border-white/30 backdrop-blur-sm">
+              <Building2 size={20} className="text-white" />
             </div>
-            <p className="text-xs sm:text-sm text-white/80 mt-1.5 truncate">
-              {temple.tradition}
-              {temple.primaryDeity ? ` · ${temple.primaryDeity}` : ''}
-            </p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-bold text-white leading-tight">{temple.name}</h1>
+                <TempleGradeBadge grade={temple.grade} />
+              </div>
+              <p className="text-sm text-white/80 mt-1 leading-relaxed">
+                {temple.tradition}{temple.primaryDeity ? ` · ${temple.primaryDeity}` : ''}
+              </p>
+            </div>
           </div>
           {temple.registrationNumber && (
-            <div className="shrink-0 md:text-right">
-              <p className="text-[10px] text-white/80 font-medium uppercase tracking-wider">Registration</p>
-              <p className="text-sm font-mono font-semibold text-white bg-white/20 px-3 py-1 rounded-lg mt-1">{temple.registrationNumber}</p>
+            <div className="shrink-0 sm:text-right">
+              <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Registration</p>
+              <p className="text-sm font-mono font-semibold text-white bg-white/20 px-3 py-1 rounded-lg mt-1 border border-white/20">{temple.registrationNumber}</p>
             </div>
           )}
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="inline-flex rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'overview'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'history'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            History
-          </button>
-          <button
-            onClick={() => setActiveTab('governance')}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'governance'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Governance
-          </button>
+      {/* ── Tab Navigation ── */}
+      <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 shadow-lg">
+        <div className="flex overflow-x-auto scrollbar-thin px-4">
+          {(['overview', 'history'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={[
+                'relative flex items-center gap-1.5 px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap',
+                activeTab === tab
+                  ? 'text-white after:absolute after:bottom-0 after:inset-x-0 after:h-0.5 after:bg-gradient-to-r after:from-orange-400 after:to-amber-500'
+                  : 'text-slate-400 hover:text-white',
+              ].join(' ')}
+            >
+              {tab === 'overview' ? 'Overview' : 'History'}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <TabsContent value="overview" className="mt-4 animate-in fade-in-50 duration-300">
-          <OverviewTab  />
-        </TabsContent>
+      {/* ── Tab Contents ── */}
+      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsContent value="overview" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
+            <OverviewTab />
+          </TabsContent>
 
-        <TabsContent value="history" className="mt-4 animate-in fade-in-50 duration-300">
-          <HistoryTab />
-        </TabsContent>
+          <TabsContent value="history" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
+            <HistoryTab />
+          </TabsContent>
 
-        <TabsContent value="governance" className="mt-4 animate-in fade-in-50 duration-300">
-          {governanceWorkflowInstanceId ? (
-            <WorkflowGovernancePanel
-              workflowInstanceId={governanceWorkflowInstanceId}
-              entityType="TEMPLE_PROFILE"
-              viewerRole="TA"
-            />
-          ) : (
-            <EmptyState
-              title="Governance not available"
-              description="Submit your temple profile for DC review to enable governance tracking."
-              icon={<Building2 size={32} />}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+
+        </Tabs>
+      </div>
     </div>
   )
 }
