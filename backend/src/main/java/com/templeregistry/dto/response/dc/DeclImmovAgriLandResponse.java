@@ -9,8 +9,9 @@ import java.math.BigDecimal;
 public class DeclImmovAgriLandResponse {
     private Long id;
     private String surveyNumber;
+    private String village;
     private BigDecimal areaAcres;
-    private String location;
-    private String encumbrance;
-    private BigDecimal annualLeaseIncome;
+    private String ownerOfRecord;
+    private String pattaStatus;
+    private BigDecimal estimatedValueInr;
 }

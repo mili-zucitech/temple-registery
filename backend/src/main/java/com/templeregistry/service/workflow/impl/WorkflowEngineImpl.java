@@ -13,7 +13,7 @@ import com.templeregistry.service.audit.GovernanceAuditService;
 import com.templeregistry.service.workflow.*;
 import com.templeregistry.entity.versioning.EntityVersion;
 import com.templeregistry.entity.versioning.EntityVersionStatus;
-import jakarta.persistence.EntityNotFoundException;
+import com.templeregistry.exception.EntityNotFoundException;
 import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -166,7 +166,7 @@ public class WorkflowEngineImpl implements WorkflowEngine {
 
         // ── Step 2: Load instance ─────────────────────────────────────────────
         WorkflowInstance instance = instanceRepo.findById(workflowInstanceId)
-            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance not found: " + workflowInstanceId));
+            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance", workflowInstanceId));
 
         WorkflowStatus fromStatus = instance.getStatus();
         String fromSubStatus = instance.getSubStatus();
@@ -310,14 +310,14 @@ public class WorkflowEngineImpl implements WorkflowEngine {
     public WorkflowInstance getState(WorkflowEntityType entityType, Long entityId) {
         return instanceRepo.findByEntityTypeAndEntityId(entityType, entityId)
             .orElseThrow(() -> new EntityNotFoundException(
-                "No workflow instance for " + entityType + ":" + entityId));
+                "No workflow instance for " + entityType + ":" + entityId, "WORKFLOW_INSTANCE_NOT_FOUND"));
     }
 
     @Override
     @Transactional(readOnly = true)
     public WorkflowInstance getStateById(Long workflowInstanceId) {
         return instanceRepo.findById(workflowInstanceId)
-            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance not found: " + workflowInstanceId));
+            .orElseThrow(() -> new EntityNotFoundException("WorkflowInstance", workflowInstanceId));
     }
 
     @Override

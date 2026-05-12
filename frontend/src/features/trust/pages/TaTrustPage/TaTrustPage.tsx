@@ -43,8 +43,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
-import { Building2, Users, Calendar, TrendingUp, Plus, Edit, Trash2, FileText, Eye, User, Phone, MapPin, Shield, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
-import { WorkflowGovernancePanel } from '@/features/governance/WorkflowGovernancePanel'
+import { Building2, Users, Calendar, TrendingUp, Plus, Edit, Trash2, FileText, Eye, User, Phone, MapPin, Shield, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react'
 
 const MEMBERS_PAGE_SIZE = 10
 
@@ -68,6 +67,7 @@ export function TaTrustPage() {
   const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
   const [memberPage, setMemberPage] = useState(0)
   const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
+  const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
@@ -75,6 +75,7 @@ export function TaTrustPage() {
   const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, {
     skip: !templeId,
     refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
   })
   const trust = useMemo(() => trustData?.data?.[0] ?? null, [trustData])
 
@@ -259,6 +260,38 @@ export function TaTrustPage() {
       setEditingMemberId(null)
     } catch (err) {
       toast.error(extractApiErrorMessage(err, 'Failed to update board member'))
+    }
+  }
+
+  const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
+    const key = `${meetingId}-${mode}`
+    if (docLoading[key]) return
+    setDocLoading(prev => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch(`/api/v1/trusts/${trustId}/meetings/${meetingId}/minutes/${mode}`, { credentials: 'include' })
+      if (!res.ok) {
+        toast.error('Could not load meeting minutes. Please try again.')
+        return
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      if (mode === 'preview') {
+        const tab = window.open(objectUrl, '_blank')
+        if (tab) setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+        else URL.revokeObjectURL(objectUrl)
+      } else {
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.download = `meeting-minutes-${meetingDate}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(objectUrl)
+      }
+    } catch {
+      toast.error('Could not load meeting minutes. Please try again.')
+    } finally {
+      setDocLoading(prev => ({ ...prev, [key]: false }))
     }
   }
 
@@ -447,7 +480,7 @@ export function TaTrustPage() {
       ) : (
         <Tabs value={tab} onValueChange={(value) => { setTab(value); setPage(0) }} className="w-full">
           <div className="rounded-lg border border-border/60 bg-card/95 p-1 shadow-sm lg:w-auto">
-            <TabsList className="grid w-full grid-cols-5 gap-1 bg-transparent p-0 lg:w-auto">
+            <TabsList className="grid w-full grid-cols-4 gap-1 bg-transparent p-0 lg:w-auto">
               <TabsTrigger
                 value="details"
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -474,13 +507,6 @@ export function TaTrustPage() {
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
               >
                 Financials
-              </TabsTrigger>
-              <TabsTrigger
-                value="governance"
-                disabled={!trust}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-              >
-                Governance
               </TabsTrigger>
             </TabsList>
           </div>
@@ -847,12 +873,46 @@ export function TaTrustPage() {
               ) : (
                 <div className="space-y-3">
                   {meetings.map((meeting) => (
-                    <div key={meeting.id} className="rounded-lg border border-border bg-card p-4 flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-foreground">{new Date(meeting.meetingDate).toLocaleDateString('en-IN')}</p>
-                        {meeting.agenda && <p className="text-sm text-muted-foreground mt-1">{meeting.agenda}</p>}
+                    <div key={meeting.id} className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{new Date(meeting.meetingDate).toLocaleDateString('en-IN')}</p>
+                          {meeting.agenda && <p className="text-sm text-muted-foreground mt-1 break-words">{meeting.agenda}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {meeting.minutesDocumentId ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                <CheckCircle2 size={12} /> Minutes uploaded
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2.5 text-xs gap-1"
+                                disabled={!!docLoading[`${meeting.id}-preview`]}
+                                onClick={() => handleMeetingDocument(meeting.id, trust.id, 'preview', meeting.meetingDate)}
+                              >
+                                {docLoading[`${meeting.id}-preview`] ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                                Preview
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2.5 text-xs gap-1"
+                                disabled={!!docLoading[`${meeting.id}-download`]}
+                                onClick={() => handleMeetingDocument(meeting.id, trust.id, 'download', meeting.meetingDate)}
+                              >
+                                {docLoading[`${meeting.id}-download`] ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                                Download
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                              <AlertCircle size={12} /> No minutes
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <StatusBadge status={meeting.minutesDocumentId ? 'SUBMITTED' : 'PENDING'} />
                     </div>
                   ))}
                 </div>
@@ -916,16 +976,6 @@ export function TaTrustPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="governance" className="mt-5 animate-in fade-in-50 duration-300">
-            {trust?.workflowInstanceId ? (
-              <WorkflowGovernancePanel workflowInstanceId={trust.workflowInstanceId} />
-            ) : (
-              <EmptyState
-                title="Governance not available"
-                description="This trust was created before the workflow engine was activated. Update and resubmit to enable governance tracking."
-              />
-            )}
-          </TabsContent>
         </Tabs>
       )}
     </div>

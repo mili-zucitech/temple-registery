@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/data.fixture';
 import { DeclarationFactory } from '../factories/DeclarationFactory';
 import { TrustFactory } from '../factories/TrustFactory';
+import { ApiClient } from '../lib/api-client';
 
 test.describe('Data Integrity', () => {
   test('should_maintain_referential_integrity_when_entities_created', async ({
@@ -31,17 +32,23 @@ test.describe('Data Integrity', () => {
     temple,
     dbAssert
   }) => {
+    // Use a unique fiscal year to avoid conflict with pre-existing declarations
+    const seed = testContext.generateId();
+    const timeSalt = Math.floor(Date.now() / 1000) % 7000;
+    const startYear = 2100 + ((seed + timeSalt) % 6000);
+    const uniqueFiscalYear = `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
+
     // Create first declaration
     await DeclarationFactory.create(api, testContext, {
       templeId: temple.id,
-      fiscalYear: '2025-26'
+      fiscalYear: uniqueFiscalYear
     });
     
     // Try to create duplicate
     try {
       await DeclarationFactory.create(api, testContext, {
         templeId: temple.id,
-        fiscalYear: '2025-26'
+        fiscalYear: uniqueFiscalYear
       });
       
       throw new Error('Should have prevented duplicate declaration');
@@ -65,20 +72,18 @@ test.describe('Data Integrity', () => {
     
     // Get workflow instance
     const workflowInstance = await db.getOne<{ id: number }>(`
-      SELECT id FROM workflow_instance
+      SELECT id FROM workflow_instances
       WHERE entity_type = 'DECLARATION' AND entity_id = ?
     `, [declaration.id]);
     
     // Request clarification 3 times (max limit)
     for (let i = 1; i <= 3; i++) {
-      await api.post(`/workflow/${workflowInstance!.id}/request-clarification`, {
+      await api.post(`/governance/declarations/${declaration.id}/clarify`, {
         message: `Clarification round ${i}`
       });
       
-      // Respond to clarification
-      await api.post(`/workflow/${workflowInstance!.id}/respond-clarification`, {
-        message: `Response to round ${i}`
-      });
+      // TA responds by resubmitting
+      await api.post(`/governance/declarations/${declaration.id}/submit`, {});
     }
     
     // Verify round limits
@@ -86,14 +91,14 @@ test.describe('Data Integrity', () => {
     
     // Try to request 4th clarification (should fail or escalate)
     try {
-      await api.post(`/workflow/${workflowInstance!.id}/request-clarification`, {
+      await api.post(`/governance/declarations/${declaration.id}/clarify`, {
         message: 'Clarification round 4'
       });
       
       // If it succeeds, it should be escalated
       const clarificationThreads = await db.query<{ round_number: number; escalation_level: number }>(`
         SELECT round_number, escalation_level
-        FROM clarification_thread
+        FROM clarification_threads
         WHERE workflow_instance_id = ?
       `, [workflowInstance!.id]);
       
@@ -103,7 +108,7 @@ test.describe('Data Integrity', () => {
       }
     } catch (error: any) {
       // Expected to fail
-      expect(error.message).toContain('Maximum clarification rounds exceeded');
+      expect(error.message).toContain('Cannot request more clarifications');
     }
   });
 
@@ -117,22 +122,30 @@ test.describe('Data Integrity', () => {
     // Create and submit declaration
     const declaration = await DeclarationFactory.createAndSubmit(api, testContext, { templeId: temple.id });
     
-    // Get workflow instance
-    const workflowInstance = await db.getOne<{ id: number }>(`
-      SELECT id FROM workflow_instance
+    // Approve with DC credentials (workflow engine requires DC role for APPROVE)
+    const dcApi = new ApiClient({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+      testRunId: testContext.testRunId
+    });
+    await dcApi.login('dc_mysuru', 'password123');
+    
+    // Approve declaration
+    await dcApi.post(`/governance/declarations/${declaration.id}/approve`, {
+      remarks: 'Approved'
+    });
+    await dcApi.dispose();
+    
+    // Re-fetch workflow instance id after approval
+    const updatedWI = await db.getOne<{ id: number }>(`
+      SELECT id FROM workflow_instances
       WHERE entity_type = 'DECLARATION' AND entity_id = ?
     `, [declaration.id]);
     
-    // Approve declaration
-    await api.post(`/workflow/${workflowInstance!.id}/approve`, {
-      comment: 'Approved'
-    });
-    
     // Verify audit consistency
-    await dbAssert.audit.assertAuditConsistency(workflowInstance!.id);
+    await dbAssert.audit.assertAuditConsistency(updatedWI!.id);
     
     // Verify transition ordering
-    await dbAssert.workflow.assertValidTransitionOrdering(workflowInstance!.id);
+    await dbAssert.workflow.assertValidTransitionOrdering(updatedWI!.id);
   });
 
   test('should_maintain_notification_consistency_when_events_published', async ({

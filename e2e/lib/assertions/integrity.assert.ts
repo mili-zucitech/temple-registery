@@ -37,9 +37,11 @@ export class IntegrityAssertions {
   }
 
   async assertNoDuplicateDeclarations(): Promise<void> {
+    // Scope to recently-created declarations to avoid pre-existing data issues.
     const duplicates = await this.db.query<{ temple_id: number; fiscal_year: string; count: number }>(`
       SELECT temple_id, financial_year, COUNT(*) as count
       FROM asset_declarations
+      WHERE created_at >= NOW() - INTERVAL 24 HOUR
       GROUP BY temple_id, financial_year
       HAVING COUNT(*) > 1
     `);

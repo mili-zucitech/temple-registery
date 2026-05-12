@@ -64,7 +64,7 @@ app:
     public-key-path: classpath:keys/jwt-public.pem
     access-token-expiry-ms: 18000000
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
   encryption:
     # 32-byte dev key — ONLY safe in local/dev profile, never used in staging or prod
     key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}

@@ -25,8 +25,27 @@ async function triggerDownload(
 ) {
   const result = await action()
   if (result.data?.status === 'SYNC_COMPLETE' && result.data.downloadUrl) {
-    window.open(result.data.downloadUrl, '_blank', 'noopener,noreferrer')
-    toast.success(`Export ready — ${result.data.recordCount ?? 0} ${label} exported.`)
+    const downloadUrl = result.data.downloadUrl
+    try {
+      // Use fetch with credentials so httpOnly auth cookies are sent.
+      // window.open can silently fail for authenticated PDF responses.
+      const resp = await fetch(downloadUrl, { credentials: 'include' })
+      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`)
+      const blob = await resp.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = downloadUrl.split('/').pop()?.split('?')[0] ?? 'export'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+      toast.success(`Export ready — ${result.data.recordCount ?? 0} ${label} exported.`)
+    } catch {
+      // Fallback: direct navigation (works for CSV in most browsers)
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+      toast.success(`Export ready — ${result.data.recordCount ?? 0} ${label} exported.`)
+    }
   } else {
     toast.info('Export queued. You will be notified when it is ready.')
   }

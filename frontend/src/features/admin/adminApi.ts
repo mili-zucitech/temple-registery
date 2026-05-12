@@ -68,7 +68,7 @@ export interface UpdateSystemConfigRequest {
 export const adminApi = createApi({
   reducerPath: 'adminApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule'],
+  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch'],
   endpoints: (builder) => ({
     listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/users', params: { page, size } }),
@@ -127,15 +127,19 @@ export const adminApi = createApi({
     // ─── Temple Lifecycle ────────────────────────────────────────────────────
     suspendTemple: builder.mutation<ApiResponse<void>, { id: number; reason: string }>({
       query: ({ id, reason }) => ({ url: `/admin/temples/${id}/suspend`, method: 'POST', body: { reason } }),
+      invalidatesTags: (_r, _e, { id }) => ['TempleSearch', { type: 'TempleSearch', id }],
     }),
     reactivateTemple: builder.mutation<ApiResponse<void>, { id: number; reason: string }>({
       query: ({ id, reason }) => ({ url: `/admin/temples/${id}/reactivate`, method: 'POST', body: { reason } }),
+      invalidatesTags: (_r, _e, { id }) => ['TempleSearch', { type: 'TempleSearch', id }],
     }),
     freezeTemple: builder.mutation<ApiResponse<void>, { id: number; reason: string }>({
       query: ({ id, reason }) => ({ url: `/admin/temples/${id}/freeze`, method: 'POST', body: { reason } }),
+      invalidatesTags: (_r, _e, { id }) => ['TempleSearch', { type: 'TempleSearch', id }],
     }),
     archiveTemple: builder.mutation<ApiResponse<void>, { id: number; reason: string }>({
       query: ({ id, reason }) => ({ url: `/admin/temples/${id}/archive`, method: 'POST', body: { reason } }),
+      invalidatesTags: (_r, _e, { id }) => ['TempleSearch', { type: 'TempleSearch', id }],
     }),
     // ─── Observation Management (ADMIN_ONLY operations) ──────────────────────
     assignObservation: builder.mutation<ApiResponse<{ id: number }>, { id: number; assignedToUserId: number }>({

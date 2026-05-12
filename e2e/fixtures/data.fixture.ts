@@ -14,32 +14,24 @@ type DataFixtures = {
 };
 
 export const test = base.extend<DataFixtures>({
-  temple: async ({ api, testContext, db }, use) => {
-    let temple: Temple;
+  temple: async ({ db }, use) => {
+    const existingTemple = await db.getOne<Temple>(`
+      SELECT t.id,
+             t.name,
+             t.registration_number AS registrationNumber,
+             t.grade,
+             t.district_id AS districtId
+      FROM temples t
+      JOIN users u ON u.temple_id = t.id
+      WHERE u.username = 'ta_chamundi'
+      LIMIT 1
+    `);
 
-    try {
-      temple = await TempleFactory.create(api, testContext);
-    } catch {
-      const existingTemple = await db.getOne<Temple>(`
-        SELECT t.id,
-               t.name,
-               t.registration_number AS registrationNumber,
-               t.grade,
-               t.district_id AS districtId
-        FROM temples t
-        JOIN users u ON u.temple_id = t.id
-        WHERE u.username = 'ta_chamundi'
-        LIMIT 1
-      `);
-
-      if (!existingTemple) {
-        throw new Error('Temple fixture setup failed: create temple failed and no TA-linked temple found.');
-      }
-
-      temple = existingTemple;
+    if (!existingTemple) {
+      throw new Error('Temple fixture setup failed: no temple found for ta_chamundi user.');
     }
 
-    await use(temple);
+    await use(existingTemple);
   },
 
   trust: async ({ api, testContext, temple }, use) => {

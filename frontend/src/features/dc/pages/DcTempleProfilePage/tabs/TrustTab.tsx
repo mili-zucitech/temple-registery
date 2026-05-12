@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle, Download, Loader2 } from 'lucide-react'
 import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ModuleStatusBadge } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
@@ -27,6 +28,40 @@ interface TrustTabProps {
 }
 
 export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onRejectTrust }: TrustTabProps) {
+  const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
+
+  const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
+    const key = `${meetingId}-${mode}`
+    if (docLoading[key]) return
+    setDocLoading(prev => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch(`/api/v1/trusts/${trustId}/meetings/${meetingId}/minutes/${mode}`, { credentials: 'include' })
+      if (!res.ok) {
+        toast.error('Could not load meeting minutes. Please try again.')
+        return
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      if (mode === 'preview') {
+        const tab = window.open(objectUrl, '_blank')
+        if (tab) setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+        else URL.revokeObjectURL(objectUrl)
+      } else {
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.download = `meeting-minutes-${meetingDate}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(objectUrl)
+      }
+    } catch {
+      toast.error('Could not load meeting minutes. Please try again.')
+    } finally {
+      setDocLoading(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
   // Canonical status from governanceStatus (preferred) with fallback to legacy workflowStatus
   const canonicalStatus = trust?.governanceStatus?.status ?? trust?.workflowStatus ?? null
 
@@ -323,7 +358,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-foreground">Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-foreground">Agenda</th>
-                  <th className="px-4 py-3 text-center font-semibold text-foreground">Minutes</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground">Minutes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -332,17 +367,36 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
                     <td className="px-4 py-3 text-foreground whitespace-nowrap">
                       {new Date(m.meetingDate).toLocaleDateString('en-IN')}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
+                    <td className="px-4 py-3 text-muted-foreground max-w-xs break-words">
                       {m.agenda || '—'}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3">
                       {m.minutesDocumentId ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                          <CheckCircle2 size={12} /> Uploaded
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs gap-1"
+                            disabled={!!docLoading[`${m.id}-preview`]}
+                            onClick={() => handleMeetingDocument(m.id, trust!.id, 'preview', m.meetingDate)}
+                          >
+                            {docLoading[`${m.id}-preview`] ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                            Preview
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs gap-1"
+                            disabled={!!docLoading[`${m.id}-download`]}
+                            onClick={() => handleMeetingDocument(m.id, trust!.id, 'download', m.meetingDate)}
+                          >
+                            {docLoading[`${m.id}-download`] ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                            Download
+                          </Button>
+                        </div>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <AlertCircle size={12} /> Pending
+                          <AlertCircle size={12} /> No minutes
                         </span>
                       )}
                     </td>

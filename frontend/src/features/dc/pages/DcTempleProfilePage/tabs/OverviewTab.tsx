@@ -45,7 +45,7 @@ export function OverviewTab({
   const hasDcProfileAction = pendingAllowedActions.includes('APPROVE')
     || pendingAllowedActions.includes('RE_APPROVE')
     || pendingAllowedActions.includes('REJECT')
-  const actionablePendingStaging = hasDcProfileAction ? pendingStaging : null
+  const actionablePendingStaging = (hasDcProfileAction && hasPendingData) ? pendingStaging : null
 
   // Effective display values — 2-layer priority for profile-managed fields:
   //   1. Pending staging (TA submitted, awaiting or under DC review) — shows most current TA data
@@ -178,19 +178,6 @@ export function OverviewTab({
                 <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400">Primary Photo</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Temple Photo Gallery - FULL WIDTH */}
-        <div className="bg-white rounded-xl border border-slate-200/60 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
-          <div className="px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-2.5">
-            <div className="size-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-              <Building2 size={16} className="text-white" />
-            </div>
-            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Temple Photo Gallery</h2>
-          </div>
-          <div className="p-3">
-            <DcTempleImageGallery templeId={temple.id} />
           </div>
         </div>
 
@@ -408,6 +395,19 @@ export function OverviewTab({
           </div>
         )}
 
+        {/* Temple Photo Gallery — FULL WIDTH, above governance */}
+        <div className="bg-white rounded-xl border border-slate-200/60 shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
+          <div className="px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center gap-2.5">
+            <div className="size-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md">
+              <Info size={16} className="text-white" />
+            </div>
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Temple Photo Gallery</h2>
+          </div>
+          <div className="p-3">
+            <DcTempleImageGallery templeId={temple.id} />
+          </div>
+        </div>
+
         {/* Temple Profile Governance — single card that cycles:
              Approved → Pending Review (when update submitted) → Approved.
              When pendingStaging exists, the card shows the update-under-review state
@@ -476,6 +476,7 @@ export function OverviewTab({
             </div>
           )
         })()}
+
       </div>
     </div>
   )

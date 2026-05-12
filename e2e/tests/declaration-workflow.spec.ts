@@ -21,7 +21,7 @@ async function loginAndGetCookie(username: string, password: string): Promise<st
   });
 
   if (!response.ok) {
-    throw new Error(`Role login failed for ${username}: ${response.status()}`);
+    throw new Error(`Role login failed for ${username}: ${response.status}`);
   }
 
   return toCookieJar(response.headers.get('set-cookie'));
@@ -39,7 +39,7 @@ async function dcAction(path: string, body: Record<string, unknown>): Promise<vo
   });
 
   if (!response.ok) {
-    throw new Error(`DC action failed ${path}: ${response.status()} - ${await response.text()}`);
+    throw new Error(`DC action failed ${path}: ${response.status} - ${await response.text()}`);
   }
 }
 

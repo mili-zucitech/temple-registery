@@ -2,6 +2,7 @@ import { createApi } from '@reduxjs/toolkit/query/react'
 import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
 import { CreateTempleRequest, TaProfileStagingRequest, TemplePhotoDto, TempleProfileStagingResponse, TempleResponse, TempleSearchFilterRequest, TempleSearchResultResponse } from './templeTypes';
+import { authApi } from '@/features/auth/authApi'
 
 
 export const templeApi = createApi({
@@ -70,6 +71,12 @@ export const templeApi = createApi({
         { type: 'TempleCurrentProfile', id: templeId },
         { type: 'Temple', id: templeId },
       ],
+      // Also invalidate the currentUser cache so the TA Dashboard checklist
+      // reflects the new status (SUBMITTED) immediately without a page refresh.
+      async onQueryStarted(_templeId, { dispatch, queryFulfilled }) {
+        await queryFulfilled
+        dispatch(authApi.util.invalidateTags(['CurrentUser']))
+      },
     }),
 
     getStagingHistory: builder.query<

@@ -8,8 +8,8 @@ import java.math.BigDecimal;
 @Getter @Builder
 public class DeclMovVehicleResponse {
     private Long id;
-    private String vehicleType;
     private String registrationNumber;
-    private Integer yearOfPurchase;
-    private BigDecimal currentValue;
+    private String vehicleType;
+    private Integer year;
+    private BigDecimal estimatedValueInr;
 }

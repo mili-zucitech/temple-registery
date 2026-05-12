@@ -43,7 +43,7 @@ export function KpiCard({ label, value, icon, variant = 'neutral', note, classNa
         <p className="text-xs font-medium text-muted-foreground/80 uppercase tracking-label">{label}</p>
         <div className="flex items-baseline gap-2 mt-1">
           <h3 className="text-xl font-bold text-foreground tracking-title leading-none">{value}</h3>
-          {note && <span className="text-xs text-muted-foreground font-regular truncate">({note})</span>}
+          {note && <span className="text-xs text-muted-foreground font-regular break-words">({note})</span>}
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@ export function BoardMemberCard({ member }: { member: BoardMemberSummary }) {
             <UserCircle size={20} className="text-muted-foreground/60" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground truncate">{member.fullName}</p>
+            <p className="font-semibold text-sm text-foreground break-words">{member.fullName}</p>
             <p className="text-xs font-medium text-primary uppercase tracking-label">{member.designation}</p>
           </div>
         </div>
@@ -135,7 +135,7 @@ export function DetailItem({ label, value }: { label: string; value?: string | n
   return (
     <div className="space-y-2">
       <dt className="text-xs font-medium uppercase tracking-label text-muted-foreground/80">{label}</dt>
-      <dd className="text-sm font-regular text-foreground leading-tight">{value ?? '—'}</dd>
+      <dd className="text-sm font-regular text-foreground leading-tight break-words">{value ?? '—'}</dd>
     </div>
   )
 }

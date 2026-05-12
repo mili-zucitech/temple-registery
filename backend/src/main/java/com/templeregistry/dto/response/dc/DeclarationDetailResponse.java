@@ -57,10 +57,10 @@ public class DeclarationDetailResponse {
     private List<ClarificationItemResponse> clarifications;
 
     // Granular sub-table line items
-    private List<DeclImmovAgriLandResponse> agricultureLands;
+    private List<DeclImmovAgriLandResponse> agriculturalLands;
     private List<DeclImmovBuildingResponse> buildings;
     private List<DeclImmovLeasedResponse> leasedProperties;
-    private List<DeclImmovOtherResponse> otherImmovables;
+    private List<DeclImmovOtherResponse> otherLands;
     private List<DeclMovPreciousMetalResponse> preciousMetals;
     private List<DeclMovArtifactResponse> artifacts;
     private List<DeclMovVehicleResponse> vehicles;

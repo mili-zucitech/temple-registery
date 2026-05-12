@@ -12,6 +12,7 @@ import type {
   DcClarifyRequest,
   WorkflowActionResponse,
 } from './governanceTypes'
+import { trustApi } from '@/features/trust/trustApi'
 
 /**
  * RTK Query API for governance workflow actions — SINGLE SOURCE OF TRUTH.
@@ -51,6 +52,12 @@ export const governanceApi = createApi({
         'DcDashboard',
         'DcTempleSearch',
       ],
+      // Cross-API-slice invalidation: trustApi has its own cache; we must dispatch
+      // trustApi.util.invalidateTags to force getTrustByTemple to refetch.
+      async onQueryStarted(_trustId, { dispatch, queryFulfilled }) {
+        await queryFulfilled
+        dispatch(trustApi.util.invalidateTags(['Trust']))
+      },
     }),
 
     approveTrust: builder.mutation<ApiResponse<void>, number>({
@@ -62,6 +69,10 @@ export const governanceApi = createApi({
         'Trust',
         'DcTempleSearch',
       ],
+      async onQueryStarted(_trustId, { dispatch, queryFulfilled }) {
+        await queryFulfilled
+        dispatch(trustApi.util.invalidateTags(['Trust']))
+      },
     }),
 
     sendBackTrust: builder.mutation<ApiResponse<void>, { trustId: number; body: SendBackRequest }>({
@@ -76,6 +87,10 @@ export const governanceApi = createApi({
         'Trust',
         'DcTempleSearch',
       ],
+      async onQueryStarted(_args, { dispatch, queryFulfilled }) {
+        await queryFulfilled
+        dispatch(trustApi.util.invalidateTags(['Trust']))
+      },
     }),
 
     rejectTrust: builder.mutation<ApiResponse<void>, { trustId: number; body: RejectRequest }>({
@@ -90,6 +105,10 @@ export const governanceApi = createApi({
         'Trust',
         'DcTempleSearch',
       ],
+      async onQueryStarted(_args, { dispatch, queryFulfilled }) {
+        await queryFulfilled
+        dispatch(trustApi.util.invalidateTags(['Trust']))
+      },
     }),
 
     // ─── DECLARATION ──────────────────────────────────────────────────────────
