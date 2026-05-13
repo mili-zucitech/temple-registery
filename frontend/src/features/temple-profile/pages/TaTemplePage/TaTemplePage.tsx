@@ -37,7 +37,6 @@ function OverviewTab() {
 
   const effective = stagingProfile ?? temple
   const effectiveAny = effective as any
-  // bankAccountMasked is not on TempleResponse; fall back to last staging history entry.
   const effectiveBankAccountMasked =
     effectiveAny?.bankAccountMasked ?? (currentProfile as any)?.bankAccountMasked ?? null
   // Null-safe photo fallback: staging may exist but have no photoUrl (e.g. first draft with no photo saved).
@@ -51,11 +50,16 @@ function OverviewTab() {
     profileStatus === 'DRAFT' ? 'Continue Editing' :
       profileStatus === 'REJECTED' ? 'Create New Draft' : 'Edit Profile'
 
-  const district = temple?.districtName ?? undefined
-  // Profile-managed field — read from staging first (TA edits reflected immediately),
-  // fall back to the approved temple entity value.
   const effectiveLandmark = (effectiveAny?.landmark ?? temple?.landmark) || null
-  const locationParts = [effectiveLandmark, talukName, hobliName, district].filter(Boolean)
+  const effectivePrimaryDeity = effectiveAny?.primaryDeity ?? temple?.primaryDeity ?? null
+  const effectiveTradition = effectiveAny?.tradition ?? temple?.tradition ?? null
+  const effectiveAliasName = effectiveAny?.aliasName ?? temple?.aliasName ?? null
+  const effectiveGrade = effectiveAny?.grade ?? temple?.grade ?? null
+  const effectiveYearEstablished = effectiveAny?.yearEstablished ?? temple?.yearEstablished ?? null
+  const effectiveAddressLine1 = effectiveAny?.addressLine1 ?? temple?.street ?? null
+  const effectivePinCode = effectiveAny?.pinCode ?? temple?.pinCode ?? null
+  const effectiveLatitude = effectiveAny?.latitude ?? temple?.latitude ?? null
+  const effectiveLongitude = effectiveAny?.longitude ?? temple?.longitude ?? null
 
 
   let parsedLinked = effective?.linkedInstitutions
@@ -180,10 +184,16 @@ function OverviewTab() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InfoField label="Temple Name" value={temple?.name} />
                 <InfoField label="Registration No." value={temple?.registrationNumber} />
-                <InfoField label="Primary Deity" value={temple?.primaryDeity} />
-                <InfoField label="Tradition" value={temple?.tradition} />
-                {temple?.yearEstablished && (
-                  <InfoField label="Year Established" value={temple.yearEstablished} />
+                <InfoField label="Primary Deity" value={effectivePrimaryDeity} />
+                <InfoField label="Tradition" value={effectiveTradition} />
+                {effectiveAliasName && (
+                  <InfoField label="Alias Name" value={effectiveAliasName} />
+                )}
+                {effectiveGrade && (
+                  <InfoField label="Grade" value={`Grade ${effectiveGrade}`} />
+                )}
+                {effectiveYearEstablished && (
+                  <InfoField label="Year Established" value={effectiveYearEstablished} />
                 )}
               </div>
 
@@ -253,29 +263,40 @@ function OverviewTab() {
 
       {/* ── Location & Contact ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Location */}
+        {/* Jurisdiction */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 flex items-center gap-2.5">
             <div className="size-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
               <MapPin size={14} className="text-white" />
             </div>
-            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Location & Address</h3>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Jurisdiction</h3>
           </div>
           <div className="p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {temple?.doorNumber && <InfoField label="Door No." value={temple.doorNumber} />}
-              {temple?.street && <InfoField label="Street" value={temple.street} />}
-              {temple?.villageTown && <InfoField label="Village / Town" value={temple.villageTown} />}
-              {effectiveLandmark && <InfoField label="Landmark" value={effectiveLandmark} />}
-              {temple?.pinCode && <InfoField label="PIN Code" value={temple.pinCode} />}
+            <div className="grid grid-cols-2 gap-3">
+              <InfoField label="District" value={temple?.districtName ?? '—'} />
+              <InfoField label="City" value={(temple as any)?.cityName ?? '—'} />
+              <InfoField label="Taluk" value={talukName ?? '—'} />
+              <InfoField label="Hobli" value={hobliName ?? '—'} />
             </div>
-            {locationParts.length > 0 && (
+            {(effectiveAddressLine1 || temple?.villageTown || temple?.doorNumber) && (
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Administrative Location</p>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">{locationParts.join(' · ')}</p>
+                <InfoField
+                  label="Street Address"
+                  value={[temple?.doorNumber, effectiveAddressLine1, temple?.villageTown].filter(Boolean).join(', ')}
+                />
               </div>
             )}
-            {temple?.latitude != null && temple.longitude != null && (
+            {effectiveLandmark && (
+              <div>
+                <InfoField label="Landmark" value={effectiveLandmark} />
+              </div>
+            )}
+            {effectivePinCode && (
+              <div>
+                <InfoField label="PIN Code" value={effectivePinCode} />
+              </div>
+            )}
+            {effectiveLatitude != null && effectiveLongitude != null && (
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                 <div className="overflow-hidden rounded-lg border border-emerald-200/60 shadow-sm" style={{ height: 200 }}>
                   <iframe
@@ -285,7 +306,7 @@ function OverviewTab() {
                     style={{ border: 0 }}
                     loading="lazy"
                     allowFullScreen
-                    src={`https://www.google.com/maps?q=${temple.latitude},${temple.longitude}&hl=en&z=14&output=embed`}
+                    src={`https://www.google.com/maps?q=${effectiveLatitude},${effectiveLongitude}&hl=en&z=14&output=embed`}
                   />
                 </div>
               </div>

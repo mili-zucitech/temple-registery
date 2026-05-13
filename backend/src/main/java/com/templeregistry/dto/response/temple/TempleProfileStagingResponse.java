@@ -42,6 +42,20 @@ public class TempleProfileStagingResponse {
     private String annualFestivals;
     private String landmark;
     private String historicalSignificance;
+
+    // ── Identity fields (V93) ─────────────────────────────────────────────────
+    private String aliasName;
+    private String primaryDeity;
+    private String grade;
+    private String tradition;
+    private Long hobliId;
+    private Long talukId;
+    private String addressLine1;
+    private String pinCode;
+    private Double latitude;
+    private Double longitude;
+    private Integer yearEstablished;
+
     private String reviewComment;
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;

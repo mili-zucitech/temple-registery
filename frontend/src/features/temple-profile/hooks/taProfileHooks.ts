@@ -143,15 +143,20 @@ export function useTempleProfile() {
   }, null)
 
   // ── Geo name resolution ────────────────────────────────────────────────────
+  // For display in overview: resolve taluk/hobli names from temple entity first,
+  // then fall back to staging's talukId/hobliId if temple values are null.
+  const effectiveTalukId = temple?.talukId ?? stagingProfile?.talukId ?? undefined
+  const effectiveHobliId = temple?.hobliId ?? stagingProfile?.hobliId ?? undefined
+
   const { data: taluksData } = useGetTaluksQuery(
     temple?.districtId!, { skip: !temple?.districtId },
   )
-  const talukName = taluksData?.data?.find(t => t.id === temple?.talukId)?.name
+  const talukName = taluksData?.data?.find(t => t.id === effectiveTalukId)?.name
 
   const { data: hoblisData } = useGetHoblisQuery(
-    temple?.talukId!, { skip: !temple?.talukId },
+    effectiveTalukId!, { skip: !effectiveTalukId },
   )
-  const hobliName = hoblisData?.data?.find(h => h.id === temple?.hobliId)?.name
+  const hobliName = hoblisData?.data?.find(h => h.id === effectiveHobliId)?.name
 
   const [createOrUpdateDraft, { isLoading: isSaving }] = useCreateOrUpdateDraftMutation()
   const [submitForReview, { isLoading: isSubmitting }] = useSubmitForReviewMutation()
@@ -212,6 +217,17 @@ export function useTempleProfile() {
         bankIfsc: (source as any).bankIfsc ?? '',
         photoFilePath: (source as any).photoFilePath ?? (source as any).photoUrl ?? temple?.photoUrl ?? '',
         bankAccountNumber: '',
+        // Identity fields (V93) — prefer staging values, fall back to temple entity
+        aliasName: (source as any).aliasName ?? temple?.aliasName ?? '',
+        primaryDeity: (source as any).primaryDeity ?? temple?.primaryDeity ?? '',
+        grade: (source as any).grade ?? temple?.grade ?? undefined,
+        tradition: (source as any).tradition ?? temple?.tradition ?? undefined,
+        hobliId: (source as any).hobliId ?? temple?.hobliId ?? undefined,
+        addressLine1: (source as any).addressLine1 ?? temple?.street ?? '',
+        pinCode: (source as any).pinCode ?? temple?.pinCode ?? '',
+        latitude: (source as any).latitude ?? (temple?.latitude as any) ?? null,
+        longitude: (source as any).longitude ?? (temple?.longitude as any) ?? null,
+        yearEstablished: (source as any).yearEstablished ?? temple?.yearEstablished ?? null,
       })
     } else if (temple) {
       const parsedLanguages = normalizeTagList(temple.languagesOfWorship)
@@ -234,6 +250,17 @@ export function useTempleProfile() {
         bankIfsc: '',
         photoFilePath: temple.photoUrl ?? '',
         bankAccountNumber: '',
+        // Identity fields (V93)
+        aliasName: temple.aliasName ?? '',
+        primaryDeity: temple.primaryDeity ?? '',
+        grade: temple.grade ?? undefined,
+        tradition: temple.tradition ?? undefined,
+        hobliId: temple.hobliId ?? undefined,
+        addressLine1: temple.street ?? '',
+        pinCode: temple.pinCode ?? '',
+        latitude: (temple.latitude as any) ?? null,
+        longitude: (temple.longitude as any) ?? null,
+        yearEstablished: temple.yearEstablished ?? null,
       })
     }
     // Only run when loading transitions to complete
@@ -263,6 +290,17 @@ export function useTempleProfile() {
         annualFestivals: cleanOptional(data.annualFestivals),
         landmark: cleanOptional(data.landmark),
         historicalSignificance: cleanOptional(data.historicalSignificance),
+        // Identity fields (V93)
+        aliasName: cleanOptional(data.aliasName),
+        primaryDeity: cleanOptional(data.primaryDeity),
+        grade: data.grade ?? undefined,
+        tradition: data.tradition ?? undefined,
+        hobliId: data.hobliId ?? undefined,
+        addressLine1: cleanOptional(data.addressLine1),
+        pinCode: cleanOptional(data.pinCode),
+        latitude: data.latitude ?? undefined,
+        longitude: data.longitude ?? undefined,
+        yearEstablished: data.yearEstablished ?? undefined,
       }
 
       await createOrUpdateDraft({ templeId, body }).unwrap()
@@ -321,6 +359,17 @@ export function useTempleProfile() {
         historicalSignificance: cleanOptional(temple?.historicalSignificance),
         bankName: cleanOptional(temple?.bankName),
         bankIfsc: cleanOptional(temple?.bankIfsc),
+        // Identity fields (V93)
+        aliasName: cleanOptional(temple?.aliasName),
+        primaryDeity: cleanOptional(temple?.primaryDeity),
+        grade: temple?.grade ?? undefined,
+        tradition: temple?.tradition ?? undefined,
+        hobliId: temple?.hobliId ?? undefined,
+        addressLine1: cleanOptional(temple?.street),
+        pinCode: cleanOptional(temple?.pinCode),
+        latitude: (temple?.latitude as any) ?? undefined,
+        longitude: (temple?.longitude as any) ?? undefined,
+        yearEstablished: temple?.yearEstablished ?? undefined,
       }
       await createOrUpdateDraft({ templeId, body: prefill }).unwrap()
       toast.success('Edit mode activated. A new draft has been created.')

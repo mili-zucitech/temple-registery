@@ -20,4 +20,6 @@ public interface AdminService {
     void activateUser(Long id);
 
     void rebuildSearchSummary();
+
+    void refreshTempleSearchSummary(Long templeId);
 }

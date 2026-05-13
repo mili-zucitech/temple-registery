@@ -26,15 +26,37 @@ function hasLocationSelection(value: GeoSelection): boolean {
 export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarchySelectGridProps) {
   const { states, cities, districts, taluks, hoblis } = useGeoHierarchy(value)
 
-  // Auto-select the first state (Karnataka) once geo data loads and the selection is completely empty.
-  // Guard: do NOT fire if any geo level is already selected (prevents resetting on back-navigation).
-  const hasAnySelection = !!(value.stateId || value.cityId || value.districtId || value.talukId || value.hobliId)
+  // Auto-select the first state (Karnataka) whenever stateId is missing and state data is available.
+  // This also handles the case where temple prefill sets districtId/talukId/hobliId without a stateId,
+  // which would cause cities/districts queries to be skipped.
   useEffect(() => {
-    if (!hasAnySelection && states.data.length > 0) {
-      onChange({ stateId: states.data[0].id })
+    if (!value.stateId && states.data.length > 0) {
+      onChange({ ...value, stateId: states.data[0].id })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [states.data.length, hasAnySelection])
+  }, [states.data.length, value.stateId])
+
+  // Auto-resolve cityId from district data when districtId is known but cityId is missing.
+  useEffect(() => {
+    if (value.districtId && !value.cityId && districts.data.length > 0) {
+      const district = districts.data.find((d) => d.id === value.districtId)
+      if (district?.cityId) {
+        onChange({ ...value, cityId: district.cityId })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.districtId, value.cityId, districts.data.length])
+
+  // Auto-resolve talukId from hobli data when hobliId is known but talukId is missing.
+  useEffect(() => {
+    if (value.hobliId && !value.talukId && hoblis.data.length > 0) {
+      const hobli = hoblis.data.find((h) => h.id === value.hobliId)
+      if (hobli?.talukId) {
+        onChange({ ...value, talukId: hobli.talukId })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.hobliId, value.talukId, hoblis.data.length])
 
   const handleSelect = (level: keyof GeoSelection, id: string) => {
     const numericId = Number(id)

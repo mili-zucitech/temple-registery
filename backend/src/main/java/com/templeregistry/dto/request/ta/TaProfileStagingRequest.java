@@ -71,4 +71,36 @@ public class TaProfileStagingRequest {
     private String landmark;
 
     private String historicalSignificance;
+
+    // ── Identity fields (V93) ─────────────────────────────────────────────────
+
+    @Size(max = 255)
+    private String aliasName;
+
+    @Size(max = 150)
+    private String primaryDeity;
+
+    /** Temple grade: A, B or C. */
+    @Pattern(regexp = "^[ABC]$", message = "Grade must be A, B, or C")
+    private String grade;
+
+    /** Religious tradition enum value (e.g. SHAIVITE, VAISHNAVITE…). */
+    @Size(max = 50)
+    private String tradition;
+
+    /** Hobli ID from the geo hierarchy. */
+    private Long hobliId;
+
+    /** Street / address line 1. Maps to Temple.street. */
+    @Size(max = 255)
+    private String addressLine1;
+
+    @Pattern(regexp = "^\\d{6}$", message = "PIN code must be exactly 6 digits")
+    private String pinCode;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    private Integer yearEstablished;
 }

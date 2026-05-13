@@ -40,6 +40,12 @@ interface SearchableSelectProps {
   className?: string
   /** Custom classes for the PopoverContent (e.g. z-index overrides) */
   popoverClassName?: string
+  /**
+   * Pass modal={false} when this component is rendered inside a Radix Dialog
+   * to prevent the dialog focus-trap from swallowing popover events.
+   * Defaults to false.
+   */
+  modal?: boolean
 }
 
 export function SearchableSelect({
@@ -54,6 +60,7 @@ export function SearchableSelect({
   onClear,
   className,
   popoverClassName,
+  modal = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -69,7 +76,7 @@ export function SearchableSelect({
   const selectedLabel = options.find((o) => o.value === value)?.label
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       <PopoverTrigger asChild>
         <button
           ref={triggerRef}
@@ -115,7 +122,7 @@ export function SearchableSelect({
       </PopoverTrigger>
 
       <PopoverContent
-        className={cn('p-0', popoverClassName)}
+        className={cn('z-[200] p-0', popoverClassName)}
         style={{ width }}
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}

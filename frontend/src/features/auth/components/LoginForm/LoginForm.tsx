@@ -112,12 +112,6 @@ export function LoginForm() {
           >
             Forgot password?
           </Link>
-          <Link 
-            to="/register" 
-            className="text-orange-600 hover:text-orange-700 hover:underline font-medium"
-          >
-            Register as Temple Authority
-          </Link>
         </div>
 
         {/* Dev-only quick fill */}

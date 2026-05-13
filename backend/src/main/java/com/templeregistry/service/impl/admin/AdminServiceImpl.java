@@ -5,9 +5,15 @@ import com.templeregistry.dto.request.admin.CreateUserRequest;
 import com.templeregistry.dto.request.admin.UpdateUserRequest;
 import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.entity.auth.User;
+import com.templeregistry.entity.auth.UserRole;
+import com.templeregistry.entity.temple.Temple;
+import com.templeregistry.entity.temple.TempleGrade;
+import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
+import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.admin.AdminService;
@@ -24,12 +30,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AdminServiceImpl implements AdminService {
 
     private final UserRepository userRepository;
+    private final TempleRepository templeRepository;
+    private final DistrictRepository districtRepository;
     private final PasswordEncoder passwordEncoder;
     private final TempleSearchSummaryService searchSummaryService;
     private final AuditService auditService;
@@ -60,11 +70,46 @@ public class AdminServiceImpl implements AdminService {
         if (userRepository.existsByEmail(rq.getEmail())) {
             throw new DuplicateResourceException("User", "email", rq.getEmail());
         }
+
+        Long templeId = null;
+
+        if (rq.getRole() == UserRole.TEMPLE_AUTHORITY) {
+            // Validate fields required for Temple Authority
+            if (rq.getTempleName() == null || rq.getTempleName().isBlank()) {
+                throw new IllegalStateException("Temple name is required when creating a Temple Authority user.");
+            }
+            if (rq.getDistrictId() == null) {
+                throw new IllegalStateException("District is required when creating a Temple Authority user.");
+            }
+
+            // Auto-create a minimal temple record in the same transaction
+            String registrationNumber = generateTempleRegistrationNumber();
+            Temple temple = Temple.builder()
+                    .registrationNumber(registrationNumber)
+                    .name(rq.getTempleName())
+                    .grade(TempleGrade.C)
+                    .primaryDeity("To be updated")
+                    .districtId(rq.getDistrictId())
+                    .status(TempleStatus.ACTIVE)
+                    .trustRegistered(false)
+                    .build();
+            Temple savedTemple = templeRepository.save(temple);
+            templeId = savedTemple.getId();
+
+            // Schedule search summary after commit
+            searchSummaryService.scheduleRefresh(templeId);
+
+            log.info("Auto-created temple [id={}, regNo={}, name='{}'] for new TA user '{}'",
+                    templeId, registrationNumber, rq.getTempleName(), rq.getUsername());
+        }
+
         User user = User.builder()
                 .username(rq.getUsername()).email(rq.getEmail())
                 .passwordHash(passwordEncoder.encode(rq.getPassword()))
                 .fullName(rq.getFullName()).mobile(rq.getMobile())
-                .role(rq.getRole()).districtId(rq.getDistrictId()).templeId(rq.getTempleId())
+                .role(rq.getRole()).districtId(rq.getDistrictId())
+                .templeId(templeId)
+                .aadhaarNumber(rq.getAadhaarNumber())
                 .isActive(true).build();
         User saved = userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "CREATE_USER",
@@ -125,6 +170,13 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    public void refreshTempleSearchSummary(Long templeId) {
+        searchSummaryService.refresh(templeId);
+        log.info("Manual search summary refresh triggered for temple [{}]", templeId);
+    }
+
+    @Override
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
     public void rebuildSearchSummary() {
         searchSummaryService.rebuildAll();
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "REBUILD_SEARCH_SUMMARY",
@@ -145,11 +197,25 @@ public class AdminServiceImpl implements AdminService {
     }
 
     private UserAdminResponse toResponse(User u) {
+        String districtName = u.getDistrictId() != null
+                ? districtRepository.findById(u.getDistrictId()).map(d -> d.getName()).orElse(null)
+                : null;
+        String templeName = u.getTempleId() != null
+                ? templeRepository.findById(u.getTempleId()).map(t -> t.getName()).orElse(null)
+                : null;
         return UserAdminResponse.builder()
                 .id(u.getId()).username(u.getUsername()).email(u.getEmail())
                 .fullName(u.getFullName()).mobile(u.getMobile()).role(u.getRole())
                 .active(u.isActive()).aadhaarVerified(u.isAadhaarVerified())
-                .districtId(u.getDistrictId()).templeId(u.getTempleId())
+                .aadhaarNumber(u.getAadhaarNumber())
+                .districtId(u.getDistrictId()).districtName(districtName)
+                .templeId(u.getTempleId()).templeName(templeName)
                 .lastLoginAt(u.getLastLoginAt()).createdAt(u.getCreatedAt()).build();
+    }
+
+    /** Generates a unique temple registration number in the format KA-TMP-{UUID8}. */
+    private static String generateTempleRegistrationNumber() {
+        String uuid8 = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        return "KA-TMP-" + uuid8;
     }
 }

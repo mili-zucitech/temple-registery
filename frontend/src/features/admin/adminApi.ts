@@ -6,12 +6,24 @@ import type { UserRole } from '@/constants/roles'
 export interface UserAdminResponse {
   id: number; username: string; email: string; fullName: string
   mobile?: string; role: UserRole; active: boolean; aadhaarVerified: boolean
-  districtId?: number; templeId?: number; lastLoginAt?: string; createdAt: string
+  aadhaarNumber?: string; districtId?: number; districtName?: string
+  templeId?: number; templeName?: string; lastLoginAt?: string; createdAt: string
+}
+
+export interface DistrictOption {
+  id: number
+  name: string
+  cityId?: number
+  code?: string
 }
 
 export interface CreateUserRequest {
   username: string; email: string; password: string; fullName: string
-  mobile?: string; role: UserRole; districtId?: number; templeId?: number
+  mobile?: string; role: UserRole; districtId: number
+  /** Required when role = TEMPLE_AUTHORITY */
+  templeName?: string
+  /** Required when role = TEMPLE_AUTHORITY — 12 numeric digits */
+  aadhaarNumber?: string
 }
 
 export interface AuditEventResponse {
@@ -68,7 +80,7 @@ export interface UpdateSystemConfigRequest {
 export const adminApi = createApi({
   reducerPath: 'adminApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch'],
+  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch', 'Districts'],
   endpoints: (builder) => ({
     listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/users', params: { page, size } }),
@@ -89,6 +101,10 @@ export const adminApi = createApi({
     activateUser: builder.mutation<ApiResponse<void>, number>({
       query: (id) => ({ url: `/admin/users/${id}/activate`, method: 'POST' }),
       invalidatesTags: ['AdminUser'],
+    }),
+    listAllDistricts: builder.query<ApiResponse<DistrictOption[]>, void>({
+      query: () => ({ url: '/geo/districts' }),
+      providesTags: ['Districts'],
     }),
     listAuditEvents: builder.query<ApiResponse<PaginatedResponse<AuditEventResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/audit-events', params: { page, size } }),
@@ -167,6 +183,7 @@ export const adminApi = createApi({
 export const {
   useListUsersQuery, useCreateUserMutation, useUpdateUserMutation,
   useDeactivateUserMutation, useActivateUserMutation,
+  useListAllDistrictsQuery,
   useListAuditEventsQuery, useListAuthEventsQuery,
   useRebuildSearchSummaryMutation, useGetPhysicalVerificationPendingQuery,
   useGetStatewideDashboardQuery,

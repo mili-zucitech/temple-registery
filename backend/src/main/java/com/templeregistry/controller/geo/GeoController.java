@@ -50,6 +50,12 @@ public class GeoController {
         return ResponseEntity.ok(ApiResponse.success("Districts retrieved.", geoService.listDistrictsByState(stateId)));
     }
 
+    @GetMapping("/districts")
+    @Operation(summary = "Flat list of all districts across all states (for dropdowns)")
+    public ResponseEntity<ApiResponse<List<DistrictResponse>>> listAllDistricts() {
+        return ResponseEntity.ok(ApiResponse.success("Districts retrieved.", geoService.listAllDistricts()));
+    }
+
     @PostMapping("/cities")
     @Operation(summary = "Create a city (SUPER_ADMIN only)")
     @PreAuthorize(RoleConstants.ADMIN_ONLY)

@@ -15,6 +15,7 @@ public interface GeoService {
 
     List<DistrictResponse> listDistrictsByCity(Long cityId);
     List<DistrictResponse> listDistrictsByState(Long stateId);
+    List<DistrictResponse> listAllDistricts();
     DistrictResponse createDistrict(CreateDistrictRequest request);
 
     List<TalukResponse> listTaluksByDistrict(Long districtId);

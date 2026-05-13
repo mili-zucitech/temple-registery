@@ -68,6 +68,8 @@ export interface TempleResponse {
   // ── Geo hierarchy (IDs only; resolve names via geoApi) ──
   districtId: number
   districtName?: string
+  cityId?: number
+  cityName?: string
   talukId?: number
   hobliId?: number
 
@@ -178,6 +180,18 @@ export interface TempleProfileStagingResponse {
   annualFestivals?: string
   landmark?: string
   historicalSignificance?: string
+  // Identity fields (V93)
+  aliasName?: string
+  primaryDeity?: string
+  grade?: string
+  tradition?: string
+  hobliId?: number
+  talukId?: number
+  addressLine1?: string
+  pinCode?: string
+  latitude?: number
+  longitude?: number
+  yearEstablished?: number
   reviewComment?: string
   submittedAt?: string
   reviewedAt?: string
@@ -210,6 +224,17 @@ export interface TaProfileStagingRequest {
   annualFestivals?: string
   landmark?: string
   historicalSignificance?: string
+  // Identity fields (V93)
+  aliasName?: string
+  primaryDeity?: string
+  grade?: string
+  tradition?: string
+  hobliId?: number
+  addressLine1?: string
+  pinCode?: string
+  latitude?: number | null
+  longitude?: number | null
+  yearEstablished?: number | null
 }
 
 /** 
@@ -240,6 +265,17 @@ export const taProfileStagingSchema = z.object({
     .regex(/^(?=.{11}$)[A-Z]{4}0[A-Z0-9]{6}$/, 'Must be a valid 11-char IFSC code (e.g. SBIN0001234)')
     .optional()
     .or(z.literal('')),
+  // Identity fields (V93)
+  aliasName: z.string().max(255).optional(),
+  primaryDeity: z.string().max(150).optional(),
+  grade: z.enum(['A', 'B', 'C']).optional(),
+  tradition: z.enum(['SHAIVITE', 'VAISHNAVITE', 'SHAKTA', 'JAIN', 'BUDDHIST', 'OTHER']).optional(),
+  hobliId: z.number().int().positive().optional(),
+  addressLine1: z.string().max(255).optional(),
+  pinCode: z.string().regex(/^\d{6}$/, 'PIN code must be 6 digits').optional().or(z.literal('')),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  yearEstablished: z.number().int().min(500).max(new Date().getFullYear()).optional().nullable(),
 })
 
 /** Stricter schema used at submit time — contactPersonName + contactPersonDesignation become required. */

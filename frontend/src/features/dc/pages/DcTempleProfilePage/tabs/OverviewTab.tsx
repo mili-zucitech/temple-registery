@@ -79,8 +79,20 @@ export function OverviewTab({
     displayPendingStaging.bankName || displayPendingStaging.description ||
     displayPendingStaging.landmark || displayPendingStaging.website ||
     displayPendingStaging.historicalSignificance || displayPendingStaging.annualFestivals ||
-    displayPendingStaging.linkedInstitutions
+    displayPendingStaging.linkedInstitutions ||
+    displayPendingStaging.primaryDeity || displayPendingStaging.aliasName ||
+    displayPendingStaging.grade || displayPendingStaging.tradition ||
+    displayPendingStaging.addressLine1 || displayPendingStaging.pinCode ||
+    displayPendingStaging.yearEstablished
   ))
+  // Effective identity field values — show pending staging proposal when in review
+  const effectivePrimaryDeity = displayPendingStaging?.primaryDeity || temple.primaryDeity || null
+  const effectiveAliasName = displayPendingStaging?.aliasName || temple.aliasName || null
+  const effectiveGrade = displayPendingStaging?.grade || temple.grade || null
+  const effectiveTradition = displayPendingStaging?.tradition || temple.tradition || null
+  const effectiveYearEstablished = displayPendingStaging?.yearEstablished ?? temple.yearEstablished ?? null
+  const effectiveAddressLine1 = displayPendingStaging?.addressLine1 || temple.street || null
+  const effectivePinCode = displayPendingStaging?.pinCode || temple.pinCode || null
 
   const pendingReviewDecls = useMemo(() =>
     declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
@@ -91,11 +103,14 @@ export function OverviewTab({
     [declarations]
   )
 
+  const effectiveLatitude = displayPendingStaging?.latitude ?? temple.latitude ?? null
+  const effectiveLongitude = displayPendingStaging?.longitude ?? temple.longitude ?? null
+
   const mapsEmbedUrl = useMemo(() =>
-    (temple.latitude && temple.longitude)
-      ? `https://www.google.com/maps?q=${temple.latitude},${temple.longitude}&output=embed`
+    (effectiveLatitude && effectiveLongitude)
+      ? `https://www.google.com/maps?q=${effectiveLatitude},${effectiveLongitude}&output=embed`
       : null,
-    [temple.latitude, temple.longitude]
+    [effectiveLatitude, effectiveLongitude]
   )
 
   return (
@@ -163,13 +178,15 @@ export function OverviewTab({
               {/* Left Side - Details (3/4 width) */}
               <div className="lg:col-span-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
-                  <DetailItem label="Primary Deity" value={temple.primaryDeity || '—'} />
-                  <DetailItem label="Tradition" value={temple.tradition || '—'} />
-                  <DetailItem label="Year Established" value={temple.yearEstablished ? temple.yearEstablished : '—'} />
+                  <DetailItem label="Primary Deity" value={effectivePrimaryDeity || '—'} />
+                  <DetailItem label="Tradition" value={effectiveTradition || '—'} />
+                  <DetailItem label="Year Established" value={effectiveYearEstablished ? effectiveYearEstablished : '—'} />
                   <DetailItem label="Registration No." value={temple.registrationNumber || '—'} />
-                  <DetailItem label="Alias Name" value={temple.aliasName || '—'} />
+                  <DetailItem label="Alias Name" value={effectiveAliasName || '—'} />
                   <DetailItem label="Languages" value={formatList(effectiveLanguages)} />
-                  <DetailItem label="PIN Code" value={temple.pinCode || '—'} />
+                  <DetailItem label="Grade" value={effectiveGrade ? `Grade ${effectiveGrade}` : '—'} />
+                  <DetailItem label="Address" value={effectiveAddressLine1 || '—'} />
+                  <DetailItem label="PIN Code" value={effectivePinCode || '—'} />
                 </div>
               </div>
 
@@ -213,7 +230,7 @@ export function OverviewTab({
                   <DetailItem
                     label="Street Address"
                     value={
-                      [temple.doorNumber, temple.street, temple.villageTown]
+                      [temple.doorNumber, effectiveAddressLine1 ?? temple.street, temple.villageTown]
                         .filter(Boolean)
                         .join(', ') || '—'
                     }

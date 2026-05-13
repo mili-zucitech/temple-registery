@@ -76,6 +76,10 @@ public class User extends BaseEntity {
     @Column(name = "aadhaar_verified", nullable = false)
     private boolean aadhaarVerified = false;
 
+    /** Aadhaar number (12 digits) captured by Super Admin during TA user creation. */
+    @Column(name = "aadhaar_number", length = 12)
+    private String aadhaarNumber;
+
     /** SHA-256 hash of the single-use password-reset token. Null when no reset is pending. */
     @Column(name = "password_reset_token_hash", length = 64)
     private String passwordResetTokenHash;

@@ -528,6 +528,17 @@ export interface ProfileStagingResponse {
   annualFestivals: string | null
   landmark: string | null
   historicalSignificance: string | null
+  // Identity fields (V93)
+  aliasName: string | null
+  primaryDeity: string | null
+  grade: string | null
+  tradition: string | null
+  hobliId: number | null
+  addressLine1: string | null
+  pinCode: string | null
+  latitude: number | null
+  longitude: number | null
+  yearEstablished: number | null
   submittedAt: string
   submittedBy: number
   reviewedAt: string | null

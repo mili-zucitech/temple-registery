@@ -89,6 +89,38 @@ public class TempleProfileStaging extends BaseEntity {
     @Column(name = "historical_significance", columnDefinition = "TEXT")
     private String historicalSignificance;
 
+    // ── Identity fields (editable by TA, require DC approval — V93) ───────────
+
+    @Column(name = "alias_name", length = 255)
+    private String aliasName;
+
+    @Column(name = "primary_deity", length = 150)
+    private String primaryDeity;
+
+    @Column(name = "grade", length = 1)
+    private String grade;
+
+    @Column(name = "tradition", length = 50)
+    private String tradition;
+
+    @Column(name = "hobli_id")
+    private Long hobliId;
+
+    @Column(name = "address_line1", length = 255)
+    private String addressLine1;
+
+    @Column(name = "pin_code", length = 6)
+    private String pinCode;
+
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
+    @Column(name = "year_established")
+    private Integer yearEstablished;
+
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
 

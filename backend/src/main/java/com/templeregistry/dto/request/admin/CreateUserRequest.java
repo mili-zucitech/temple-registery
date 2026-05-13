@@ -25,6 +25,20 @@ public class CreateUserRequest {
     @NotNull
     private UserRole role;
 
+    @NotNull(message = "District is required.")
     private Long districtId;
-    private Long templeId;
+
+    /**
+     * Required when role = TEMPLE_AUTHORITY.
+     * The backend automatically creates a Temple record using this name.
+     */
+    @Size(max = 255)
+    private String templeName;
+
+    /**
+     * Aadhaar number — 12 numeric digits. Required for TEMPLE_AUTHORITY.
+     * Validated at service layer when role = TEMPLE_AUTHORITY.
+     */
+    @Pattern(regexp = "^\\d{12}$", message = "Aadhaar number must be exactly 12 digits.")
+    private String aadhaarNumber;
 }

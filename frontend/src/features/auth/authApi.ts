@@ -13,10 +13,6 @@ import type {
   AadhaarOtpResponse,
   CurrentUser,
 } from './authTypes'
-import type {
-  CreateAccountRequest,
-  CreateAccountResponse,
-} from './register/registerTypes'
 import type { ApiResponse } from '@/types'
 
 export const authApi = createApi({
@@ -59,11 +55,6 @@ export const authApi = createApi({
       query: () => '/auth/me',
       providesTags: ['CurrentUser'],
     }),
-
-    // ── Registration flow ────────────────────────────────────────────────────
-    registerCreate: builder.mutation<ApiResponse<CreateAccountResponse>, CreateAccountRequest>({
-      query: (body) => ({ url: '/auth/register/create', method: 'POST', body }),
-    }),
   }),
   tagTypes: ['CurrentUser'],
 })
@@ -78,5 +69,4 @@ export const {
   useAadhaarOtpVerifyMutation,
   useRegisterMutation,
   useGetCurrentUserQuery,
-  useRegisterCreateMutation,
 } = authApi
