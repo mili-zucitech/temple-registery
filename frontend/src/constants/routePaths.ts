@@ -1,4 +1,7 @@
 export const ROUTE_PATHS = {
+  // Public
+  PUBLIC_SEARCH: '/search',
+
   // Auth
   LOGIN: '/login',
   MFA_VERIFY: '/mfa-verify',
@@ -21,6 +24,8 @@ export const ROUTE_PATHS = {
   TA_TEMPLE: '/ta/temple',
   TA_TEMPLE_EDIT: '/ta/temple/edit',
   TA_TEMPLE_REVIEW: '/ta/temple/review',
+  TA_TEMPLE_SEARCH: '/ta/temples',
+  TA_TEMPLE_DETAIL: '/ta/temples/:templeId',
   TA_TRUST: '/ta/trust',
   TA_EMPLOYEES: '/ta/employees',
   TA_EMPLOYEE_DETAIL: '/ta/employees/:id',

@@ -147,6 +147,20 @@ public class WorkflowEngineAdaptor {
     }
 
     /**
+     * Execute a reject-edit action — used when the entity was previously approved and
+     * the DC is rejecting an edit (resubmission), not the entity itself.
+     * Transitions RESUBMITTED → RE_APPROVED (restoring to the last approved state).
+     * The service layer must restore domain entity data BEFORE calling this method.
+     */
+    @Transactional
+    public void adaptRejectEdit(WorkflowEntityType entityType, Long entityId,
+                                 Long districtId, Long actorId, String reason) {
+        instanceRepo.findByEntityTypeAndEntityId(entityType, entityId).ifPresent(instance ->
+            execute(instance.getId(), WorkflowAction.REJECT_EDIT, actorId, null, districtId, reason, null)
+        );
+    }
+
+    /**
      * Execute a send-back action (legacy compat alias for clarification request).
      */
     @Transactional

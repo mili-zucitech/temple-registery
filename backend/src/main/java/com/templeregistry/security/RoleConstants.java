@@ -47,6 +47,8 @@ public final class RoleConstants {
         public static final String IS_DC_ROLE = "hasAnyRole('SUPER_ADMIN', 'DISTRICT_COLLECTOR', 'DC_STAFF')";
         public static final String CAN_SUBMIT = "hasAnyRole('SUPER_ADMIN', 'TEMPLE_AUTHORITY')";
         public static final String CAN_READ_ALL = "hasAnyRole('SUPER_ADMIN', 'DISTRICT_COLLECTOR', 'DC_STAFF', 'AUDITOR', 'VIEWER')";
+        /** Read access to DC temple search and profile endpoints — includes TEMPLE_AUTHORITY for cross-temple browsing. */
+        public static final String CAN_READ_TEMPLES = "hasAnyRole('SUPER_ADMIN', 'DISTRICT_COLLECTOR', 'DC_STAFF', 'AUDITOR', 'VIEWER', 'TEMPLE_AUTHORITY')";
         public static final String ADMIN_ONLY = "hasRole('SUPER_ADMIN')";
 
         /**

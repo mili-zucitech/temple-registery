@@ -25,9 +25,10 @@ interface TrustTabProps {
   canAct: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
+  onEditTrust?: () => void
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onRejectTrust }: TrustTabProps) {
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onRejectTrust, onEditTrust }: TrustTabProps) {
   const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
 
   const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
@@ -122,7 +123,16 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         <SectionCard
           title="Trust Registration"
           icon={<Shield size={18} className="text-emerald-600" />}
-          action={<ModuleStatusBadge status={trustBadgeStatus} />}
+          action={
+            <div className="flex items-center gap-2">
+              {onEditTrust && (
+                <Button variant="outline" size="sm" onClick={onEditTrust} className="text-xs h-7 px-3">
+                  Edit Trust
+                </Button>
+              )}
+              <ModuleStatusBadge status={trustBadgeStatus} />
+            </div>
+          }
         >
           {trust.validationIssues?.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

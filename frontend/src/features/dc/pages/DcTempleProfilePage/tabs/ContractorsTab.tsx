@@ -15,6 +15,8 @@ import type { ContractorResponse } from '@/features/dc/dcTypes'
 
 interface ContractorsTabProps {
   contractors: ContractorResponse[]
+  onAddContractor?: () => void
+  onEditContractor?: (contractor: ContractorResponse) => void
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -58,7 +60,7 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
  * Contractor changes are effective immediately on TA save.
  * DC views this as a read-only reference panel.
  */
-export function ContractorsTab({ contractors }: ContractorsTabProps) {
+export function ContractorsTab({ contractors, onAddContractor, onEditContractor }: ContractorsTabProps) {
   const [page, setPage] = useState(0)
   const [selectedContractor, setSelectedContractor] = useState<ContractorResponse | null>(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
@@ -100,9 +102,16 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
         title="Service Partners"
         icon={<Briefcase size={18} />}
         action={
-          <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-            {contractors.length} {contractors.length === 1 ? 'Active' : 'Active'}
-          </span>
+          <div className="flex items-center gap-2">
+            {onAddContractor && (
+              <Button variant="outline" size="sm" onClick={onAddContractor} className="text-xs h-7 px-3">
+                + Add Contractor
+              </Button>
+            )}
+            <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
+              {contractors.length} {contractors.length === 1 ? 'Active' : 'Active'}
+            </span>
+          </div>
         }
       >
         {contractors.length === 0 ? (
@@ -133,7 +142,7 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-4">
-                          <div className="font-semibold text-sm text-slate-900">{c.name}</div>
+                          <div className="font-semibold text-sm text-slate-900">{c.companyName}</div>
                           {c.gstNumber && (
                             <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
                               <Receipt size={10} className="text-slate-400" /> GST: {c.gstNumber}
@@ -165,14 +174,25 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                           </div>
                         </td>
                         <td className="px-5 py-4 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDetailDialog(c)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDetailDialog(c)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            {onEditContractor && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onEditContractor(c)}
+                              >
+                                Edit
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -223,7 +243,7 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                       <Briefcase size={20} className="text-primary" />
                     </div>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <h3 className="text-xl font-semibold text-foreground truncate pr-2">{selectedContractor.name}</h3>
+                      <h3 className="text-xl font-semibold text-foreground truncate pr-2">{selectedContractor.companyName}</h3>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate pr-2">
                         {SERVICE_TYPE_LABELS[selectedContractor.serviceType]}
                       </p>
@@ -247,7 +267,7 @@ export function ContractorsTab({ contractors }: ContractorsTabProps) {
                   <ModalInfoCard 
                     icon={<User size={16} />} 
                     label="Contractor Name" 
-                    value={selectedContractor.name} 
+                    value={selectedContractor.companyName} 
                   />
                   <ModalInfoCard 
                     icon={<Receipt size={16} />} 

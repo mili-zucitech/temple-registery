@@ -84,4 +84,13 @@ public class Trust extends BaseEntity {
      */
     @Column(name = "send_back_reason", columnDefinition = "TEXT")
     private String sendBackReason;
+
+    /**
+     * JSON snapshot of non-sensitive trust fields captured at the most recent DC/SA approval.
+     * Used exclusively to restore data when a subsequent edit is rejected.
+     * NULL for trusts that have never been approved.
+     * Sensitive fields (PAN, bank account number) are NOT stored here for security.
+     */
+    @Column(name = "approved_data", columnDefinition = "TEXT")
+    private String approvedData;
 }

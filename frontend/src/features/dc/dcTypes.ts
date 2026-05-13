@@ -480,7 +480,7 @@ export interface EmployeeSummary {
 export interface ContractorResponse {
   id: number
   templeId: number
-  name: string
+  companyName: string
   gstNumber: string | null
   serviceType: 'CIVIL_WORKS' | 'ELECTRICAL' | 'SECURITY' | 'CATERING' | 'EVENTS' | 'OTHER'
   contractReference: string | null

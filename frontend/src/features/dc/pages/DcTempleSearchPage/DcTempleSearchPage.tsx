@@ -296,12 +296,8 @@ export function DcTempleSearchPage() {
           <div>
             <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">
               District
-              {(role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF) && (
-                <span className="ml-1.5 text-[10px] font-normal">(locked to your district)</span>
-              )}
             </label>
             <SearchableSelect
-              disabled={role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF}
               value={geoSelection.districtId?.toString() ?? ''}
               options={districts.data.map(d => ({ value: d.id.toString(), label: d.name }))}
               placeholder="Select district…"

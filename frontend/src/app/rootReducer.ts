@@ -15,6 +15,7 @@ import { workflowApi } from '@/features/governance/workflowApi'
 import { governanceV2Api } from '@/features/governance/governanceV2Api'
 import { auditorApi } from '@/features/auditor/auditorApi'
 import { viewerApi } from '@/features/viewer/viewerApi'
+import { timelineApi } from '@/features/timeline/timelineApi'
 import authReducer from '@/features/auth/authSlice'
 import templeReducer from '@/features/temple-profile/hooks/templeSlice'
 import declarationReducer from '@/features/declaration/declarationSlice'
@@ -40,6 +41,7 @@ export const rootReducer = combineReducers({
   [governanceV2Api.reducerPath]: governanceV2Api.reducer,
   [auditorApi.reducerPath]: auditorApi.reducer,
   [viewerApi.reducerPath]: viewerApi.reducer,
+  [timelineApi.reducerPath]: timelineApi.reducer,
 
   // UI slices
   auth: authReducer,

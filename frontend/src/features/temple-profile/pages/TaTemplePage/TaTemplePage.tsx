@@ -14,6 +14,7 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 import { useProfileHistory, useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
 import { useGetTemplePhotosQuery } from '../../hooks/templeApi'
 import { TempleProfileStagingResponse } from '../../hooks/templeTypes'
+import { TimelineTab } from '@/features/dc/pages/DcTempleProfilePage/tabs/TimelineTab'
 
 function fmt(iso?: string | null) {
   if (!iso) return '—'
@@ -522,7 +523,7 @@ export function TaTemplePage() {
       {/* ── Tab Navigation ── */}
       <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 shadow-lg">
         <div className="flex overflow-x-auto scrollbar-thin px-4">
-          {(['overview', 'history'] as const).map((tab) => (
+          {(['overview', 'history', 'timeline'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -533,7 +534,7 @@ export function TaTemplePage() {
                   : 'text-slate-400 hover:text-white',
               ].join(' ')}
             >
-              {tab === 'overview' ? 'Overview' : 'History'}
+              {tab === 'overview' ? 'Overview' : tab === 'history' ? 'History' : 'Timeline'}
             </button>
           ))}
         </div>
@@ -550,6 +551,9 @@ export function TaTemplePage() {
             <HistoryTab />
           </TabsContent>
 
+          <TabsContent value="timeline" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
+            <TimelineTab templeId={temple.id} />
+          </TabsContent>
 
         </Tabs>
       </div>

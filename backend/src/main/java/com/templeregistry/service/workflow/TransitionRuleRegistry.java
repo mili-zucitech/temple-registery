@@ -78,6 +78,13 @@ public class TransitionRuleRegistry {
         r.add(rule("*", WorkflowStatus.CLARIFICATION_RESPONDED,  WorkflowAction.REJECT,                "DC",     WorkflowStatus.REJECTED,               null,                        true));
         r.add(rule("*", WorkflowStatus.RESUBMITTED,              WorkflowAction.REJECT,                "DC",     WorkflowStatus.REJECTED,               null,                        true));
 
+        // Reject edit — non-terminal: entity was previously approved and TA edited it.
+        // Restores approved data snapshot (handled in service layer before this transition).
+        // RESUBMITTED → RE_APPROVED (entity reverts to its last approved state).
+        r.add(rule("*", WorkflowStatus.RESUBMITTED,              WorkflowAction.REJECT_EDIT,           "DC",     WorkflowStatus.RE_APPROVED,            null,                        true));
+        // Also handle UNDER_REVIEW state (DC may have marked under-review before rejecting the edit).
+        r.add(rule("*", WorkflowStatus.UNDER_REVIEW,             WorkflowAction.REJECT_EDIT,           "DC",     WorkflowStatus.RE_APPROVED,            null,                        true));
+
         // Request clarification — from multiple states
         r.add(rule("*", WorkflowStatus.SUBMITTED,                WorkflowAction.REQUEST_CLARIFICATION, "DC",     WorkflowStatus.CLARIFICATION_REQUESTED,null,                        false));
         r.add(rule("*", WorkflowStatus.UNDER_REVIEW,             WorkflowAction.REQUEST_CLARIFICATION, "DC",     WorkflowStatus.CLARIFICATION_REQUESTED,null,                        false));
