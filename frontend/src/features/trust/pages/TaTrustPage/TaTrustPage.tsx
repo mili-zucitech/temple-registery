@@ -890,7 +890,7 @@ export function TaTrustPage() {
                                 size="sm"
                                 className="h-7 px-2.5 text-xs gap-1"
                                 disabled={!!docLoading[`${meeting.id}-preview`]}
-                                onClick={() => handleMeetingDocument(meeting.id, trust.id, 'preview', meeting.meetingDate)}
+                                onClick={() => handleMeetingDocument(meeting.id, trust!.id, 'preview', meeting.meetingDate)}
                               >
                                 {docLoading[`${meeting.id}-preview`] ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
                                 Preview
@@ -900,7 +900,7 @@ export function TaTrustPage() {
                                 size="sm"
                                 className="h-7 px-2.5 text-xs gap-1"
                                 disabled={!!docLoading[`${meeting.id}-download`]}
-                                onClick={() => handleMeetingDocument(meeting.id, trust.id, 'download', meeting.meetingDate)}
+                                onClick={() => handleMeetingDocument(meeting.id, trust!.id, 'download', meeting.meetingDate)}
                               >
                                 {docLoading[`${meeting.id}-download`] ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                                 Download

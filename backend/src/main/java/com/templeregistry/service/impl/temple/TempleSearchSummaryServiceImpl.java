@@ -8,6 +8,7 @@ import com.templeregistry.entity.declaration.DeclarationStatus;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.declaration.DeclarationRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
@@ -36,6 +37,7 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
     private final TempleProfileStagingRepository stagingRepository;
     private final TrustRepository trustRepository;
     private final DeclarationRepository declarationRepository;
+    private final DistrictRepository districtRepository;
     private final ApplicationContext applicationContext;
 
     @Override
@@ -94,6 +96,24 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
         com.templeregistry.entity.geo.District district = taluk != null ? taluk.getDistrict() : null;
         com.templeregistry.entity.geo.City city = district != null ? district.getCity() : null;
 
+        // Resolve final IDs: JPA chain wins; fall back to flat scalar columns for temples that were
+        // created with only districtId/talukId/hobliId set (e.g. auto-created via AdminServiceImpl)
+        // and don't yet have the full hobli object association populated.
+        Long resolvedHobliId    = hobli    != null ? hobli.getId()    : t.getHobliId();
+        Long resolvedTalukId    = taluk    != null ? taluk.getId()    : t.getTalukId();
+        Long resolvedDistrictId = district != null ? district.getId() : t.getDistrictId();
+        // For cityId: prefer chain → temple.cityId → look up from district
+        Long resolvedCityId;
+        if (city != null) {
+            resolvedCityId = city.getId();
+        } else if (t.getCityId() != null) {
+            resolvedCityId = t.getCityId();
+        } else if (resolvedDistrictId != null) {
+            resolvedCityId = districtRepository.findCityIdById(resolvedDistrictId).orElse(null);
+        } else {
+            resolvedCityId = null;
+        }
+
         return TempleSearchSummary.builder()
                 .templeId(t.getId())
                 .name(t.getName())
@@ -101,10 +121,10 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .grade(t.getGrade() != null ? t.getGrade().name() : null)
                 .primaryDeity(t.getPrimaryDeity())
                 .tradition(t.getTradition() != null ? t.getTradition().name() : null)
-                .hobliId(hobli != null ? hobli.getId() : null)
-                .talukId(taluk != null ? taluk.getId() : null)
-                .districtId(district != null ? district.getId() : null)
-                .cityId(city != null ? city.getId() : null)
+                .hobliId(resolvedHobliId)
+                .talukId(resolvedTalukId)
+                .districtId(resolvedDistrictId)
+                .cityId(resolvedCityId)
                 .templeStatus(t.getStatus() != null ? t.getStatus().name() : TempleStatus.ACTIVE.name())
                 .trustRegistered(t.isTrustRegistered())
                 .assetDeclarationStatus(t.getAssetDeclarationStatus())

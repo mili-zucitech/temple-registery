@@ -128,6 +128,13 @@ public class AdminController {
         return ResponseEntity.accepted().body(ApiResponse.success("Search summary rebuild queued."));
     }
 
+    @PostMapping("/search-summary/refresh/{templeId}")
+    @Operation(summary = "Refresh search summary for a single temple (faster than full rebuild)")
+    public ResponseEntity<ApiResponse<Void>> refreshTempleSearchSummary(@PathVariable Long templeId) {
+        adminService.refreshTempleSearchSummary(templeId);
+        return ResponseEntity.accepted().body(ApiResponse.success("Search summary refresh queued for temple " + templeId));
+    }
+
     /* ───── Declaration admin actions ───── */
 
     @PatchMapping("/declarations/{id}/force-draft")

@@ -39,6 +39,18 @@ public class ProfileStagingResponse {
     private String landmark;
     private String historicalSignificance;
 
+    // Identity / registration fields (added in V93 migration)
+    private String aliasName;
+    private String primaryDeity;
+    private String grade;
+    private String tradition;
+    private Long hobliId;
+    private String addressLine1;
+    private String pinCode;
+    private Double latitude;
+    private Double longitude;
+    private Integer yearEstablished;
+
     // Review metadata
     private LocalDateTime submittedAt;
     private Long submittedBy;

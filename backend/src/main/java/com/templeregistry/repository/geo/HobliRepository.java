@@ -3,6 +3,8 @@ package com.templeregistry.repository.geo;
 import com.templeregistry.entity.geo.Hobli;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -20,4 +22,8 @@ public interface HobliRepository extends JpaRepository<Hobli, Long> {
      */
     @EntityGraph(attributePaths = {"taluk", "taluk.district", "taluk.district.city"})
     Optional<Hobli> findWithGeoById(Long id);
+
+    /** Returns the talukId for a hobli without loading the full entity. */
+    @Query("SELECT h.taluk.id FROM Hobli h WHERE h.id = :id")
+    Optional<Long> findTalukIdById(@Param("id") Long id);
 }

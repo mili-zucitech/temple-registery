@@ -28,12 +28,14 @@ import com.templeregistry.repository.declaration.DeclarationClarificationReposit
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.repository.geo.CityRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.trust.BoardMemberRepository;
 import com.templeregistry.repository.trust.BoardMeetingRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
+import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.RoleConstants;
@@ -46,6 +48,7 @@ import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -55,6 +58,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -86,9 +91,11 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final DeclMovVehicleRepository vehicleRepository;
         private final DeclMovEquipmentRepository equipmentRepository;
         private final CityRepository cityRepository;
+        private final DistrictRepository districtRepository;
         private final JurisdictionGuard jurisdictionGuard;
         private final TrustValidationService trustValidationService;
         private final WorkflowEngine workflowEngine;
+        private final WorkflowInstanceRepository workflowInstanceRepository;
         private final com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
 
         @Override
@@ -112,6 +119,11 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
                 if (temple.getHobli() == null) {
                         log.warn("Incomplete geo data: hobli is null for templeId={}", templeId);
+                        // Fall back to flat districtId scalar for auto-created temples
+                        if (temple.getDistrictId() != null) {
+                                districtName = districtRepository.findById(temple.getDistrictId())
+                                        .map(d -> d.getName()).orElse(null);
+                        }
                 } else {
                         hobliName = temple.getHobli().getName();
                         if (temple.getHobli().getTaluk() == null) {
@@ -389,24 +401,41 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                         jurisdictionGuard.assertDistrictScope(temple, claims);
                 }
                 int clamped = paginationUtil.clampSize(size);
-                Page<TempleProfileStaging> rows = profileStagingRepository
-                                .findAllByTempleIdOrderByVersionNumberDesc(templeId, PageRequest.of(page, clamped));
-                Page<DcProfileHistoryEntry> mapped = rows.map(s -> {
-                        WorkflowInstance wi = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
+
+                // Fetch all workflow instances for TEMPLE_PROFILE entities linked to this temple.
+                // This gives one row per version (including re-approvals of the same staging record).
+                List<WorkflowInstance> allInstances = workflowInstanceRepository
+                                .findByTempleIdAndEntityType(templeId, WorkflowEntityType.TEMPLE_PROFILE);
+
+                // Pre-load staging records by entityId to avoid N+1 for reviewComment/reviewedAt.
+                List<Long> stagingIds = allInstances.stream().map(WorkflowInstance::getEntityId)
+                                .distinct().collect(Collectors.toList());
+                Map<Long, TempleProfileStaging> stagingMap = profileStagingRepository.findAllById(stagingIds)
+                                .stream().collect(Collectors.toMap(s -> s.getId(), s -> s));
+
+                List<DcProfileHistoryEntry> entries = allInstances.stream().map(wi -> {
+                        TempleProfileStaging s = stagingMap.get(wi.getEntityId());
                         return DcProfileHistoryEntry.builder()
-                                        .stagingId(s.getId())
+                                        .stagingId(wi.getEntityId())
                                         .versionNumber(wi.getVersionNumber())
                                         .status(wi.getStatus().name())
                                         .submittedAt(wi.getSubmittedAt() != null
                                                         ? LocalDateTime.ofInstant(wi.getSubmittedAt(), ZoneId.systemDefault())
                                                         : null)
-                                        .submittedBy(wi.getCreatedBy())
-                                        .reviewedAt(s.getReviewedAt())
-                                        .reviewedBy(s.getReviewedBy())
-                                        .reviewComment(s.getReviewComment())
+                                        .submittedBy(wi.getCreatedByUserId())
+                                        .reviewedAt(s != null ? s.getReviewedAt() : null)
+                                        .reviewedBy(s != null ? s.getReviewedBy() : null)
+                                        .reviewComment(s != null ? s.getReviewComment() : null)
                                         .build();
-                });
-                log.info("DC profile history loaded: templeId={} page={} size={}", templeId, page, clamped);
+                }).collect(Collectors.toList());
+
+                // Manual pagination over in-memory list.
+                int fromIndex = Math.min(page * clamped, entries.size());
+                int toIndex = Math.min(fromIndex + clamped, entries.size());
+                List<DcProfileHistoryEntry> pageContent = entries.subList(fromIndex, toIndex);
+                Page<DcProfileHistoryEntry> mapped = new PageImpl<>(pageContent, PageRequest.of(page, clamped), entries.size());
+
+                log.info("DC profile history loaded: templeId={} page={} size={} total={}", templeId, page, clamped, entries.size());
                 return PaginatedResponse.of(mapped);
         }
 
@@ -666,6 +695,16 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .annualFestivals(s.getAnnualFestivals())
                                 .landmark(s.getLandmark())
                                 .historicalSignificance(s.getHistoricalSignificance())
+                                .aliasName(s.getAliasName())
+                                .primaryDeity(s.getPrimaryDeity())
+                                .grade(s.getGrade())
+                                .tradition(s.getTradition())
+                                .hobliId(s.getHobliId())
+                                .addressLine1(s.getAddressLine1())
+                                .pinCode(s.getPinCode())
+                                .latitude(s.getLatitude())
+                                .longitude(s.getLongitude())
+                                .yearEstablished(s.getYearEstablished())
                                 .submittedAt(instance.getSubmittedAt() != null ? java.time.LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
                                 .submittedBy(instance.getCreatedBy())
                                 .reviewComment(s.getReviewComment())

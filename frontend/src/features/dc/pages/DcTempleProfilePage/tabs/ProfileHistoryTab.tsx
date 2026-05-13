@@ -24,6 +24,7 @@ function VersionBadge({ status }: { status: string }) {
   const isApproved = status === 'APPROVED' || status === 'RE_APPROVED'
   const isRejected = status === 'REJECTED'
   const isSubmitted = status === 'SUBMITTED' || status === 'RESUBMITTED' || status === 'UNDER_REVIEW'
+  const isSuperseded = status === 'SUPERSEDED'
 
   if (isApproved) {
     return (
@@ -46,6 +47,14 @@ function VersionBadge({ status }: { status: string }) {
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
         <Send size={11} />
         {status === 'RESUBMITTED' ? 'Resubmitted' : status === 'UNDER_REVIEW' ? 'Under Review' : 'Submitted'}
+      </span>
+    )
+  }
+  if (isSuperseded) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+        <RotateCcw size={11} />
+        Superseded
       </span>
     )
   }

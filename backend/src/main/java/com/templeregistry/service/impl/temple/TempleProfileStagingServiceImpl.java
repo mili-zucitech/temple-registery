@@ -7,6 +7,7 @@ import com.templeregistry.entity.temple.Temple;
 import com.templeregistry.entity.temple.TempleProfileStaging;
 import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.EntityNotFoundException;
+import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.OwnershipGuard;
@@ -55,6 +56,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     private final VersionService versionService;
     private final ClarificationEngine clarificationEngine;
     private final GovernanceStatusResolver governanceStatusResolver;
+    private final HobliRepository hobliRepository;
 
     @Override
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
@@ -215,6 +217,17 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .landmark(temple.getLandmark())
                 .historicalSignificance(temple.getHistoricalSignificance())
                 .description(temple.getHistory())
+                // Identity fields (V93)
+                .aliasName(temple.getAliasName())
+                .primaryDeity(temple.getPrimaryDeity())
+                .grade(temple.getGrade() != null ? temple.getGrade().name() : null)
+                .tradition(temple.getTradition() != null ? temple.getTradition().name() : null)
+                .hobliId(temple.getHobliId())
+                .addressLine1(temple.getStreet())
+                .pinCode(temple.getPinCode())
+                .latitude(temple.getLatitude() != null ? temple.getLatitude().doubleValue() : null)
+                .longitude(temple.getLongitude() != null ? temple.getLongitude().doubleValue() : null)
+                .yearEstablished(temple.getYearEstablished())
                 .build();
 
         return stagingRepository.findById(createOrUpdateDraft(temple.getId(), prefill).getId())
@@ -372,6 +385,17 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         if (normalized(rq.getAnnualFestivals()) != null)          staging.setAnnualFestivals(normalized(rq.getAnnualFestivals()));
         if (normalized(rq.getLandmark()) != null)                 staging.setLandmark(normalized(rq.getLandmark()));
         if (normalized(rq.getHistoricalSignificance()) != null)   staging.setHistoricalSignificance(normalized(rq.getHistoricalSignificance()));
+        // Identity fields (V93)
+        if (normalized(rq.getAliasName()) != null)                staging.setAliasName(normalized(rq.getAliasName()));
+        if (normalized(rq.getPrimaryDeity()) != null)             staging.setPrimaryDeity(normalized(rq.getPrimaryDeity()));
+        if (normalized(rq.getGrade()) != null)                    staging.setGrade(normalized(rq.getGrade()));
+        if (normalized(rq.getTradition()) != null)                staging.setTradition(normalized(rq.getTradition()));
+        if (rq.getHobliId() != null)                              staging.setHobliId(rq.getHobliId());
+        if (normalized(rq.getAddressLine1()) != null)             staging.setAddressLine1(normalized(rq.getAddressLine1()));
+        if (normalized(rq.getPinCode()) != null)                  staging.setPinCode(normalized(rq.getPinCode()));
+        if (rq.getLatitude() != null)                             staging.setLatitude(rq.getLatitude());
+        if (rq.getLongitude() != null)                            staging.setLongitude(rq.getLongitude());
+        if (rq.getYearEstablished() != null)                      staging.setYearEstablished(rq.getYearEstablished());
     }
 
     private String normalized(String value) {
@@ -416,6 +440,18 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
                 .annualFestivals(s.getAnnualFestivals())
                 .landmark(s.getLandmark())
                 .historicalSignificance(s.getHistoricalSignificance())
+                // Identity fields (V93)
+                .aliasName(s.getAliasName())
+                .primaryDeity(s.getPrimaryDeity())
+                .grade(s.getGrade())
+                .tradition(s.getTradition())
+                .hobliId(s.getHobliId())
+                .talukId(s.getHobliId() != null ? hobliRepository.findTalukIdById(s.getHobliId()).orElse(null) : null)
+                .addressLine1(s.getAddressLine1())
+                .pinCode(s.getPinCode())
+                .latitude(s.getLatitude())
+                .longitude(s.getLongitude())
+                .yearEstablished(s.getYearEstablished())
                 .reviewComment(s.getReviewComment())
                 .submittedAt(instance.getSubmittedAt() != null ? LocalDateTime.ofInstant(instance.getSubmittedAt(), java.time.ZoneId.systemDefault()) : null)
                 .reviewedAt(instance.getStatusUpdatedAt() != null ? LocalDateTime.ofInstant(instance.getStatusUpdatedAt(), java.time.ZoneId.systemDefault()) : null)

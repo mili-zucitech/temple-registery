@@ -16,6 +16,7 @@ import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.repository.geo.DistrictRepository;
+import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.RoleConstants;
@@ -52,6 +53,7 @@ public class TempleServiceImpl implements TempleService {
     private final TemplePhotoRepository templePhotoRepository;
     private final TempleProfileStagingRepository stagingRepository;
     private final DistrictRepository districtRepository;
+    private final HobliRepository hobliRepository;
     private final FileStorageService fileStorageService;
     private final PaginationUtil paginationUtil;
     private final JurisdictionGuard jurisdictionGuard;
@@ -133,6 +135,8 @@ public class TempleServiceImpl implements TempleService {
                 .pinCode(dto.getPinCode())
                 .hobliId(dto.getHobliId())
                 .talukId(dto.getTalukId())
+                .cityId(dto.getCityId())
+                .cityName(dto.getCityName())
                 .districtId(dto.getDistrictId())
                 .districtName(dto.getDistrictName())
                 .latitude(dto.getLatitude())
@@ -277,6 +281,10 @@ public class TempleServiceImpl implements TempleService {
         Long resolvedCityId = dto.getCityId() != null ? dto.getCityId()
                 : (districtAndCity[2] != null ? Long.parseLong(districtAndCity[2]) : null);
 
+        // Resolve talukId from hobliId when talukId is not stored on the temple entity.
+        Long resolvedTalukId = dto.getTalukId() != null ? dto.getTalukId()
+                : (dto.getHobliId() != null ? hobliRepository.findTalukIdById(dto.getHobliId()).orElse(null) : null);
+
         return TempleResponse.builder()
                 .id(dto.getId())
                 .registrationNumber(dto.getRegistrationNumber())
@@ -292,7 +300,7 @@ public class TempleServiceImpl implements TempleService {
                 .villageTown(dto.getVillageTown())
                 .pinCode(dto.getPinCode())
                 .hobliId(dto.getHobliId())
-                .talukId(dto.getTalukId())
+                .talukId(resolvedTalukId)
                 .cityId(resolvedCityId)
                 .cityName(districtAndCity[1])
                 .districtId(dto.getDistrictId())

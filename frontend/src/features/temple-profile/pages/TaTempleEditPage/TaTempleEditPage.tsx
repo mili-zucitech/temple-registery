@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,6 +10,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { StatusBanner } from '../../components/StatusBanner'
 import { MultipleImageUpload } from '../../components/MultipleImageUpload'
@@ -18,7 +21,18 @@ import { ConfirmSubmitOverlay } from './ConfirmSubmitOverlay'
 import { AccordionSection } from './AccordianSection'
 import { TagInputField } from './TagInputField'
 import { useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks'
-import { submitTempleProfileSchema, taProfileStagingSchema, type TaProfileStagingFormValues } from '../../hooks/templeTypes'
+import { submitTempleProfileSchema, taProfileStagingSchema, type TaProfileStagingFormValues, TEMPLE_GRADES, RELIGIOUS_TRADITIONS } from '../../hooks/templeTypes'
+import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
+import type { GeoSelection } from '@/features/geo/geoTypes'
+
+const TRADITION_LABELS: Record<string, string> = {
+  SHAIVITE: 'Shaivite',
+  VAISHNAVITE: 'Vaishnavite',
+  SHAKTA: 'Shakta',
+  JAIN: 'Jain',
+  BUDDHIST: 'Buddhist',
+  OTHER: 'Other',
+}
 
 
 
@@ -40,9 +54,39 @@ export function TaTempleEditPage() {
   } = useTempleProfile()
 
   const [showConfirm, setShowConfirm] = useState(false)
-  // Track whether the form has been initialized from server data so photo uploads
-  // don't trigger a form.reset() via the isLoading refetch cycle.
-  const isFormInitialized = useRef(false)
+  const [geoSelection, setGeoSelection] = useState<GeoSelection>({})
+
+  const form = useForm<TaProfileStagingFormValues>({
+    resolver: zodResolver(taProfileStagingSchema),
+    defaultValues: {
+      phone: '',
+      email: '',
+      website: '',
+      contactPersonName: '',
+      contactPersonDesignation: '',
+      languagesOfWorship: '',
+      linkedInstitutions: '',
+      description: '',
+      annualFestivals: '',
+      landmark: '',
+      historicalSignificance: '',
+      bankAccountNumber: '',
+      bankName: '',
+      bankIfsc: '',
+      photoFilePath: '',
+      // Identity fields (V93)
+      aliasName: '',
+      primaryDeity: '',
+      grade: undefined,
+      tradition: undefined,
+      hobliId: undefined,
+      addressLine1: '',
+      pinCode: '',
+      latitude: null,
+      longitude: null,
+      yearEstablished: null,
+    },
+  })
 
   // ✅ ADD THIS HELPER AT TOP (important)
   const normalizeToCommaString = (value: unknown): string => {
@@ -78,26 +122,17 @@ export function TaTempleEditPage() {
     }
   }, [isLoading, temple?.verificationStatus , navigate])
 
-  const form = useForm<TaProfileStagingFormValues>({
-    resolver: zodResolver(taProfileStagingSchema),
-    defaultValues: {
-      phone: '',
-      email: '',
-      website: '',
-      contactPersonName: '',
-      contactPersonDesignation: '',
-      languagesOfWorship: '',
-      linkedInstitutions: '',
-      description: '',
-      annualFestivals: '',
-      landmark: '',
-      historicalSignificance: '',
-      bankAccountNumber: '',
-      bankName: '',
-      bankIfsc: '',
-      photoFilePath: '',
-    },
-  })
+
+  const handleGeoChange = useCallback((sel: GeoSelection) => {
+    setGeoSelection(sel)
+    if (sel.hobliId) {
+      form.setValue('hobliId', sel.hobliId, { shouldValidate: true, shouldDirty: true })
+    }
+  }, [form])
+
+  // Track whether the form has been initialized from server data so photo uploads
+  // don't trigger a form.reset() via the isLoading refetch cycle.
+  const isFormInitialized = useRef(false)
 
   // Prefill logic: staging → current → temple contact
   // Guard: only run once after initial load; photo uploads must not re-trigger this.
@@ -157,8 +192,38 @@ export function TaTempleEditPage() {
           (source as any).photoFilePath ??
           (stagingProfile ? temple?.photoUrl : undefined) ??
           '',
+
+        // Identity fields (V93) — prefer staging, fall back to temple entity
+        aliasName: (source as any).aliasName ?? temple?.aliasName ?? '',
+        primaryDeity: (source as any).primaryDeity ?? temple?.primaryDeity ?? '',
+        grade: (source as any).grade ?? temple?.grade ?? undefined,
+        tradition: (source as any).tradition ?? temple?.tradition ?? undefined,
+        hobliId: (source as any).hobliId ?? temple?.hobliId ?? undefined,
+        addressLine1: (source as any).addressLine1 ?? temple?.street ?? '',
+        pinCode: (source as any).pinCode ?? temple?.pinCode ?? '',
+        latitude: (source as any).latitude ?? (temple?.latitude as any) ?? null,
+        longitude: (source as any).longitude ?? (temple?.longitude as any) ?? null,
+        yearEstablished: (source as any).yearEstablished ?? temple?.yearEstablished ?? null,
       })
       isFormInitialized.current = true
+      // Also initialize the geo hierarchy selector from temple data.
+      // Use functional update to preserve stateId that was auto-selected by GeoHierarchySelectGrid.
+      if (temple?.districtId) {
+        // Use stagingProfile.talukId first (resolved server-side from hobli), fall back to temple.talukId.
+        // Always set stateId=1 (Karnataka) explicitly to avoid race with GeoHierarchySelectGrid's
+        // stateId auto-select firing after the prefill, which could leave stateId undefined and
+        // cause the cities/districts queries to be skipped (making dropdowns appear empty).
+        const effectiveHobliId = (source as any).hobliId ?? temple.hobliId ?? undefined
+        const effectiveTalukId = (source as any).talukId ?? temple.talukId ?? undefined
+        const effectiveCityId = temple.cityId ?? undefined
+        setGeoSelection({
+          stateId: 1,
+          cityId: effectiveCityId,
+          districtId: temple.districtId ?? undefined,
+          talukId: effectiveTalukId,
+          hobliId: effectiveHobliId,
+        })
+      }
     }
   }, [isLoading, temple, stagingProfile, form, form.formState.isDirty])
 
@@ -274,6 +339,148 @@ export function TaTempleEditPage() {
           {profileStatus === 'REJECTED' && stagingProfile?.reviewComment && (
             <StatusBanner status="REJECTED" reviewComment={stagingProfile.reviewComment} />
           )}
+
+          {/* Section 0b: Location (first — read-only, set by admin) */}
+          <AccordionSection title="Temple Location">
+            <p className="text-sm text-muted-foreground mb-4">
+              Temple location is set by the system administrator and cannot be changed from this form.
+            </p>
+            <div className="space-y-4">
+              <GeoHierarchySelectGrid
+                value={geoSelection}
+                onChange={handleGeoChange}
+                disabled
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="addressLine1" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Street / Address</FormLabel>
+                    <FormControl><Input {...field} placeholder="e.g. Temple Road, Near Bus Stand" disabled /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="pinCode" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>PIN Code</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="560001" inputMode="numeric" maxLength={6} disabled />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="latitude" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Latitude</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.0000001"
+                        placeholder="e.g. 12.9716"
+                        value={field.value ?? ''}
+                        onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                        disabled
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="longitude" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Longitude</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.0000001"
+                        placeholder="e.g. 77.5946"
+                        value={field.value ?? ''}
+                        onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                        disabled
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          </AccordionSection>
+
+          {/* Section 0: Temple Identity */}
+          <AccordionSection title="Temple Identity">
+            <p className="text-sm text-muted-foreground mb-4">
+              These identity fields define the temple's basic classification. Changes require DC approval before taking effect.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="primaryDeity" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primary Deity</FormLabel>
+                  <FormControl><Input {...field} placeholder="e.g. Chamundeshwari Devi" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="aliasName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alias / Local Name</FormLabel>
+                  <FormControl><Input {...field} placeholder="Optional alternate name" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="grade" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Temple Grade</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TEMPLE_GRADES.map(g => (
+                        <SelectItem key={g} value={g}>Grade {g}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="tradition" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Religious Tradition</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select tradition" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {RELIGIOUS_TRADITIONS.map(t => (
+                        <SelectItem key={t} value={t}>{TRADITION_LABELS[t] ?? t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="yearEstablished" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Year Established</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 1200"
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+          </AccordionSection>
 
           {/* Section 1: About Temple */}
           <AccordionSection title="About Temple">

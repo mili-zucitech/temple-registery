@@ -9,11 +9,13 @@ import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.exception.JurisdictionAccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Enforces district-level jurisdiction scoping for DC and DC_STAFF roles.
  * Call assertSameDistrict() before returning any resource.
  */
+@Slf4j
 @Component
 public class JurisdictionGuard {
 
@@ -82,32 +84,34 @@ public class JurisdictionGuard {
         }
 
         // P0-4 — Three-hop null-guard traversal: temple → hobli → taluk → district
+        // For temples that were auto-created (e.g. via AdminServiceImpl) with only the flat
+        // districtId scalar and no hobli association, fall back to temple.getDistrictId().
         Hobli hobli = temple.getHobli();
-        if (hobli == null) {
-            throw new EntityNotFoundException(
-                    "Temple geo data is incomplete: hobli reference is missing for templeId=" + temple.getId(),
-                    "GEO_INCOMPLETE");
-        }
+        Long templeDistrictId;
 
-        Taluk taluk = hobli.getTaluk();
-        if (taluk == null) {
-            throw new EntityNotFoundException(
-                    "Temple geo data is incomplete: taluk reference is missing for hobliId=" + hobli.getId(),
-                    "GEO_INCOMPLETE");
-        }
-
-        District district = taluk.getDistrict();
-        if (district == null) {
-            throw new EntityNotFoundException(
-                    "Temple geo data is incomplete: district reference is missing for talukId=" + taluk.getId(),
-                    "GEO_INCOMPLETE");
-        }
-
-        Long templeDistrictId = district.getId();
-        if (templeDistrictId == null) {
-            throw new EntityNotFoundException(
-                    "Temple geo data is incomplete: district id is null for talukId=" + taluk.getId(),
-                    "GEO_INCOMPLETE");
+        if (hobli != null) {
+            Taluk taluk = hobli.getTaluk();
+            if (taluk == null) {
+                throw new EntityNotFoundException(
+                        "Temple geo data is incomplete: taluk reference is missing for hobliId=" + hobli.getId(),
+                        "GEO_INCOMPLETE");
+            }
+            District district = taluk.getDistrict();
+            if (district == null) {
+                throw new EntityNotFoundException(
+                        "Temple geo data is incomplete: district reference is missing for talukId=" + taluk.getId(),
+                        "GEO_INCOMPLETE");
+            }
+            templeDistrictId = district.getId();
+        } else {
+            // No hobli association — fall back to the flat districtId scalar (set on auto-created temples)
+            templeDistrictId = temple.getDistrictId();
+            if (templeDistrictId == null) {
+                throw new EntityNotFoundException(
+                        "Temple geo data is incomplete: hobli reference and districtId are both missing for templeId=" + temple.getId(),
+                        "GEO_INCOMPLETE");
+            }
+            log.warn("assertDistrictScope: temple [{}] has no hobli — using flat districtId={} for scope check", temple.getId(), templeDistrictId);
         }
 
         // R7 — mismatch → HTTP 404 (never 403) to prevent district existence leakage

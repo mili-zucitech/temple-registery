@@ -298,6 +298,21 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         if (staging.getAnnualFestivals() != null)          temple.setAnnualFestivals(staging.getAnnualFestivals());
         if (staging.getLandmark() != null)                 temple.setLandmark(staging.getLandmark());
         if (staging.getHistoricalSignificance() != null)   temple.setHistoricalSignificance(staging.getHistoricalSignificance());
+        // Identity fields (V93)
+        if (staging.getAliasName() != null)                temple.setAliasName(staging.getAliasName());
+        if (staging.getPrimaryDeity() != null)             temple.setPrimaryDeity(staging.getPrimaryDeity());
+        if (staging.getGrade() != null) {
+            try { temple.setGrade(com.templeregistry.entity.temple.TempleGrade.valueOf(staging.getGrade())); } catch (IllegalArgumentException ignored) {}
+        }
+        if (staging.getTradition() != null) {
+            try { temple.setTradition(com.templeregistry.entity.temple.ReligiousTradition.valueOf(staging.getTradition())); } catch (IllegalArgumentException ignored) {}
+        }
+        if (staging.getHobliId() != null)                  temple.setHobliId(staging.getHobliId());
+        if (staging.getAddressLine1() != null)             temple.setStreet(staging.getAddressLine1());
+        if (staging.getPinCode() != null)                  temple.setPinCode(staging.getPinCode());
+        if (staging.getLatitude() != null)                 temple.setLatitude(java.math.BigDecimal.valueOf(staging.getLatitude()));
+        if (staging.getLongitude() != null)                temple.setLongitude(java.math.BigDecimal.valueOf(staging.getLongitude()));
+        if (staging.getYearEstablished() != null)          temple.setYearEstablished(staging.getYearEstablished());
         if (staging.getBankName() != null)                 temple.setBankName(staging.getBankName());
         if (staging.getBankIfsc() != null)                 temple.setBankIfsc(staging.getBankIfsc());
         if (staging.getLinkedInstitutions() != null)       temple.setLinkedInstitutions(staging.getLinkedInstitutions());

@@ -15,8 +15,11 @@ public class UserAdminResponse {
     private UserRole role;
     private boolean active;
     private boolean aadhaarVerified;
+    private String aadhaarNumber;
     private Long districtId;
+    private String districtName;
     private Long templeId;
+    private String templeName;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
 }
