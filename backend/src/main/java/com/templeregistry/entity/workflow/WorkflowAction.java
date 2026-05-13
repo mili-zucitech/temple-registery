@@ -40,6 +40,13 @@ public enum WorkflowAction {
     REJECT,
 
     /**
+     * DC rejects an edit of a previously approved entity (non-terminal).
+     * Restores approved data snapshot. RESUBMITTED → RE_APPROVED.
+     * Used instead of REJECT when the entity was previously approved (approvedData != null).
+     */
+    REJECT_EDIT,
+
+    /**
      * DC requests clarification from TA.
      * SUBMITTED/UNDER_REVIEW/CLARIFICATION_RESPONDED → CLARIFICATION_REQUESTED.
      * A ClarificationThread must be created before this action.

@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/dc/temples")
 @RequiredArgsConstructor
 @Tag(name = "DC Temples", description = "Temple search, profile access, and verification for the DC portal")
-@PreAuthorize(RoleConstants.CAN_READ_ALL)
+@PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
 public class DcTempleController {
 
     private final DcTempleSearchService dcTempleSearchService;
@@ -37,6 +37,7 @@ public class DcTempleController {
     private final DcTempleVerificationService dcTempleVerificationService;
 
     @GetMapping
+    @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
     @Operation(summary = "Paginated, district-scoped temple search. District is auto-scoped from JWT for DC roles.")
     public ResponseEntity<ApiResponse<PaginatedResponse<DcTempleSearchItemResponse>>> search(
             @Valid TempleSearchFilterRequest filter) {
@@ -45,6 +46,7 @@ public class DcTempleController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
     @Operation(summary = "Returns the aggregated full temple profile including trust, board, financials, employees, contractors, and declarations.")
     public ResponseEntity<ApiResponse<TempleFullProfileResponse>> getFullProfile(@PathVariable Long id) {
         TempleFullProfileResponse profile = dcTempleProfileService.getFullProfile(id, currentClaims());

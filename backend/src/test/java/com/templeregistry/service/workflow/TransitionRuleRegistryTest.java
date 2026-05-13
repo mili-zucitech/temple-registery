@@ -138,4 +138,56 @@ class TransitionRuleRegistryTest {
             "DC must have no allowed actions from UPDATED_AFTER_APPROVAL — only TA can resubmit");
         assertTrue(allRules.stream().anyMatch(r -> "TA".equals(r.getRequiredRole()) && r.getAction() == WorkflowAction.RESUBMIT));
     }
+
+    @Test
+    @DisplayName("REJECT_EDIT from RESUBMITTED should transition to RE_APPROVED (non-terminal edit rejection)")
+    void should_transitionToReApproved_when_rejectEditFromResubmitted() {
+        TransitionRule rule = registry.find("*", WorkflowStatus.RESUBMITTED, WorkflowAction.REJECT_EDIT)
+            .orElseThrow(() -> new AssertionError("REJECT_EDIT from RESUBMITTED rule not found"));
+
+        assertEquals(WorkflowStatus.RE_APPROVED, rule.getToStatus(),
+            "Edit rejection must revert to RE_APPROVED — trust is still valid with restored approved data");
+        assertEquals("DC", rule.getRequiredRole());
+    }
+
+    @Test
+    @DisplayName("REJECT from RESUBMITTED should still transition to REJECTED (first-time rejection from RESUBMITTED is not applicable but rule exists)")
+    void should_transitionToRejected_when_rejectFromResubmitted() {
+        TransitionRule rule = registry.find("*", WorkflowStatus.RESUBMITTED, WorkflowAction.REJECT)
+            .orElseThrow(() -> new AssertionError("REJECT from RESUBMITTED rule not found"));
+
+        assertEquals(WorkflowStatus.REJECTED, rule.getToStatus());
+        assertEquals("DC", rule.getRequiredRole());
+    }
+
+    @Test
+    @DisplayName("REJECT_EDIT from UNDER_REVIEW should transition to RE_APPROVED (DC marked under-review before rejecting edit)")
+    void should_transitionToReApproved_when_rejectEditFromUnderReview() {
+        TransitionRule rule = registry.find("*", WorkflowStatus.UNDER_REVIEW, WorkflowAction.REJECT_EDIT)
+            .orElseThrow(() -> new AssertionError("REJECT_EDIT from UNDER_REVIEW rule not found"));
+
+        assertEquals(WorkflowStatus.RE_APPROVED, rule.getToStatus(),
+            "Edit rejection from UNDER_REVIEW must revert to RE_APPROVED — matches RESUBMITTED→REJECT_EDIT path");
+        assertEquals("DC", rule.getRequiredRole());
+    }
+
+    @Test
+    @DisplayName("Full edit-rejection lifecycle: APPROVED → EDIT_APPROVED → UPDATED_AFTER_APPROVAL → RESUBMIT → RESUBMITTED → REJECT_EDIT → RE_APPROVED")
+    void should_completeEditRejectionLifecycle() {
+        // Step 1: APPROVED → EDIT_APPROVED → UPDATED_AFTER_APPROVAL
+        TransitionRule editRule = registry.find("*", WorkflowStatus.APPROVED, WorkflowAction.EDIT_APPROVED)
+            .orElseThrow();
+        assertEquals(WorkflowStatus.UPDATED_AFTER_APPROVAL, editRule.getToStatus());
+
+        // Step 2: UPDATED_AFTER_APPROVAL → RESUBMIT → RESUBMITTED
+        TransitionRule resubmitRule = registry.find("*", WorkflowStatus.UPDATED_AFTER_APPROVAL, WorkflowAction.RESUBMIT)
+            .orElseThrow();
+        assertEquals(WorkflowStatus.RESUBMITTED, resubmitRule.getToStatus());
+
+        // Step 3: DC rejects the edit → RESUBMITTED + REJECT_EDIT → RE_APPROVED
+        TransitionRule rejectEditRule = registry.find("*", WorkflowStatus.RESUBMITTED, WorkflowAction.REJECT_EDIT)
+            .orElseThrow();
+        assertEquals(WorkflowStatus.RE_APPROVED, rejectEditRule.getToStatus());
+        assertEquals("DC", rejectEditRule.getRequiredRole());
+    }
 }

@@ -113,15 +113,15 @@ export function useDcTempleSearch() {
   // Track previous userId to detect user switch
   const prevUserIdRef = useRef<number | undefined>(undefined)
 
-  // Local state for districtId — ONLY used for DC/DC_STAFF (locked to JWT).
-  // Statewide roles (SA, AUDITOR, VIEWER) read districtId directly from URL params instead.
+  // Local state for districtId — used for DC/DC_STAFF to pre-populate from JWT.
+  // After initialization, all roles read districtId directly from URL params.
   const [districtId, setDistrictId] = useState<number | null>(null)
 
-  // For statewide roles, districtId comes from URL (user's optional geo selection).
-  // For DC roles, districtId comes from state (locked to JWT, set below).
-  const effectiveDistrictId: number | null = isStatewideRole
-    ? (parseIntParam(searchParams.get('districtId')) ?? null)
-    : districtId
+  // All roles use URL-based districtId for the effective district filter.
+  // DC is no longer locked to their JWT district in the UI — the server-side
+  // assertDistrictScope() still enforces DC cannot approve outside their district.
+  const effectiveDistrictId: number | null =
+    parseIntParam(searchParams.get('districtId')) ?? null
 
   // On first load for a statewide role, strip any stale DC-scoped URL params
   // (districtId/cityId) that may be leftover from a previous DC user session.
@@ -226,8 +226,8 @@ export function useDcTempleSearch() {
     size,
   }), [searchParams, currentUser?.userId, effectiveDistrictId, page, size])
 
-  // Only fetch when userId is available; for DC roles also require districtId
-  const shouldFetch = !!currentUser?.userId && (isStatewideRole || !!districtId)
+  // Only fetch when userId is available; DC roles no longer require districtId to be set
+  const shouldFetch = !!currentUser?.userId
   const { data, isLoading, isError, isFetching, refetch } = useSearchDcTemplesQuery(filters, {
     refetchOnMountOrArgChange: true,
     skip: !shouldFetch,
@@ -301,8 +301,8 @@ export function useDcTempleSearch() {
     [setSearchParams],
   )
 
-  // Render guard: statewide roles are always ready; DC roles wait for districtId from JWT
-  const ready = isStatewideRole ? !!currentUser?.userId : (!!currentUser?.userId && !!districtId)
+  // Render guard: ready as soon as userId is available
+  const ready = !!currentUser?.userId
 
   return {
     temples: data?.data?.content ?? [],

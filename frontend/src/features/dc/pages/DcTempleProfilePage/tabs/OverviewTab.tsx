@@ -15,6 +15,7 @@ interface OverviewTabProps {
   onRejectProfile?: (reason: string) => Promise<void>
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
+  onEditProfile?: () => void
 }
 
 export function OverviewTab({
@@ -24,7 +25,8 @@ export function OverviewTab({
   onApproveProfile,
   onRejectProfile,
   onVerifyTemple,
-  onFlagTemple
+  onFlagTemple,
+  onEditProfile,
 }: OverviewTabProps) {
   const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
   const currentProfile = profile.currentProfile
@@ -143,6 +145,16 @@ export function OverviewTab({
               <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
                 Pending Review
               </span>
+            )}
+            {onEditProfile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEditProfile}
+                className="ml-auto text-xs h-7 px-3"
+              >
+                Edit Profile
+              </Button>
             )}
           </div>
           

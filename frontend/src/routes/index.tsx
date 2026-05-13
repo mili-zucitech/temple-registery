@@ -51,6 +51,9 @@ const TaProfileStatusPage = lazy(() => import('@/features/dashboard/pages/TaProf
 const TaActivityPage = lazy(() => import('@/features/dashboard/pages/TaActivityPage/TaActivityPage').then(m => ({ default: m.TaActivityPage })))
 const NotificationInboxPage = lazy(() => import('@/features/notification/pages/NotificationInboxPage').then(m => ({ default: m.NotificationInboxPage })))
 const NotificationPreferencesPage = lazy(() => import('@/features/notification/pages/NotificationPreferencesPage').then(m => ({ default: m.NotificationPreferencesPage })))
+const PublicTempleSearchPage = lazy(() => import('@/features/search/PublicTempleSearchPage').then(m => ({ default: m.PublicTempleSearchPage })))
+const TaTempleSearchPage = lazy(() => import('@/features/ta/pages/TaTempleSearchPage/TaTempleSearchPage').then(m => ({ default: m.TaTempleSearchPage })))
+const TaTempleDetailPage = lazy(() => import('@/features/ta/pages/TaTempleDetailPage/TaTempleDetailPage').then(m => ({ default: m.TaTempleDetailPage })))
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -60,6 +63,7 @@ const PageLoader = () => (
 
 const router = createBrowserRouter([
   // ── Public routes ─────────────────────────────────────────────────────────
+  { path: ROUTE_PATHS.PUBLIC_SEARCH, element: <Suspense fallback={<PageLoader />}><PublicTempleSearchPage /></Suspense> },
   { path: ROUTE_PATHS.LOGIN, element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
   { path: ROUTE_PATHS.MFA_VERIFY, element: <Suspense fallback={<PageLoader />}><MfaVerifyPage /></Suspense> },
   { path: ROUTE_PATHS.REGISTER, element: <Suspense fallback={<PageLoader />}><RegisterWizardPage /></Suspense> },
@@ -72,18 +76,24 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          // DC / DC Staff / Super Admin
+          // DC / DC Staff / Super Admin — core DC routes
           {
             element: <RoleRoute allowedRoles={[USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF, USER_ROLES.SUPER_ADMIN]} />,
             children: [
               { path: ROUTE_PATHS.DC_DASHBOARD, element: <Suspense fallback={<PageLoader />}><DcDashboardPage /></Suspense> },
-              { path: ROUTE_PATHS.DC_TEMPLES, element: <Suspense fallback={<PageLoader />}><DcTempleSearchPage /></Suspense> },
-              { path: ROUTE_PATHS.DC_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationDetailPage /></Suspense> },
               { path: ROUTE_PATHS.DC_EXPORT, element: <Suspense fallback={<PageLoader />}><DcExportPage /></Suspense> },
               { path: ROUTE_PATHS.DC_WORKFLOW_DASHBOARD, element: <Suspense fallback={<PageLoader />}><DcWorkflowDashboardPage /></Suspense> },
               { path: ROUTE_PATHS.DC_ACTIVITY, element: <Suspense fallback={<PageLoader />}><DcActivityPage /></Suspense> },
+            ],
+          },
+          // Temple search and profile — DC roles + TEMPLE_AUTHORITY (read-only view for TA)
+          {
+            element: <RoleRoute allowedRoles={[USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF, USER_ROLES.SUPER_ADMIN, USER_ROLES.TEMPLE_AUTHORITY]} />,
+            children: [
+              { path: ROUTE_PATHS.DC_TEMPLES, element: <Suspense fallback={<PageLoader />}><DcTempleSearchPage /></Suspense> },
+              { path: ROUTE_PATHS.DC_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><DcTempleProfilePage /></Suspense> },
             ],
           },
           // Temple Authority
@@ -107,6 +117,8 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.TA_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><TaDeclarationDetailPage /></Suspense> },
               { path: ROUTE_PATHS.TA_PROFILE_STATUS, element: <Suspense fallback={<PageLoader />}><TaProfileStatusPage /></Suspense> },
               { path: ROUTE_PATHS.TA_ACTIVITY, element: <Suspense fallback={<PageLoader />}><TaActivityPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE_SEARCH, element: <Suspense fallback={<PageLoader />}><TaTempleSearchPage /></Suspense> },
+              { path: ROUTE_PATHS.TA_TEMPLE_DETAIL, element: <Suspense fallback={<PageLoader />}><TaTempleDetailPage /></Suspense> },
             ],
           },
           // Super Admin

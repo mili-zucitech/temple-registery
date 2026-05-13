@@ -18,6 +18,7 @@ import { governanceV2Api } from '@/features/governance/governanceV2Api'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 import { auditorApi } from '@/features/auditor/auditorApi'
 import { viewerApi } from '@/features/viewer/viewerApi'
+import { timelineApi } from '@/features/timeline/timelineApi'
 
 /** Global RTK Query error logger middleware — handles 4xx and 5xx */
 const rtkQueryErrorLogger =
@@ -71,6 +72,7 @@ export const store = configureStore({
       governanceV2Api.middleware,
       auditorApi.middleware,
       viewerApi.middleware,
+      timelineApi.middleware,
     ),
 })
 

@@ -22,6 +22,8 @@ import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.document.FileStorageService;
+import com.templeregistry.service.timeline.TempleTimelineService;
+import com.templeregistry.entity.timeline.TimelineEventCode;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +57,10 @@ public class DocumentServiceImpl implements DocumentService {
     private final TrustRepository trustRepository;
     private final JurisdictionGuard jurisdictionGuard;
 
+    // Optional — Spring will inject null if no bean present (safe for existing tests).
+    // Lazily injected to break any potential circular dependency.
+    private final TempleTimelineService templeTimelineService;
+
     @Override
     @Transactional
     public DocumentResponse upload(String ownerType, Long ownerId, Long referenceId, String label,
@@ -69,6 +75,20 @@ public class DocumentServiceImpl implements DocumentService {
                 .fileSizeBytes(file.getSize()).documentLabel(label).build();
         Document saved = documentRepository.save(doc);
         log.info("Document saved: id=[{}] key=[{}]", saved.getId(), s3Key);
+
+        // ── Timeline hook (additive, non-fatal) ──────────────────────────────
+        try {
+            Long templeId = resolveTempleId(saved);
+            ScopeHelper.Claims claims = currentClaimsSafe();
+            Long actorId   = claims != null ? claims.userId() : 0L;
+            String actorRole = claims != null ? claims.role() : "SYSTEM";
+            templeTimelineService.logDocumentEvent(
+                TimelineEventCode.DOCUMENT_UPLOADED, templeId,
+                saved.getId(), label, ownerType, actorId, actorRole);
+        } catch (Exception ex) {
+            log.warn("[Timeline] Document upload event failed: docId={} error={}", saved.getId(), ex.getMessage());
+        }
+
         return toResponse(saved);
     }
 
@@ -182,7 +202,25 @@ public class DocumentServiceImpl implements DocumentService {
                 }
             });
         }
+        // ── Timeline hook: capture metadata BEFORE the soft-delete ─────────
+        String docLabel = doc.getDocumentLabel();
+        String ownerType = doc.getOwnerType();
+        Long ownerId = doc.getOwnerId();
+
         documentRepository.deleteById(id); // @SQLDelete intercepts → UPDATE is_deleted = true
+
+        // ── Timeline hook (additive, non-fatal) ──────────────────────────────
+        try {
+            Long templeId = resolveTempleIdForOwner(ownerType, ownerId);
+            ScopeHelper.Claims claims = currentClaimsSafe();
+            Long actorId   = claims != null ? claims.userId() : 0L;
+            String actorRole = claims != null ? claims.role() : "SYSTEM";
+            templeTimelineService.logDocumentEvent(
+                TimelineEventCode.DOCUMENT_DELETED, templeId,
+                id, docLabel, ownerType, actorId, actorRole);
+        } catch (Exception ex) {
+            log.warn("[Timeline] Document delete event failed: docId={} error={}", id, ex.getMessage());
+        }
     }
 
     @Override
@@ -238,6 +276,37 @@ public class DocumentServiceImpl implements DocumentService {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof ScopeHelper.Claims c) return c;
         throw new IllegalStateException("No authenticated claims in security context.");
+    }
+
+    /**
+     * Non-throwing variant for timeline hooks — returns null when no authenticated
+     * principal is available (e.g. system-initiated operations).
+     */
+    private ScopeHelper.Claims currentClaimsSafe() {
+        try {
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) return null;
+            Object principal = auth.getPrincipal();
+            return (principal instanceof ScopeHelper.Claims c) ? c : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolve temple ID from owner type + owner ID (used by delete timeline hook
+     * after the document row is no longer accessible for resolveTempleId(doc)).
+     */
+    private Long resolveTempleIdForOwner(String ownerType, Long ownerId) {
+        if (ownerType == null) return ownerId;
+        return switch (ownerType.toUpperCase()) {
+            case "TEMPLE"      -> ownerId;
+            case "DECLARATION" -> declarationRepository.findById(ownerId)
+                .map(d -> d.getTempleId()).orElse(ownerId);
+            case "TRUST"       -> trustRepository.findById(ownerId)
+                .map(t -> t.getTempleId()).orElse(ownerId);
+            default            -> ownerId;
+        };
     }
 
     private Document findOrThrow(Long id) {

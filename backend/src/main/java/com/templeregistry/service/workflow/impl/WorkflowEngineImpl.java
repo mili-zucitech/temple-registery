@@ -267,7 +267,10 @@ public class WorkflowEngineImpl implements WorkflowEngine {
             context.getActorId(), context.getActorRole(),
             saved.getTempleId(), saved.getDistrictId(),
             request.getIdempotencyKey(),
-            Map.of("comment", request.getComment() != null ? request.getComment() : "")
+            Map.of(
+                "comment", request.getComment() != null ? request.getComment() : "",
+                "transitionId", savedTransition.getId()
+            )
         );
         writeToOutbox(domainEvent);
 
@@ -366,7 +369,8 @@ public class WorkflowEngineImpl implements WorkflowEngine {
     private boolean roleMatches(String required, ActionContext ctx) {
         return switch (required) {
             case "TA"         -> ctx.isTa();
-            case "DC"         -> ctx.isDc();
+            // SUPER_ADMIN can act on any DC-level transition (no jurisdiction restriction applied)
+            case "DC"         -> ctx.isDc() || ctx.isSuperAdmin();
             case "SYSTEM"     -> ctx.isSystem();
             case "SUPER_ADMIN"-> ctx.isSuperAdmin();
             default           -> false;

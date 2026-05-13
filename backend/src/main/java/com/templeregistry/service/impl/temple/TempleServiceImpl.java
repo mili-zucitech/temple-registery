@@ -61,7 +61,7 @@ public class TempleServiceImpl implements TempleService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("permitAll()")
     public PaginatedResponse<TempleSearchResultResponse> search(TempleSearchFilterRequest filter) {
         int size = paginationUtil.clampSize(filter.getSize());
         Long scopedDistrictId = jurisdictionGuard.enforceDistrictId(filter.getDistrictId());

@@ -2,18 +2,35 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { toast } from 'sonner'
 import { extractApiErrorMessage } from '@/lib/apiError'
 import {
-  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase
+  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase, Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { TempleGradeBadge } from '@/components/data-display/StatusBadge/TempleGradeBadge'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
+import { ROUTE_PATHS } from '@/constants/routePaths'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +67,27 @@ import {
 import {
   useApproveTrustMutation,
   useRejectTrustMutation,
+  useSubmitTrustMutation,
 } from '@/features/governance/governanceApi'
+import {
+  useUpdateTrustMutation,
+} from '@/features/trust/trustApi'
+import { TRUST_TYPES, updateTrustSchema, type UpdateTrustRequest } from '@/features/trust/trustTypes'
+import {
+  useCreateOrUpdateDraftMutation,
+  useSubmitForReviewMutation,
+} from '@/features/temple-profile/hooks/templeApi'
+import {
+  useCreateEmployeeMutation,
+  useUpdateEmployeeMutation,
+} from '@/features/employee/employeeApi'
+import {
+  useCreateContractorMutation,
+  useUpdateContractorMutation,
+} from '@/features/contractor/contractorApi'
+import { createContractorSchema, ServiceType, PaymentStatus, SERVICE_TYPE_LABELS, PAYMENT_STATUS_LABELS } from '@/features/contractor/contractorTypes'
+import type { CreateContractorRequest as ContractorFormValues } from '@/features/contractor/contractorTypes'
+import type { ContractorResponse as DcContractorResponse } from '@/features/dc/dcTypes'
 import {
   workflowApproveSchema,
   workflowRejectSchema,
@@ -60,6 +97,8 @@ import {
   type DcClarifyRequest,
 } from '@/features/governance/governanceTypes'
 import type { TempleGrade } from '@/features/temple-profile/hooks/templeTypes'
+import type { CreateEmployeeRequest, UpdateEmployeeRequest } from '@/features/employee/employeeTypes'
+import { EMPLOYEE_TYPES, EMPLOYEE_STATUSES } from '@/features/employee/employeeTypes'
 
 import {
   OverviewTab,
@@ -68,6 +107,7 @@ import {
   StaffTab,
   ContractorsTab,
   DocumentsTab,
+  TimelineTab,
 } from './tabs'
 
 export function DcTempleProfilePage() {
@@ -76,11 +116,36 @@ export function DcTempleProfilePage() {
   const id = Number(templeId)
 
   const role = useAppSelector((s) => s.auth.currentUser?.role)
+  const currentTempleId = useAppSelector((s) => s.auth.currentUser?.templeId)
+  const isTa = role === USER_ROLES.TEMPLE_AUTHORITY
+  const isOwnTemple = isTa && currentTempleId === id
   const canAct =
     role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
+  // SA can edit any temple — DC cannot
+  const canEdit = role === USER_ROLES.SUPER_ADMIN
+
+  // SA edit dialog states
+  const [profileEditOpen, setProfileEditOpen] = useState(false)
+  const [trustEditOpen, setTrustEditOpen] = useState(false)
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false)
+  const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null)
+  const [contractorDialogOpen, setContractorDialogOpen] = useState(false)
+  const [editingContractor, setEditingContractor] = useState<DcContractorResponse | null>(null)
+
+  // SA edit mutations
+  const [createOrUpdateDraft, { isLoading: isSavingDraft }] = useCreateOrUpdateDraftMutation()
+  const [submitForReview, { isLoading: isSubmittingReview }] = useSubmitForReviewMutation()
+  const [updateTrust, { isLoading: isUpdatingTrust }] = useUpdateTrustMutation()
+  const [submitTrust, { isLoading: isSubmittingTrust }] = useSubmitTrustMutation()
+  const [createEmployee, { isLoading: isCreatingEmployee }] = useCreateEmployeeMutation()
+  const [updateEmployee, { isLoading: isUpdatingEmployee }] = useUpdateEmployeeMutation()
+  const [createContractor, { isLoading: isCreatingContractor }] = useCreateContractorMutation()
+  const [updateContractor, { isLoading: isUpdatingContractor }] = useUpdateContractorMutation()
+
   const { profile, isLoading, isError, refetch: refetchProfile } = useDcTempleProfile(id)
-  const { pendingStaging, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id)
+  // TA cannot act on profile staging — skip the fetch to avoid unnecessary 404 noise
+  const { pendingStaging, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
   const [selectedDeclarationId, setSelectedDeclarationId] = useState<number | null>(null)
@@ -185,8 +250,12 @@ export function DcTempleProfilePage() {
 
   return (
     <div className="animate-in fade-in duration-500">
-      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER) && (
-        <ReadOnlyBanner message="You are viewing this temple profile in read-only mode. Verification, flagging, and approval actions are not available." />
+      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER || (isTa && !isOwnTemple)) && (
+        <ReadOnlyBanner message={
+          isTa && !isOwnTemple
+            ? 'Viewing in read-only mode. Use your TA dashboard to edit your own temple.'
+            : 'You are viewing this temple profile in read-only mode. Verification, flagging, and approval actions are not available.'
+        } />
       )}
       {/* Tabs must wrap TabsList — so we wrap the whole content including the header */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
@@ -316,6 +385,7 @@ export function DcTempleProfilePage() {
                   { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
                   { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
+                  { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
                 ] as const
               ).map((tab) => (
                 <TabsTrigger
@@ -389,6 +459,11 @@ export function DcTempleProfilePage() {
               onFlagTemple={async (reason) => {
                 await flagTemple({ id, body: { reason } }).unwrap()
               }}
+              onEditProfile={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
+                : canEdit ? () => setProfileEditOpen(true)
+                : undefined
+              }
             />
           </TabsContent>
 
@@ -413,6 +488,11 @@ export function DcTempleProfilePage() {
               trustFinancials={profile.trustFinancials}
               boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
+              onEditTrust={
+                isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
+                : canEdit && trust ? () => setTrustEditOpen(true)
+                : undefined
+              }
               onVerifyTrust={async (trustId, _notes) => {
                 try {
                   await approveTrust(trustId).unwrap()
@@ -437,17 +517,41 @@ export function DcTempleProfilePage() {
           <TabsContent value="staff" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StaffTab
               employees={employees}
+              onAddEmployee={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
+                : canEdit ? () => { setEditingEmployeeId(null); setEmployeeDialogOpen(true) }
+                : undefined
+              }
+              onEditEmployee={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
+                : canEdit ? (empId) => { setEditingEmployeeId(empId); setEmployeeDialogOpen(true) }
+                : undefined
+              }
             />
           </TabsContent>
 
           <TabsContent value="contractors" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ContractorsTab
               contractors={contractors}
+              onAddContractor={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
+                : canEdit ? () => { setEditingContractor(null); setContractorDialogOpen(true) }
+                : undefined
+              }
+              onEditContractor={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
+                : canEdit ? (c) => { setEditingContractor(c); setContractorDialogOpen(true) }
+                : undefined
+              }
             />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DocumentsTab templeId={id} />
+          </TabsContent>
+
+          <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TimelineTab templeId={id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -481,6 +585,70 @@ export function DcTempleProfilePage() {
         onSubmit={confirmScheduleSiteVisit}
         isSubmitting={isSubmitting}
       />
+
+      {/* ── SA PROFILE EDIT DIALOG ─────────────────────────────────────── */}
+      {canEdit && (
+        <SaProfileEditDialog
+          open={profileEditOpen}
+          templeId={id}
+          currentProfile={profile.currentProfile}
+          pendingStaging={pendingStaging}
+          temple={profile.temple}
+          onClose={() => setProfileEditOpen(false)}
+          onSaved={async () => {
+            setProfileEditOpen(false)
+            await refetchPendingStaging()
+            refetchProfile()
+          }}
+          createOrUpdateDraft={createOrUpdateDraft}
+          submitForReview={submitForReview}
+          isSaving={isSavingDraft || isSubmittingReview}
+        />
+      )}
+
+      {/* ── SA TRUST EDIT DIALOG ────────────────────────────────────────── */}
+      {canEdit && trust && (
+        <SaTrustEditDialog
+          open={trustEditOpen}
+          trust={trust}
+          onClose={() => setTrustEditOpen(false)}
+          onSaved={async () => {
+            setTrustEditOpen(false)
+            refetchProfile()
+          }}
+          updateTrust={updateTrust}
+          submitTrust={submitTrust}
+          isSaving={isUpdatingTrust || isSubmittingTrust}
+        />
+      )}
+
+      {/* ── SA CONTRACTOR DIALOG ───────────────────────────────────────── */}
+      {canEdit && (
+        <SaContractorDialog
+          open={contractorDialogOpen}
+          templeId={id}
+          contractor={editingContractor}
+          onClose={() => { setContractorDialogOpen(false); setEditingContractor(null) }}
+          onSaved={() => { setContractorDialogOpen(false); setEditingContractor(null); refetchProfile() }}
+          createContractor={createContractor}
+          updateContractor={updateContractor}
+          isSaving={isCreatingContractor || isUpdatingContractor}
+        />
+      )}
+
+      {/* ── SA EMPLOYEE DIALOG ─────────────────────────────────────────── */}
+      {canEdit && (
+        <SaEmployeeDialog
+          open={employeeDialogOpen}
+          templeId={id}
+          employeeId={editingEmployeeId}
+          onClose={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null) }}
+          onSaved={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null); refetchProfile() }}
+          createEmployee={createEmployee}
+          updateEmployee={updateEmployee}
+          isSaving={isCreatingEmployee || isUpdatingEmployee}
+        />
+      )}
     </div>
   )
 }
@@ -592,3 +760,590 @@ function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: Workflo
     </AlertDialog>
   )
 }
+
+// ── SA Profile Edit Dialog ────────────────────────────────────────────────────
+
+const saProfileEditSchema = z.object({
+  phone: z.string().regex(/^[0-9]{10}$/, 'Must be 10 digits').optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  website: z.string().max(500).optional().or(z.literal('')),
+  contactPersonName: z.string().max(255).optional().or(z.literal('')),
+  contactPersonDesignation: z.string().max(150).optional().or(z.literal('')),
+  landmark: z.string().max(500).optional().or(z.literal('')),
+  historicalSignificance: z.string().max(2000).optional().or(z.literal('')),
+  bankName: z.string().max(255).optional().or(z.literal('')),
+  bankIfsc: z.string().max(20).optional().or(z.literal('')),
+  languagesOfWorship: z.string().max(500).optional().or(z.literal('')),
+  description: z.string().max(5000).optional().or(z.literal('')),
+})
+type SaProfileEditValues = z.infer<typeof saProfileEditSchema>
+
+interface SaProfileEditDialogProps {
+  open: boolean
+  templeId: number
+  currentProfile: any
+  pendingStaging: any
+  temple?: any
+  onClose: () => void
+  onSaved: () => Promise<void>
+  createOrUpdateDraft: (args: any) => Promise<any>
+  submitForReview: (templeId: number) => Promise<any>
+  isSaving: boolean
+}
+
+function SaProfileEditDialog({
+  open, templeId, currentProfile, pendingStaging, temple, onClose, onSaved,
+  createOrUpdateDraft, submitForReview, isSaving,
+}: SaProfileEditDialogProps) {
+  const profile = pendingStaging ?? currentProfile
+
+  // Helper to resolve a field with priority: pendingStaging > currentProfile > temple fallback
+  const resolveField = (stagingKey: string, currentKey: string, templeKey: string): string => {
+    return (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
+  }
+
+  const form = useForm<SaProfileEditValues>({
+    resolver: zodResolver(saProfileEditSchema),
+    defaultValues: {
+      phone: resolveField('phone', 'phone', 'contactMobile'),
+      email: resolveField('email', 'email', 'contactEmail'),
+      website: resolveField('website', 'website', 'website'),
+      contactPersonName: resolveField('contactPersonName', 'contactPersonName', 'contactName'),
+      contactPersonDesignation: resolveField('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
+      landmark: resolveField('landmark', 'landmark', 'landmark'),
+      historicalSignificance: resolveField('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
+      bankName: resolveField('bankName', 'bankName', 'bankName'),
+      bankIfsc: resolveField('bankIfsc', 'bankIfsc', 'bankIfsc'),
+      languagesOfWorship: Array.isArray(profile?.languagesOfWorship)
+        ? profile.languagesOfWorship.join(', ')
+        : ((pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship) ?? ''),
+      description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      const resolveF = (stagingKey: string, currentKey: string, templeKey: string): string =>
+        (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
+
+      const langValue = pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship
+      form.reset({
+        phone: resolveF('phone', 'phone', 'contactMobile'),
+        email: resolveF('email', 'email', 'contactEmail'),
+        website: resolveF('website', 'website', 'website'),
+        contactPersonName: resolveF('contactPersonName', 'contactPersonName', 'contactName'),
+        contactPersonDesignation: resolveF('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
+        landmark: resolveF('landmark', 'landmark', 'landmark'),
+        historicalSignificance: resolveF('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
+        bankName: resolveF('bankName', 'bankName', 'bankName'),
+        bankIfsc: resolveF('bankIfsc', 'bankIfsc', 'bankIfsc'),
+        languagesOfWorship: Array.isArray(langValue)
+          ? langValue.join(', ')
+          : (langValue ?? ''),
+        description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
+      })
+    }
+  }, [open, pendingStaging, currentProfile, temple]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      await createOrUpdateDraft({
+        templeId,
+        body: {
+          phone: values.phone || undefined,
+          email: values.email || undefined,
+          website: values.website || undefined,
+          contactPersonName: values.contactPersonName || undefined,
+          contactPersonDesignation: values.contactPersonDesignation || undefined,
+          landmark: values.landmark || undefined,
+          historicalSignificance: values.historicalSignificance || undefined,
+          bankName: values.bankName || undefined,
+          bankIfsc: values.bankIfsc || undefined,
+          languagesOfWorship: values.languagesOfWorship || undefined,
+          description: values.description || undefined,
+        },
+      })
+      await submitForReview(templeId)
+      toast.success('Profile submitted for review.')
+      await onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save profile. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Temple Profile (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="contactPersonName" render={({ field }) => (
+                <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contactPersonDesignation" render={({ field }) => (
+                <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem><FormLabel>Contact Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Contact Email</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="website" render={({ field }) => (
+                <FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="languagesOfWorship" render={({ field }) => (
+                <FormItem><FormLabel>Languages of Worship (comma-separated)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankName" render={({ field }) => (
+                <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankIfsc" render={({ field }) => (
+                <FormItem><FormLabel>Bank IFSC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="landmark" render={({ field }) => (
+              <FormItem><FormLabel>Landmark</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="historicalSignificance" render={({ field }) => (
+              <FormItem><FormLabel>Historical Significance</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="description" render={({ field }) => (
+              <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── SA Employee Dialog ────────────────────────────────────────────────────────
+
+// ── SA Contractor Dialog ──────────────────────────────────────────────────────
+
+interface SaContractorDialogProps {
+  open: boolean
+  templeId: number
+  contractor: DcContractorResponse | null
+  onClose: () => void
+  onSaved: () => void
+  createContractor: (args: { templeId: number; body: ContractorFormValues }) => Promise<any>
+  updateContractor: (args: { id: number; body: Partial<ContractorFormValues> }) => Promise<any>
+  isSaving: boolean
+}
+
+function SaContractorDialog({
+  open, templeId, contractor, onClose, onSaved, createContractor, updateContractor, isSaving,
+}: SaContractorDialogProps) {
+  const isEdit = contractor !== null
+  const form = useForm<ContractorFormValues>({
+    resolver: zodResolver(createContractorSchema),
+    defaultValues: {
+      companyName: '',
+      gstNumber: '',
+      serviceType: ServiceType.CIVIL_WORKS,
+      contractReference: '',
+      workOrderDate: '',
+      contractStartDate: '',
+      contractEndDate: '',
+      contractValue: 0,
+      paymentStatus: PaymentStatus.PENDING,
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      if (contractor) {
+        form.reset({
+          companyName: contractor.companyName ?? '',
+          gstNumber: contractor.gstNumber ?? '',
+          serviceType: (contractor.serviceType as ServiceType) ?? ServiceType.CIVIL_WORKS,
+          contractReference: contractor.contractReference ?? '',
+          workOrderDate: contractor.workOrderDate ?? '',
+          contractStartDate: contractor.contractStartDate ?? '',
+          contractEndDate: contractor.contractEndDate ?? '',
+          contractValue: contractor.contractValue ?? 0,
+          paymentStatus: (contractor.paymentStatus as PaymentStatus) ?? PaymentStatus.PENDING,
+        })
+      } else {
+        form.reset({
+          companyName: '',
+          gstNumber: '',
+          serviceType: ServiceType.CIVIL_WORKS,
+          contractReference: '',
+          workOrderDate: '',
+          contractStartDate: '',
+          contractEndDate: '',
+          contractValue: 0,
+          paymentStatus: PaymentStatus.PENDING,
+        })
+      }
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      const body = { ...values }
+      if (!body.gstNumber) delete body.gstNumber
+      if (!body.workOrderDate) delete body.workOrderDate
+      if (!body.contractEndDate) delete body.contractEndDate
+      if (isEdit && contractor) {
+        await updateContractor({ id: contractor.id, body })
+      } else {
+        await createContractor({ templeId, body: body as ContractorFormValues })
+      }
+      toast.success(isEdit ? 'Contractor updated successfully.' : 'Contractor added successfully.')
+      onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save contractor. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Edit Contractor' : 'Add Contractor'}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="companyName" render={({ field }) => (
+                <FormItem className="sm:col-span-2"><FormLabel>Company Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="serviceType" render={({ field }) => (
+                <FormItem><FormLabel>Service Type *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.values(ServiceType).map((t) => (
+                        <SelectItem key={t} value={t}>{SERVICE_TYPE_LABELS[t]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="gstNumber" render={({ field }) => (
+                <FormItem><FormLabel>GST Number</FormLabel><FormControl><Input className="uppercase" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractReference" render={({ field }) => (
+                <FormItem><FormLabel>Contract Reference *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractValue" render={({ field }) => (
+                <FormItem><FormLabel>Contract Value (₹) *</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} step="0.01"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                  </FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="paymentStatus" render={({ field }) => (
+                <FormItem><FormLabel>Payment Status *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.values(PaymentStatus).map((s) => (
+                        <SelectItem key={s} value={s}>{PAYMENT_STATUS_LABELS[s]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractStartDate" render={({ field }) => (
+                <FormItem><FormLabel>Contract Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractEndDate" render={({ field }) => (
+                <FormItem><FormLabel>Contract End Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="workOrderDate" render={({ field }) => (
+                <FormItem><FormLabel>Work Order Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : isEdit ? 'Update Contractor' : 'Add Contractor'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── SA Trust Edit Dialog ──────────────────────────────────────────────────────
+
+interface SaTrustEditDialogProps {
+  open: boolean
+  trust: import('@/features/dc/dcTypes').DcTrustSummary
+  onClose: () => void
+  onSaved: () => Promise<void>
+  updateTrust: (args: any) => Promise<any>
+  submitTrust: (trustId: number) => Promise<any>
+  isSaving: boolean
+}
+
+function SaTrustEditDialog({
+  open, trust, onClose, onSaved, updateTrust, submitTrust, isSaving,
+}: SaTrustEditDialogProps) {
+  const form = useForm<UpdateTrustRequest>({
+    resolver: zodResolver(updateTrustSchema),
+    defaultValues: {
+      trustName: trust.trustName ?? '',
+      trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
+      registrationNumber: trust.registrationNumber ?? '',
+      registeringAuthority: trust.registeringAuthority ?? '',
+      dateOfRegistration: trust.dateOfRegistration ?? '',
+      panNumber: '',
+      bankAccountNumber: '',
+      bankName: trust.bankName ?? '',
+      bankBranch: trust.bankBranch ?? '',
+      annualIncome: trust.annualIncome ?? null,
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        trustName: trust.trustName ?? '',
+        trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
+        registrationNumber: trust.registrationNumber ?? '',
+        registeringAuthority: trust.registeringAuthority ?? '',
+        dateOfRegistration: trust.dateOfRegistration ?? '',
+        panNumber: '',
+        bankAccountNumber: '',
+        bankName: trust.bankName ?? '',
+        bankBranch: trust.bankBranch ?? '',
+        annualIncome: trust.annualIncome ?? null,
+      })
+    }
+  }, [open, trust])
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      const body: Partial<UpdateTrustRequest> = { ...values }
+      if (!body.panNumber) delete body.panNumber
+      if (!body.bankAccountNumber) delete body.bankAccountNumber
+      await updateTrust({ trustId: trust.id, body })
+      await submitTrust(trust.id)
+      toast.success('Trust updated and submitted for review.')
+      await onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update trust. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Trust Registration (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="trustName" render={({ field }) => (
+                <FormItem><FormLabel>Trust Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="trustType" render={({ field }) => (
+                <FormItem><FormLabel>Trust Type *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {TRUST_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="registrationNumber" render={({ field }) => (
+                <FormItem><FormLabel>Registration Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="registeringAuthority" render={({ field }) => (
+                <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="dateOfRegistration" render={({ field }) => (
+                <FormItem><FormLabel>Date of Registration *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="panNumber" render={({ field }) => (
+                <FormItem><FormLabel>PAN Number</FormLabel>
+                  <FormControl><Input {...field} className="uppercase" placeholder={trust.panNumberMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
+                <FormItem><FormLabel>Bank Account Number</FormLabel>
+                  <FormControl><Input inputMode="numeric" {...field} placeholder={trust.bankAccountMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankName" render={({ field }) => (
+                <FormItem><FormLabel>Bank Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankBranch" render={({ field }) => (
+                <FormItem><FormLabel>Bank Branch *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="annualIncome" render={({ field }) => (
+                <FormItem><FormLabel>Annual Income</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} step="0.01"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                  </FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const saEmployeeSchema = z.object({
+  fullName: z.string().min(2, 'Required').max(200),
+  employeeType: z.enum(EMPLOYEE_TYPES),
+  designation: z.string().max(150).optional().or(z.literal('')),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Must be 10 digits').optional().or(z.literal('')),
+  dateOfJoining: z.string().optional().or(z.literal('')),
+  status: z.enum(EMPLOYEE_STATUSES),
+})
+type SaEmployeeValues = z.infer<typeof saEmployeeSchema>
+
+interface SaEmployeeDialogProps {
+  open: boolean
+  templeId: number
+  employeeId: number | null
+  onClose: () => void
+  onSaved: () => void
+  createEmployee: (args: any) => Promise<any>
+  updateEmployee: (args: any) => Promise<any>
+  isSaving: boolean
+}
+
+function SaEmployeeDialog({
+  open, templeId, employeeId, onClose, onSaved,
+  createEmployee, updateEmployee, isSaving,
+}: SaEmployeeDialogProps) {
+  const isEditing = employeeId !== null
+
+  const form = useForm<SaEmployeeValues>({
+    resolver: zodResolver(saEmployeeSchema),
+    defaultValues: {
+      fullName: '',
+      employeeType: 'ADMINISTRATIVE',
+      designation: '',
+      mobile: '',
+      dateOfJoining: '',
+      status: 'ACTIVE',
+    },
+  })
+
+  useEffect(() => {
+    if (open && !isEditing) {
+      form.reset({ fullName: '', employeeType: 'ADMINISTRATIVE', designation: '', mobile: '', dateOfJoining: '', status: 'ACTIVE' })
+    }
+  }, [open, isEditing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      if (isEditing) {
+        const body: UpdateEmployeeRequest = {
+          fullName: values.fullName,
+          employeeType: values.employeeType,
+          designation: values.designation || undefined,
+          mobile: values.mobile || undefined,
+          dateOfJoining: values.dateOfJoining || undefined,
+          status: values.status,
+        }
+        await updateEmployee({ id: employeeId!, body })
+        toast.success('Employee updated.')
+      } else {
+        const body: CreateEmployeeRequest = {
+          fullName: values.fullName,
+          employeeType: values.employeeType,
+          designation: values.designation || undefined,
+          mobile: values.mobile || undefined,
+          dateOfJoining: values.dateOfJoining || undefined,
+        }
+        await createEmployee({ templeId, body })
+        toast.success('Employee added.')
+      }
+      onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save employee. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? 'Edit Employee' : 'Add Employee'} (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <FormField control={form.control} name="fullName" render={({ field }) => (
+              <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="employeeType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <FormControl>
+                    <select {...field} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      {EMPLOYEE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              {isEditing && (
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <FormControl>
+                      <select {...field} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                        {EMPLOYEE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+            </div>
+            <FormField control={form.control} name="designation" render={({ field }) => (
+              <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="mobile" render={({ field }) => (
+                <FormItem><FormLabel>Mobile</FormLabel><FormControl><Input {...field} inputMode="numeric" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="dateOfJoining" render={({ field }) => (
+                <FormItem><FormLabel>Date of Joining</FormLabel><FormControl><Input {...field} type="date" /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : isEditing ? 'Update' : 'Add Employee'}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+

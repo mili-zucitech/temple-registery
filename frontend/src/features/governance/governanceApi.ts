@@ -13,6 +13,7 @@ import type {
   WorkflowActionResponse,
 } from './governanceTypes'
 import { trustApi } from '@/features/trust/trustApi'
+import { dcApi } from '@/features/dc/dcApi'
 
 /**
  * RTK Query API for governance workflow actions — SINGLE SOURCE OF TRUTH.
@@ -37,6 +38,7 @@ export const governanceApi = createApi({
     'DcDashboard',
     'DcTempleSearch',
     'Trust',
+    'DcTempleProfile',
   ],
   endpoints: (builder) => ({
     // ─── TRUST ───────────────────────────────────────────────────────────────
@@ -68,10 +70,12 @@ export const governanceApi = createApi({
         { type: 'Trust', id: trustId },
         'Trust',
         'DcTempleSearch',
+        'DcTempleProfile',
       ],
       async onQueryStarted(_trustId, { dispatch, queryFulfilled }) {
         await queryFulfilled
         dispatch(trustApi.util.invalidateTags(['Trust']))
+        dispatch(dcApi.util.invalidateTags(['DcTempleProfile']))
       },
     }),
 
@@ -104,10 +108,14 @@ export const governanceApi = createApi({
         { type: 'Trust', id: trustId },
         'Trust',
         'DcTempleSearch',
+        // Invalidate all DcTempleProfile queries so restored trust data is visible immediately.
+        'DcTempleProfile',
       ],
       async onQueryStarted(_args, { dispatch, queryFulfilled }) {
         await queryFulfilled
         dispatch(trustApi.util.invalidateTags(['Trust']))
+        // Cross-slice: force DcTempleProfile queries to refetch with restored trust data.
+        dispatch(dcApi.util.invalidateTags(['DcTempleProfile']))
       },
     }),
 

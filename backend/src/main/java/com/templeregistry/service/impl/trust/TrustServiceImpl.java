@@ -234,6 +234,15 @@ public class TrustServiceImpl implements TrustService {
                 .isCurrent(trustValidationService.isCurrentMember(rq.getTenureEndDate()))
                 .build();
         BoardMember saved = boardMemberRepository.save(member);
+        // ── Workflow Engine: initiate + auto-submit board member for DC review ─
+        // Board members are immediately available for DC review when added by TA.
+        // ensureInitiated creates the DRAFT instance; adaptSubmit transitions it to SUBMITTED.
+        workflowEngineAdaptor.ensureInitiated(
+            WorkflowEntityType.BOARD_MEMBER, saved.getId(),
+            trust.getTempleId(), temple.getDistrictId(), currentUserId());
+        workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.BOARD_MEMBER, saved.getId(),
+            trust.getTempleId(), temple.getDistrictId(), currentUserId());
         // Notify via helper (structural requirement)
         notificationHelper.notifyBoardMemberAdded(saved.getId(), trust.getTempleId(), trust.getTrustName(), saved.getFullName(), currentUserId());
         

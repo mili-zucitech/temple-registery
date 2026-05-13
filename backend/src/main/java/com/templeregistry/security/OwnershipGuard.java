@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 public class OwnershipGuard {
 
     public void assertOwnsTemple(Long resourceTempleId) {
-        ScopeHelper.Claims claims = currentClaims();
+        ScopeHelper.Claims claims = currentClaimsOrNull();
+        if (claims == null) return; // anonymous: no ownership restriction (only reaches read endpoints)
         if (RoleConstants.TEMPLE_AUTHORITY.equals(claims.role())) {
             if (resourceTempleId == null || claims.templeId() == null
                     || !resourceTempleId.equals(claims.templeId())) {
@@ -20,6 +21,17 @@ public class OwnershipGuard {
                         "You are not authorized to access temple [" + resourceTempleId + "].");
             }
         }
+    }
+
+    /**
+     * Returns the current principal's Claims if authenticated with a valid JWT, or null if anonymous.
+     * Write paths cannot be reached by anonymous users due to Spring Security filter chain.
+     */
+    private ScopeHelper.Claims currentClaimsOrNull() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return null;
+        Object principal = auth.getPrincipal();
+        return (principal instanceof ScopeHelper.Claims c) ? c : null;
     }
 
     private ScopeHelper.Claims currentClaims() {

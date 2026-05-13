@@ -146,45 +146,38 @@ public class NotificationServiceImpl implements NotificationService {
                 String.valueOf(workflowInstanceId));
         log.info("[FLOW_4] saving in_app recipientId={} type={} entityId={} key={}",
                 recipientId, notificationType, entityId, idempotencyKey);
-        // dummy block opener to align with the replaced signature
-        if (true) {
-        try {
-            InAppNotification saved = inAppRepository.save(InAppNotification.builder()
-                    .userId(recipientId)
-                    .title(title)
-                    .body(body)
-                    .priority(priority)
-                    .notificationType(notificationType)
-                    .referenceType(entityType)
-                    .referenceId(entityId)
-                    .workflowInstanceId(workflowInstanceId)
-                    .templeId(templeId)
-                    .templeName(templeName)
-                    .actionByName(actionByName)
-                    .actionByRole(actionByRole)
-                    .redirectUrl(redirectUrl)
-                    .workflowStatus(workflowStatus)
-                    .idempotencyKey(idempotencyKey)
-                    .isRead(false)
-                    .build());
-            log.info("[FLOW_5] saved id={} recipientId={} type={} entityId={}",
-                    saved.getId(), recipientId, notificationType, entityId);
-            eventRepository.save(NotificationEvent.builder()
-                    .recipientId(recipientId)
-                    .eventType(notificationType != null ? notificationType : entityType + "_WORKFLOW")
-                    .referenceId(entityId)
-                    .referenceType(entityType)
-                    .channel("IN_APP")
-                    .status("SENT")
-                    .build());
-        } catch (org.springframework.dao.DataIntegrityViolationException dedupEx) {
-            log.info("[FLOW_5] dedup skip — in_app already exists for key={}: {}", idempotencyKey, dedupEx.getMessage());
-        } catch (Exception ex) {
-            log.error("[FLOW_5] FAILED saving in_app recipientId={} type={} entityId={} cause={}",
-                    recipientId, notificationType, entityId, ex.getMessage(), ex);
-            throw ex;
+        if (inAppRepository.existsByIdempotencyKey(idempotencyKey)) {
+            log.info("[FLOW_5] dedup skip — in_app already exists for key={}", idempotencyKey);
+            return;
         }
-        } // end if (true) dummy
+        InAppNotification saved = inAppRepository.save(InAppNotification.builder()
+                .userId(recipientId)
+                .title(title)
+                .body(body)
+                .priority(priority)
+                .notificationType(notificationType)
+                .referenceType(entityType)
+                .referenceId(entityId)
+                .workflowInstanceId(workflowInstanceId)
+                .templeId(templeId)
+                .templeName(templeName)
+                .actionByName(actionByName)
+                .actionByRole(actionByRole)
+                .redirectUrl(redirectUrl)
+                .workflowStatus(workflowStatus)
+                .idempotencyKey(idempotencyKey)
+                .isRead(false)
+                .build());
+        log.info("[FLOW_5] saved id={} recipientId={} type={} entityId={}",
+                saved.getId(), recipientId, notificationType, entityId);
+        eventRepository.save(NotificationEvent.builder()
+                .recipientId(recipientId)
+                .eventType(notificationType != null ? notificationType : entityType + "_WORKFLOW")
+                .referenceId(entityId)
+                .referenceType(entityType)
+                .channel("IN_APP")
+                .status("SENT")
+                .build());
     }
 
     private NotificationResponse toResponse(InAppNotification n) {

@@ -32,6 +32,7 @@ function getTaNavItems(): NavItem[] {
   return [
     { label: 'Dashboard', to: ROUTE_PATHS.TA_DASHBOARD, icon: <LayoutDashboard size={16} /> },
     { label: 'Temple Profile', to: ROUTE_PATHS.TA_TEMPLE, icon: <Building2 size={16} /> },
+    { label: 'Temple Search', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
     { label: 'Trust & Board', to: ROUTE_PATHS.TA_TRUST, icon: <Shield size={16} /> },
     { label: 'Employees', to: ROUTE_PATHS.TA_EMPLOYEES, icon: <Users size={16} /> },
     { label: 'Contractors', to: ROUTE_PATHS.TA_CONTRACTORS, icon: <FileText size={16} /> },

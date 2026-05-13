@@ -55,6 +55,7 @@ vi.mock('@/features/governance/governanceApi', () => ({
   useApproveTrustMutation: () => [vi.fn(), { isLoading: false }],
   useRejectTrustMutation: () => [vi.fn(), { isLoading: false }],
   useSendBackTrustMutation: () => [vi.fn(), { isLoading: false }],
+  useSubmitTrustMutation: () => [vi.fn(), { isLoading: false }],
 }))
 
 vi.mock('@/app/store', () => ({

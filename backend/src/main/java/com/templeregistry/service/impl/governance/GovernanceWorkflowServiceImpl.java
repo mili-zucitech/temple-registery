@@ -66,6 +66,8 @@ import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import java.io.ByteArrayOutputStream;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.templeregistry.entity.trust.TrustType;
 
 @Service
 @RequiredArgsConstructor
@@ -88,6 +90,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     private final com.templeregistry.service.notification.NotificationRecipientResolver recipientResolver;
     private final UserRepository userRepository;
     private final NotificationEventPublisher notificationPublisher;
+    private final ObjectMapper objectMapper;
     private final DeclarationClarificationRepository clarificationRepository;
     private final VersionService versionService;
     private final ClarificationEngine clarificationEngine;
@@ -130,6 +133,24 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         // [P2] Snapshot on approval
         versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
 
+        // Store approved data snapshot so it can be restored if a subsequent edit is rejected.
+        // Sensitive fields (PAN, bank account number) are deliberately excluded.
+        try {
+            java.util.Map<String, Object> approvedSnapshot = new java.util.LinkedHashMap<>();
+            approvedSnapshot.put("trustName", trust.getTrustName());
+            approvedSnapshot.put("trustType", trust.getTrustType() != null ? trust.getTrustType().name() : null);
+            approvedSnapshot.put("trustRegistrationNumber", trust.getTrustRegistrationNumber());
+            approvedSnapshot.put("registeringAuthority", trust.getRegisteringAuthority());
+            approvedSnapshot.put("dateOfRegistration",
+                trust.getDateOfRegistration() != null ? trust.getDateOfRegistration().toString() : null);
+            approvedSnapshot.put("bankNameAndBranch", trust.getBankNameAndBranch());
+            approvedSnapshot.put("annualIncome", trust.getAnnualIncome());
+            trust.setApprovedData(objectMapper.writeValueAsString(approvedSnapshot));
+            trustRepository.save(trust);
+        } catch (Exception ex) {
+            log.warn("Non-fatal: failed to store approved_data snapshot for trust [{}]: {}", trustId, ex.getMessage());
+        }
+
         log.info("Trust [{}] APPROVED by userId={}", trustId, currentUserId());
     }
 
@@ -157,11 +178,53 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         Trust trust = loadTrust(trustId);
         assertDistrictScopeForTrust(trust);
 
+        // If this trust was previously approved (approvedData is non-null), this is a rejection
+        // of an edit — not a first-time submission rejection. Restore the last approved values
+        // so the displayed data reverts to the approved state rather than showing
+        // the rejected (edited) values.
+        if (trust.getApprovedData() != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> snapshot =
+                    objectMapper.readValue(trust.getApprovedData(), java.util.Map.class);
+                if (snapshot.get("trustName") != null)
+                    trust.setTrustName((String) snapshot.get("trustName"));
+                if (snapshot.get("trustType") != null)
+                    trust.setTrustType(TrustType.valueOf((String) snapshot.get("trustType")));
+                if (snapshot.get("trustRegistrationNumber") != null)
+                    trust.setTrustRegistrationNumber((String) snapshot.get("trustRegistrationNumber"));
+                if (snapshot.get("registeringAuthority") != null)
+                    trust.setRegisteringAuthority((String) snapshot.get("registeringAuthority"));
+                if (snapshot.get("dateOfRegistration") != null)
+                    trust.setDateOfRegistration(java.time.LocalDate.parse((String) snapshot.get("dateOfRegistration")));
+                if (snapshot.get("bankNameAndBranch") != null)
+                    trust.setBankNameAndBranch((String) snapshot.get("bankNameAndBranch"));
+                trust.setAnnualIncome(snapshot.get("annualIncome") != null
+                    ? new java.math.BigDecimal(snapshot.get("annualIncome").toString()) : null);
+                trustRepository.save(trust);
+                log.info("Trust [{}] approved data restored after edit-rejection by userId={}", trustId, currentUserId());
+            } catch (Exception ex) {
+                log.error("Failed to restore approved_data for trust [{}] on rejection: {}", trustId, ex.getMessage());
+                throw new RuntimeException("Failed to restore approved trust data — rejection aborted to prevent data loss", ex);
+            }
+
+            // Edit rejection: transition back to RE_APPROVED (non-terminal).
+            // The trust data has been restored; the edit is discarded.
+            // adaptRejectEdit handles RESUBMITTED and UNDER_REVIEW states.
+            workflowEngineAdaptor.adaptRejectEdit(
+                WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
+                currentUserId(), request.getReason());
+
+            log.info("Trust [{}] edit REJECTED (reverted to RE_APPROVED) by userId={}", trustId, currentUserId());
+            return;
+        }
+
+        // First-time rejection (trust was never approved): terminal, TA must create new trust.
         workflowEngineAdaptor.adaptReject(
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
 
-        log.info("Trust [{}] REJECTED by userId={}", trustId, currentUserId());
+        log.info("Trust [{}] REJECTED (terminal) by userId={}", trustId, currentUserId());
     }
 
     // =========================================================================

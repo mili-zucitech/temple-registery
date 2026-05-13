@@ -10,8 +10,15 @@ import java.util.Set;
 public class ActionContextResolver {
 
     public ActionContext resolve(ScopeHelper.Claims claims) {
-        String role = claims.districtId() != null ? "DC" : "TA";
-        
+        // Map the JWT role to the canonical workflow actor role.
+        // SUPER_ADMIN has no districtId but must resolve to "SUPER_ADMIN", not "TA".
+        String role = switch (claims.role() != null ? claims.role() : "") {
+            case "DISTRICT_COLLECTOR" -> "DC";
+            case "TEMPLE_AUTHORITY"   -> "TA";
+            case "DC_STAFF"           -> "DC_STAFF";
+            default -> claims.role() != null ? claims.role() : "UNKNOWN"; // SUPER_ADMIN, AUDITOR, VIEWER
+        };
+
         return ActionContext.builder()
             .actorId(claims.userId())
             .actorRole(role)

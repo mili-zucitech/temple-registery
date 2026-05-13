@@ -18,7 +18,8 @@ import org.springframework.stereotype.Component;
 public class JurisdictionGuard {
 
     public void assertSameDistrict(Long resourceDistrictId) {
-        ScopeHelper.Claims claims = currentClaims();
+        ScopeHelper.Claims claims = currentClaimsOrNull();
+        if (claims == null) return; // anonymous: no district restriction (public read endpoint)
         String role = claims.role();
         if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
             if (!resourceDistrictId.equals(claims.districtId())) {
@@ -31,12 +32,25 @@ public class JurisdictionGuard {
     }
 
     public Long enforceDistrictId(Long requestedDistrictId) {
-        ScopeHelper.Claims claims = currentClaims();
+        ScopeHelper.Claims claims = currentClaimsOrNull();
+        if (claims == null) return requestedDistrictId; // anonymous: no district restriction
         String role = claims.role();
         if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
             return claims.districtId(); // JWT claim always wins for DC roles
         }
         return requestedDistrictId; // SUPER_ADMIN, AUDITOR, VIEWER may provide or omit
+    }
+
+    /**
+     * Returns the current principal's Claims if the request is authenticated with a valid JWT,
+     * or null if the request is anonymous (principal is String "anonymousUser").
+     * Used for endpoints that are accessible to both authenticated and anonymous users.
+     */
+    private ScopeHelper.Claims currentClaimsOrNull() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return null;
+        Object principal = auth.getPrincipal();
+        return (principal instanceof ScopeHelper.Claims c) ? c : null;
     }
 
     private ScopeHelper.Claims currentClaims() {

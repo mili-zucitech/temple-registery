@@ -10,6 +10,8 @@ import type { EmployeeSummary } from '@/features/dc/dcTypes'
 
 interface StaffTabProps {
   employees: EmployeeSummary[]
+  onAddEmployee?: () => void
+  onEditEmployee?: (employeeId: number) => void
 }
 
 const ITEMS_PER_PAGE = 10
@@ -17,7 +19,7 @@ const ITEMS_PER_PAGE = 10
 /**
  * Staff tab — module-level verification with improved UI and pagination.
  */
-export function StaffTab({ employees }: StaffTabProps) {
+export function StaffTab({ employees, onAddEmployee, onEditEmployee }: StaffTabProps) {
   const [currentPage, setCurrentPage] = useState(0)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null)
 
@@ -47,22 +49,30 @@ export function StaffTab({ employees }: StaffTabProps) {
         title="Temple Workforce"
         icon={<Users size={18} />}
         action={
-          employees.length > 0
-            ? (
-              <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            {onAddEmployee && (
+              <Button variant="outline" size="sm" onClick={onAddEmployee} className="text-xs h-7 px-3">
+                Add Employee
+              </Button>
+            )}
+            {employees.length > 0
+              ? (
+                <>
+                  <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
+                    {employees.length} {employees.length === 1 ? 'Member' : 'Members'}
+                  </span>
+                  <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                    {totalActive} Active
+                  </span>
+                </>
+              )
+              : (
                 <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-                  {employees.length} {employees.length === 1 ? 'Member' : 'Members'}
+                  0 Members
                 </span>
-                <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
-                  {totalActive} Active
-                </span>
-              </div>
-            )
-            : (
-              <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
-                0 Members
-              </span>
-            )
+              )
+            }
+          </div>
         }
       >
         {employees.length === 0 ? (
@@ -131,14 +141,26 @@ export function StaffTab({ employees }: StaffTabProps) {
                           </span>
                         </td>
                         <td className="px-5 py-4 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedEmployee(employee)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Eye className="size-4" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedEmployee(employee)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Eye className="size-4" />
+                            </Button>
+                            {onEditEmployee && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onEditEmployee(employee.id)}
+                                className="h-8 px-2 text-xs text-primary hover:text-primary"
+                              >
+                                Edit
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

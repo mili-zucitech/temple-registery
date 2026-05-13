@@ -118,15 +118,19 @@ export interface TemplePhotoDto {
 
 export interface TempleSearchResultResponse {
   id: number
-  templeId: number
+  templeId?: number
+  registrationNumber?: string
   name: string
   grade: TempleGrade
+  primaryDeity?: string
   tradition: ReligiousTradition
   districtId?: number
   districtName?: string
   city?: string
   trustRegistered: boolean
+  assetDeclarationStatus?: string
   declarationStatus?: string
+  photoUrl?: string
   latitude?: number
   longitude?: number
 }

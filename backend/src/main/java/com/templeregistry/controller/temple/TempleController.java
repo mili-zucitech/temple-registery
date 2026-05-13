@@ -106,7 +106,7 @@ public class TempleController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
                 .body(resource);
     }
 
@@ -120,7 +120,7 @@ public class TempleController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
                 .body(resource);
     }
 
@@ -149,8 +149,8 @@ public class TempleController {
     }
 
     @PostMapping("/{templeId}/profile/submit")
-    @Operation(summary = "Submit the current DRAFT profile for DC review (TA)")
-    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
+    @Operation(summary = "Submit the current DRAFT profile for DC review (TA/SA)")
+    @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public ResponseEntity<ApiResponse<TempleProfileStagingResponse>> submitForReview(
             @PathVariable Long templeId) {
         return ResponseEntity.ok(ApiResponse.success("Profile submitted for review.",

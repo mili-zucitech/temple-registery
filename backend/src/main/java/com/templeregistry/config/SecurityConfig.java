@@ -4,6 +4,7 @@ import com.templeregistry.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -49,6 +50,11 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // Public temple search — exact path only (NOT wildcard, to prevent PII exposure via /{id})
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples").permitAll()
+                        // Public photo serve — temple photos are not sensitive
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples/*/profile-photo/serve").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples/*/photos/*/serve").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

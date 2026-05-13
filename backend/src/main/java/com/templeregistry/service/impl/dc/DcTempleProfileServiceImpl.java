@@ -93,7 +93,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        @PreAuthorize(RoleConstants.CAN_READ_ALL)
+        @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
         public TempleFullProfileResponse getFullProfile(Long templeId, ScopeHelper.Claims claims) {
                 Temple temple = templeRepository.findWithGeoById(templeId)
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
@@ -229,7 +229,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        @PreAuthorize(RoleConstants.CAN_READ_ALL)
+        @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
         public DeclarationDetailResponse getDeclarationDetail(Long declarationId, ScopeHelper.Claims claims) {
                 AssetDeclaration d = declarationRepository.findById(declarationId)
                                 .orElseThrow(() -> new EntityNotFoundException("AssetDeclaration", declarationId));
@@ -380,7 +380,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        @PreAuthorize(RoleConstants.CAN_READ_ALL)
+        @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
         public PaginatedResponse<DcProfileHistoryEntry> getProfileHistory(Long templeId, ScopeHelper.Claims claims, int page, int size) {
                 Temple temple = templeRepository.findWithGeoById(templeId)
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));

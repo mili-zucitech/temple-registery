@@ -43,7 +43,7 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize(RoleConstants.CAN_READ_ALL)
+    @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
     public PaginatedResponse<DcTempleSearchItemResponse> search(TempleSearchFilterRequest filter,
                                                                 ScopeHelper.Claims claims) {
         // Enforce district scope: DC roles always use their own districtId from JWT
@@ -65,13 +65,9 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private Long resolveDistrictId(TempleSearchFilterRequest filter, ScopeHelper.Claims claims) {
-        String role = claims.role();
-        if (RoleConstants.DISTRICT_COLLECTOR.equals(role) || RoleConstants.DC_STAFF.equals(role)) {
-            // DC/DC_STAFF are always locked to their JWT-bound districtId.
-            // Even if the UI/URL supplies a districtId parameter, it MUST NOT override jurisdiction.
-            return claims.districtId();
-        }
-        return filter.getDistrictId(); // SUPER_ADMIN / AUDITOR may filter or leave null
+        // All roles now use the filter parameter — DC approval restriction is enforced
+        // in JurisdictionGuard.assertDistrictScope(), not here.
+        return filter.getDistrictId();
     }
 
     private Specification<TempleSearchSummary> buildSpec(TempleSearchFilterRequest filter, Long districtId) {
