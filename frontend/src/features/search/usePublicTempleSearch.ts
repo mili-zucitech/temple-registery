@@ -85,11 +85,14 @@ export function usePublicTempleSearch() {
         : undefined,
   }), [searchParams])
 
-  const queryFilters = useMemo(() => ({
-    ...filters,
-    page,
-    size,
-  }), [filters, page, size])
+  const queryFilters = useMemo<import('@/features/temple-profile/hooks/templeTypes').TempleSearchFilterRequest>(() => ({
+    name: filters.keyword,
+    grade: filters.grade?.[0] as import('@/features/temple-profile/hooks/templeTypes').TempleGrade | undefined,
+    tradition: filters.tradition as import('@/features/temple-profile/hooks/templeTypes').ReligiousTradition | undefined,
+    districtId: filters.districtId,
+    talukId: filters.talukId,
+    trustRegistered: filters.trustRegistered,
+  }), [filters])
 
   const { data, isLoading, isFetching, isError } = useSearchTemplesQuery(
     { filters: queryFilters, page, size },

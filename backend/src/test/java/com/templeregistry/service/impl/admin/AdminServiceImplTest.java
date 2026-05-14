@@ -1,9 +1,10 @@
-﻿package com.templeregistry.service.impl.admin;
+package com.templeregistry.service.impl.admin;
 
 import com.templeregistry.dto.request.admin.CreateUserRequest;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.audit.AuditService;
@@ -28,6 +29,7 @@ class AdminServiceImplTest {
 
     @Mock private UserRepository userRepository;
     @Mock private TempleRepository templeRepository;
+    @Mock private DistrictRepository districtRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private TempleSearchSummaryService searchSummaryService;
     @Mock private AuditService auditService;

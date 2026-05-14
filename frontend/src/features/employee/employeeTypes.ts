@@ -80,6 +80,11 @@ export const updateEmployeeSchema = z.object({
     .max(150, 'Designation must not exceed 150 characters')
     .optional()
     .or(z.literal('')),
+
+  dateOfJoining: z.string()
+    .regex(dateRegex, 'Invalid date format')
+    .optional()
+    .or(z.literal('')),
   
   salaryGrade: z.string()
     .max(50, 'Salary grade must not exceed 50 characters')

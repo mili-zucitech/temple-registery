@@ -1275,6 +1275,7 @@ function SaEmployeeDialog({
         const body: CreateEmployeeRequest = {
           fullName: values.fullName,
           employeeType: values.employeeType,
+          isHereditary: false,
           designation: values.designation || undefined,
           mobile: values.mobile || undefined,
           dateOfJoining: values.dateOfJoining || undefined,
