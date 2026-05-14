@@ -1,0 +1,1350 @@
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
+import {
+  ChevronLeft, AlertTriangle, MapPin, FileText, Info, Shield, Users, Briefcase, Clock
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { CardSkeleton, Skeleton } from '@/components/feedback/Skeleton/Skeleton'
+import { TempleGradeBadge } from '@/components/data-display/StatusBadge/TempleGradeBadge'
+import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
+import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
+import { ROUTE_PATHS } from '@/constants/routePaths'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useAppSelector } from '@/app/store'
+import { USER_ROLES } from '@/constants/roles'
+import {
+  useDcTempleProfile,
+  useDcDeclarationDetail,
+  useWorkflowActions,
+  useDcPendingProfileStaging,
+  useProfileWorkflowActions,
+} from '@/features/dc/dcHooks'
+import {
+  useVerifyTempleMutation,
+  useFlagTempleMutation,
+  useUnflagTempleMutation,
+} from '@/features/dc/dcApi'
+import {
+  useApproveTrustMutation,
+  useRejectTrustMutation,
+  useSubmitTrustMutation,
+} from '@/features/governance/governanceApi'
+import {
+  useUpdateTrustMutation,
+} from '@/features/trust/trustApi'
+import { TRUST_TYPES, updateTrustSchema, type UpdateTrustRequest } from '@/features/trust/trustTypes'
+import {
+  useCreateOrUpdateDraftMutation,
+  useSubmitForReviewMutation,
+} from '@/features/temple-profile/hooks/templeApi'
+import {
+  useCreateEmployeeMutation,
+  useUpdateEmployeeMutation,
+} from '@/features/employee/employeeApi'
+import {
+  useCreateContractorMutation,
+  useUpdateContractorMutation,
+} from '@/features/contractor/contractorApi'
+import { createContractorSchema, ServiceType, PaymentStatus, SERVICE_TYPE_LABELS, PAYMENT_STATUS_LABELS } from '@/features/contractor/contractorTypes'
+import type { CreateContractorRequest as ContractorFormValues } from '@/features/contractor/contractorTypes'
+import type { ContractorResponse as DcContractorResponse } from '@/features/dc/dcTypes'
+import {
+  workflowApproveSchema,
+  workflowRejectSchema,
+  dcClarifySchema,
+  type WorkflowApproveRequest,
+  type WorkflowRejectRequest,
+  type DcClarifyRequest,
+} from '@/features/governance/governanceTypes'
+import type { TempleGrade } from '@/features/temple-profile/hooks/templeTypes'
+import type { CreateEmployeeRequest, UpdateEmployeeRequest } from '@/features/employee/employeeTypes'
+import { EMPLOYEE_TYPES, EMPLOYEE_STATUSES } from '@/features/employee/employeeTypes'
+
+import {
+  OverviewTab,
+  DeclarationsTab,
+  TrustTab,
+  StaffTab,
+  ContractorsTab,
+  DocumentsTab,
+  TimelineTab,
+} from './tabs'
+
+export function DcTempleProfilePage() {
+  const { templeId } = useParams<{ templeId: string }>()
+  const navigate = useNavigate()
+  const id = Number(templeId)
+
+  const role = useAppSelector((s) => s.auth.currentUser?.role)
+  const currentTempleId = useAppSelector((s) => s.auth.currentUser?.templeId)
+  const isTa = role === USER_ROLES.TEMPLE_AUTHORITY
+  const isOwnTemple = isTa && currentTempleId === id
+  const canAct =
+    role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
+
+  // SA can edit any temple — DC cannot
+  const canEdit = role === USER_ROLES.SUPER_ADMIN
+
+  // SA edit dialog states
+  const [profileEditOpen, setProfileEditOpen] = useState(false)
+  const [trustEditOpen, setTrustEditOpen] = useState(false)
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false)
+  const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null)
+  const [contractorDialogOpen, setContractorDialogOpen] = useState(false)
+  const [editingContractor, setEditingContractor] = useState<DcContractorResponse | null>(null)
+
+  // SA edit mutations
+  const [createOrUpdateDraft, { isLoading: isSavingDraft }] = useCreateOrUpdateDraftMutation()
+  const [submitForReview, { isLoading: isSubmittingReview }] = useSubmitForReviewMutation()
+  const [updateTrust, { isLoading: isUpdatingTrust }] = useUpdateTrustMutation()
+  const [submitTrust, { isLoading: isSubmittingTrust }] = useSubmitTrustMutation()
+  const [createEmployee, { isLoading: isCreatingEmployee }] = useCreateEmployeeMutation()
+  const [updateEmployee, { isLoading: isUpdatingEmployee }] = useUpdateEmployeeMutation()
+  const [createContractor, { isLoading: isCreatingContractor }] = useCreateContractorMutation()
+  const [updateContractor, { isLoading: isUpdatingContractor }] = useUpdateContractorMutation()
+
+  const { profile, isLoading, isError, refetch: refetchProfile } = useDcTempleProfile(id)
+  // TA cannot act on profile staging — skip the fetch to avoid unnecessary 404 noise
+  const { pendingStaging, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
+  const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
+
+  const [selectedDeclarationId, setSelectedDeclarationId] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState('overview')
+
+  const { declaration: selectedDeclarationDetail } = useDcDeclarationDetail(selectedDeclarationId ?? 0)
+
+  const {
+    dialog,
+    openDialog,
+    closeDialog,
+    confirmApprove,
+    confirmReject,
+    confirmClarify,
+    confirmScheduleSiteVisit,
+    confirmMarkUnderReview,
+    isSubmitting,
+  } = useWorkflowActions()
+
+  const markedUnderReviewRef = useRef<Set<number>>(new Set())
+
+  useEffect(() => {
+    if (selectedDeclarationId && selectedDeclarationDetail) {
+      if (
+        (selectedDeclarationDetail.status === 'SUBMITTED' || selectedDeclarationDetail.status === 'CLARIFICATION_RESPONDED') &&
+        !markedUnderReviewRef.current.has(selectedDeclarationId)
+      ) {
+        markedUnderReviewRef.current.add(selectedDeclarationId)
+        confirmMarkUnderReview(selectedDeclarationId)
+      }
+    }
+  }, [selectedDeclarationId, selectedDeclarationDetail?.status])
+
+  const [verifyTemple] = useVerifyTempleMutation()
+  const [flagTemple] = useFlagTempleMutation()
+  const [unflagTemple, { isLoading: isUnflagging }] = useUnflagTempleMutation()
+  const [approveTrust, { isLoading: verifyingTrust }] = useApproveTrustMutation()
+  const [rejectTrust, { isLoading: rejectingTrust }] = useRejectTrustMutation()
+
+  const overdueDecls = useMemo(() =>
+    profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
+    [profile?.declarations]
+  )
+  const pendingReviewDecls = useMemo(() =>
+    profile?.declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)) ?? [],
+    [profile?.declarations]
+  )
+  const isOverdue = overdueDecls.length > 0
+  const needsReview = pendingReviewDecls.length > 0
+
+  const locationDisplay = useMemo(() =>
+    [profile?.districtName, profile?.talukName, profile?.hobliName].filter(Boolean).join(' › '),
+    [profile?.districtName, profile?.talukName, profile?.hobliName]
+  )
+
+  const verificationPosture = useMemo(() => {
+    if (!profile) return null
+    const { temple } = profile
+    if (isOverdue || temple.verificationStatus === 'FLAGGED') {
+      return { label: 'High Risk', color: 'bg-red-500/20 text-red-400 border-red-500/30' }
+    }
+    if (needsReview || temple.verificationStatus === 'UNVERIFIED') {
+      return { label: 'Needs Attention', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' }
+    }
+    return { label: 'Verified', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' }
+  }, [profile, isOverdue, needsReview])
+
+  // Module-level status summary removed — status is shown inside each tab, not in the header
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)}
+        </div>
+        <CardSkeleton />
+      </div>
+    )
+  }
+
+  if (isError || !profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <EmptyState
+          title="Temple not found"
+          description="Unable to load temple profile. It may not exist or you may not have access."
+          action={{ label: 'Go back', onClick: () => navigate(-1) }}
+        />
+      </div>
+    )
+  }
+
+  const { temple, declarations, boardMembers, employees, contractors, trust } = profile
+  const boardMemberCount = (boardMembers?.current?.length ?? 0) + (boardMembers?.past?.length ?? 0)
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER || (isTa && !isOwnTemple)) && (
+        <ReadOnlyBanner message={
+          isTa && !isOwnTemple
+            ? 'Viewing in read-only mode. Use your TA dashboard to edit your own temple.'
+            : 'You are viewing this temple profile in read-only mode. Verification, flagging, and approval actions are not available.'
+        } />
+      )}
+      {/* Tabs must wrap TabsList — so we wrap the whole content including the header */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
+
+        {/* ── HERO CASE HEADER ─────────────────────────────────────────────── */}
+        <header 
+          className="relative overflow-hidden mb-0 rounded-t-xl"
+          style={{
+            background: 'linear-gradient(135deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+            boxShadow: '0 4px 20px hsl(36 80% 50% / 0.25)'
+          }}
+        >
+          {/* Decorative background elements - matching DC Dashboard */}
+          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15 pointer-events-none" />
+          <div className="absolute right-20 -bottom-10 h-28 w-28 rounded-full bg-white/10 pointer-events-none" />
+
+          {/* Alert Banner */}
+          {(isOverdue || needsReview) && (
+            <div className={cn(
+              'flex items-center justify-between gap-4 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm',
+              isOverdue ? 'bg-red-900/40 text-white border-b border-red-800/30' : 'bg-amber-900/30 text-white border-b border-amber-800/20',
+            )} role="alert">
+              <span className="flex items-center gap-2">
+                <AlertTriangle size={14} aria-hidden />
+                {isOverdue
+                  ? `${overdueDecls.length} declaration${overdueDecls.length > 1 ? 's' : ''} overdue — immediate action required`
+                  : `${pendingReviewDecls.length} declaration${pendingReviewDecls.length > 1 ? 's' : ''} awaiting review`}
+              </span>
+              {canAct && (
+                <button
+                  onClick={() => setActiveTab('declarations')}
+                  className="bg-white/25 border border-white/30 px-4 py-1.5 rounded-lg hover:bg-white/40 transition-all font-semibold text-xs tracking-button shadow-sm"
+                >
+                  {isOverdue ? 'ACT NOW' : 'REVIEW'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Main Header Content */}
+          <div className="relative z-10 px-6 py-5">
+            <div className="flex items-start justify-between gap-6">
+              <div className="flex items-start gap-4 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(-1)}
+                  className="mt-1 h-10 w-10 shrink-0 rounded-lg bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm transition-all"
+                >
+                  <ChevronLeft size={18} />
+                </Button>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-xl font-bold text-white leading-tight">
+                      {temple.name}
+                    </h1>
+                    {temple.grade && <TempleGradeBadge grade={temple.grade as TempleGrade} />}
+                    {verificationPosture && (
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider border backdrop-blur-sm",
+                        verificationPosture.label === 'High Risk' 
+                          ? 'bg-red-500/20 text-white border-red-400/30'
+                          : verificationPosture.label === 'Needs Attention'
+                          ? 'bg-amber-500/20 text-white border-amber-400/30'
+                          : 'bg-emerald-500/20 text-white border-emerald-400/30'
+                      )}>
+                        {verificationPosture.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-white/80 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin size={13} className="text-white/60" />
+                      {locationDisplay || 'Location not set'}
+                    </div>
+                    {temple.registrationNumber && (
+                      <div className="flex items-center gap-1.5 pl-4 border-l border-white/20">
+                        <FileText size={13} className="text-white/60" />
+                        Reg ID: <span className="text-white font-semibold">{temple.registrationNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                {temple.verificationStatus === 'FLAGGED' && canAct && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-white/30 text-white hover:bg-white/20 bg-transparent"
+                    onClick={async () => {
+                      try {
+                        await unflagTemple({ id }).unwrap()
+                        toast.success('Temple flag removed.')
+                      } catch (err) {
+                        toast.error(extractApiErrorMessage(err, 'Failed to remove flag. Please try again.'))
+                      }
+                    }}
+                    disabled={isUnflagging}
+                  >
+                    {isUnflagging ? 'Removing flag…' : '🏳 Remove Flag'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+        </header>
+        
+        {/* Tab Navigation — Moved outside for sticky functionality */}
+        <div 
+          className="sticky top-0 z-30 shadow-lg backdrop-blur-sm"
+          style={{
+            background: 'rgba(30, 27, 24, 0.95)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent px-6">
+            <TabsList className="h-12 p-0 bg-transparent gap-1 flex w-full min-w-max">
+              {(
+                [
+                  { v: 'overview',     label: 'Overview',      icon: <Info size={14} />, count: null },
+                  { v: 'declarations', label: 'Declarations',  icon: <FileText size={14} />, count: declarations?.length ?? 0 },
+                  { v: 'trust',        label: 'Trust & Board', icon: <Shield size={14} />,   count: boardMemberCount },
+                  { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
+                  { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
+                  { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
+                  { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
+                ] as const
+              ).map((tab) => (
+                <TabsTrigger
+                  key={tab.v}
+                  value={tab.v}
+                  className={cn(
+                    "relative h-12 flex items-center gap-2 px-4 text-xs font-semibold transition-all duration-200 tracking-wider whitespace-nowrap rounded-t-lg",
+                    "text-slate-400 hover:text-white hover:bg-white/5",
+                    "data-[state=active]:text-white shadow-none"
+                  )}
+                  style={activeTab === tab.v ? {
+                    background: 'linear-gradient(to bottom, rgba(251, 146, 60, 0.15), rgba(249, 115, 22, 0.08))',
+                    borderLeft: '1px solid rgba(251, 146, 60, 0.2)',
+                    borderRight: '1px solid rgba(251, 146, 60, 0.2)',
+                    borderTop: '1px solid rgba(251, 146, 60, 0.2)',
+                  } : {}}
+                >
+                  {tab.icon}
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {tab.count !== null && tab.count > 0 && (
+                    <span className={cn(
+                      "ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md transition-all",
+                      activeTab === tab.v
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : "bg-slate-800/80 text-slate-400 border border-slate-700/50"
+                    )}>
+                      {tab.count}
+                    </span>
+                  )}
+                  {activeTab === tab.v && (
+                    <div 
+                      className="absolute bottom-0 inset-x-0 h-0.5"
+                      style={{
+                        background: 'linear-gradient(90deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+                        boxShadow: '0 0 12px rgba(251, 146, 60, 0.6)'
+                      }}
+                    />
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </div>
+
+        {/* ── TAB CONTENTS ─────────────────────────────────────────────────── */}
+        <div className="relative z-[1] mt-6">
+          <TabsContent value="overview" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <OverviewTab
+              profile={profile}
+              canAct={canAct}
+              pendingStaging={pendingStaging}
+              onApproveProfile={async (notes) => {
+                if (!pendingStaging) return
+                const success = await submitApproveProfile(pendingStaging.id, id, { remarks: notes })
+                if (success) {
+                  await refetchPendingStaging()
+                  refetchProfile()
+                }
+              }}
+              onRejectProfile={async (reason) => {
+                if (!pendingStaging) return
+                const success = await submitRejectProfile(pendingStaging.id, id, { reason })
+                if (success) {
+                  await refetchPendingStaging()
+                  refetchProfile()
+                }
+              }}
+              onVerifyTemple={async (notes) => {
+                await verifyTemple({ id, body: { notes } }).unwrap()
+              }}
+              onFlagTemple={async (reason) => {
+                await flagTemple({ id, body: { reason } }).unwrap()
+              }}
+              onEditProfile={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
+                : canEdit ? () => setProfileEditOpen(true)
+                : undefined
+              }
+            />
+          </TabsContent>
+
+          <TabsContent value="declarations" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <DeclarationsTab
+              declarations={declarations}
+              canAct={canAct}
+              selectedDeclarationId={selectedDeclarationId}
+              selectedDeclarationDetail={selectedDeclarationDetail}
+              onSelectDeclaration={setSelectedDeclarationId}
+              onApprove={(declarationId) => openDialog('approve', declarationId, id)}
+              onReject={(declarationId) => openDialog('reject', declarationId, id)}
+              onClarify={(declarationId) => openDialog('clarify', declarationId, id)}
+              onFlagPhysical={(declarationId) => openDialog('schedule-site-visit', declarationId, id)}
+            />
+          </TabsContent>
+
+          <TabsContent value="trust" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TrustTab
+              trust={trust}
+              boardMembers={boardMembers}
+              trustFinancials={profile.trustFinancials}
+              boardMeetings={profile.boardMeetings ?? []}
+              canAct={canAct}
+              onEditTrust={
+                isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
+                : canEdit && trust ? () => setTrustEditOpen(true)
+                : undefined
+              }
+              onVerifyTrust={async (trustId, _notes) => {
+                try {
+                  await approveTrust(trustId).unwrap()
+                  toast.success('Trust approved.')
+                  refetchProfile()
+                } catch (err) {
+                  toast.error(extractApiErrorMessage(err, 'Failed to approve trust. Please try again.'))
+                }
+              }}
+              onRejectTrust={async (trustId, reason) => {
+                try {
+                  await rejectTrust({ trustId, body: { reason } }).unwrap()
+                  toast.success('Trust rejected.')
+                  refetchProfile()
+                } catch (err) {
+                  toast.error(extractApiErrorMessage(err, 'Failed to reject trust. Please try again.'))
+                }
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="staff" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <StaffTab
+              employees={employees}
+              onAddEmployee={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
+                : canEdit ? () => { setEditingEmployeeId(null); setEmployeeDialogOpen(true) }
+                : undefined
+              }
+              onEditEmployee={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
+                : canEdit ? (empId) => { setEditingEmployeeId(empId); setEmployeeDialogOpen(true) }
+                : undefined
+              }
+            />
+          </TabsContent>
+
+          <TabsContent value="contractors" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <ContractorsTab
+              contractors={contractors}
+              onAddContractor={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
+                : canEdit ? () => { setEditingContractor(null); setContractorDialogOpen(true) }
+                : undefined
+              }
+              onEditContractor={
+                isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
+                : canEdit ? (c) => { setEditingContractor(c); setContractorDialogOpen(true) }
+                : undefined
+              }
+            />
+          </TabsContent>
+
+          <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <DocumentsTab templeId={id} />
+          </TabsContent>
+
+          <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TimelineTab templeId={id} />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      {/* ── WORKFLOW DIALOGS ─────────────────────────────────────────────── */}
+      <WorkflowDialog
+        open={dialog.open && dialog.kind === 'approve'}
+        kind="approve"
+        onClose={closeDialog}
+        onSubmit={confirmApprove}
+        isSubmitting={isSubmitting}
+      />
+      <WorkflowDialog
+        open={dialog.open && dialog.kind === 'reject'}
+        kind="reject"
+        onClose={closeDialog}
+        onSubmit={confirmReject}
+        isSubmitting={isSubmitting}
+      />
+      <WorkflowDialog
+        open={dialog.open && dialog.kind === 'clarify'}
+        kind="clarify"
+        onClose={closeDialog}
+        onSubmit={confirmClarify}
+        isSubmitting={isSubmitting}
+      />
+      <WorkflowDialog
+        open={dialog.open && dialog.kind === 'schedule-site-visit'}
+        kind="schedule-site-visit"
+        onClose={closeDialog}
+        onSubmit={confirmScheduleSiteVisit}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* ── SA PROFILE EDIT DIALOG ─────────────────────────────────────── */}
+      {canEdit && (
+        <SaProfileEditDialog
+          open={profileEditOpen}
+          templeId={id}
+          currentProfile={profile.currentProfile}
+          pendingStaging={pendingStaging}
+          temple={profile.temple}
+          onClose={() => setProfileEditOpen(false)}
+          onSaved={async () => {
+            setProfileEditOpen(false)
+            await refetchPendingStaging()
+            refetchProfile()
+          }}
+          createOrUpdateDraft={createOrUpdateDraft}
+          submitForReview={submitForReview}
+          isSaving={isSavingDraft || isSubmittingReview}
+        />
+      )}
+
+      {/* ── SA TRUST EDIT DIALOG ────────────────────────────────────────── */}
+      {canEdit && trust && (
+        <SaTrustEditDialog
+          open={trustEditOpen}
+          trust={trust}
+          onClose={() => setTrustEditOpen(false)}
+          onSaved={async () => {
+            setTrustEditOpen(false)
+            refetchProfile()
+          }}
+          updateTrust={updateTrust}
+          submitTrust={submitTrust}
+          isSaving={isUpdatingTrust || isSubmittingTrust}
+        />
+      )}
+
+      {/* ── SA CONTRACTOR DIALOG ───────────────────────────────────────── */}
+      {canEdit && (
+        <SaContractorDialog
+          open={contractorDialogOpen}
+          templeId={id}
+          contractor={editingContractor}
+          onClose={() => { setContractorDialogOpen(false); setEditingContractor(null) }}
+          onSaved={() => { setContractorDialogOpen(false); setEditingContractor(null); refetchProfile() }}
+          createContractor={createContractor}
+          updateContractor={updateContractor}
+          isSaving={isCreatingContractor || isUpdatingContractor}
+        />
+      )}
+
+      {/* ── SA EMPLOYEE DIALOG ─────────────────────────────────────────── */}
+      {canEdit && (
+        <SaEmployeeDialog
+          open={employeeDialogOpen}
+          templeId={id}
+          employeeId={editingEmployeeId}
+          onClose={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null) }}
+          onSaved={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null); refetchProfile() }}
+          createEmployee={createEmployee}
+          updateEmployee={updateEmployee}
+          isSaving={isCreatingEmployee || isUpdatingEmployee}
+        />
+      )}
+    </div>
+  )
+}
+
+type DialogKind = 'approve' | 'reject' | 'clarify' | 'schedule-site-visit'
+type DialogFormPayload = WorkflowApproveRequest | WorkflowRejectRequest | DcClarifyRequest
+
+interface WorkflowDialogProps {
+  open: boolean
+  kind: DialogKind
+  onClose: () => void
+  onSubmit: (payload: any) => Promise<void>
+  isSubmitting: boolean
+}
+
+type DialogField = 'remarks' | 'message' | 'notes'
+type DialogValues = { remarks: string; message: string; notes: string }
+
+const DIALOG_META: Record<DialogKind, { title: string; description: string; field: DialogField; label: string; placeholder: string; schema: any }> = {
+  approve: {
+    title: 'Approve Declaration',
+    description: 'This will transition the declaration to APPROVED and generate an acknowledgement number.',
+    field: 'remarks',
+    label: 'Notes (optional)',
+    placeholder: 'Internal notes for this approval…',
+    schema: workflowApproveSchema,
+  },
+  reject: {
+    title: 'Reject Declaration',
+    description: 'Rejection is irreversible. The declaration status will be permanently set to REJECTED.',
+    field: 'remarks',
+    label: 'Rejection remarks',
+    placeholder: 'Provide the reason for rejection (min 10 characters)…',
+    schema: workflowRejectSchema,
+  },
+  clarify: {
+    title: 'Request Clarification',
+    description: 'The temple authority will be notified to respond to the clarification.',
+    field: 'message',
+    label: 'Clarification message',
+    placeholder: 'Describe what needs clarification (min 10 characters)…',
+    schema: dcClarifySchema,
+  },
+  'schedule-site-visit': {
+    title: 'Schedule Site Visit',
+    description: 'Schedule a physical site visit for this declaration.',
+    field: 'notes',
+    label: 'Site visit notes',
+    placeholder: 'Describe the reason for the site visit…',
+    schema: workflowApproveSchema,
+  },
+}
+
+function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: WorkflowDialogProps) {
+  const meta = DIALOG_META[kind]
+  const form = useForm<Partial<DialogValues>>({
+    resolver: zodResolver(meta.schema),
+    defaultValues: { [meta.field]: '' } as Partial<DialogValues>,
+  })
+
+  const handleSubmit = form.handleSubmit(async (values) => {
+    await onSubmit(values as DialogFormPayload)
+    form.reset()
+  })
+
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent className="rounded-2xl border-border/50 shadow-soft-lg animate-in zoom-in-95 duration-300">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-lg font-display font-bold">{meta.title}</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm text-muted-foreground">{meta.description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {kind === 'reject' && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive" role="alert">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden />
+            <p className="font-medium">This action is irreversible. Rejecting will require the temple authority to submit a new declaration.</p>
+          </div>
+        )}
+        <Form {...form}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <FormField
+              control={form.control}
+              name={meta.field}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{meta.label}</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} placeholder={meta.placeholder} className="rounded-xl border-border/50 bg-card/50" rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={onClose} type="button" className="rounded-xl">Cancel</AlertDialogCancel>
+              {/* Do NOT use AlertDialogAction here — it intercepts the click and
+                  closes the dialog before the form onSubmit fires. Plain Button only. */}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-xl font-bold px-6 bg-gradient-gold hover:scale-105 transition-transform"
+              >
+                {isSubmitting ? 'Submitting…' : 'Confirm Action'}
+              </Button>
+            </AlertDialogFooter>
+          </form>
+        </Form>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ── SA Profile Edit Dialog ────────────────────────────────────────────────────
+
+const saProfileEditSchema = z.object({
+  phone: z.string().regex(/^[0-9]{10}$/, 'Must be 10 digits').optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  website: z.string().max(500).optional().or(z.literal('')),
+  contactPersonName: z.string().max(255).optional().or(z.literal('')),
+  contactPersonDesignation: z.string().max(150).optional().or(z.literal('')),
+  landmark: z.string().max(500).optional().or(z.literal('')),
+  historicalSignificance: z.string().max(2000).optional().or(z.literal('')),
+  bankName: z.string().max(255).optional().or(z.literal('')),
+  bankIfsc: z.string().max(20).optional().or(z.literal('')),
+  languagesOfWorship: z.string().max(500).optional().or(z.literal('')),
+  description: z.string().max(5000).optional().or(z.literal('')),
+})
+type SaProfileEditValues = z.infer<typeof saProfileEditSchema>
+
+interface SaProfileEditDialogProps {
+  open: boolean
+  templeId: number
+  currentProfile: any
+  pendingStaging: any
+  temple?: any
+  onClose: () => void
+  onSaved: () => Promise<void>
+  createOrUpdateDraft: (args: any) => Promise<any>
+  submitForReview: (templeId: number) => Promise<any>
+  isSaving: boolean
+}
+
+function SaProfileEditDialog({
+  open, templeId, currentProfile, pendingStaging, temple, onClose, onSaved,
+  createOrUpdateDraft, submitForReview, isSaving,
+}: SaProfileEditDialogProps) {
+  const profile = pendingStaging ?? currentProfile
+
+  // Helper to resolve a field with priority: pendingStaging > currentProfile > temple fallback
+  const resolveField = (stagingKey: string, currentKey: string, templeKey: string): string => {
+    return (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
+  }
+
+  const form = useForm<SaProfileEditValues>({
+    resolver: zodResolver(saProfileEditSchema),
+    defaultValues: {
+      phone: resolveField('phone', 'phone', 'contactMobile'),
+      email: resolveField('email', 'email', 'contactEmail'),
+      website: resolveField('website', 'website', 'website'),
+      contactPersonName: resolveField('contactPersonName', 'contactPersonName', 'contactName'),
+      contactPersonDesignation: resolveField('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
+      landmark: resolveField('landmark', 'landmark', 'landmark'),
+      historicalSignificance: resolveField('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
+      bankName: resolveField('bankName', 'bankName', 'bankName'),
+      bankIfsc: resolveField('bankIfsc', 'bankIfsc', 'bankIfsc'),
+      languagesOfWorship: Array.isArray(profile?.languagesOfWorship)
+        ? profile.languagesOfWorship.join(', ')
+        : ((pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship) ?? ''),
+      description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      const resolveF = (stagingKey: string, currentKey: string, templeKey: string): string =>
+        (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
+
+      const langValue = pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship
+      form.reset({
+        phone: resolveF('phone', 'phone', 'contactMobile'),
+        email: resolveF('email', 'email', 'contactEmail'),
+        website: resolveF('website', 'website', 'website'),
+        contactPersonName: resolveF('contactPersonName', 'contactPersonName', 'contactName'),
+        contactPersonDesignation: resolveF('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
+        landmark: resolveF('landmark', 'landmark', 'landmark'),
+        historicalSignificance: resolveF('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
+        bankName: resolveF('bankName', 'bankName', 'bankName'),
+        bankIfsc: resolveF('bankIfsc', 'bankIfsc', 'bankIfsc'),
+        languagesOfWorship: Array.isArray(langValue)
+          ? langValue.join(', ')
+          : (langValue ?? ''),
+        description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
+      })
+    }
+  }, [open, pendingStaging, currentProfile, temple]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      await createOrUpdateDraft({
+        templeId,
+        body: {
+          phone: values.phone || undefined,
+          email: values.email || undefined,
+          website: values.website || undefined,
+          contactPersonName: values.contactPersonName || undefined,
+          contactPersonDesignation: values.contactPersonDesignation || undefined,
+          landmark: values.landmark || undefined,
+          historicalSignificance: values.historicalSignificance || undefined,
+          bankName: values.bankName || undefined,
+          bankIfsc: values.bankIfsc || undefined,
+          languagesOfWorship: values.languagesOfWorship || undefined,
+          description: values.description || undefined,
+        },
+      })
+      await submitForReview(templeId)
+      toast.success('Profile submitted for review.')
+      await onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save profile. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Temple Profile (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="contactPersonName" render={({ field }) => (
+                <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contactPersonDesignation" render={({ field }) => (
+                <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem><FormLabel>Contact Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Contact Email</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="website" render={({ field }) => (
+                <FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="languagesOfWorship" render={({ field }) => (
+                <FormItem><FormLabel>Languages of Worship (comma-separated)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankName" render={({ field }) => (
+                <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankIfsc" render={({ field }) => (
+                <FormItem><FormLabel>Bank IFSC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="landmark" render={({ field }) => (
+              <FormItem><FormLabel>Landmark</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="historicalSignificance" render={({ field }) => (
+              <FormItem><FormLabel>Historical Significance</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="description" render={({ field }) => (
+              <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── SA Employee Dialog ────────────────────────────────────────────────────────
+
+// ── SA Contractor Dialog ──────────────────────────────────────────────────────
+
+interface SaContractorDialogProps {
+  open: boolean
+  templeId: number
+  contractor: DcContractorResponse | null
+  onClose: () => void
+  onSaved: () => void
+  createContractor: (args: { templeId: number; body: ContractorFormValues }) => Promise<any>
+  updateContractor: (args: { id: number; body: Partial<ContractorFormValues> }) => Promise<any>
+  isSaving: boolean
+}
+
+function SaContractorDialog({
+  open, templeId, contractor, onClose, onSaved, createContractor, updateContractor, isSaving,
+}: SaContractorDialogProps) {
+  const isEdit = contractor !== null
+  const form = useForm<ContractorFormValues>({
+    resolver: zodResolver(createContractorSchema),
+    defaultValues: {
+      companyName: '',
+      gstNumber: '',
+      serviceType: ServiceType.CIVIL_WORKS,
+      contractReference: '',
+      workOrderDate: '',
+      contractStartDate: '',
+      contractEndDate: '',
+      contractValue: 0,
+      paymentStatus: PaymentStatus.PENDING,
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      if (contractor) {
+        form.reset({
+          companyName: contractor.companyName ?? '',
+          gstNumber: contractor.gstNumber ?? '',
+          serviceType: (contractor.serviceType as ServiceType) ?? ServiceType.CIVIL_WORKS,
+          contractReference: contractor.contractReference ?? '',
+          workOrderDate: contractor.workOrderDate ?? '',
+          contractStartDate: contractor.contractStartDate ?? '',
+          contractEndDate: contractor.contractEndDate ?? '',
+          contractValue: contractor.contractValue ?? 0,
+          paymentStatus: (contractor.paymentStatus as PaymentStatus) ?? PaymentStatus.PENDING,
+        })
+      } else {
+        form.reset({
+          companyName: '',
+          gstNumber: '',
+          serviceType: ServiceType.CIVIL_WORKS,
+          contractReference: '',
+          workOrderDate: '',
+          contractStartDate: '',
+          contractEndDate: '',
+          contractValue: 0,
+          paymentStatus: PaymentStatus.PENDING,
+        })
+      }
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      const body = { ...values }
+      if (!body.gstNumber) delete body.gstNumber
+      if (!body.workOrderDate) delete body.workOrderDate
+      if (!body.contractEndDate) delete body.contractEndDate
+      if (isEdit && contractor) {
+        await updateContractor({ id: contractor.id, body })
+      } else {
+        await createContractor({ templeId, body: body as ContractorFormValues })
+      }
+      toast.success(isEdit ? 'Contractor updated successfully.' : 'Contractor added successfully.')
+      onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save contractor. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Edit Contractor' : 'Add Contractor'}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="companyName" render={({ field }) => (
+                <FormItem className="sm:col-span-2"><FormLabel>Company Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="serviceType" render={({ field }) => (
+                <FormItem><FormLabel>Service Type *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.values(ServiceType).map((t) => (
+                        <SelectItem key={t} value={t}>{SERVICE_TYPE_LABELS[t]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="gstNumber" render={({ field }) => (
+                <FormItem><FormLabel>GST Number</FormLabel><FormControl><Input className="uppercase" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractReference" render={({ field }) => (
+                <FormItem><FormLabel>Contract Reference *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractValue" render={({ field }) => (
+                <FormItem><FormLabel>Contract Value (₹) *</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} step="0.01"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                  </FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="paymentStatus" render={({ field }) => (
+                <FormItem><FormLabel>Payment Status *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {Object.values(PaymentStatus).map((s) => (
+                        <SelectItem key={s} value={s}>{PAYMENT_STATUS_LABELS[s]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractStartDate" render={({ field }) => (
+                <FormItem><FormLabel>Contract Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="contractEndDate" render={({ field }) => (
+                <FormItem><FormLabel>Contract End Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="workOrderDate" render={({ field }) => (
+                <FormItem><FormLabel>Work Order Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : isEdit ? 'Update Contractor' : 'Add Contractor'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── SA Trust Edit Dialog ──────────────────────────────────────────────────────
+
+interface SaTrustEditDialogProps {
+  open: boolean
+  trust: import('@/features/dc/dcTypes').DcTrustSummary
+  onClose: () => void
+  onSaved: () => Promise<void>
+  updateTrust: (args: any) => Promise<any>
+  submitTrust: (trustId: number) => Promise<any>
+  isSaving: boolean
+}
+
+function SaTrustEditDialog({
+  open, trust, onClose, onSaved, updateTrust, submitTrust, isSaving,
+}: SaTrustEditDialogProps) {
+  const form = useForm<UpdateTrustRequest>({
+    resolver: zodResolver(updateTrustSchema),
+    defaultValues: {
+      trustName: trust.trustName ?? '',
+      trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
+      registrationNumber: trust.registrationNumber ?? '',
+      registeringAuthority: trust.registeringAuthority ?? '',
+      dateOfRegistration: trust.dateOfRegistration ?? '',
+      panNumber: '',
+      bankAccountNumber: '',
+      bankName: trust.bankName ?? '',
+      bankBranch: trust.bankBranch ?? '',
+      annualIncome: trust.annualIncome ?? null,
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        trustName: trust.trustName ?? '',
+        trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
+        registrationNumber: trust.registrationNumber ?? '',
+        registeringAuthority: trust.registeringAuthority ?? '',
+        dateOfRegistration: trust.dateOfRegistration ?? '',
+        panNumber: '',
+        bankAccountNumber: '',
+        bankName: trust.bankName ?? '',
+        bankBranch: trust.bankBranch ?? '',
+        annualIncome: trust.annualIncome ?? null,
+      })
+    }
+  }, [open, trust])
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      const body: Partial<UpdateTrustRequest> = { ...values }
+      if (!body.panNumber) delete body.panNumber
+      if (!body.bankAccountNumber) delete body.bankAccountNumber
+      await updateTrust({ trustId: trust.id, body })
+      await submitTrust(trust.id)
+      toast.success('Trust updated and submitted for review.')
+      await onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to update trust. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Trust Registration (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="trustName" render={({ field }) => (
+                <FormItem><FormLabel>Trust Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="trustType" render={({ field }) => (
+                <FormItem><FormLabel>Trust Type *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {TRUST_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="registrationNumber" render={({ field }) => (
+                <FormItem><FormLabel>Registration Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="registeringAuthority" render={({ field }) => (
+                <FormItem><FormLabel>Registering Authority *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="dateOfRegistration" render={({ field }) => (
+                <FormItem><FormLabel>Date of Registration *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="panNumber" render={({ field }) => (
+                <FormItem><FormLabel>PAN Number</FormLabel>
+                  <FormControl><Input {...field} className="uppercase" placeholder={trust.panNumberMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
+                <FormItem><FormLabel>Bank Account Number</FormLabel>
+                  <FormControl><Input inputMode="numeric" {...field} placeholder={trust.bankAccountMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankName" render={({ field }) => (
+                <FormItem><FormLabel>Bank Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="bankBranch" render={({ field }) => (
+                <FormItem><FormLabel>Bank Branch *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="annualIncome" render={({ field }) => (
+                <FormItem><FormLabel>Annual Income</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} step="0.01"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                  </FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const saEmployeeSchema = z.object({
+  fullName: z.string().min(2, 'Required').max(200),
+  employeeType: z.enum(EMPLOYEE_TYPES),
+  designation: z.string().max(150).optional().or(z.literal('')),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Must be 10 digits').optional().or(z.literal('')),
+  dateOfJoining: z.string().optional().or(z.literal('')),
+  status: z.enum(EMPLOYEE_STATUSES),
+})
+type SaEmployeeValues = z.infer<typeof saEmployeeSchema>
+
+interface SaEmployeeDialogProps {
+  open: boolean
+  templeId: number
+  employeeId: number | null
+  onClose: () => void
+  onSaved: () => void
+  createEmployee: (args: any) => Promise<any>
+  updateEmployee: (args: any) => Promise<any>
+  isSaving: boolean
+}
+
+function SaEmployeeDialog({
+  open, templeId, employeeId, onClose, onSaved,
+  createEmployee, updateEmployee, isSaving,
+}: SaEmployeeDialogProps) {
+  const isEditing = employeeId !== null
+
+  const form = useForm<SaEmployeeValues>({
+    resolver: zodResolver(saEmployeeSchema),
+    defaultValues: {
+      fullName: '',
+      employeeType: 'ADMINISTRATIVE',
+      designation: '',
+      mobile: '',
+      dateOfJoining: '',
+      status: 'ACTIVE',
+    },
+  })
+
+  useEffect(() => {
+    if (open && !isEditing) {
+      form.reset({ fullName: '', employeeType: 'ADMINISTRATIVE', designation: '', mobile: '', dateOfJoining: '', status: 'ACTIVE' })
+    }
+  }, [open, isEditing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      if (isEditing) {
+        const body: UpdateEmployeeRequest = {
+          fullName: values.fullName,
+          employeeType: values.employeeType,
+          designation: values.designation || undefined,
+          mobile: values.mobile || undefined,
+          dateOfJoining: values.dateOfJoining || undefined,
+          status: values.status,
+        }
+        await updateEmployee({ id: employeeId!, body })
+        toast.success('Employee updated.')
+      } else {
+        const body: CreateEmployeeRequest = {
+          fullName: values.fullName,
+          employeeType: values.employeeType,
+          isHereditary: false,
+          designation: values.designation || undefined,
+          mobile: values.mobile || undefined,
+          dateOfJoining: values.dateOfJoining || undefined,
+        }
+        await createEmployee({ templeId, body })
+        toast.success('Employee added.')
+      }
+      onSaved()
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to save employee. Please try again.'))
+    }
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? 'Edit Employee' : 'Add Employee'} (SA)</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <FormField control={form.control} name="fullName" render={({ field }) => (
+              <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="employeeType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <FormControl>
+                    <select {...field} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      {EMPLOYEE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              {isEditing && (
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <FormControl>
+                      <select {...field} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                        {EMPLOYEE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+            </div>
+            <FormField control={form.control} name="designation" render={({ field }) => (
+              <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="mobile" render={({ field }) => (
+                <FormItem><FormLabel>Mobile</FormLabel><FormControl><Input {...field} inputMode="numeric" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="dateOfJoining" render={({ field }) => (
+                <FormItem><FormLabel>Date of Joining</FormLabel><FormControl><Input {...field} type="date" /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : isEditing ? 'Update' : 'Add Employee'}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+

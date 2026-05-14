@@ -10,7 +10,7 @@ export const loginSchema = z.object({
 
 export const mfaVerifySchema = z.object({
   tempToken: z.string().min(1),
-  code: z.string().length(6, 'OTP must be 6 digits'),
+  mfaCode: z.string().length(6, 'OTP must be 6 digits').optional().nullable(),
 })
 
 export const aadhaarOtpRequestSchema = z.object({
@@ -69,13 +69,15 @@ export type PasswordResetConfirmRequest = z.infer<typeof passwordResetConfirmSch
 
 export interface AuthTokenResponse {
   accessToken: string
-  tokenType: string
   expiresIn: number
+  role: string
+  userId: number
 }
 
 export interface MfaChallengeResponse {
+  mfaRequired: boolean
   tempToken: string
-  mfaType: 'TOTP' | 'SMS'
+  challengeType: 'TOTP' | 'SMS_OTP'
   maskedMobile?: string
 }
 
@@ -88,8 +90,18 @@ export interface CurrentUser {
   userId: number
   username: string
   fullName: string
+  mobile?: string
   role: UserRole
   districtId?: number
   templeId?: number
   aadhaarVerified: boolean
+  completionChecklist?: TempleCompletionChecklist
+}
+
+export interface TempleCompletionChecklist {
+  templeProfileStatus: string | null
+  trustExists: boolean
+  employeeCount: number
+  contractorCount: number
+  latestDeclarationStatus: string | null
 }

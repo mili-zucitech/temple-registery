@@ -73,6 +73,19 @@ public class GeoServiceImpl implements GeoService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DistrictResponse> listDistrictsByState(Long stateId) {
+        return districtRepository.findAllByCityStateId(stateId).stream().map(geoMapper::toDistrictResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DistrictResponse> listAllDistricts() {
+        return districtRepository.findAll(org.springframework.data.domain.Sort.by("name")).stream()
+                .map(geoMapper::toDistrictResponse).toList();
+    }
+
+    @Override
     @PreAuthorize(RoleConstants.ADMIN_ONLY)
     @Transactional
     public DistrictResponse createDistrict(CreateDistrictRequest request) {

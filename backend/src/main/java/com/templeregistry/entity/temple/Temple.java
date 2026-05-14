@@ -1,8 +1,10 @@
 package com.templeregistry.entity.temple;
 
 import com.templeregistry.entity.base.BaseEntity;
+import com.templeregistry.entity.geo.Hobli;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -15,7 +17,7 @@ import org.hibernate.annotations.SQLRestriction;
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE temples SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @SuperBuilder @NoArgsConstructor @AllArgsConstructor
 public class Temple extends BaseEntity {
 
     @Version
@@ -64,8 +66,19 @@ public class Temple extends BaseEntity {
     @Column(name = "hobli_id")
     private Long hobliId;
 
+    /**
+     * Lazy-loaded JPA relationship for assertDistrictScope traversal.
+     * insertable/updatable=false because hobliId (above) owns the FK column.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hobli_id", insertable = false, updatable = false)
+    private Hobli hobli;
+
     @Column(name = "taluk_id")
     private Long talukId;
+
+    @Column(name = "city_id")
+    private Long cityId;
 
     @Column(name = "district_id", nullable = false)
     private Long districtId;
@@ -93,12 +106,47 @@ public class Temple extends BaseEntity {
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 
+    @Column(name = "website", length = 500)
+    private String website;
+
     @Column(name = "languages_of_worship", length = 255)
     private String languagesOfWorship;
 
+    @Column(name = "linked_institutions", columnDefinition = "JSON")
+    private String linkedInstitutions;
+
+    @Column(name = "annual_festivals", columnDefinition = "TEXT")
+    private String annualFestivals;
+
+    @Column(name = "landmark", length = 500)
+    private String landmark;
+
+    @Column(name = "historical_significance", columnDefinition = "TEXT")
+    private String historicalSignificance;
+
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_ifsc", length = 11)
+    private String bankIfsc;
+
+    @Builder.Default
     @Column(name = "trust_registered", nullable = false)
     private boolean trustRegistered = false;
 
     @Column(name = "asset_declaration_status", length = 30)
     private String assetDeclarationStatus;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TempleStatus status = TempleStatus.ACTIVE;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, length = 20)
+    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
+
+    @Column(name = "dc_rejection_reason", columnDefinition = "TEXT")
+    private String dcRejectionReason;
 }

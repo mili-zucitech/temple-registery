@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAppSelector } from '@/app/store'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
@@ -12,11 +13,16 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 export function PrivateRoute() {
   const dispatch = useAppDispatch()
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated)
-  const { data, isLoading } = useGetCurrentUserQuery()
+  // refetchOnMountOrArgChange ensures we always validate the cookie with the server
+  const { data, isLoading } = useGetCurrentUserQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  })
 
-  if (data?.data) {
-    dispatch(setCurrentUser(data.data))
-  }
+  useEffect(() => {
+    if (data?.data) {
+      dispatch(setCurrentUser(data.data))
+    }
+  }, [data, dispatch])
 
   if (isLoading) {
     return (

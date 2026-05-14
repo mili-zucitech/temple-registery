@@ -48,9 +48,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractBearerToken(HttpServletRequest request) {
+        // Prefer Authorization header
         String header = request.getHeader("Authorization");
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             return header.substring(7);
+        }
+        // Fall back to query parameter (needed for SSE EventSource connections that cannot set headers)
+        String queryToken = request.getParameter("token");
+        if (StringUtils.hasText(queryToken)) {
+            return queryToken;
+        }
+        // Fall back to httpOnly cookie
+        if (request.getCookies() != null) {
+            for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+                if ("access_token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
         }
         return null;
     }

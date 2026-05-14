@@ -6,14 +6,32 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface InAppNotificationRepository extends JpaRepository<InAppNotification, Long> {
 
-    Page<InAppNotification> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    /** Paginated inbox — excludes soft-deleted rows. */
+    Page<InAppNotification> findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
-    long countByUserIdAndIsRead(Long userId, boolean isRead);
+    /** Unread count — excludes soft-deleted rows. */
+    long countByUserIdAndIsReadAndDeletedAtIsNull(Long userId, boolean isRead);
 
     @Modifying
-    @Query("UPDATE InAppNotification n SET n.isRead = true, n.readAt = CURRENT_TIMESTAMP WHERE n.userId = :userId AND n.isRead = false")
-    int markAllRead(Long userId);
+    @Query("UPDATE InAppNotification n SET n.isRead = true, n.readAt = CURRENT_TIMESTAMP " +
+           "WHERE n.userId = :userId AND n.isRead = false AND n.deletedAt IS NULL")
+    int markAllRead(@Param("userId") Long userId);
+
+    /** Soft-delete a single notification owned by the given user. */
+    @Modifying
+    @Query("UPDATE InAppNotification n SET n.deletedAt = CURRENT_TIMESTAMP " +
+           "WHERE n.id = :id AND n.userId = :userId AND n.deletedAt IS NULL")
+    int softDeleteById(@Param("id") Long id, @Param("userId") Long userId);
+
+    /** Soft-delete all non-deleted notifications for the given user. */
+    @Modifying
+    @Query("UPDATE InAppNotification n SET n.deletedAt = CURRENT_TIMESTAMP " +
+           "WHERE n.userId = :userId AND n.deletedAt IS NULL")
+    int softDeleteAllByUserId(@Param("userId") Long userId);
+
+    boolean existsByIdempotencyKey(String idempotencyKey);
 }

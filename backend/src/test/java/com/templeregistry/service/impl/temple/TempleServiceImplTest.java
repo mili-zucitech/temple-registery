@@ -1,6 +1,8 @@
 package com.templeregistry.service.impl.temple;
 
 import com.templeregistry.dto.request.temple.CreateTempleRequest;
+import com.templeregistry.entity.temple.TempleStatus;
+import com.templeregistry.service.audit.AuditService;
 import com.templeregistry.dto.request.temple.TempleSearchFilterRequest;
 import com.templeregistry.dto.response.temple.TempleResponse;
 import com.templeregistry.entity.temple.Temple;
@@ -34,6 +36,8 @@ class TempleServiceImplTest {
     @Mock TempleMapper templeMapper;
     @Mock JurisdictionGuard jurisdictionGuard;
     @Mock PaginationUtil paginationUtil;
+    @Mock com.templeregistry.service.notification.NotificationHelper notificationHelper;
+    @Mock AuditService auditService;
 
     @InjectMocks TempleServiceImpl templeService;
 
@@ -50,7 +54,7 @@ class TempleServiceImplTest {
         TempleResponse result = templeService.create(rq);
 
         assertThat(result.getName()).isEqualTo("Shiva Temple");
-        verify(searchSummaryService).refresh(any());
+        verify(searchSummaryService).scheduleRefresh(any());
     }
 
     @Test
@@ -73,5 +77,47 @@ class TempleServiceImplTest {
         templeService.search(filter);
 
         verify(jurisdictionGuard).enforceDistrictId(10L);
+    }
+
+    // ─── Lifecycle tests ─────────────────────────────────────────────────────
+
+    @Test
+    void should_suspendTemple_when_templeIsActive() {
+        Temple temple = Temple.builder().name("Test Temple").districtId(1L).grade(TempleGrade.A).build();
+        temple.setId(1L);
+        temple.setStatus(TempleStatus.ACTIVE);
+
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
+        when(templeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        templeService.suspendTemple(1L, "Violation found", 5L);
+
+        assertThat(temple.getStatus()).isEqualTo(TempleStatus.SUSPENDED);
+        verify(auditService).logDataEvent(eq(5L), anyString(), eq("SUSPEND_TEMPLE"), eq("TEMPLE"), eq(1L), anyString());
+    }
+
+    @Test
+    void should_throwException_when_suspendingAlreadySuspendedTemple() {
+        Temple temple = Temple.builder().name("Test Temple").districtId(1L).grade(TempleGrade.A).build();
+        temple.setId(1L);
+        temple.setStatus(TempleStatus.SUSPENDED);
+
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
+
+        assertThatThrownBy(() -> templeService.suspendTemple(1L, "Duplicate suspend", 5L))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void should_throwException_when_transitioningArchivedTemple() {
+        Temple temple = Temple.builder().name("Test Temple").districtId(1L).grade(TempleGrade.A).build();
+        temple.setId(1L);
+        temple.setStatus(TempleStatus.ARCHIVED);
+
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
+
+        assertThatThrownBy(() -> templeService.reactivateTemple(1L, "Cannot reactivate archived", 5L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ARCHIVED");
     }
 }

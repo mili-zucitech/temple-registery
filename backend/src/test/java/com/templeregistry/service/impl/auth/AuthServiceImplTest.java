@@ -51,7 +51,6 @@ class AuthServiceImplTest {
     void should_throw_AccountLocked_when_user_is_locked() {
         activeUser.setLockedUntil(LocalDateTime.now().plusMinutes(10));
         when(userRepository.findByUsername("dcuser")).thenReturn(Optional.of(activeUser));
-        when(passwordEncoder.matches(any(), any())).thenReturn(true);
 
         LoginRequest rq = new LoginRequest("dcuser", "correct");
         assertThatThrownBy(() -> authService.login(rq))
@@ -65,7 +64,7 @@ class AuthServiceImplTest {
 
         LoginRequest rq = new LoginRequest("dcuser", "wrong");
         assertThatThrownBy(() -> authService.login(rq))
-                .isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class);
+                .isInstanceOf(com.templeregistry.exception.EntityNotFoundException.class);
 
         verify(userRepository).save(argThat(u -> u.getFailedLoginCount() == 1));
     }
@@ -103,7 +102,7 @@ class AuthServiceImplTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("dcuser", "bad")))
-                .isInstanceOf(AccountLockedException.class);
+                .isInstanceOf(com.templeregistry.exception.EntityNotFoundException.class);
 
         verify(userRepository).save(argThat(u -> u.getLockedUntil() != null));
     }

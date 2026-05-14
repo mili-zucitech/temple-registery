@@ -3,6 +3,7 @@ package com.templeregistry.entity.auth;
 import com.templeregistry.entity.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -17,7 +18,7 @@ import java.time.LocalDateTime;
 @SQLDelete(sql = "UPDATE users SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class User extends BaseEntity {
@@ -41,6 +42,7 @@ public class User extends BaseEntity {
     @Column(name = "mobile", length = 15)
     private String mobile;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -57,6 +59,10 @@ public class User extends BaseEntity {
     @Column(name = "mfa_secret")
     private String mfaSecret;
 
+    @Column(name = "mfa_phone", length = 15)
+    private String mfaPhone;
+
+    @Builder.Default
     @Column(name = "failed_login_count")
     private int failedLoginCount = 0;
 
@@ -66,6 +72,19 @@ public class User extends BaseEntity {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Builder.Default
     @Column(name = "aadhaar_verified", nullable = false)
     private boolean aadhaarVerified = false;
+
+    /** Aadhaar number (12 digits) captured by Super Admin during TA user creation. */
+    @Column(name = "aadhaar_number", length = 12)
+    private String aadhaarNumber;
+
+    /** SHA-256 hash of the single-use password-reset token. Null when no reset is pending. */
+    @Column(name = "password_reset_token_hash", length = 64)
+    private String passwordResetTokenHash;
+
+    /** Expiry timestamp for the pending reset token. */
+    @Column(name = "password_reset_expires_at")
+    private LocalDateTime passwordResetTokenExpiresAt;
 }

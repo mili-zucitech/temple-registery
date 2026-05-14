@@ -1,12 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
-import { baseQueryWithReauth } from '@/services/baseQueryWithReauth'
+import { baseQueryWithReauth } from '../../services/baseQueryWithReauth'
 import type { ApiResponse, PaginatedResponse } from '@/types'
-
-export interface ContractorResponse {
-  id: number; templeId: number; companyName: string; gstNumber?: string
-  serviceType?: string; contractReference?: string; contractValue?: number
-  paymentStatus?: string; contractStartDate?: string; contractEndDate?: string
-}
+import type { ContractorResponse, CreateContractorRequest, UpdateContractorRequest } from './contractorTypes'
 
 export const contractorApi = createApi({
   reducerPath: 'contractorApi',
@@ -17,11 +12,15 @@ export const contractorApi = createApi({
       query: ({ templeId, page = 0, size = 10 }) => ({ url: `/temples/${templeId}/contractors`, params: { page, size } }),
       providesTags: ['Contractor'],
     }),
-    createContractor: builder.mutation<ApiResponse<ContractorResponse>, { templeId: number; body: Partial<ContractorResponse> }>({
+    getContractorById: builder.query<ApiResponse<ContractorResponse>, number>({
+      query: (id) => `/contractors/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'Contractor', id }],
+    }),
+    createContractor: builder.mutation<ApiResponse<ContractorResponse>, { templeId: number; body: CreateContractorRequest }>({
       query: ({ templeId, body }) => ({ url: `/temples/${templeId}/contractors`, method: 'POST', body }),
       invalidatesTags: ['Contractor'],
     }),
-    updateContractor: builder.mutation<ApiResponse<ContractorResponse>, { id: number; body: Partial<ContractorResponse> }>({
+    updateContractor: builder.mutation<ApiResponse<ContractorResponse>, { id: number; body: UpdateContractorRequest }>({
       query: ({ id, body }) => ({ url: `/contractors/${id}`, method: 'PUT', body }),
       invalidatesTags: ['Contractor'],
     }),
@@ -32,4 +31,7 @@ export const contractorApi = createApi({
   }),
 })
 
-export const { useListContractorsQuery, useCreateContractorMutation, useUpdateContractorMutation, useDeleteContractorMutation } = contractorApi
+export const {
+  useListContractorsQuery, useGetContractorByIdQuery,
+  useCreateContractorMutation, useUpdateContractorMutation, useDeleteContractorMutation,
+} = contractorApi

@@ -4,23 +4,35 @@ import com.templeregistry.common.ApiResponse;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.declaration.*;
 import com.templeregistry.dto.response.declaration.*;
+import com.templeregistry.security.RoleConstants;
+import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.declaration.DeclarationService;
+import com.templeregistry.service.governance.GovernanceWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.core.io.Resource;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 @Tag(name = "Declarations", description = "Asset declaration lifecycle: DRAFT → SUBMITTED → APPROVED/REJECTED")
 public class DeclarationController {
 
     private final DeclarationService declarationService;
+    private final GovernanceWorkflowService governanceWorkflowService;
 
-    @GetMapping("/api/temples/{templeId}/declarations")
+    @GetMapping("/api/v1/temples/{templeId}/declarations")
     @Operation(summary = "List declarations for a temple (paginated)")
     public ResponseEntity<ApiResponse<PaginatedResponse<DeclarationResponse>>> list(
             @PathVariable Long templeId,
@@ -30,76 +42,114 @@ public class DeclarationController {
                 declarationService.listByTemple(templeId, page, size)));
     }
 
-    @PostMapping("/api/temples/{templeId}/declarations")
+    @PostMapping("/api/v1/temples/{templeId}/declarations")
     @Operation(summary = "Create a DRAFT declaration")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> create(
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> create(
             @PathVariable Long templeId, @Valid @RequestBody CreateDeclarationRequest rq) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Declaration created.", declarationService.create(templeId, rq)));
     }
 
-    @GetMapping("/api/declarations/{id}")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> getById(@PathVariable Long id) {
+    @GetMapping("/api/v1/declarations/{id}")
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Declaration retrieved.", declarationService.getById(id)));
     }
 
-    @PutMapping("/api/declarations/{id}")
-    @Operation(summary = "Update DRAFT declaration fields")
-    public ResponseEntity<ApiResponse<DeclarationResponse>> update(
+    @PutMapping("/api/v1/declarations/{id}")
+    @Operation(summary = "Update DRAFT or REJECTED declaration fields")
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> update(
             @PathVariable Long id, @Valid @RequestBody CreateDeclarationRequest rq) {
         return ResponseEntity.ok(ApiResponse.success("Declaration updated.", declarationService.update(id, rq)));
     }
 
-    @PostMapping("/api/declarations/{id}/submit")
-    @Operation(summary = "Submit declaration for DC review (DRAFT → SUBMITTED)")
+    /**
+     * @deprecated Use POST /api/v1/governance/declarations/{id}/submit instead.
+     * Backward compatibility shim: delegates to GovernanceWorkflowService.
+     */
+    @Deprecated(forRemoval = true)
+    @PostMapping("/api/v1/declarations/{id}/submit")
+    @Operation(summary = "[DEPRECATED] Use /api/v1/governance/declarations/{id}/submit",
+               description = "Deprecated alias that delegates to the governance workflow endpoint.")
     public ResponseEntity<ApiResponse<Void>> submit(@PathVariable Long id) {
-        declarationService.submit(id);
+        governanceWorkflowService.submitDeclaration(id);
         return ResponseEntity.ok(ApiResponse.success("Declaration submitted."));
     }
 
-    @PostMapping("/api/declarations/{id}/approve")
-    @Operation(summary = "Approve declaration (DC/SA)")
-    public ResponseEntity<ApiResponse<Void>> approve(@PathVariable Long id) {
-        declarationService.approve(id);
-        return ResponseEntity.ok(ApiResponse.success("Declaration approved."));
-    }
-
-    @PostMapping("/api/declarations/{id}/reject")
-    @Operation(summary = "Reject declaration (DC/SA)")
-    public ResponseEntity<ApiResponse<Void>> reject(
-            @PathVariable Long id, @Valid @RequestBody ClarificationRequest reason) {
-        declarationService.reject(id, reason);
-        return ResponseEntity.ok(ApiResponse.success("Declaration rejected."));
-    }
-
-    @PostMapping("/api/declarations/{id}/clarification")
-    @Operation(summary = "Request clarification from temple (DC/SA)")
-    public ResponseEntity<ApiResponse<Void>> requestClarification(
-            @PathVariable Long id, @Valid @RequestBody ClarificationRequest rq) {
-        declarationService.requestClarification(id, rq);
-        return ResponseEntity.ok(ApiResponse.success("Clarification requested."));
-    }
-
-    @PostMapping("/api/declarations/{id}/flag-physical-verification")
-    @Operation(summary = "Flag for physical verification (DC/SA)")
-    public ResponseEntity<ApiResponse<Void>> flagPhysical(
-            @PathVariable Long id, @Valid @RequestBody FlagPhysicalVerificationRequest rq) {
-        declarationService.flagPhysicalVerification(id, rq);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/api/declarations/{id}/resubmit")
-    @Operation(summary = "Resubmit after clarification (TA)")
-    public ResponseEntity<ApiResponse<Void>> resubmit(
+    @PostMapping("/api/v1/declarations/{id}/resubmit")
+    @Operation(summary = "Resubmit a REJECTED or CLARIFICATION_REQUIRED declaration (creates new version)")
+    public ResponseEntity<ApiResponse<CompleteDeclarationResponse>> resubmit(
             @PathVariable Long id, @Valid @RequestBody ResubmitDeclarationRequest rq) {
-        declarationService.resubmit(id, rq);
-        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted."));
+        return ResponseEntity.ok(ApiResponse.success("Declaration resubmitted.", 
+                declarationService.resubmit(id, rq)));
     }
 
-    @GetMapping("/api/declarations/{id}/acknowledgement")
+    @PostMapping("/api/v1/declarations/{id}/clarification-respond")
+    @Operation(summary = "Respond to clarification request (TA) — CLARIFICATION_REQUIRED → CLARIFICATION_RESPONDED")
+    @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
+    public ResponseEntity<ApiResponse<Void>> respondToClarification(
+            @PathVariable Long id, @Valid @RequestBody ClarificationRespondRequest rq) {
+        ScopeHelper.Claims claims = currentClaims();
+        declarationService.respondToClarification(id, rq, claims.userId(), claims.role());
+        return ResponseEntity.ok(ApiResponse.success("Clarification response submitted."));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/acknowledgement")
     @Operation(summary = "Get pre-signed download URL for APPROVED declaration acknowledgement")
     public ResponseEntity<ApiResponse<AcknowledgementResponse>> getAcknowledgement(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Acknowledgement URL generated.",
                 declarationService.getAcknowledgement(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/acknowledgement/download")
+    @Operation(summary = "Download APPROVED declaration acknowledgement PDF")
+    public ResponseEntity<Resource> downloadAcknowledgement(@PathVariable Long id) {
+        Resource resource = declarationService.downloadAcknowledgement(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"ACK_DECLARATION_" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/diff")
+    @Operation(summary = "Show field-level diff between current submitted values and last approved snapshot")
+    public ResponseEntity<ApiResponse<?>> getDiff(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer compareToVersion) {
+        return ResponseEntity.ok(ApiResponse.success("Diff retrieved.", declarationService.getDiff(id, compareToVersion)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/clarifications")
+    @Operation(summary = "Get clarification thread for a declaration (DC/TA)")
+    public ResponseEntity<ApiResponse<?>> listClarifications(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Clarifications retrieved.", declarationService.listClarifications(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/versions")
+    @Operation(summary = "Get the submission version history for a declaration")
+    public ResponseEntity<ApiResponse<?>> listVersions(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Versions retrieved.", declarationService.listVersions(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/{id}/audit")
+    @Operation(summary = "Get audit trail for a declaration (all authenticated roles)")
+    public ResponseEntity<ApiResponse<List<AuditLogEntry>>> getAuditLog(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Audit log retrieved.",
+                declarationService.listAuditLog(id)));
+    }
+
+    @GetMapping("/api/v1/declarations/overdue")
+    @Operation(summary = "DC: List overdue declarations for a district (paginated)")
+    @PreAuthorize(RoleConstants.CAN_ACT_DC)
+    public ResponseEntity<ApiResponse<PaginatedResponse<DeclarationResponse>>> listOverdue(
+            @RequestParam Long districtId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success("Overdue declarations retrieved.",
+                declarationService.listOverdue(districtId, page, size)));
+    }
+
+    private ScopeHelper.Claims currentClaims() {
+        return (ScopeHelper.Claims) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
     }
 }

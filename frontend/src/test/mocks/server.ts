@@ -8,7 +8,7 @@ const handlers = [
     HttpResponse.json({
       success: true,
       message: 'Login successful',
-      data: { accessToken: 'mock-token', tokenType: 'Bearer', expiresIn: 3600 },
+      data: { accessToken: 'mock-token', tokenType: 'Bearer', expiresIn: 3600, role: 'DISTRICT_COLLECTOR', userId: 1 },
     })
   ),
 

@@ -1,72 +1,111 @@
 spring:
   application:
     name: temple-registry-backend
+
   profiles:
-    active: dev
+    default: dev
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/temple_registry?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
+    password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
+
     hikari:
-      maximum-pool-size: 10
+      connection-timeout: 20000
+      connection-test-query: SELECT 1
+      idle-timeout: 240000
+      max-lifetime: 540000
+      keepalive-time: 120000
       minimum-idle: 2
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      maximum-pool-size: 8
+      connection-init-sql: "SET tidb_enable_noop_functions=1"
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
+
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
         format_sql: false
-        default_batch_fetch_size: 20
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: false
-    validate-on-migrate: true
+    validate-on-migrate: false
+    repair-on-migrate: true
 
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 10MB
+  security:
+    debug: false
 
-server:
-  port: 8080
-  servlet:
-    context-path: /
+  mail:
+    enabled: false
+    host: smtp.gmail.com
+    port: 587
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: when-authorized
+    properties:
+      mail:
+        smtp:
+          auth: true
+
+          starttls:
+            enable: true
+            required: true
+
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+  api-docs:
+    path: /v3/api-docs
+
+trm:
+  export:
+    base-dir: ./exports
 
 app:
   jwt:
-    private-key-path: classpath:keys/private.pem
-    public-key-path: classpath:keys/public.pem
-    access-token-expiry-ms: 900000       # 15 minutes
-    refresh-token-expiry-days: 7
+    private-key-path: classpath:keys/jwt-private.pem
+    public-key-path: classpath:keys/jwt-public.pem
+    access-token-expiry-ms: 18000000
+
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-  aws:
-    region: ${AWS_REGION:ap-south-1}
-    bucket-name: ${AWS_S3_BUCKET:temple-registry-docs}
-    presigned-url-expiry-minutes: 15
-  mfa:
-    sms-otp-expiry-minutes: 10
-  pagination:
-    default-page-size: 10
-    max-page-size: 100
-  export:
-    max-records: 5000
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
+
+  encryption:
+    key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
+
+  hmac:
+    key: ${APP_HMAC_KEY:TempleRegHmacDev32ByteKey!Repl!!}
+
+  storage:
+    base-dir: ./uploads
+
+  base-url: ${APP_BASE_URL:http://localhost:3000}
+
+  notification:
+    email-enabled: false
+
+  legacy:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.templeregistry: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+management:
+  health:
+    mail:
+      enabled: false
+
+debug: false

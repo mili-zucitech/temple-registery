@@ -8,13 +8,13 @@ import com.templeregistry.entity.auth.RefreshToken;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.exception.AccountLockedException;
 import com.templeregistry.exception.EntityNotFoundException;
-import com.templeregistry.exception.MfaVerificationException;
 import com.templeregistry.repository.auth.RefreshTokenRepository;
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.security.TokenRevocationGuard;
 import com.templeregistry.service.auth.AuthService;
 import com.templeregistry.service.auth.JwtService;
 import com.templeregistry.service.auth.MfaService;
+import com.templeregistry.service.notification.EmailService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.HexFormat;
 
 @Service
@@ -42,13 +44,19 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final MfaService mfaService;
     private final TokenRevocationGuard tokenRevocationGuard;
+    private final EmailService emailService;
 
     @Value("${app.jwt.refresh-token-expiry-days:7}")
     private int refreshTokenExpiryDays;
 
+    @Value("${app.base-url}")
+    private String baseUrl;
+
+    private static final int RESET_TOKEN_EXPIRY_MINUTES = 30;
+
     @Override
     @Transactional
-    public MfaChallengeResponse login(LoginRequest request) {
+    public Object login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new EntityNotFoundException("Invalid credentials.", "INVALID_CREDENTIALS"));
 
@@ -70,6 +78,13 @@ public class AuthServiceImpl implements AuthService {
 
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
+
+        if (user.getMfaType() == MfaType.NONE) {
+            user.setLastLoginAt(LocalDateTime.now());
+            userRepository.save(user);
+            return issueTokenPair(user);
+        }
+
         userRepository.save(user);
 
         String tempToken = jwtService.generateTempToken(user);
@@ -80,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return MfaChallengeResponse.builder()
-                .mfaRequired(user.getMfaType() != MfaType.NONE)
+                .mfaRequired(true)
                 .challengeType(challengeType)
                 .tempToken(tempToken)
                 .build();
@@ -109,8 +124,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthTokenResponse refresh(RefreshTokenRequest request) {
-        String tokenHash = sha256(request.getRefreshToken());
+    public AuthTokenResponse refresh(String rawRefreshToken) {
+        String tokenHash = sha256(rawRefreshToken);
         tokenRevocationGuard.assertNotRevoked(tokenHash);
 
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
@@ -137,17 +152,51 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void requestPasswordReset(PasswordResetRequest request) {
-        // In production: generate a signed reset token, store its hash, and send email
-        // Not logging the email to avoid PII in logs
-        userRepository.findByEmail(request.getEmail()).ifPresent(user ->
-                log.info("Password reset requested for user [{}]", user.getId()));
+        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+            // Generate a 32-byte cryptographically random token
+            byte[] tokenBytes = new byte[32];
+            new SecureRandom().nextBytes(tokenBytes);
+            String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+            String tokenHash = sha256(rawToken);
+
+            user.setPasswordResetTokenHash(tokenHash);
+            user.setPasswordResetTokenExpiresAt(LocalDateTime.now().plusMinutes(RESET_TOKEN_EXPIRY_MINUTES));
+            userRepository.save(user);
+
+            String resetLink = baseUrl + "/reset-password?token=" + rawToken;
+            emailService.sendPasswordResetEmail(user.getEmail(), resetLink);
+            log.info("Password reset token issued for user [{}]", user.getId());
+        });
+        // Always return without error to prevent user enumeration
     }
 
     @Override
     @Transactional
     public void confirmPasswordReset(PasswordResetConfirmRequest request) {
-        // TODO: Validate the reset token, update password hash, revoke all refresh tokens
-        throw new UnsupportedOperationException("Password reset flow not yet implemented.");
+        String tokenHash = sha256(request.getToken());
+
+        User user = userRepository.findByPasswordResetTokenHash(tokenHash)
+                .orElseThrow(() -> new IllegalStateException("Invalid or expired password reset token."));
+
+        if (user.getPasswordResetTokenExpiresAt() == null
+                || user.getPasswordResetTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            // Clear the expired token to prevent replay attacks
+            user.setPasswordResetTokenHash(null);
+            user.setPasswordResetTokenExpiresAt(null);
+            userRepository.save(user);
+            throw new IllegalStateException("Password reset token has expired. Please request a new one.");
+        }
+
+        // Update password and invalidate reset token
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordResetTokenHash(null);
+        user.setPasswordResetTokenExpiresAt(null);
+        userRepository.save(user);
+
+        // Revoke all outstanding refresh tokens for security
+        refreshTokenRepository.revokeAllByUserId(user.getId(), LocalDateTime.now());
+
+        log.info("Password reset completed for user [{}] — all refresh tokens revoked", user.getId());
     }
 
     private AuthTokenResponse issueTokenPair(User user) {

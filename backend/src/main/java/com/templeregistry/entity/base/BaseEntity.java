@@ -2,6 +2,7 @@ package com.templeregistry.entity.base;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public abstract class BaseEntity {
@@ -21,8 +23,9 @@ public abstract class BaseEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private Long id;
 
+    @Builder.Default
     @Column(name = "is_deleted", nullable = false)
-    private boolean isDeleted = false;
+    private boolean deleted = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

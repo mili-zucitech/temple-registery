@@ -1,5 +1,11 @@
 package com.templeregistry.service.impl.export;
 
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.element.Cell;
 import com.opencsv.CSVWriter;
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;
@@ -45,11 +51,17 @@ public class ExportServiceImpl implements ExportService {
         ScopeHelper.Claims claims = currentClaims();
         Long districtId = jurisdictionGuard.enforceDistrictId(rq.getDistrictId());
 
-        List<Temple> temples = templeRepository
-                .findAll(PageRequest.of(0, EXPORT_MAX))
-                .getContent();
+        List<Temple> temples = districtId != null
+                ? templeRepository.findAllByDistrictId(districtId, PageRequest.of(0, EXPORT_MAX)).getContent()
+                : templeRepository.findAll(PageRequest.of(0, EXPORT_MAX)).getContent();
 
-        byte[] data = generateCsv(buildTempleRows(temples));
+        byte[] data;
+        if ("PDF".equalsIgnoreCase(rq.getFormat())) {
+            data = generatePdf(buildTempleRows(temples), "Temple Export");
+        } else {
+            data = generateCsv(buildTempleRows(temples));
+        }
+        
         auditService.logExportEvent(claims.userId(), claims.role(),
                 "TEMPLES_" + rq.getFormat(), "districtId=" + districtId, temples.size());
         return data;
@@ -64,11 +76,24 @@ public class ExportServiceImpl implements ExportService {
 
         DeclarationStatus status = rq.getStatus() != null
                 ? DeclarationStatus.valueOf(rq.getStatus()) : null;
-        List<AssetDeclaration> declarations = status != null
-                ? declarationRepository.findAllByDistrictIdAndStatus(districtId, status, PageRequest.of(0, EXPORT_MAX)).getContent()
-                : declarationRepository.findAll(PageRequest.of(0, EXPORT_MAX)).getContent();
+        List<AssetDeclaration> declarations;
+        if (status != null) {
+            declarations = districtId != null
+                    ? declarationRepository.findAllByDistrictIdAndStatus(districtId, status, PageRequest.of(0, EXPORT_MAX)).getContent()
+                    : declarationRepository.findAllByStatus(status, PageRequest.of(0, EXPORT_MAX)).getContent();
+        } else {
+            declarations = districtId != null
+                    ? declarationRepository.findAllByDistrictId(districtId, PageRequest.of(0, EXPORT_MAX)).getContent()
+                    : declarationRepository.findAll(PageRequest.of(0, EXPORT_MAX)).getContent();
+        }
 
-        byte[] data = generateCsv(buildDeclarationRows(declarations));
+        byte[] data;
+        if ("PDF".equalsIgnoreCase(rq.getFormat())) {
+            data = generatePdf(buildDeclarationRows(declarations), "Declaration Export");
+        } else {
+            data = generateCsv(buildDeclarationRows(declarations));
+        }
+        
         auditService.logExportEvent(claims.userId(), claims.role(),
                 "DECLARATIONS_" + rq.getFormat(), "districtId=" + districtId + " status=" + rq.getStatus(),
                 declarations.size());
@@ -83,6 +108,44 @@ public class ExportServiceImpl implements ExportService {
             return bos.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException("CSV generation failed.", e);
+        }
+    }
+
+    private byte[] generatePdf(List<String[]> rows, String title) {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(bos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+
+            // Add title
+            document.add(new Paragraph(title).setFontSize(18).setBold());
+            document.add(new Paragraph("Generated on: " + java.time.LocalDateTime.now().toString()).setFontSize(10));
+            document.add(new Paragraph("\n"));
+
+            // Add table
+            if (!rows.isEmpty()) {
+                String[] headers = rows.get(0);
+                Table table = new Table(headers.length);
+                
+                // Add header row
+                for (String header : headers) {
+                    table.addHeaderCell(new Cell().add(new Paragraph(header).setBold()));
+                }
+                
+                // Add data rows
+                for (int i = 1; i < rows.size(); i++) {
+                    for (String cell : rows.get(i)) {
+                        table.addCell(new Cell().add(new Paragraph(cell)));
+                    }
+                }
+                
+                document.add(table);
+            }
+
+            document.close();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("PDF generation failed.", e);
         }
     }
 
@@ -118,5 +181,51 @@ public class ExportServiceImpl implements ExportService {
     private ScopeHelper.Claims currentClaims() {
         Object p = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return (ScopeHelper.Claims) p;
+    }
+
+    // ─── Evidence Pack ────────────────────────────────────────────────────────
+
+    @Override
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','DISTRICT_COLLECTOR','DC_STAFF','AUDITOR')")
+    @Transactional(readOnly = true)
+    public byte[] generateEvidencePack(Long templeId, Long actorId) {
+        Temple temple = templeRepository.findById(templeId)
+                .orElseThrow(() -> new com.templeregistry.exception.EntityNotFoundException("Temple", templeId));
+
+        try (ByteArrayOutputStream zipBaos = new ByteArrayOutputStream();
+             java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(zipBaos)) {
+
+            // Temple profile summary
+            addJsonEntry(zip, "temple_profile.json", toJson(temple));
+
+            // Declarations (non-draft, last 100)
+            List<AssetDeclaration> declarations = declarationRepository.findAllByTempleId(
+                    templeId, PageRequest.of(0, 100)).getContent();
+            addJsonEntry(zip, "declarations.json", toJson(declarations));
+
+            zip.finish();
+            auditService.logDataEvent(actorId, "N/A", "GENERATE_EVIDENCE_PACK",
+                    "TEMPLE", templeId, "templeId=" + templeId);
+            log.info("Evidence pack generated for templeId={} by actorId={}", templeId, actorId);
+            return zipBaos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to generate evidence pack for templeId=" + templeId, e);
+        }
+    }
+
+    private void addJsonEntry(java.util.zip.ZipOutputStream zip, String name, String json) throws IOException {
+        zip.putNextEntry(new java.util.zip.ZipEntry(name));
+        zip.write(json.getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper()
+                    .findAndRegisterModules()
+                    .writeValueAsString(obj);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return "{}";
+        }
     }
 }

@@ -1,14 +1,13 @@
 package com.templeregistry.service.auth;
 
-import com.templeregistry.dto.response.auth.AadhaarOtpResponse;
-import com.templeregistry.dto.request.auth.AadhaarOtpRequest;
-import com.templeregistry.dto.request.auth.RegisterRequest;
+import com.templeregistry.dto.request.auth.CreateAccountRequest;
+import com.templeregistry.dto.response.auth.CreateAccountResponse;
 
 public interface RegistrationService {
 
-    AadhaarOtpResponse requestAadhaarOtp(AadhaarOtpRequest request);
-
-    AadhaarOtpResponse verifyAadhaarOtp(AadhaarOtpRequest request, String otp);
-
-    void register(RegisterRequest request);
+    /**
+     * Step 1: atomically create user + temple, link them, and return the new userId.
+     * Accepts Aadhaar number directly (no OTP verification required).
+     */
+    CreateAccountResponse createAccount(CreateAccountRequest request);
 }

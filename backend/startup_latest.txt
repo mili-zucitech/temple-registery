@@ -1,0 +1,231 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.4)
+
+09:11:43.829 [background-preinit] INFO  [no-rid] o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.2.Final
+09:11:44.004 [main] INFO  [no-rid] c.t.TempleRegistryApplication - Starting TempleRegistryApplication v0.0.1-SNAPSHOT using Java 21.0.1 with PID 42604 (C:\Users\milisrivastava\Documents\temple-registry\backend\target\temple-registry-backend-0.0.1-SNAPSHOT.jar started by MiliSrivastava in C:\Users\milisrivastava\Documents\temple-registry\backend)
+09:11:44.004 [main] DEBUG [no-rid] c.t.TempleRegistryApplication - Running with Spring Boot v3.4.4, Spring v6.2.5
+09:11:44.007 [main] INFO  [no-rid] c.t.TempleRegistryApplication - No active profile set, falling back to 1 default profile: "dev"
+09:11:48.395 [main] INFO  [no-rid] o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+09:11:49.281 [main] INFO  [no-rid] o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 860 ms. Found 57 JPA repository interfaces.
+09:11:53.493 [main] INFO  [no-rid] o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+09:11:53.545 [main] INFO  [no-rid] o.a.coyote.http11.Http11NioProtocol - Initializing ProtocolHandler ["http-nio-8080"]
+09:11:53.555 [main] INFO  [no-rid] o.a.catalina.core.StandardService - Starting service [Tomcat]
+09:11:53.558 [main] INFO  [no-rid] o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.39]
+09:11:53.691 [main] INFO  [no-rid] o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+09:11:53.691 [main] INFO  [no-rid] o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 9539 ms
+09:11:54.606 [main] DEBUG [no-rid] c.t.security.JwtAuthenticationFilter - Filter 'jwtAuthenticationFilter' configured for use
+09:11:55.726 [main] INFO  [no-rid] com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+09:11:58.448 [main] INFO  [no-rid] com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@646ddc20
+09:11:58.461 [main] INFO  [no-rid] com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+09:12:00.047 [main] INFO  [no-rid] org.flywaydb.core.FlywayExecutor - Database: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true (MySQL 8.0)
+09:12:01.211 [main] INFO  [no-rid] o.f.c.i.s.JdbcTableSchemaHistory - Repair of failed migration in Schema History table `test`.`flyway_schema_history` not necessary. No failed migration detected.
+09:12:01.679 [main] INFO  [no-rid] o.f.core.internal.command.DbRepair - Successfully repaired schema history table `test`.`flyway_schema_history` (execution time 00:00.922s).
+09:12:03.898 [main] INFO  [no-rid] o.f.core.internal.command.DbMigrate - Current version of schema `test`: 96
+09:12:04.045 [main] INFO  [no-rid] o.f.core.internal.command.DbMigrate - Schema `test` is up to date. No migration necessary.
+09:12:05.296 [main] INFO  [no-rid] o.h.jpa.internal.util.LogHelper - HHH000204: Processing PersistenceUnitInfo [name: default]
+09:12:05.538 [main] INFO  [no-rid] org.hibernate.Version - HHH000412: Hibernate ORM core version 6.6.11.Final
+09:12:05.682 [main] INFO  [no-rid] o.h.c.i.RegionFactoryInitiator - HHH000026: Second-level cache disabled
+09:12:06.689 [main] INFO  [no-rid] o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+09:12:07.131 [main] INFO  [no-rid] o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+09:12:13.867 [main] INFO  [no-rid] o.h.e.t.j.p.i.JtaPlatformInitiator - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+09:12:25.219 [main] INFO  [no-rid] o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+09:12:26.302 [main] INFO  [no-rid] o.s.d.j.r.query.QueryEnhancerFactory - Hibernate is in classpath; If applicable, HQL parser will be used.
+09:12:38.655 [main] WARN  [no-rid] o.s.b.a.o.j.JpaBaseConfiguration$JpaWebConfiguration - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+09:12:38.794 [main] INFO  [no-rid] o.s.s.c.a.a.c.InitializeAuthenticationProviderBeanManagerConfigurer$InitializeAuthenticationProviderManagerConfigurer - Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+09:12:38.794 [main] WARN  [no-rid] o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+09:12:40.250 [main] INFO  [no-rid] o.s.b.a.e.web.EndpointLinksResolver - Exposing 1 endpoint beneath base path '/actuator'
+09:12:42.841 [main] INFO  [no-rid] o.a.coyote.http11.Http11NioProtocol - Starting ProtocolHandler ["http-nio-8080"]
+09:12:42.976 [main] INFO  [no-rid] o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+09:12:43.042 [main] INFO  [no-rid] c.t.TempleRegistryApplication - Started TempleRegistryApplication in 60.506 seconds (process running for 62.848)
+09:12:43.704 [scheduling-1] DEBUG [no-rid] c.t.s.n.EmailRetryScheduler - No failed emails to retry.
+09:12:43.755 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.777 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.780 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.781 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.783 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.786 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.788 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.790 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.792 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.794 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.795 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.797 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.799 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.800 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.802 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.803 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.805 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.807 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.808 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.809 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.811 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.814 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.814 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.814 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.820 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.822 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.824 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.826 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.828 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.829 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.831 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.831 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.831 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.831 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.831 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.838 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.838 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.838 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.838 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.844 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.844 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.844 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.844 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.844 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.852 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.852 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.854 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.854 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.854 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.854 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.860 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.870 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.870 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.870 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.870 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.875 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.875 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.875 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.875 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.875 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.883 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.899 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.899 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.902 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.904 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.906 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.906 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.909 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.909 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.909 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.909 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.914 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.916 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.918 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.930 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.930 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.930 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.933 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.946 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.962 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.962 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.962 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.967 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.970 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.978 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.983 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:43.993 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.002 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.002 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.002 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.002 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.002 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.010 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.010 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.012 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.012 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.014 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.014 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.014 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.017 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.017 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.017 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.017 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.017 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.025 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:12:44.042 [async-1] WARN  [no-rid] c.t.util.AesEncryptionConverter - AES-GCM: value is too short to be ciphertext (7B) — treating as legacy plaintext. Re-encrypt this record.
+09:13:25.120 [http-nio-8080-exec-1] INFO  [no-rid] o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+09:13:25.120 [http-nio-8080-exec-1] INFO  [no-rid] o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+09:13:25.120 [http-nio-8080-exec-1] INFO  [no-rid] o.s.web.servlet.DispatcherServlet - Completed initialization in 0 ms

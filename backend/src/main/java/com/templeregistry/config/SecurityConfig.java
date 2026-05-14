@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,23 +31,30 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
 
     private static final String[] PUBLIC_PATHS = {
-            "/api/auth/**",
+            "/api/v1/auth/**",
+            "/api/v1/geo/**",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/error"
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/geo/**").authenticated()
+                        // Public temple search — exact path only (NOT wildcard, to prevent PII exposure via /{id})
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples").permitAll()
+                        // Public photo serve — temple photos are not sensitive
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples/*/profile-photo/serve").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/temples/*/photos/*/serve").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

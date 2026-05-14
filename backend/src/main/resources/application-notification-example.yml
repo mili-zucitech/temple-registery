@@ -1,0 +1,193 @@
+# Notification Module Configuration Example
+# Copy relevant sections to your application.yml or application-dev.yml
+
+spring:
+  # Email Configuration
+  mail:
+    # Enable/disable email notifications (set to false for development if you don't have SMTP)
+    enabled: true
+    
+    # SMTP Server Configuration
+    host: smtp.gmail.com
+    port: 587
+    
+    # SMTP Credentials (use environment variables in production)
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
+    
+    # From email address
+    from: ${SMTP_FROM:noreply@templeregistry.gov.in}
+    
+    # SMTP Properties
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+          ssl:
+            trust: smtp.gmail.com
+
+  # Thymeleaf Configuration (for email templates)
+  thymeleaf:
+    cache: false  # Set to true in production
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+
+# Application Configuration
+app:
+  # Base URL for email links (change for production)
+  base-url: ${APP_BASE_URL:http://localhost:3000}
+  
+  # Notification Settings
+  notification:
+    # Enable/disable in-app notifications
+    in-app-enabled: true
+    
+    # Enable/disable email notifications
+    email-enabled: true
+    
+    # Email sending mode: ASYNC (recommended) or SYNC
+    email-mode: ASYNC
+    
+    # Retry failed emails
+    email-retry-enabled: true
+    email-max-retries: 3
+    
+    # Archive old notifications (days)
+    archive-after-days: 90
+    
+    # Notification batch size for bulk operations
+    batch-size: 100
+
+# Async Task Executor Configuration (already exists, but shown for reference)
+async:
+  executor:
+    core-pool-size: 5
+    max-pool-size: 10
+    queue-capacity: 100
+    thread-name-prefix: async-
+
+# Logging Configuration (optional, for debugging)
+logging:
+  level:
+    com.templeregistry.service.notification: DEBUG
+    com.templeregistry.event.listener: DEBUG
+    org.springframework.mail: DEBUG
+
+---
+# Development Profile Example
+spring:
+  config:
+    activate:
+      on-profile: dev
+  
+  mail:
+    # Disable email in development if you don't have SMTP configured
+    enabled: false
+
+app:
+  base-url: http://localhost:3000
+  notification:
+    email-enabled: false  # Only in-app notifications in dev
+
+---
+# Production Profile Example
+spring:
+  config:
+    activate:
+      on-profile: prod
+  
+  mail:
+    enabled: true
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    from: ${SMTP_FROM}
+
+app:
+  base-url: ${APP_BASE_URL}
+  notification:
+    in-app-enabled: true
+    email-enabled: true
+    email-mode: ASYNC
+
+---
+# Gmail SMTP Configuration Notes
+# 
+# To use Gmail SMTP:
+# 1. Enable 2-Factor Authentication on your Google account
+# 2. Generate an App Password:
+#    - Go to https://myaccount.google.com/security
+#    - Select "2-Step Verification"
+#    - Scroll to "App passwords"
+#    - Generate a new app password for "Mail"
+# 3. Use the generated password as SMTP_PASSWORD
+#
+# Example:
+# SMTP_USERNAME=your-email@gmail.com
+# SMTP_PASSWORD=abcd efgh ijkl mnop  (16-character app password)
+
+---
+# AWS SES Configuration (Alternative to Gmail)
+# 
+# spring:
+#   mail:
+#     host: email-smtp.us-east-1.amazonaws.com
+#     port: 587
+#     username: ${AWS_SES_USERNAME}
+#     password: ${AWS_SES_PASSWORD}
+#     properties:
+#       mail:
+#         smtp:
+#           auth: true
+#           starttls:
+#             enable: true
+#             required: true
+
+---
+# SendGrid Configuration (Alternative)
+# 
+# spring:
+#   mail:
+#     host: smtp.sendgrid.net
+#     port: 587
+#     username: apikey
+#     password: ${SENDGRID_API_KEY}
+#     properties:
+#       mail:
+#         smtp:
+#           auth: true
+#           starttls:
+#             enable: true
+
+---
+# Environment Variables Required
+#
+# Development:
+# - SMTP_USERNAME (optional if email disabled)
+# - SMTP_PASSWORD (optional if email disabled)
+# - APP_BASE_URL (optional, defaults to localhost:3000)
+#
+# Production:
+# - SMTP_HOST (required)
+# - SMTP_PORT (required)
+# - SMTP_USERNAME (required)
+# - SMTP_PASSWORD (required)
+# - SMTP_FROM (required)
+# - APP_BASE_URL (required)
+#
+# Example .env file:
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USERNAME=noreply@templeregistry.gov.in
+# SMTP_PASSWORD=your-app-password
+# SMTP_FROM=noreply@templeregistry.gov.in
+# APP_BASE_URL=https://templeregistry.gov.in

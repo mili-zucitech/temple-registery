@@ -5,5 +5,6 @@ public enum UserRole {
     DISTRICT_COLLECTOR,
     DC_STAFF,
     TEMPLE_AUTHORITY,
-    AUDITOR
+    AUDITOR,
+    VIEWER
 }

@@ -1,22 +1,51 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/temple_registry_dev?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
+    url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
+    password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
+    hikari:
+      connection-timeout: 20000
+      connection-test-query: SELECT 1
+      idle-timeout: 240000
+      max-lifetime: 540000
+      keepalive-time: 120000
+      minimum-idle: 2
+      maximum-pool-size: 8
+      connection-init-sql: "SET tidb_enable_noop_functions=1"
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   flyway:
     validate-on-migrate: false
+    repair-on-migrate: true
 
   security:
     debug: false
+
+  # Notification Module - Email Configuration
+  mail:
+    enabled: false  # Set to true when you have SMTP configured
+    host: smtp.gmail.com
+    port: 587
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
+    from: noreply@templeregistry.gov.in
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 springdoc:
   swagger-ui:
@@ -25,23 +54,35 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
-cloud:
-  aws:
-    s3:
-      bucket-name: temple-registry-docs-dev
+trm:
+  export:
+    base-dir: ./exports
 
 app:
+  jwt:
+    private-key-path: classpath:keys/jwt-private.pem
+    public-key-path: classpath:keys/jwt-public.pem
+    access-token-expiry-ms: 18000000
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
   encryption:
-    key: "TempleRegistryDevelopmentKey2024"
-  aws:
-    region: ap-south-1
-    bucket-name: temple-registry-docs-dev
-    # In dev, configure AWS credentials via environment/profile; never hardcode here
+    # 32-byte dev key — ONLY safe in local/dev profile, never used in staging or prod
+    key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
+  hmac:
+    # 32-byte dev key — ONLY safe in local/dev profile, never used in staging or prod
+    key: ${APP_HMAC_KEY:TempleRegHmacDev32ByteKey!Repl!!}
+  storage:
+    base-dir: ./uploads
+  base-url: ${APP_BASE_URL:http://localhost:3000}
 
 logging:
   level:
     com.templeregistry: DEBUG
     org.springframework.security: INFO
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+management:
+  health:
+    mail:
+      enabled: false
