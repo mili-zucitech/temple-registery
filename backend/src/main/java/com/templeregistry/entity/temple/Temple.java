@@ -90,6 +90,13 @@ public class Temple extends BaseEntity {
     @Column(name = "longitude", precision = 11)
     private java.math.BigDecimal longitude;
 
+    // Location metadata (V97)
+    @Column(name = "place_id", length = 500)
+    private String placeId;
+
+    @Column(name = "formatted_address", length = 1000)
+    private String formattedAddress;
+
     // Contact
     @Column(name = "contact_name", length = 200)
     private String contactName;

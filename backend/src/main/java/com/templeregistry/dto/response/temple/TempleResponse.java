@@ -32,6 +32,8 @@ public class TempleResponse {
     private String districtName;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private String placeId;
+    private String formattedAddress;
     private String contactName;
     private String contactDesignation;
     private String contactMobile;

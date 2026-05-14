@@ -24,6 +24,7 @@ import { useTempleProfile } from '@/features/temple-profile/hooks/taProfileHooks
 import { submitTempleProfileSchema, taProfileStagingSchema, type TaProfileStagingFormValues, TEMPLE_GRADES, RELIGIOUS_TRADITIONS } from '../../hooks/templeTypes'
 import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
 import type { GeoSelection } from '@/features/geo/geoTypes'
+import { TempleLocationPicker } from '../../components/TempleLocationPicker/TempleLocationPicker'
 
 const TRADITION_LABELS: Record<string, string> = {
   SHAIVITE: 'Shaivite',
@@ -49,6 +50,7 @@ export function TaTempleEditPage() {
     isLoading,
     isSaving,
     isSubmitting,
+    isEditable,
     handleSave,
     handleSubmit: hookSubmit,
   } = useTempleProfile()
@@ -84,6 +86,8 @@ export function TaTempleEditPage() {
       pinCode: '',
       latitude: null,
       longitude: null,
+      placeId: null,
+      formattedAddress: null,
       yearEstablished: null,
     },
   })
@@ -340,16 +344,31 @@ export function TaTempleEditPage() {
             <StatusBanner status="REJECTED" reviewComment={stagingProfile.reviewComment} />
           )}
 
-          {/* Section 0b: Location (first — read-only, set by admin) */}
+          {/* Section 0b: Location */}
           <AccordionSection title="Temple Location">
             <p className="text-sm text-muted-foreground mb-4">
-              Temple location is set by the system administrator and cannot be changed from this form.
+              Use the map to search and pin the temple location. Latitude and longitude will auto-fill.
+              You can also drag the marker or click on the map to adjust coordinates manually.
             </p>
             <div className="space-y-4">
               <GeoHierarchySelectGrid
                 value={geoSelection}
                 onChange={handleGeoChange}
                 disabled
+              />
+
+              <TempleLocationPicker
+                lat={form.watch('latitude') ?? null}
+                lng={form.watch('longitude') ?? null}
+                placeId={form.watch('placeId') ?? null}
+                formattedAddress={form.watch('formattedAddress') ?? null}
+                disabled={!isEditable}
+                onChange={({ lat, lng, placeId: pid, formattedAddress: fa }) => {
+                  form.setValue('latitude', lat, { shouldDirty: true })
+                  form.setValue('longitude', lng, { shouldDirty: true })
+                  if (pid !== undefined) form.setValue('placeId', pid, { shouldDirty: true })
+                  if (fa !== undefined) form.setValue('formattedAddress', fa, { shouldDirty: true })
+                }}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -381,7 +400,7 @@ export function TaTempleEditPage() {
                         placeholder="e.g. 12.9716"
                         value={field.value ?? ''}
                         onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        disabled
+                        disabled={!isEditable}
                       />
                     </FormControl>
                     <FormMessage />
@@ -398,7 +417,7 @@ export function TaTempleEditPage() {
                         placeholder="e.g. 77.5946"
                         value={field.value ?? ''}
                         onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        disabled
+                        disabled={!isEditable}
                       />
                     </FormControl>
                     <FormMessage />

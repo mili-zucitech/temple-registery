@@ -118,6 +118,13 @@ public class TempleProfileStaging extends BaseEntity {
     @Column(name = "longitude")
     private Double longitude;
 
+    // Location metadata (V97)
+    @Column(name = "place_id", length = 500)
+    private String placeId;
+
+    @Column(name = "formatted_address", length = 1000)
+    private String formattedAddress;
+
     @Column(name = "year_established")
     private Integer yearEstablished;
 

@@ -158,4 +158,53 @@ class TempleProfileStagingServiceImplTest {
         // Similarly, staging.reject() has been removed from TempleProfileStagingService.
         // Full coverage for the reject path lives in TempleProfileWorkflowServiceImplTest.
     }
+
+    // ── Location metadata (V97) ───────────────────────────────────────────────
+
+    @Test
+    void should_apply_placeId_and_formattedAddress_when_provided() {
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(activeTemple));
+        when(stagingRepository.findFirstByTempleIdAndStatus(1L, WorkflowStatus.DRAFT))
+                .thenReturn(Optional.empty());
+        lenient().when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(1L), any())).thenReturn(Optional.empty());
+        when(stagingRepository.findMaxVersionNumberByTempleId(1L)).thenReturn(Optional.of(0));
+        mockWorkflow(WorkflowStatus.DRAFT, 1);
+
+        CreateTempleProfileStagingRequest request = CreateTempleProfileStagingRequest.builder()
+                .placeId("ChIJ21P2rgVRrhkRjIgqmoQ0pIE")
+                .formattedAddress("ISKCON Temple, Rajajinagar, Bengaluru, Karnataka 560010, India")
+                .build();
+
+        stagingService.createOrUpdateDraft(1L, request);
+
+        verify(stagingRepository).save(argThat(s ->
+                "ChIJ21P2rgVRrhkRjIgqmoQ0pIE".equals(s.getPlaceId()) &&
+                s.getFormattedAddress().contains("ISKCON")));
+    }
+
+    @Test
+    void should_not_overwrite_placeId_when_null_in_request() {
+        TempleProfileStaging existing = TempleProfileStaging.builder()
+                .templeId(1L)
+                .placeId("existing-place-id")
+                .build();
+        existing.setId(200L);
+
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(activeTemple));
+        when(stagingRepository.findFirstByTempleIdAndStatus(1L, WorkflowStatus.DRAFT))
+                .thenReturn(Optional.of(existing));
+        lenient().when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(1L), any())).thenReturn(Optional.empty());
+        mockWorkflow(WorkflowStatus.DRAFT, 1);
+
+        // No placeId in request — existing value must be preserved
+        CreateTempleProfileStagingRequest request = CreateTempleProfileStagingRequest.builder()
+                .phone("9876543210")
+                .build();
+
+        stagingService.createOrUpdateDraft(1L, request);
+
+        verify(stagingRepository).save(argThat(s -> "existing-place-id".equals(s.getPlaceId())));
+    }
 }

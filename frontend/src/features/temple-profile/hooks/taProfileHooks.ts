@@ -227,6 +227,8 @@ export function useTempleProfile() {
         pinCode: (source as any).pinCode ?? temple?.pinCode ?? '',
         latitude: (source as any).latitude ?? (temple?.latitude as any) ?? null,
         longitude: (source as any).longitude ?? (temple?.longitude as any) ?? null,
+        placeId: (source as any).placeId ?? null,
+        formattedAddress: (source as any).formattedAddress ?? null,
         yearEstablished: (source as any).yearEstablished ?? temple?.yearEstablished ?? null,
       })
     } else if (temple) {
@@ -260,6 +262,8 @@ export function useTempleProfile() {
         pinCode: temple.pinCode ?? '',
         latitude: (temple.latitude as any) ?? null,
         longitude: (temple.longitude as any) ?? null,
+        placeId: (temple as any).placeId ?? null,
+        formattedAddress: (temple as any).formattedAddress ?? null,
         yearEstablished: temple.yearEstablished ?? null,
       })
     }
@@ -300,6 +304,8 @@ export function useTempleProfile() {
         pinCode: cleanOptional(data.pinCode),
         latitude: data.latitude ?? undefined,
         longitude: data.longitude ?? undefined,
+        placeId: data.placeId ?? undefined,
+        formattedAddress: data.formattedAddress ?? undefined,
         yearEstablished: data.yearEstablished ?? undefined,
       }
 
@@ -369,6 +375,8 @@ export function useTempleProfile() {
         pinCode: cleanOptional(temple?.pinCode),
         latitude: (temple?.latitude as any) ?? undefined,
         longitude: (temple?.longitude as any) ?? undefined,
+        placeId: (temple as any)?.placeId ?? undefined,
+        formattedAddress: (temple as any)?.formattedAddress ?? undefined,
         yearEstablished: temple?.yearEstablished ?? undefined,
       }
       await createOrUpdateDraft({ templeId, body: prefill }).unwrap()
