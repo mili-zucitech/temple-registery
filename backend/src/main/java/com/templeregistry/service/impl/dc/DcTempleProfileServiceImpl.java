@@ -97,6 +97,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final WorkflowEngine workflowEngine;
         private final WorkflowInstanceRepository workflowInstanceRepository;
         private final com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
+        private final com.templeregistry.service.governance.TempleVisibilityPolicy visibilityPolicy;
 
         @Override
         @Transactional(readOnly = true)
@@ -150,6 +151,11 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .map(City::getName)
                                 .orElse(null);
 
+                // Governance visibility — TEMPLE_AUTHORITY may only see governance data for
+                // their own temple. For any other temple, governance fields are stripped so
+                // internal review state never leaks to TAs.
+                boolean showGovernance = visibilityPolicy.canViewGovernance(claims, templeId);
+
                 // Trust (use the first active trust registration)
                 List<Trust> trusts = trustRepository.findAllByTempleId(templeId);
                 Trust primaryTrust = trusts.isEmpty() ? null : trusts.get(0);
@@ -164,7 +170,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 List<TempleFullProfileResponse.BoardMeetingSummary> meetings = List.of();
 
                 if (primaryTrust != null) {
-                        trustSummary = toTrustSummary(primaryTrust, claims);
+                        trustSummary = toTrustSummary(primaryTrust, claims, showGovernance);
                         List<TempleFullProfileResponse.BoardMemberSummary> allMembers = boardMemberRepository
                                         .findAllByTrustIdOrderByAppointmentDateDescIdDesc(primaryTrust.getId())
                                         .stream().map(this::toBoardMemberResponse).toList();
@@ -195,7 +201,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                 List<DeclarationResponse> declarations = declarationRepository
                                 .findAllByTempleIdExcludingDraft(templeId, PageRequest.of(0, 10,
                                         Sort.by(Sort.Order.desc("submittedAt"), Sort.Order.desc("versionNumber"), Sort.Order.desc("id"))))
-                                .stream().map(this::toDeclarationResponse).toList();
+                                .stream().map(d -> toDeclarationResponse(d, showGovernance)).toList();
 
                 // Current approved profile
                 TempleFullProfileResponse.ProfileCurrentResponse currentProfile = profileCurrentRepository
@@ -205,24 +211,26 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
                 // Latest profile staging (any status) — lets DC distinguish "never submitted"
                 // from "recently rejected" without an extra round-trip.
-                TempleFullProfileResponse.LatestProfileStagingInfo latestProfileStaging =
-                                profileStagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId)
-                                .map(s -> {
-                                        WorkflowInstance wi = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
-                                        return TempleFullProfileResponse.LatestProfileStagingInfo.builder()
-                                                        .stagingId(s.getId())
-                                                        .status(wi.getStatus().name())
-                                                        .reviewComment(s.getReviewComment())
-                                                        .versionNumber(s.getVersionNumber())
-                                                        .reviewedAt(s.getReviewedAt())
-                                                        .build();
-                                })
-                                .orElse(null);
+                // Hidden from TEMPLE_AUTHORITY viewing other temples (governance data).
+                TempleFullProfileResponse.LatestProfileStagingInfo latestProfileStaging = showGovernance
+                                ? profileStagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId)
+                                        .map(s -> {
+                                                WorkflowInstance wi = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
+                                                return TempleFullProfileResponse.LatestProfileStagingInfo.builder()
+                                                                .stagingId(s.getId())
+                                                                .status(wi.getStatus().name())
+                                                                .reviewComment(s.getReviewComment())
+                                                                .versionNumber(s.getVersionNumber())
+                                                                .reviewedAt(s.getReviewedAt())
+                                                                .build();
+                                        })
+                                        .orElse(null)
+                                : null;
 
-                log.info("DC full profile loaded: templeId={}", templeId);
+                log.info("DC full profile loaded: templeId={} showGovernance={}", templeId, showGovernance);
 
                 return TempleFullProfileResponse.builder()
-                                .temple(toTempleResponse(temple))
+                                .temple(toTempleResponse(temple, showGovernance))
                                 .hobliName(hobliName)
                                 .talukName(talukName)
                                 .districtName(districtName)
@@ -441,7 +449,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
         // ─── Mapping helpers ──────────────────────────────────────────────────────
 
-        private TempleResponse toTempleResponse(Temple t) {
+        private TempleResponse toTempleResponse(Temple t, boolean showGovernance) {
                 return TempleResponse.builder()
                                 .id(t.getId())
                                 .registrationNumber(t.getRegistrationNumber())
@@ -477,18 +485,22 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .trustRegistered(t.isTrustRegistered())
                                 .assetDeclarationStatus(t.getAssetDeclarationStatus())
                                 .status(t.getStatus() != null ? t.getStatus().name() : null)
-                                .verificationStatus(t.getVerificationStatus() != null ? t.getVerificationStatus().name() : null)
-                                .dcRejectionReason(t.getDcRejectionReason())
+                                // Governance fields — only for callers permitted to see oversight data.
+                                .verificationStatus(showGovernance && t.getVerificationStatus() != null
+                                        ? t.getVerificationStatus().name() : null)
+                                .dcRejectionReason(showGovernance ? t.getDcRejectionReason() : null)
                                 .build();
         }
 
-        private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims) {
+        private TempleFullProfileResponse.DcTrustSummary toTrustSummary(Trust t, ScopeHelper.Claims claims, boolean showGovernance) {
                 String[] bankParts = splitBankNameAndBranch(t.getBankNameAndBranch());
                 List<TrustFinancial> financials = trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(t.getId());
                 // Use canonical WorkflowInstance status — NOT systemVerificationStatus which is never set by approveTrust.
                 com.templeregistry.dto.response.governance.GovernanceStatusPayload governancePayload =
-                        governanceStatusResolver.resolve(WorkflowEntityType.TRUST, t.getId());
-                String workflowStatus = governancePayload.getStatus(); // e.g. SUBMITTED, APPROVED, CLARIFICATION_REQUESTED
+                        showGovernance
+                                ? governanceStatusResolver.resolve(WorkflowEntityType.TRUST, t.getId())
+                                : null;
+                String workflowStatus = governancePayload != null ? governancePayload.getStatus() : null;
                 boolean isVerified = "APPROVED".equals(workflowStatus) || "RE_APPROVED".equals(workflowStatus);
                 // SEND_BACK action transitions to CLARIFICATION_REQUESTED in the workflow engine
                 boolean isSentBack = "CLARIFICATION_REQUESTED".equals(workflowStatus)
@@ -507,12 +519,12 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .bankName(bankParts[0])
                                 .bankBranch(bankParts[1])
                                 .annualIncome(t.getAnnualIncome())
-                                .dcFlagReason(dcFlagReasonValue)
+                                .dcFlagReason(showGovernance ? dcFlagReasonValue : null)
                                 .governanceStatus(governancePayload)
-                                .reviewStatus(reviewStatus)
-                                .workflowStatus(workflowStatus)
-                                .isVerifiedByDc(isVerified)
-                                .validationIssues(buildTrustValidationIssues(t))
+                                .reviewStatus(showGovernance ? reviewStatus : null)
+                                .workflowStatus(showGovernance ? workflowStatus : null)
+                                .isVerifiedByDc(showGovernance && isVerified)
+                                .validationIssues(showGovernance ? buildTrustValidationIssues(t) : List.of())
                                 .financialStatus(financials.isEmpty() ? "MISSING" : "SUBMITTED")
                                 .build();
         }
@@ -612,7 +624,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .build();
         }
 
-        private DeclarationResponse toDeclarationResponse(AssetDeclaration d) {
+        private DeclarationResponse toDeclarationResponse(AssetDeclaration d, boolean showGovernance) {
                 return DeclarationResponse.builder()
                                 .id(d.getId())
                                 .templeId(d.getTempleId())
@@ -635,8 +647,9 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .reviewedAt(d.getReviewedAt())
                                 .acknowledgementNumber(d.getAcknowledgementNumber())
                                 .dueDate(d.getDueDate())
-                                .governanceStatus(governanceStatusResolver.resolve(
-                                    WorkflowEntityType.DECLARATION, d.getId()))
+                                .governanceStatus(showGovernance
+                                        ? governanceStatusResolver.resolve(WorkflowEntityType.DECLARATION, d.getId())
+                                        : null)
                                 .build();
         }
 

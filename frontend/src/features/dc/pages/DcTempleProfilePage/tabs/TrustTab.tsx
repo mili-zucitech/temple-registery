@@ -23,12 +23,14 @@ interface TrustTabProps {
   trustFinancials: TrustFinancialSummary[]
   boardMeetings: BoardMeetingSummary[]
   canAct: boolean
+  /** Whether the caller is permitted to view governance/oversight metadata. False for TA viewing other temples. */
+  showGovernance?: boolean
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
   onEditTrust?: () => void
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, onVerifyTrust, onRejectTrust, onEditTrust }: TrustTabProps) {
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, showGovernance = true, onVerifyTrust, onRejectTrust, onEditTrust }: TrustTabProps) {
   const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
 
   const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
@@ -66,6 +68,25 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
   // Canonical status from governanceStatus (preferred) with fallback to legacy workflowStatus
   const canonicalStatus = trust?.governanceStatus?.status ?? trust?.workflowStatus ?? null
 
+  // RE_APPROVED means the trust was approved and a subsequent TA edit was rejected.
+  // The backend restores the approved data snapshot on rejection and transitions
+  // the workflow to RE_APPROVED so the TA can attempt another edit.
+  // For the OVERSIGHT PANEL we must surface the most recent review outcome (REJECTED)
+  // rather than the live-data status (RE_APPROVED / approved), which would mislead
+  // the DC into thinking the latest submission was approved.
+  const hasEditRejection =
+    canonicalStatus === 'RE_APPROVED' &&
+    !!trust?.governanceStatus?.latestRejectionReason
+
+  // Status to pass to GovernanceActionPanel — reflects the latest review action.
+  const oversightStatus: string | null = hasEditRejection ? 'REJECTED' : canonicalStatus
+
+  // Rejection reason for the oversight panel.
+  const oversightRejectionReason: string | null =
+    hasEditRejection
+      ? (trust?.governanceStatus?.latestRejectionReason ?? null)
+      : (trust?.governanceStatus?.rejectionReason ?? trust?.dcFlagReason ?? null)
+
   // Derive the 3-state badge value from canonical WorkflowStatus
   const trustBadgeStatus: ModuleVerificationStatus = (() => {
     if (!canonicalStatus) return 'PENDING'
@@ -83,6 +104,9 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
 
   // Derive statusHint from canonical status
   const statusHint = (() => {
+    if (hasEditRejection) {
+      return 'Trust data active \u00b7 Latest edit attempt was rejected. The original approved data is still live.'
+    }
     if (!canonicalStatus || canonicalStatus === 'DRAFT') {
       return 'Trust registration has not been submitted by the temple authority yet. Actions will be available once it is submitted.'
     }
@@ -95,8 +119,11 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
     return null
   })()
 
-  // isVerified for GovernanceActionPanel
+  // isVerified for live data display (trust header badge / ModuleStatusBadge)
   const isVerified = canonicalStatus === 'APPROVED' || canonicalStatus === 'RE_APPROVED'
+  // panelIsVerified: false when there's an edit rejection so GovernanceActionPanel
+  // shows REJECTED badge rather than "Approved by District Collector".
+  const panelIsVerified = isVerified && !hasEditRejection
   const [memberTab, setMemberTab] = useState<'current' | 'past'>('current')
   const [memberPage, setMemberPage] = useState(0)
   const [viewingMemberId, setViewingMemberId] = useState<number | null>(null)
@@ -431,17 +458,17 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         </SectionCard>
       )}
 
-      {/* Oversight block - moved to end */}
-      {trust && (
+      {/* Oversight block - shown only when governance data is available (hidden for TA viewing other temples) */}
+      {showGovernance && trust && (
         <SectionCard
           title="Trust Verification"
           icon={<Shield size={18} className="text-emerald-600" />}
         >
           <GovernanceActionPanel
             entityName="Trust Registration"
-            isVerified={isVerified}
-            canonicalStatus={canonicalStatus}
-            rejectionReason={trust.governanceStatus?.rejectionReason ?? trust.dcFlagReason ?? null}
+            isVerified={panelIsVerified}
+            canonicalStatus={oversightStatus}
+            rejectionReason={oversightRejectionReason}
             canAct={dcCanAct}
             statusHint={statusHint}
             onVerify={(notes) => onVerifyTrust(trust.id, notes)}

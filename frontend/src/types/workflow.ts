@@ -237,4 +237,12 @@ export interface GovernanceStatusPayload {
   allowedActions?: string[]
   /** Populated when status = REJECTED — reason given by DC */
   rejectionReason?: string | null
+  /**
+   * Most recent rejection reason, populated for both REJECTED and RE_APPROVED statuses.
+   * For RE_APPROVED (trust/profile edit rejected but original approved data restored),
+   * this surfaces the rejection context even though the canonical status is RE_APPROVED.
+   * Use this to show "Latest edit rejected" in the oversight panel.
+   * Null when there has never been a rejection transition.
+   */
+  latestRejectionReason?: string | null
 }

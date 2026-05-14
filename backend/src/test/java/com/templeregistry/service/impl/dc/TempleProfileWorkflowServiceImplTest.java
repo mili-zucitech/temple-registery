@@ -293,4 +293,24 @@ class TempleProfileWorkflowServiceImplTest {
         assertThat(activeTemple.getDcRejectionReason()).isNull();
         assertThat(activeTemple.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
     }
+
+    // ── Location metadata (V97) promotion on approval ─────────────────────────
+
+    @Test
+    void should_promote_placeId_and_formattedAddress_to_temple_on_approval() {
+        TempleProfileStaging staging = stagingWith(902L, 1L);
+        staging.setPlaceId("ChIJ21P2rgVRrhkRjIgqmoQ0pIE");
+        staging.setFormattedAddress("ISKCON Temple, Bengaluru");
+        when(stagingRepository.findById(902L)).thenReturn(Optional.of(staging));
+        when(templeRepository.findWithGeoById(1L)).thenReturn(Optional.of(activeTemple));
+        when(workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, 902L))
+                .thenReturn(workflowAt(989L, WorkflowStatus.SUBMITTED));
+
+        ApproveProfileRequest req = new ApproveProfileRequest();
+        ReflectionTestUtils.setField(req, "remarks", "Approved");
+        service.approveProfile(902L, req, dcClaims);
+
+        assertThat(activeTemple.getPlaceId()).isEqualTo("ChIJ21P2rgVRrhkRjIgqmoQ0pIE");
+        assertThat(activeTemple.getFormattedAddress()).isEqualTo("ISKCON Temple, Bengaluru");
+    }
 }

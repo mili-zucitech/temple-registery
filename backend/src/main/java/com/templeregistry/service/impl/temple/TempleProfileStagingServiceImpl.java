@@ -395,6 +395,9 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         if (normalized(rq.getPinCode()) != null)                  staging.setPinCode(normalized(rq.getPinCode()));
         if (rq.getLatitude() != null)                             staging.setLatitude(rq.getLatitude());
         if (rq.getLongitude() != null)                            staging.setLongitude(rq.getLongitude());
+        // Location metadata (V97)
+        if (normalized(rq.getPlaceId()) != null)          staging.setPlaceId(normalized(rq.getPlaceId()));
+        if (normalized(rq.getFormattedAddress()) != null)  staging.setFormattedAddress(normalized(rq.getFormattedAddress()));
         if (rq.getYearEstablished() != null)                      staging.setYearEstablished(rq.getYearEstablished());
     }
 

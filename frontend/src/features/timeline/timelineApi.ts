@@ -28,7 +28,7 @@ export const timelineApi = createApi({
       ApiResponse<PaginatedResponse<TempleTimelineEventResponse>>,
       GetTempleTimelineParams
     >({
-      query: ({ templeId, page = 0, size = 20 }) =>
+      query: ({ templeId, page = 0, size = 50 }) =>
         `/timeline/temples/${templeId}?page=${page}&size=${size}`,
       providesTags: (_result, _error, { templeId }) => [
         { type: 'TempleTimeline', id: templeId },
