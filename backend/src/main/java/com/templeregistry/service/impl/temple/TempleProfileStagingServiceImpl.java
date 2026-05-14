@@ -183,11 +183,13 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         // Route through adaptSubmit — it automatically selects SUBMIT vs RESUBMIT:
         //   DRAFT                  → SUBMIT   → SUBMITTED
         //   UPDATED_AFTER_APPROVAL → RESUBMIT → RESUBMITTED
+        // Pass null districtId for SUPER_ADMIN so the adaptor builds actorRole="TA",
+        // matching the SUBMIT transition rule which requires "TA" (not "DC").
         workflowEngineAdaptor.adaptSubmit(
             WorkflowEntityType.TEMPLE_PROFILE,
             staging.getId(),
             templeId,
-            temple.getDistrictId(),
+            isSuperAdmin() ? null : temple.getDistrictId(),
             currentUserId()
         );
 
@@ -348,6 +350,12 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof ScopeHelper.Claims c) return c.userId();
         return 0L;
+    }
+
+    private boolean isSuperAdmin() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof ScopeHelper.Claims c) return RoleConstants.SUPER_ADMIN.equals(c.role());
+        return false;
     }
 
     private ActionContext buildActionContext(Long districtId) {

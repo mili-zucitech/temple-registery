@@ -51,6 +51,29 @@ const handlers = [
       data: [{ id: 1, name: 'Karnataka', code: 'KA' }],
     })
   ),
+
+  // Default handler for admin/users endpoint (can be overridden in tests)
+  http.get(`${BASE}/admin/users`, ({ request }) => {
+    const url = new URL(request.url)
+    const page = Number(url.searchParams.get('page') ?? '0')
+    const size = Number(url.searchParams.get('size') ?? '20')
+    
+    // Return empty response by default
+    return HttpResponse.json({
+      success: true,
+      message: 'OK',
+      data: {
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        size,
+        number: page,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+      },
+    })
+  }),
 ]
 
 export const server = setupServer(...handlers)

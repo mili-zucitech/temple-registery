@@ -28,6 +28,9 @@ public class CreateUserRequest {
     @NotNull(message = "District is required.")
     private Long districtId;
 
+    /** Optional city assignment for DC/DC_STAFF/TEMPLE_AUTHORITY users. */
+    private Long cityId;
+
     /**
      * Required when role = TEMPLE_AUTHORITY.
      * The backend automatically creates a Temple record using this name.

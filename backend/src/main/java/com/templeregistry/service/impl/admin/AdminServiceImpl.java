@@ -12,6 +12,7 @@ import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.geo.CityRepository;
 import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.RoleConstants;
@@ -40,6 +41,7 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final TempleRepository templeRepository;
     private final DistrictRepository districtRepository;
+    private final CityRepository cityRepository;
     private final PasswordEncoder passwordEncoder;
     private final TempleSearchSummaryService searchSummaryService;
     private final AuditService auditService;
@@ -108,6 +110,7 @@ public class AdminServiceImpl implements AdminService {
                 .passwordHash(passwordEncoder.encode(rq.getPassword()))
                 .fullName(rq.getFullName()).mobile(rq.getMobile())
                 .role(rq.getRole()).districtId(rq.getDistrictId())
+                .cityId(rq.getCityId())
                 .templeId(templeId)
                 .aadhaarNumber(rq.getAadhaarNumber())
                 .isActive(true).build();
@@ -134,6 +137,7 @@ public class AdminServiceImpl implements AdminService {
         if (rq.getRole() != null) user.setRole(rq.getRole());
         if (rq.getActive() != null) user.setActive(rq.getActive());
         if (rq.getDistrictId() != null) user.setDistrictId(rq.getDistrictId());
+        if (rq.getCityId() != null) user.setCityId(rq.getCityId());
         if (rq.getTempleId() != null) user.setTempleId(rq.getTempleId());
         User saved = userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "UPDATE_USER",
@@ -209,6 +213,7 @@ public class AdminServiceImpl implements AdminService {
                 .active(u.isActive()).aadhaarVerified(u.isAadhaarVerified())
                 .aadhaarNumber(u.getAadhaarNumber())
                 .districtId(u.getDistrictId()).districtName(districtName)
+                .cityId(u.getCityId())
                 .templeId(u.getTempleId()).templeName(templeName)
                 .lastLoginAt(u.getLastLoginAt()).createdAt(u.getCreatedAt()).build();
     }

@@ -354,7 +354,7 @@ export function TaTempleEditPage() {
               <GeoHierarchySelectGrid
                 value={geoSelection}
                 onChange={handleGeoChange}
-                disabled
+                lockedLevels={['city', 'district']}
               />
 
               <TempleLocationPicker

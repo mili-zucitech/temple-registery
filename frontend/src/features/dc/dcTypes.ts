@@ -534,6 +534,7 @@ export interface ProfileStagingResponse {
   grade: string | null
   tradition: string | null
   hobliId: number | null
+  talukId: number | null
   addressLine1: string | null
   pinCode: string | null
   latitude: number | null

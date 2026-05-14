@@ -217,6 +217,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Invalid request body: " + ex.getMostSpecificCause().getMessage(), "INVALID_REQUEST"));
     }
 
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestTimeoutException.class)
+    public void handleAsyncTimeout(org.springframework.web.context.request.async.AsyncRequestTimeoutException ex) {
+        // SSE / long-poll connections time out normally — swallow silently, do NOT write a JSON body
+        // because the response Content-Type is already text/event-stream and Jackson cannot serialize into it.
+        log.debug("Async request timed out (SSE/long-poll keep-alive — expected)");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);

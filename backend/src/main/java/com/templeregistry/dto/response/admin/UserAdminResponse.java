@@ -18,6 +18,7 @@ public class UserAdminResponse {
     private String aadhaarNumber;
     private Long districtId;
     private String districtName;
+    private Long cityId;
     private Long templeId;
     private String templeName;
     private LocalDateTime lastLoginAt;

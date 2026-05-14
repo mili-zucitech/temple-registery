@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   useListUsersQuery, useDeactivateUserMutation, useActivateUserMutation,
@@ -11,11 +11,13 @@ import { TableSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Users, Plus, Pencil, Building2, MapPin } from 'lucide-react'
+import { Users, Plus, Pencil, Building2, MapPin, ShieldCheck, ClipboardCheck, Landmark, UserCog, Search, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { UserFormDialog } from '../../components/UserFormDialog/UserFormDialog'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog/ConfirmDialog'
 import { USER_ROLES, type UserRole } from '@/constants/roles'
 import { cn } from '@/lib/utils'
+import { PaginationControl } from '@/components/navigation/PaginationControl/PaginationControl'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,6 +52,65 @@ const ROLE_COLORS: Record<string, string> = {
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
 
+// ─── Tab Pagination State Interface ──────────────────────────────────────────
+
+interface TabPaginationState {
+  currentPage: number;      // 1-indexed for UI
+  pageSize: number;          // Fixed at 20
+  statusFilter: StatusFilter; // 'ALL' | 'ACTIVE' | 'INACTIVE'
+}
+
+// ─── Custom Hook: useTabPaginationState ──────────────────────────────────────
+
+/**
+ * Custom hook to manage per-tab pagination state with sessionStorage persistence.
+ * 
+ * @param tabKey - Unique identifier for the tab (e.g., 'ALL', 'DISTRICT_COLLECTOR')
+ * @returns Tuple of [state, setState] similar to useState
+ * 
+ * **Validates: Requirements 1.4, 1.5, 5.1, 5.4**
+ */
+function useTabPaginationState(tabKey: string): [TabPaginationState, (state: TabPaginationState) => void] {
+  // Initialize state from sessionStorage or defaults
+  const [state, setState] = useState<TabPaginationState>(() => {
+    try {
+      const saved = sessionStorage.getItem(`pagination_${tabKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Validate parsed data has required fields
+        if (
+          typeof parsed.currentPage === 'number' &&
+          typeof parsed.pageSize === 'number' &&
+          typeof parsed.statusFilter === 'string'
+        ) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      // If parsing fails, fall through to defaults
+      console.warn(`Failed to parse pagination state for tab ${tabKey}:`, error);
+    }
+    
+    // Default state
+    return {
+      currentPage: 1,
+      pageSize: 20,
+      statusFilter: 'ALL' as StatusFilter,
+    };
+  });
+
+  // Persist state to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`pagination_${tabKey}`, JSON.stringify(state));
+    } catch (error) {
+      console.warn(`Failed to persist pagination state for tab ${tabKey}:`, error);
+    }
+  }, [state, tabKey]);
+
+  return [state, setState];
+}
+
 // Roles that need a district column
 const DISTRICT_ROLES = new Set([USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF, USER_ROLES.TEMPLE_AUTHORITY])
 // Roles that also need a temple column
@@ -63,7 +124,10 @@ function maskAadhaar(n?: string): string {
 
 function formatDate(dt?: string): string {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const d = new Date(dt)
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  return `${date}, ${time}`
 }
 
 // ─── Avatar initials ──────────────────────────────────────────────────────────
@@ -148,46 +212,46 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
   }
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto scrollbar-thin rounded-xl border border-border shadow-sm">
+      <table className="w-full text-sm" style={{ minWidth: '960px' }}>
         <thead>
           <tr className="bg-muted/40 border-b border-border">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">User</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[260px]">User</th>
             {role === 'ALL' && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[120px]">Role</th>
             )}
             {showDistrict && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">District</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[130px]">District</th>
             )}
             {showTemple && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Temple</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[160px]">Temple</th>
             )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Aadhaar</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Login</th>
-            <th className="px-4 py-3 w-[120px]" />
+            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[90px]">Status</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[140px]">Aadhaar</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[175px]">Last Login</th>
+            <th className="px-4 py-3 whitespace-nowrap w-[140px]" />
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {users.map((user) => (
             <tr key={user.id} className="group hover:bg-muted/30 transition-colors duration-100">
               {/* User */}
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 <div className="flex items-center gap-3">
                   <UserAvatar name={user.fullName} />
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">{user.fullName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <p className="font-medium text-foreground truncate max-w-[180px]">{user.fullName}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[180px]">{user.email}</p>
                   </div>
                 </div>
               </td>
 
               {/* Role — only on All tab */}
               {role === 'ALL' && (
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 whitespace-nowrap">
                   <Badge
                     variant="outline"
-                    className={cn('text-[11px] font-medium border', ROLE_COLORS[user.role] ?? '')}
+                    className={cn('text-[11px] font-medium border whitespace-nowrap', ROLE_COLORS[user.role] ?? '')}
                   >
                     {ROLE_SHORT[user.role] ?? user.role}
                   </Badge>
@@ -196,11 +260,11 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
 
               {/* District */}
               {showDistrict && (
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 whitespace-nowrap">
                   {user.districtName ? (
                     <span className="inline-flex items-center gap-1 text-xs text-foreground">
                       <MapPin size={11} className="text-muted-foreground shrink-0" />
-                      {user.districtName}
+                      <span className="truncate max-w-[110px]">{user.districtName}</span>
                     </span>
                   ) : (
                     <span className="text-xs text-muted-foreground/50">—</span>
@@ -210,11 +274,11 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
 
               {/* Temple */}
               {showTemple && (
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 whitespace-nowrap">
                   {user.templeName ? (
                     <span className="inline-flex items-center gap-1 text-xs text-foreground">
                       <Building2 size={11} className="text-muted-foreground shrink-0" />
-                      <span className="max-w-[160px] truncate">{user.templeName}</span>
+                      <span className="truncate max-w-[130px]">{user.templeName}</span>
                     </span>
                   ) : (
                     <span className="text-xs text-muted-foreground/50">—</span>
@@ -223,19 +287,19 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
               )}
 
               {/* Status */}
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 <StatusBadge status={user.active ? 'ACTIVE' : 'INACTIVE'} />
               </td>
 
               {/* Aadhaar */}
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">
                   {maskAadhaar(user.aadhaarNumber)}
                 </span>
               </td>
 
               {/* Last Login */}
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 {user.lastLoginAt ? (
                   <span className="text-xs text-muted-foreground">{formatDate(user.lastLoginAt)}</span>
                 ) : (
@@ -244,7 +308,7 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
               </td>
 
               {/* Actions */}
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
                   <Button
                     variant="ghost"
@@ -258,7 +322,7 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
                   <Button
                     variant={user.active ? 'destructive' : 'outline'}
                     size="sm"
-                    className="h-7 text-xs px-2.5"
+                    className="h-7 text-xs px-2.5 whitespace-nowrap"
                     onClick={() => onToggleStatus(user)}
                     disabled={deactivating || activating}
                   >
@@ -277,38 +341,160 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
 // ─── Per-role tab content ──────────────────────────────────────────────────────
 
 function RoleTabContent({
-  allUsers, role, onEdit, onToggleStatus, deactivating, activating,
+  role, onEdit, onToggleStatus, deactivating, activating,
 }: {
-  allUsers: UserAdminResponse[]
   role: UserRole | 'ALL'
   onEdit: (u: UserAdminResponse) => void
   onToggleStatus: (u: UserAdminResponse) => void
   deactivating: boolean
   activating: boolean
 }) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const byRole = role === 'ALL' ? allUsers : allUsers.filter(u => u.role === role)
-  const filtered = statusFilter === 'ALL'
-    ? byRole
-    : byRole.filter(u => statusFilter === 'ACTIVE' ? u.active : !u.active)
+  const [search, setSearch] = useState('')
 
+  // Use per-tab pagination state with sessionStorage persistence
+  const [paginationState, setPaginationState] = useTabPaginationState(role)
+  const { currentPage, statusFilter } = paginationState
+
+  // API call with pagination parameters
+  const { data, isLoading, isError, refetch } = useListUsersQuery({
+    page: currentPage - 1,  // Convert 1-indexed UI to 0-indexed backend
+    size: 20
+  })
+
+  // Extract pagination metadata from API response
+  const allUsers = data?.data?.content ?? []
+  const totalPages = data?.data?.totalPages ?? 0
+  const totalElements = data?.data?.totalElements ?? 0
+
+  // Filter by role (client-side)
+  const byRole = role === 'ALL' ? allUsers : allUsers.filter(u => u.role === role)
+
+  // Filter by search query (client-side)
+  const q = search.trim().toLowerCase()
+  const bySearch = q
+    ? byRole.filter(u =>
+        u.fullName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q)
+      )
+    : byRole
+
+  // Filter by status (client-side)
+  const filtered = statusFilter === 'ALL'
+    ? bySearch
+    : bySearch.filter(u => statusFilter === 'ACTIVE' ? u.active : !u.active)
+
+  // Calculate status counts for filter badges (based on search-filtered set)
   const counts: Record<StatusFilter, number> = {
-    ALL: byRole.length,
-    ACTIVE: byRole.filter(u => u.active).length,
-    INACTIVE: byRole.filter(u => !u.active).length,
+    ALL: bySearch.length,
+    ACTIVE: bySearch.filter(u => u.active).length,
+    INACTIVE: bySearch.filter(u => !u.active).length,
+  }
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPaginationState({ ...paginationState, currentPage: 1 })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
+
+  // Reset to page 1 when status filter changes
+  useEffect(() => {
+    setPaginationState({
+      ...paginationState,
+      currentPage: 1,
+      statusFilter
+    })
+  }, [statusFilter])
+
+  // Handle invalid page numbers (e.g., user on page 5, filter results only have 2 pages)
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setPaginationState({
+        ...paginationState,
+        currentPage: totalPages
+      })
+    }
+  }, [totalPages, currentPage])
+
+  // Handle status filter change
+  const handleStatusFilterChange = (newFilter: StatusFilter) => {
+    setPaginationState({
+      ...paginationState,
+      statusFilter: newFilter,
+      currentPage: 1  // Reset to page 1 when filter changes
+    })
+  }
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setPaginationState({
+      ...paginationState,
+      currentPage: page
+    })
   }
 
   return (
     <div className="space-y-3 pt-4">
-      <StatusFilterBar value={statusFilter} onChange={setStatusFilter} counts={counts} />
-      <UsersTable
-        users={filtered}
-        role={role}
-        onEdit={onEdit}
-        onToggleStatus={onToggleStatus}
-        deactivating={deactivating}
-        activating={activating}
-      />
+      {/* Search bar */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, email or username…"
+          className="pl-8 h-9 text-sm bg-muted/30 border-border/70 focus:bg-background transition-colors"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Clear search"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {/* Error state */}
+      {isError ? (
+        <EmptyState
+          title="Failed to load users"
+          description="Unable to fetch user data. Please try again."
+          action={{ label: 'Retry', onClick: () => refetch() }}
+        />
+      ) : (
+        <>
+          <StatusFilterBar 
+            value={statusFilter} 
+            onChange={handleStatusFilterChange} 
+            counts={counts} 
+          />
+          
+          {/* Loading state - show skeleton while maintaining layout */}
+          {isLoading ? (
+            <TableSkeleton rows={20} />
+          ) : (
+            <UsersTable
+              users={filtered}
+              role={role}
+              onEdit={onEdit}
+              onToggleStatus={onToggleStatus}
+              deactivating={deactivating}
+              activating={activating}
+            />
+          )}
+          
+          {/* Conditionally render pagination only when totalPages > 1 */}
+          {totalPages > 1 && (
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              disabled={isLoading}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -316,7 +502,8 @@ function RoleTabContent({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function UserManagementPage() {
-  const { data, isLoading, isError, refetch } = useListUsersQuery({ page: 0, size: 500 })
+  // Fetch initial user count for header (using page 0, size 1 to get total count efficiently)
+  const { data: countData, isLoading: countLoading } = useListUsersQuery({ page: 0, size: 1 })
   const [deactivate, { isLoading: deactivating }] = useDeactivateUserMutation()
   const [activate, { isLoading: activating }] = useActivateUserMutation()
   const [createUser, { isLoading: creating }] = useCreateUserMutation()
@@ -326,7 +513,7 @@ export function UserManagementPage() {
   const [selectedUser, setSelectedUser] = useState<UserAdminResponse | null>(null)
   const [confirmStatusUser, setConfirmStatusUser] = useState<UserAdminResponse | null>(null)
 
-  const allUsers = data?.data?.content ?? []
+  const totalUsers = countData?.data?.totalElements ?? 0
 
   const handleCreate = () => { setSelectedUser(null); setDialogOpen(true) }
   const handleEdit = (user: UserAdminResponse) => { setSelectedUser(user); setDialogOpen(true) }
@@ -363,26 +550,33 @@ export function UserManagementPage() {
     }
   }
 
-  if (isError) {
-    return (
-      <EmptyState
-        title="Failed to load users"
-        description="Unable to fetch user data."
-        action={{ label: 'Retry', onClick: () => refetch() }}
-      />
-    )
-  }
+  const [activeTab, setActiveTab] = useState('ALL')
 
-  const tabProps = { allUsers, onEdit: handleEdit, onToggleStatus: handleToggleStatus, deactivating, activating }
+  const ROLE_TABS = [
+    { value: 'ALL',                           label: 'All Users',          icon: <Users size={14} />,         count: totalUsers },
+    { value: USER_ROLES.SUPER_ADMIN,          label: 'Super Admin',        icon: <ShieldCheck size={14} />,   count: null },
+    { value: USER_ROLES.DISTRICT_COLLECTOR,   label: 'District Collector', icon: <Building2 size={14} />,     count: null },
+    { value: USER_ROLES.DC_STAFF,             label: 'DC Staff',           icon: <UserCog size={14} />,       count: null },
+    { value: USER_ROLES.TEMPLE_AUTHORITY,     label: 'Temple Authority',   icon: <Landmark size={14} />,      count: null },
+    { value: USER_ROLES.AUDITOR,              label: 'Auditor',            icon: <ClipboardCheck size={14} />,count: null },
+  ] as const
+
+  const tabProps = { onEdit: handleEdit, onToggleStatus: handleToggleStatus, deactivating, activating }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {isLoading ? 'Loading...' : `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''} registered`}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
+            <Users size={18} className="text-primary" />
+          </div>
+          <div>
+            <h1 className="text-base font-semibold text-foreground">User Management</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {countLoading ? 'Loading…' : `${totalUsers} user${totalUsers !== 1 ? 's' : ''} registered`}
+            </p>
+          </div>
         </div>
         <Button onClick={handleCreate} size="sm" className="gap-1.5 h-8 text-sm">
           <Plus size={14} />
@@ -390,56 +584,74 @@ export function UserManagementPage() {
         </Button>
       </div>
 
-      {isLoading ? (
-        <TableSkeleton rows={8} />
-      ) : (
-        <Tabs defaultValue="ALL" className="w-full">
-          <div className="border-b border-border">
-            <TabsList className="h-auto bg-transparent p-0 gap-0 flex flex-wrap">
-              {/* All tab */}
-              <TabsTrigger
-                value="ALL"
-                className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-all
-                  data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent
-                  hover:text-foreground hover:bg-muted/40"
-              >
-                All
-                <span className="ml-1.5 text-[11px] bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 font-normal">
-                  {allUsers.length}
-                </span>
-              </TabsTrigger>
-
-              {/* Role tabs */}
-              {Object.values(USER_ROLES).map(role => {
-                const count = allUsers.filter(u => u.role === role).length
-                return (
-                  <TabsTrigger
-                    key={role}
-                    value={role}
-                    className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-all
-                      data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent
-                      hover:text-foreground hover:bg-muted/40"
-                  >
-                    {ROLE_SHORT[role]}
-                    <span className="ml-1.5 text-[11px] bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 font-normal">
-                      {count}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        {/* Tab navigation — styled like DC Temple Profile */}
+        <div
+          className="sticky top-0 z-30 rounded-xl overflow-hidden shadow-lg"
+          style={{
+            background: 'rgba(28, 25, 23, 0.97)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+          }}
+        >
+          <div className="overflow-x-auto overflow-y-hidden scrollbar-thin px-2">
+            <TabsList className="h-12 p-0 bg-transparent gap-0.5 flex min-w-max">
+              {ROLE_TABS.map(tab => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className={cn(
+                    'relative h-12 flex items-center gap-2 px-4 text-xs font-semibold transition-all duration-200 tracking-wide whitespace-nowrap rounded-none',
+                    'text-slate-400 hover:text-white hover:bg-white/5',
+                    'data-[state=active]:text-white data-[state=active]:bg-transparent shadow-none',
+                    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500/50',
+                  )}
+                  style={activeTab === tab.value ? {
+                    background: 'linear-gradient(to bottom, rgba(251, 146, 60, 0.14), rgba(249, 115, 22, 0.06))',
+                    borderLeft: '1px solid rgba(251, 146, 60, 0.18)',
+                    borderRight: '1px solid rgba(251, 146, 60, 0.18)',
+                    borderTop: '1px solid rgba(251, 146, 60, 0.18)',
+                  } : {}}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                  {tab.count !== null && tab.count > 0 && (
+                    <span className={cn(
+                      'ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md transition-all',
+                      activeTab === tab.value
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'bg-slate-800/80 text-slate-400 border border-slate-700/50',
+                    )}>
+                      {tab.count}
                     </span>
-                  </TabsTrigger>
-                )
-              })}
+                  )}
+                  {activeTab === tab.value && (
+                    <div
+                      className="absolute bottom-0 inset-x-0 h-0.5"
+                      style={{
+                        background: 'linear-gradient(90deg, hsl(36 80% 50%), hsl(24 85% 55%))',
+                        boxShadow: '0 0 10px rgba(251, 146, 60, 0.55)',
+                      }}
+                    />
+                  )}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </div>
+        </div>
 
-          <TabsContent value="ALL" className="mt-0 outline-none ring-0 focus-visible:ring-0">
-            <RoleTabContent role="ALL" {...tabProps} />
+        {ROLE_TABS.map(tab => (
+          <TabsContent
+            key={tab.value}
+            value={tab.value}
+            forceMount
+            className="mt-0 outline-none ring-0 focus-visible:ring-0 data-[state=inactive]:hidden data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
+          >
+            <RoleTabContent role={tab.value as UserRole | 'ALL'} {...tabProps} />
           </TabsContent>
-          {Object.values(USER_ROLES).map(role => (
-            <TabsContent key={role} value={role} className="mt-0 outline-none ring-0 focus-visible:ring-0">
-              <RoleTabContent role={role} {...tabProps} />
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
+        ))}
+      </Tabs>
 
       <UserFormDialog
         open={dialogOpen}

@@ -29,6 +29,7 @@ import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.repository.geo.CityRepository;
 import com.templeregistry.repository.geo.DistrictRepository;
+import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
@@ -92,6 +93,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         private final DeclMovEquipmentRepository equipmentRepository;
         private final CityRepository cityRepository;
         private final DistrictRepository districtRepository;
+        private final com.templeregistry.repository.geo.HobliRepository hobliRepository;
         private final JurisdictionGuard jurisdictionGuard;
         private final TrustValidationService trustValidationService;
         private final WorkflowEngine workflowEngine;
@@ -466,6 +468,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .pinCode(t.getPinCode())
                                 .hobliId(t.getHobliId())
                                 .talukId(t.getTalukId())
+                                .cityId(t.getCityId())
                                 .districtId(t.getDistrictId())
                                 .latitude(t.getLatitude())
                                 .longitude(t.getLongitude())
@@ -713,6 +716,7 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
                                 .grade(s.getGrade())
                                 .tradition(s.getTradition())
                                 .hobliId(s.getHobliId())
+                                .talukId(s.getHobliId() != null ? hobliRepository.findTalukIdById(s.getHobliId()).orElse(null) : null)
                                 .addressLine1(s.getAddressLine1())
                                 .pinCode(s.getPinCode())
                                 .latitude(s.getLatitude())

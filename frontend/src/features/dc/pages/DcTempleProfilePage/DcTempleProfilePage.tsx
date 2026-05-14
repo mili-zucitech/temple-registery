@@ -75,10 +75,6 @@ import {
 } from '@/features/trust/trustApi'
 import { TRUST_TYPES, updateTrustSchema, type UpdateTrustRequest } from '@/features/trust/trustTypes'
 import {
-  useCreateOrUpdateDraftMutation,
-  useSubmitForReviewMutation,
-} from '@/features/temple-profile/hooks/templeApi'
-import {
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
 } from '@/features/employee/employeeApi'
@@ -132,7 +128,6 @@ export function DcTempleProfilePage() {
   const canEdit = role === USER_ROLES.SUPER_ADMIN
 
   // SA edit dialog states
-  const [profileEditOpen, setProfileEditOpen] = useState(false)
   const [trustEditOpen, setTrustEditOpen] = useState(false)
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null)
@@ -140,8 +135,6 @@ export function DcTempleProfilePage() {
   const [editingContractor, setEditingContractor] = useState<DcContractorResponse | null>(null)
 
   // SA edit mutations
-  const [createOrUpdateDraft, { isLoading: isSavingDraft }] = useCreateOrUpdateDraftMutation()
-  const [submitForReview, { isLoading: isSubmittingReview }] = useSubmitForReviewMutation()
   const [updateTrust, { isLoading: isUpdatingTrust }] = useUpdateTrustMutation()
   const [submitTrust, { isLoading: isSubmittingTrust }] = useSubmitTrustMutation()
   const [createEmployee, { isLoading: isCreatingEmployee }] = useCreateEmployeeMutation()
@@ -469,7 +462,7 @@ export function DcTempleProfilePage() {
               }}
               onEditProfile={
                 isOwnTemple ? () => navigate(ROUTE_PATHS.TA_TEMPLE_EDIT)
-                : canEdit ? () => setProfileEditOpen(true)
+                : canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_EDIT.replace(':templeId', String(id)))
                 : undefined
               }
             />
@@ -597,26 +590,6 @@ export function DcTempleProfilePage() {
         onSubmit={confirmScheduleSiteVisit}
         isSubmitting={isSubmitting}
       />
-
-      {/* ── SA PROFILE EDIT DIALOG ─────────────────────────────────────── */}
-      {canEdit && (
-        <SaProfileEditDialog
-          open={profileEditOpen}
-          templeId={id}
-          currentProfile={profile.currentProfile}
-          pendingStaging={pendingStaging}
-          temple={profile.temple}
-          onClose={() => setProfileEditOpen(false)}
-          onSaved={async () => {
-            setProfileEditOpen(false)
-            await refetchPendingStaging()
-            refetchProfile()
-          }}
-          createOrUpdateDraft={createOrUpdateDraft}
-          submitForReview={submitForReview}
-          isSaving={isSavingDraft || isSubmittingReview}
-        />
-      )}
 
       {/* ── SA TRUST EDIT DIALOG ────────────────────────────────────────── */}
       {canEdit && trust && (
@@ -773,171 +746,7 @@ function WorkflowDialog({ open, kind, onClose, onSubmit, isSubmitting }: Workflo
   )
 }
 
-// ── SA Profile Edit Dialog ────────────────────────────────────────────────────
-
-const saProfileEditSchema = z.object({
-  phone: z.string().regex(/^[0-9]{10}$/, 'Must be 10 digits').optional().or(z.literal('')),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  website: z.string().max(500).optional().or(z.literal('')),
-  contactPersonName: z.string().max(255).optional().or(z.literal('')),
-  contactPersonDesignation: z.string().max(150).optional().or(z.literal('')),
-  landmark: z.string().max(500).optional().or(z.literal('')),
-  historicalSignificance: z.string().max(2000).optional().or(z.literal('')),
-  bankName: z.string().max(255).optional().or(z.literal('')),
-  bankIfsc: z.string().max(20).optional().or(z.literal('')),
-  languagesOfWorship: z.string().max(500).optional().or(z.literal('')),
-  description: z.string().max(5000).optional().or(z.literal('')),
-})
-type SaProfileEditValues = z.infer<typeof saProfileEditSchema>
-
-interface SaProfileEditDialogProps {
-  open: boolean
-  templeId: number
-  currentProfile: any
-  pendingStaging: any
-  temple?: any
-  onClose: () => void
-  onSaved: () => Promise<void>
-  createOrUpdateDraft: (args: any) => Promise<any>
-  submitForReview: (templeId: number) => Promise<any>
-  isSaving: boolean
-}
-
-function SaProfileEditDialog({
-  open, templeId, currentProfile, pendingStaging, temple, onClose, onSaved,
-  createOrUpdateDraft, submitForReview, isSaving,
-}: SaProfileEditDialogProps) {
-  const profile = pendingStaging ?? currentProfile
-
-  // Helper to resolve a field with priority: pendingStaging > currentProfile > temple fallback
-  const resolveField = (stagingKey: string, currentKey: string, templeKey: string): string => {
-    return (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
-  }
-
-  const form = useForm<SaProfileEditValues>({
-    resolver: zodResolver(saProfileEditSchema),
-    defaultValues: {
-      phone: resolveField('phone', 'phone', 'contactMobile'),
-      email: resolveField('email', 'email', 'contactEmail'),
-      website: resolveField('website', 'website', 'website'),
-      contactPersonName: resolveField('contactPersonName', 'contactPersonName', 'contactName'),
-      contactPersonDesignation: resolveField('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
-      landmark: resolveField('landmark', 'landmark', 'landmark'),
-      historicalSignificance: resolveField('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
-      bankName: resolveField('bankName', 'bankName', 'bankName'),
-      bankIfsc: resolveField('bankIfsc', 'bankIfsc', 'bankIfsc'),
-      languagesOfWorship: Array.isArray(profile?.languagesOfWorship)
-        ? profile.languagesOfWorship.join(', ')
-        : ((pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship) ?? ''),
-      description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
-    },
-  })
-
-  useEffect(() => {
-    if (open) {
-      const resolveF = (stagingKey: string, currentKey: string, templeKey: string): string =>
-        (pendingStaging?.[stagingKey] ?? currentProfile?.[currentKey] ?? temple?.[templeKey]) ?? ''
-
-      const langValue = pendingStaging?.languagesOfWorship ?? currentProfile?.languagesOfWorship ?? temple?.languagesOfWorship
-      form.reset({
-        phone: resolveF('phone', 'phone', 'contactMobile'),
-        email: resolveF('email', 'email', 'contactEmail'),
-        website: resolveF('website', 'website', 'website'),
-        contactPersonName: resolveF('contactPersonName', 'contactPersonName', 'contactName'),
-        contactPersonDesignation: resolveF('contactPersonDesignation', 'contactPersonDesignation', 'contactDesignation'),
-        landmark: resolveF('landmark', 'landmark', 'landmark'),
-        historicalSignificance: resolveF('historicalSignificance', 'historicalSignificance', 'historicalSignificance'),
-        bankName: resolveF('bankName', 'bankName', 'bankName'),
-        bankIfsc: resolveF('bankIfsc', 'bankIfsc', 'bankIfsc'),
-        languagesOfWorship: Array.isArray(langValue)
-          ? langValue.join(', ')
-          : (langValue ?? ''),
-        description: (pendingStaging?.description ?? currentProfile?.description) ?? '',
-      })
-    }
-  }, [open, pendingStaging, currentProfile, temple]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onSubmit = form.handleSubmit(async (values) => {
-    try {
-      await createOrUpdateDraft({
-        templeId,
-        body: {
-          phone: values.phone || undefined,
-          email: values.email || undefined,
-          website: values.website || undefined,
-          contactPersonName: values.contactPersonName || undefined,
-          contactPersonDesignation: values.contactPersonDesignation || undefined,
-          landmark: values.landmark || undefined,
-          historicalSignificance: values.historicalSignificance || undefined,
-          bankName: values.bankName || undefined,
-          bankIfsc: values.bankIfsc || undefined,
-          languagesOfWorship: values.languagesOfWorship || undefined,
-          description: values.description || undefined,
-        },
-      })
-      await submitForReview(templeId)
-      toast.success('Profile submitted for review.')
-      await onSaved()
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Failed to save profile. Please try again.'))
-    }
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Temple Profile (SA)</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField control={form.control} name="contactPersonName" render={({ field }) => (
-                <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="contactPersonDesignation" render={({ field }) => (
-                <FormItem><FormLabel>Designation</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Contact Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Contact Email</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="website" render={({ field }) => (
-                <FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} type="url" /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="languagesOfWorship" render={({ field }) => (
-                <FormItem><FormLabel>Languages of Worship (comma-separated)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="bankName" render={({ field }) => (
-                <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="bankIfsc" render={({ field }) => (
-                <FormItem><FormLabel>Bank IFSC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="landmark" render={({ field }) => (
-              <FormItem><FormLabel>Landmark</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="historicalSignificance" render={({ field }) => (
-              <FormItem><FormLabel>Historical Significance</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="description" render={({ field }) => (
-              <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  )
-}
+// ── SA Profile Edit Dialog removed — SA now uses SaTempleEditPage ────────────
 
 // ── SA Employee Dialog ────────────────────────────────────────────────────────
 
