@@ -49,12 +49,30 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
         String actionableBy = actionableByFor(status);
         String entityTypeName = wi.getEntityType().name();
         List<String> allowedActions = allowedActionsFor(entityTypeName, status, actionableBy);
-        // Expose rejection reason when status is REJECTED so TA can see why it was rejected
+
+        // Fetch rejection reason for REJECTED and RE_APPROVED statuses.
+        // For REJECTED: terminal state — the latest transition is always the rejection.
+        // For RE_APPROVED: two sub-cases exist:
+        //   a) Edit was rejected → entity reverted to approved snapshot (latestRejectionReason populated)
+        //   b) DC re-approved a resubmission → the latest transition is APPROVE, not REJECT.
+        //      In this case latestRejectionReason must be null — "currently re-approved, not rejected."
+        // We distinguish by inspecting only the most recent transition's action.
+        // findLatestRejectByInstanceId is intentionally NOT used here: it ignores subsequent
+        // APPROVE transitions and would surface a stale rejection reason after DC re-approves.
         String rejectionReason = null;
-        if (status == WorkflowStatus.REJECTED) {
-            rejectionReason = transitionRepo.findLatestRejectByInstanceId(wi.getId())
-                    .map(t -> t.getComment())
-                    .orElse(null);
+        String latestRejectionReason = null;
+        if (status == WorkflowStatus.REJECTED || status == WorkflowStatus.RE_APPROVED) {
+            var latestTransition = transitionRepo.findLatestByInstanceId(wi.getId());
+            boolean latestWasReject = latestTransition
+                    .map(t -> t.getAction() == com.templeregistry.entity.workflow.WorkflowAction.REJECT)
+                    .orElse(false);
+            if (latestWasReject) {
+                latestRejectionReason = latestTransition.map(t -> t.getComment()).orElse(null);
+            }
+            if (status == WorkflowStatus.REJECTED) {
+                // REJECTED is terminal — the last transition is always the rejection
+                rejectionReason = latestRejectionReason;
+            }
         }
         return GovernanceStatusPayload.builder()
                 .status(status.name())
@@ -68,6 +86,7 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
                 .workflowInstanceId(wi.getId())
                 .allowedActions(allowedActions)
                 .rejectionReason(rejectionReason)
+                .latestRejectionReason(latestRejectionReason)
                 .build();
     }
 

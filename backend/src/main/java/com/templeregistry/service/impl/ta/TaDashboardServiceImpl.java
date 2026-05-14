@@ -378,6 +378,8 @@ public class TaDashboardServiceImpl implements TaDashboardService {
                 .annualFestivals(req.getAnnualFestivals())
                 .landmark(req.getLandmark())
                 .historicalSignificance(req.getHistoricalSignificance())
+                .placeId(req.getPlaceId())
+                .formattedAddress(req.getFormattedAddress())
                 .build();
     }
 

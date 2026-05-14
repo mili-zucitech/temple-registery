@@ -34,6 +34,8 @@ public interface TempleMapper {
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "verificationStatus", ignore = true)
     @Mapping(target = "dcRejectionReason", ignore = true)
+    @Mapping(target = "placeId", ignore = true)
+    @Mapping(target = "formattedAddress", ignore = true)
     Temple fromCreateRequest(com.templeregistry.dto.request.temple.CreateTempleRequest request);
 
     // districtName and cityName are enriched in TempleServiceImpl.enrichTempleResponse;

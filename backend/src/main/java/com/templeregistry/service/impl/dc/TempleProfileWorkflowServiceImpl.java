@@ -316,5 +316,8 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
         if (staging.getBankName() != null)                 temple.setBankName(staging.getBankName());
         if (staging.getBankIfsc() != null)                 temple.setBankIfsc(staging.getBankIfsc());
         if (staging.getLinkedInstitutions() != null)       temple.setLinkedInstitutions(staging.getLinkedInstitutions());
+        // Location metadata (V97)
+        if (staging.getPlaceId() != null)          temple.setPlaceId(staging.getPlaceId());
+        if (staging.getFormattedAddress() != null)  temple.setFormattedAddress(staging.getFormattedAddress());
     }
 }

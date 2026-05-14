@@ -102,5 +102,12 @@ public class TaProfileStagingRequest {
 
     private Double longitude;
 
+    // Location metadata (V97)
+    @Size(max = 500)
+    private String placeId;
+
+    @Size(max = 1000)
+    private String formattedAddress;
+
     private Integer yearEstablished;
 }

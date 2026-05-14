@@ -83,6 +83,8 @@ export interface TempleResponse {
   landmark?: string
   latitude?: number
   longitude?: number
+  placeId?: string
+  formattedAddress?: string
 
   // ── Contact (from registration; may be overridden by profile staging) ──
   contactName?: string
@@ -191,6 +193,8 @@ export interface TempleProfileStagingResponse {
   pinCode?: string
   latitude?: number
   longitude?: number
+  placeId?: string
+  formattedAddress?: string
   yearEstablished?: number
   reviewComment?: string
   submittedAt?: string
@@ -234,6 +238,8 @@ export interface TaProfileStagingRequest {
   pinCode?: string
   latitude?: number | null
   longitude?: number | null
+  placeId?: string | null
+  formattedAddress?: string | null
   yearEstablished?: number | null
 }
 
@@ -275,6 +281,8 @@ export const taProfileStagingSchema = z.object({
   pinCode: z.string().regex(/^\d{6}$/, 'PIN code must be 6 digits').optional().or(z.literal('')),
   latitude: z.number().min(-90).max(90).optional().nullable(),
   longitude: z.number().min(-180).max(180).optional().nullable(),
+  placeId: z.string().max(500).optional().nullable(),
+  formattedAddress: z.string().max(1000).optional().nullable(),
   yearEstablished: z.number().int().min(500).max(new Date().getFullYear()).optional().nullable(),
 })
 

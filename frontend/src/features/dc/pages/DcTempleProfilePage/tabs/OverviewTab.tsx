@@ -10,6 +10,8 @@ import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGall
 interface OverviewTabProps {
   profile: TempleFullProfileResponse
   canAct: boolean
+  /** Whether the caller is permitted to view governance/oversight metadata. False for TA viewing other temples. */
+  showGovernance?: boolean
   pendingStaging?: ProfileStagingResponse | null
   onApproveProfile?: (notes: string) => Promise<void>
   onRejectProfile?: (reason: string) => Promise<void>
@@ -21,6 +23,7 @@ interface OverviewTabProps {
 export function OverviewTab({
   profile,
   canAct,
+  showGovernance = true,
   pendingStaging,
   onApproveProfile,
   onRejectProfile,
@@ -442,8 +445,10 @@ export function OverviewTab({
              When pendingStaging exists, the card shows the update-under-review state
              and exposes Approve / Reject for the staging. Otherwise it shows the
              current temple verification state (Verified / Pending / Flagged) with
-             the Verify / Flag temple-entity actions. */}
-        {(() => {
+             the Verify / Flag temple-entity actions.
+             Hidden for TEMPLE_AUTHORITY viewing other temples — governance data
+             is stripped by the backend and must not leak through the UI. */}
+        {showGovernance && (() => {
           if (actionablePendingStaging && onApproveProfile && onRejectProfile) {
             // An update from the TA is awaiting DC review — show the governance card
             // for the profile staging, not the old verified state.
@@ -477,9 +482,10 @@ export function OverviewTab({
             ? new Date(latestStaging.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
             : null
           // When the latest staging was rejected but the temple is already verified (prior
-          // approved profile exists), surface a combined view: temple oversight is still
-          // VERIFIED but the most recent update attempt was rejected.
-          const overrideCanonicalStatus = latestStagingRejected && !isVerified
+          // approved profile exists), the oversight panel must still show REJECTED so the DC
+          // sees the latest review outcome, not the stale approved state.
+          // The statusHintText below provides the nuanced context ("Profile active · update rejected").
+          const overrideCanonicalStatus = latestStagingRejected
             ? 'REJECTED'
             : (isVerified ? 'APPROVED' : latestStagingStatus ?? undefined)
           const overrideRejectionReason = latestStagingRejected
@@ -488,11 +494,16 @@ export function OverviewTab({
           const statusHintText = latestStagingRejected && isVerified
             ? `Profile active · Latest update (v${latestStaging?.versionNumber}) rejected${reviewedAtDisplay ? ' on ' + reviewedAtDisplay : ''}`
             : undefined
+          // When the latest staging is rejected, the oversight panel shows REJECTED
+          // (most recent review state). isVerified=false here so the "Approved by DC"
+          // message is not rendered — the hint text surfaces the "profile still active"
+          // context instead.
+          const panelIsVerified = !latestStagingRejected && isVerified
           return (
             <div className="rounded-xl overflow-hidden border border-slate-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
               <GovernanceActionPanel
                 entityName="Temple Oversight"
-                isVerified={isVerified}
+                isVerified={panelIsVerified}
                 flagReason={flagReason}
                 canonicalStatus={overrideCanonicalStatus}
                 rejectionReason={overrideRejectionReason}

@@ -57,11 +57,22 @@ public class GovernanceStatusPayload {
     private List<String> allowedActions = List.of();
 
     /**
-     * Rejection or send-back reason from DC — populated only when status = REJECTED.
+     * Rejection or send-back reason from DC — populated when status = REJECTED.
      * Sourced from the most recent REJECT WorkflowTransition.comment.
      * Null for all other statuses.
      */
     private String rejectionReason;
+
+    /**
+     * Most recent rejection reason, regardless of current status.
+     * Populated for both REJECTED and RE_APPROVED statuses.
+     * For RE_APPROVED (trust/profile edit rejected but original still live), this
+     * carries the reason from the most recent edit-rejection transition so the DC
+     * oversight panel can surface "Latest edit rejected" context even when the
+     * canonical status is RE_APPROVED (approved live data preserved).
+     * Null when there has never been a rejection transition.
+     */
+    private String latestRejectionReason;
 
     /**
      * Fallback payload for entities that have no WorkflowInstance yet

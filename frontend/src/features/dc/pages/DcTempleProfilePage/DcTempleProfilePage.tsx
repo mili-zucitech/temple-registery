@@ -119,6 +119,11 @@ export function DcTempleProfilePage() {
   const canAct =
     role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
+  // Governance visibility: TEMPLE_AUTHORITY sees governance only for their own temple.
+  // For all other roles (DC, SA, AUDITOR, VIEWER) governance is always visible.
+  // This mirrors the backend TempleVisibilityPolicy so the UI reflects what the API returns.
+  const showGovernance = !isTa || isOwnTemple
+
   // SA can edit any temple — DC cannot
   const canEdit = role === USER_ROLES.SUPER_ADMIN
 
@@ -381,7 +386,8 @@ export function DcTempleProfilePage() {
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
                   { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
                 ] as const
-              ).map((tab) => (
+              ).filter((tab) => tab.v !== 'timeline' || showGovernance)
+              .map((tab) => (
                 <TabsTrigger
                   key={tab.v}
                   value={tab.v}
@@ -430,6 +436,7 @@ export function DcTempleProfilePage() {
             <OverviewTab
               profile={profile}
               canAct={canAct}
+              showGovernance={showGovernance}
               pendingStaging={pendingStaging}
               onApproveProfile={async (notes) => {
                 if (!pendingStaging) return
@@ -482,6 +489,7 @@ export function DcTempleProfilePage() {
               trustFinancials={profile.trustFinancials}
               boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
+              showGovernance={showGovernance}
               onEditTrust={
                 isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
                 : canEdit && trust ? () => setTrustEditOpen(true)
@@ -545,7 +553,10 @@ export function DcTempleProfilePage() {
           </TabsContent>
 
           <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TimelineTab templeId={id} />
+            {showGovernance
+              ? <TimelineTab templeId={id} />
+              : null
+            }
           </TabsContent>
         </div>
       </Tabs>
