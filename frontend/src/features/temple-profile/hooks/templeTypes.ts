@@ -139,7 +139,7 @@ export interface TempleSearchResultResponse {
 
 // ── Temple Profile Staging ────────────────────────────────────────────────────
 
-export type TempleProfileStagingStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'
+export type TempleProfileStagingStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'
 
 export const createTempleProfileStagingSchema = z.object({
   phone: z.string().regex(/^[0-9]{10}$/, 'Phone must be exactly 10 digits').optional().or(z.literal('')),

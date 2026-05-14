@@ -62,15 +62,15 @@ CREATE TABLE IF NOT EXISTS temple_timeline_events (
   COLLATE=utf8mb4_unicode_ci;
 
 -- Primary access pattern: all events for a temple, latest first
-CREATE INDEX idx_timeline_temple_occurred
+CREATE INDEX IF NOT EXISTS idx_timeline_temple_occurred
     ON temple_timeline_events (temple_id, occurred_at DESC);
 
 -- Secondary: filter by event type across a temple
-CREATE INDEX idx_timeline_event_type
+CREATE INDEX IF NOT EXISTS idx_timeline_event_type
     ON temple_timeline_events (temple_id, event_type);
 
 -- Lookup by source transition (idempotency check)
 -- NOTE: the UNIQUE constraint on source_transition_id already creates an index;
 --       this named alias index makes explain plans readable.
-CREATE INDEX idx_timeline_source_transition
+CREATE INDEX IF NOT EXISTS idx_timeline_source_transition
     ON temple_timeline_events (source_transition_id);

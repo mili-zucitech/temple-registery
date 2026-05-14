@@ -1,3 +1,4 @@
+// imports
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -1275,6 +1276,7 @@ function SaEmployeeDialog({
         const body: CreateEmployeeRequest = {
           fullName: values.fullName,
           employeeType: values.employeeType,
+          isHereditary: false,
           designation: values.designation || undefined,
           mobile: values.mobile || undefined,
           dateOfJoining: values.dateOfJoining || undefined,

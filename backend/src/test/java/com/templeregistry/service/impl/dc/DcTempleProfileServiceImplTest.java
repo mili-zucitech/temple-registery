@@ -19,6 +19,7 @@ import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.contractor.ContractorRepository;
 import com.templeregistry.repository.dc.*;
 import com.templeregistry.repository.declaration.DeclarationClarificationRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.declaration.DeclarationRepository;
 import com.templeregistry.repository.employee.EmployeeRepository;
 import com.templeregistry.repository.geo.CityRepository;
@@ -79,6 +80,7 @@ class DcTempleProfileServiceImplTest {
     @Mock private DeclMovVehicleRepository vehicleRepository;
     @Mock private DeclMovEquipmentRepository equipmentRepository;
     @Mock private CityRepository cityRepository;
+    @Mock private DistrictRepository districtRepository;
     @Mock private JurisdictionGuard jurisdictionGuard;
     @Mock private FileStorageService fileStorageService;
     @Mock private GovernanceStatusResolver governanceStatusResolver;
