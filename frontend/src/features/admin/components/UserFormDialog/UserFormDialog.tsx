@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { USER_ROLES, type UserRole } from '@/constants/roles'
 import { useListAllDistrictsQuery } from '../../adminApi'
+import { useGetCitiesQuery } from '@/features/geo/geoApi'
 import type { UserAdminResponse, CreateUserRequest } from '../../adminApi'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -36,6 +37,7 @@ const userSchema = z.object({
   password: z.string().min(8, 'At least 8 characters').optional().or(z.literal('')),
   fullName: z.string().min(2, 'Full name is required'),
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile').optional().or(z.literal('')),
+  cityId: z.string().optional(),
   districtId: z.string().min(1, 'District is required'),
   templeName: z.string().max(255).optional(),
   aadhaarNumber: z.string().regex(/^\d{12}$/, 'Must be 12 digits').optional().or(z.literal('')),
@@ -56,11 +58,9 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
   const [districtSearch, setDistrictSearch] = useState('')
 
   const { data: districtsData, isLoading: loadingDistricts } = useListAllDistrictsQuery()
+  const { data: citiesData, isLoading: loadingCities } = useGetCitiesQuery(1) // Karnataka stateId=1
   const districts = districtsData?.data ?? []
-
-  const filteredDistricts = districtSearch.trim()
-    ? districts.filter(d => d.name.toLowerCase().includes(districtSearch.toLowerCase()))
-    : districts
+  const cities = citiesData?.data ?? []
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -76,7 +76,22 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
   }, [open, user])
 
   const watchedRole = form.watch('role')
+  const watchedCityId = form.watch('cityId')
   const isTempleAuthority = watchedRole === USER_ROLES.TEMPLE_AUTHORITY
+  const showGeoCity = [USER_ROLES.TEMPLE_AUTHORITY, USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF].includes(watchedRole as UserRole)
+
+  // Filter districts by selected city when city is chosen
+  const filteredDistricts = (() => {
+    let base = districts
+    if (watchedCityId) {
+      const cityIdNum = Number(watchedCityId)
+      base = base.filter(d => (d as any).cityId === cityIdNum)
+    }
+    if (districtSearch.trim()) {
+      base = base.filter(d => d.name.toLowerCase().includes(districtSearch.toLowerCase()))
+    }
+    return base
+  })()
 
   useEffect(() => {
     if (!isTempleAuthority) {
@@ -84,6 +99,11 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       form.setValue('aadhaarNumber', '')
     }
   }, [isTempleAuthority])
+
+  // Clear districtId when city changes (city narrows district list)
+  useEffect(() => {
+    form.setValue('districtId', '')
+  }, [watchedCityId])
 
   const handleSubmit = async (values: UserFormValues) => {
     await onSubmit({
@@ -94,6 +114,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       mobile: values.mobile || undefined,
       role: values.role,
       districtId: Number(values.districtId),
+      cityId: values.cityId ? Number(values.cityId) : undefined,
       templeName: isTempleAuthority ? values.templeName : undefined,
       aadhaarNumber: isTempleAuthority && values.aadhaarNumber ? values.aadhaarNumber : undefined,
     })
@@ -136,6 +157,28 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                   <FormMessage />
                 </FormItem>
               )} />
+
+              {/* City — shown for TA, DC, DC_STAFF */}
+              {showGeoCity && (
+                <FormField control={form.control} name="cityId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City / Division <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingCities ? 'Loading...' : 'Select city'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-64">
+                        {cities.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
 
               {/* District — uses native Select (works inside Dialog) */}
               <FormField control={form.control} name="districtId" render={({ field }) => (
@@ -263,6 +306,7 @@ function buildDefaults(user?: UserAdminResponse | null): UserFormValues {
     password: '',
     fullName: user?.fullName ?? '',
     mobile: user?.mobile ?? '',
+    cityId: user?.cityId != null ? String(user.cityId) : '',
     districtId: user?.districtId != null ? String(user.districtId) : '',
     templeName: '',
     aadhaarNumber: user?.aadhaarNumber ?? '',

@@ -6,7 +6,7 @@ import type { UserRole } from '@/constants/roles'
 export interface UserAdminResponse {
   id: number; username: string; email: string; fullName: string
   mobile?: string; role: UserRole; active: boolean; aadhaarVerified: boolean
-  aadhaarNumber?: string; districtId?: number; districtName?: string
+  aadhaarNumber?: string; districtId?: number; districtName?: string; cityId?: number
   templeId?: number; templeName?: string; lastLoginAt?: string; createdAt: string
 }
 
@@ -19,7 +19,7 @@ export interface DistrictOption {
 
 export interface CreateUserRequest {
   username: string; email: string; password: string; fullName: string
-  mobile?: string; role: UserRole; districtId: number
+  mobile?: string; role: UserRole; districtId: number; cityId?: number
   /** Required when role = TEMPLE_AUTHORITY */
   templeName?: string
   /** Required when role = TEMPLE_AUTHORITY — 12 numeric digits */

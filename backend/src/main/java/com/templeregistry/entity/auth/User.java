@@ -49,6 +49,9 @@ public class User extends BaseEntity {
     @Column(name = "district_id")
     private Long districtId;
 
+    @Column(name = "city_id")
+    private Long cityId;
+
     @Column(name = "temple_id")
     private Long templeId;
 

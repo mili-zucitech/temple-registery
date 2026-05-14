@@ -47,6 +47,7 @@ export const ROUTE_PATHS = {
   ADMIN_GEO: '/admin/geo',
   ADMIN_TOOLS: '/admin/tools',
   ADMIN_TEMPLE_GOVERNANCE: '/admin/temple-governance',
+  ADMIN_TEMPLE_EDIT: '/admin/temples/:templeId/edit',
   ADMIN_SYSTEM_CONFIG: '/admin/system-config',
   ADMIN_NOTIFICATION_RULES: '/admin/notification-rules',
 

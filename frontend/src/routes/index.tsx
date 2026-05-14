@@ -32,6 +32,7 @@ const GeoManagementPage = lazy(() => import('@/features/admin/pages/GeoManagemen
 const SystemConfigPage = lazy(() => import('@/features/admin/pages/SystemConfigPage/SystemConfigPage').then(m => ({ default: m.SystemConfigPage })))
 const NotificationRulesPage = lazy(() => import('@/features/admin/pages/NotificationRulesPage/NotificationRulesPage').then(m => ({ default: m.NotificationRulesPage })))
 const TempleGovernancePage = lazy(() => import('@/features/admin/pages/TempleGovernancePage/TempleGovernancePage').then(m => ({ default: m.TempleGovernancePage })))
+const SaTempleEditPage = lazy(() => import('@/features/admin/pages/SaTempleEditPage/SaTempleEditPage').then(m => ({ default: m.SaTempleEditPage })))
 const ObservationsPage = lazy(() => import('@/features/auditor/pages/ObservationsPage/ObservationsPage').then(m => ({ default: m.ObservationsPage })))
 const ObservationDetailPage = lazy(() => import('@/features/auditor/pages/ObservationDetailPage/ObservationDetailPage').then(m => ({ default: m.ObservationDetailPage })))
 const ComplianceReportPage = lazy(() => import('@/features/auditor/pages/ComplianceReportPage/ComplianceReportPage').then(m => ({ default: m.ComplianceReportPage })))
@@ -131,6 +132,7 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.ADMIN_SYSTEM_CONFIG, element: <Suspense fallback={<PageLoader />}><SystemConfigPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_NOTIFICATION_RULES, element: <Suspense fallback={<PageLoader />}><NotificationRulesPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_GOVERNANCE, element: <Suspense fallback={<PageLoader />}><TempleGovernancePage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_EDIT, element: <Suspense fallback={<PageLoader />}><SaTempleEditPage /></Suspense> },
             ],
           },
           // Auditor (read-only) — SUPER_ADMIN can also access auditor pages via sidebar links

@@ -45,6 +45,7 @@ public class ProfileStagingResponse {
     private String grade;
     private String tradition;
     private Long hobliId;
+    private Long talukId;
     private String addressLine1;
     private String pinCode;
     private Double latitude;

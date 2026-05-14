@@ -343,13 +343,13 @@ export function TaTempleEditPage() {
           {/* Section 0b: Location (first — read-only, set by admin) */}
           <AccordionSection title="Temple Location">
             <p className="text-sm text-muted-foreground mb-4">
-              Temple location is set by the system administrator and cannot be changed from this form.
+              State, city and district are fixed by the system. You can update taluk and hobli below.
             </p>
             <div className="space-y-4">
               <GeoHierarchySelectGrid
                 value={geoSelection}
                 onChange={handleGeoChange}
-                disabled
+                lockedLevels={['city', 'district']}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

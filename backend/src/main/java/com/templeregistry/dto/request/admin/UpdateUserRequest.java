@@ -21,5 +21,6 @@ public class UpdateUserRequest {
     private UserRole role;
     private Boolean active;
     private Long districtId;
+    private Long cityId;
     private Long templeId;
 }

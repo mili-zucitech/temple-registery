@@ -9,6 +9,8 @@ interface GeoHierarchySelectGridProps {
   value: GeoSelection
   onChange: (selection: GeoSelection) => void
   disabled?: boolean
+  /** Levels that should be displayed as read-only locked fields. State is always locked. */
+  lockedLevels?: ('city' | 'district' | 'taluk' | 'hobli')[]
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -23,8 +25,13 @@ function hasLocationSelection(value: GeoSelection): boolean {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarchySelectGridProps) {
+export function GeoHierarchySelectGrid({ value, onChange, disabled, lockedLevels = [] }: GeoHierarchySelectGridProps) {
   const { states, cities, districts, taluks, hoblis } = useGeoHierarchy(value)
+
+  const isCityLocked     = lockedLevels.includes('city')
+  const isDistrictLocked = lockedLevels.includes('district')
+  const isTalukLocked    = lockedLevels.includes('taluk')
+  const isHobliLocked    = lockedLevels.includes('hobli')
 
   // Auto-select the first state (Karnataka) whenever stateId is missing and state data is available.
   // This also handles the case where temple prefill sets districtId/talukId/hobliId without a stateId,
@@ -123,7 +130,7 @@ export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarc
         />
 
         {/* City / Division */}
-        <GeoLevel label="City / Division">
+        <GeoLevel label="City / Division" isLocked={isCityLocked} lockedValue={cities.data.find(c => c.id === value.cityId)?.name ?? (value.cityId ? '…' : '—')}>
           <SearchableSelect
             disabled={disabled}
             isLoading={cities.isLoading}
@@ -141,7 +148,7 @@ export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarc
       {/* Row 2: District and Taluk */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* District */}
-        <GeoLevel label="District">
+        <GeoLevel label="District" isLocked={isDistrictLocked} lockedValue={districts.data.find(d => d.id === value.districtId)?.name ?? (value.districtId ? '…' : '—')}>
           <SearchableSelect
             disabled={disabled}
             isLoading={districts.isLoading}
@@ -156,7 +163,7 @@ export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarc
         </GeoLevel>
 
         {/* Taluk */}
-        <GeoLevel label="Taluk">
+        <GeoLevel label="Taluk" isLocked={isTalukLocked} lockedValue={taluks.data.find(t => t.id === value.talukId)?.name ?? (value.talukId ? '…' : '—')}>
           <SearchableSelect
             disabled={disabled}
             isLoading={taluks.isLoading}
@@ -173,7 +180,7 @@ export function GeoHierarchySelectGrid({ value, onChange, disabled }: GeoHierarc
 
       {/* Row 3: Hobli (full width) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <GeoLevel label="Hobli">
+        <GeoLevel label="Hobli" isLocked={isHobliLocked} lockedValue={hoblis.data.find(h => h.id === value.hobliId)?.name ?? (value.hobliId ? '…' : '—')}>
           <SearchableSelect
             disabled={disabled}
             isLoading={hoblis.isLoading}
