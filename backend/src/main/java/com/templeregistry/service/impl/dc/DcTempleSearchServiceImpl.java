@@ -8,6 +8,7 @@ import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.dc.DcTempleSearchService;
+import com.templeregistry.service.governance.TempleVisibilityPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
     );
 
     private final TempleSearchSummaryRepository summaryRepository;
+    private final TempleVisibilityPolicy visibilityPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,7 +61,7 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
 
         log.info("DC temple search: districtId={} page={} size={} total={}", effectiveDistrictId, page, size, result.getTotalElements());
 
-        return PaginatedResponse.of(result.map(this::toResponse));
+        return PaginatedResponse.of(result.map(s -> toResponse(s, claims)));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -186,7 +188,8 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
         return Sort.by(direction, field);
     }
 
-    private DcTempleSearchItemResponse toResponse(TempleSearchSummary s) {
+    private DcTempleSearchItemResponse toResponse(TempleSearchSummary s, ScopeHelper.Claims claims) {
+        boolean showGovernance = visibilityPolicy.canViewGovernance(claims, s.getTempleId());
         return DcTempleSearchItemResponse.builder()
                 .templeId(s.getTempleId())
                 .registrationNumber(s.getRegistrationNumber())
@@ -203,11 +206,14 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
                 .assetDeclarationStatus(s.getAssetDeclarationStatus())
                 .yearEstablished(s.getYearEstablished())
                 .photoUrl(s.getPhotoUrl())
-                .pendingDeclarations(s.getPendingDeclarations() != null ? s.getPendingDeclarations() : 0)
-                .overdueDeclarations(s.getOverdueDeclarations() != null ? s.getOverdueDeclarations() : 0)
-                .pendingProfileReview(s.getPendingProfileReview() != null ? s.getPendingProfileReview() : 0)
+                // Governance counts — hidden for TEMPLE_AUTHORITY viewing other temples.
+                // showGovernance = false yields 0 so TA search cards never show urgent/review styling
+                // for temples they do not manage.
+                .pendingDeclarations(showGovernance && s.getPendingDeclarations() != null ? s.getPendingDeclarations() : 0)
+                .overdueDeclarations(showGovernance && s.getOverdueDeclarations() != null ? s.getOverdueDeclarations() : 0)
+                .pendingProfileReview(showGovernance && s.getPendingProfileReview() != null ? s.getPendingProfileReview() : 0)
                 .hasActiveTrust(Boolean.TRUE.equals(s.getHasActiveTrust()))
-                .hasApprovedDeclaration(Boolean.TRUE.equals(s.getHasApprovedDeclaration()))
+                .hasApprovedDeclaration(showGovernance && Boolean.TRUE.equals(s.getHasApprovedDeclaration()))
                 .lastDeclarationAt(s.getLastDeclarationAt())
                 .lastProfileUpdateAt(s.getLastProfileUpdateAt())
                 .build();
