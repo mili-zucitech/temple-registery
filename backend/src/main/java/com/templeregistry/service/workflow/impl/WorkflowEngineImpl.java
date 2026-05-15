@@ -160,7 +160,15 @@ public class WorkflowEngineImpl implements WorkflowEngine {
             var cached = idempotencyRepo.findByIdempotencyKey(request.getIdempotencyKey());
             if (cached.isPresent() && "SUCCESS".equals(cached.get().getResultStatus())) {
                 log.info("[WorkflowEngine] Idempotency hit for key={}", request.getIdempotencyKey());
-                return deserializeCachedResult(cached.get().getResultJson());
+                WorkflowTransitionResult cachedResult = deserializeCachedResult(cached.get().getResultJson());
+                // Only short-circuit if deserialization succeeded. If it fails,
+                // deserializeCachedResult returns null and logs a warning; fall through
+                // to re-execute so callers never receive a null result.
+                if (cachedResult != null) {
+                    return cachedResult;
+                }
+                log.warn("[WorkflowEngine] Idempotency cache miss-deserialize for key={} — re-executing",
+                    request.getIdempotencyKey());
             }
         }
 
@@ -199,6 +207,15 @@ public class WorkflowEngineImpl implements WorkflowEngine {
         if (context.isTa() && context.getOwnedTempleIds() != null
                 && !context.getOwnedTempleIds().contains(instance.getTempleId())) {
             throw new WorkflowException("TA does not own temple " + instance.getTempleId());
+        }
+
+        // ── Step 6b: Comment required check ──────────────────────────────────
+        // AvailableAction.requiresComment(true) is a UI hint. This is the authoritative
+        // backend enforcement for actions that MUST carry a reason for audit trail quality.
+        if (!context.isSystem() && commentIsRequired(request.getAction())
+                && (request.getComment() == null || request.getComment().isBlank())) {
+            throw new WorkflowException(
+                "Action " + request.getAction() + " requires a non-empty comment/reason.");
         }
 
         // ── Step 7: Policy evaluation ─────────────────────────────────────────
@@ -365,6 +382,17 @@ public class WorkflowEngineImpl implements WorkflowEngine {
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Returns true for actions that MUST carry a non-empty comment for audit trail integrity.
+     * This is the authoritative backend check — frontend requiresComment is advisory only.
+     */
+    private boolean commentIsRequired(WorkflowAction action) {
+        return switch (action) {
+            case REJECT, REQUEST_CLARIFICATION, SEND_BACK, RESPOND_CLARIFICATION -> true;
+            default -> false;
+        };
+    }
 
     private boolean roleMatches(String required, ActionContext ctx) {
         return switch (required) {

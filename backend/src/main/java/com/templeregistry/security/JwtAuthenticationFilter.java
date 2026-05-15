@@ -53,17 +53,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
-        // Fall back to query parameter (needed for SSE EventSource connections that cannot set headers)
-        String queryToken = request.getParameter("token");
-        if (StringUtils.hasText(queryToken)) {
-            return queryToken;
-        }
-        // Fall back to httpOnly cookie
+        // Fall back to httpOnly cookie (preferred for browser clients)
         if (request.getCookies() != null) {
             for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
                 if ("access_token".equals(cookie.getName())) {
                     return cookie.getValue();
                 }
+            }
+        }
+        // Last resort: query parameter — ONLY for SSE EventSource connections that cannot set
+        // Authorization headers. Query-parameter tokens appear in access logs and browser history;
+        // restrict this path to SSE streaming endpoints only to minimise token leakage surface.
+        String requestUri = request.getRequestURI();
+        if (requestUri != null && requestUri.endsWith("/stream")) {
+            String queryToken = request.getParameter("token");
+            if (StringUtils.hasText(queryToken)) {
+                log.debug("JWT extracted from query parameter for SSE endpoint: {}", requestUri);
+                return queryToken;
             }
         }
         return null;
