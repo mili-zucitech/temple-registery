@@ -193,6 +193,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("You do not have permission to perform this action.", "ACCESS_DENIED"));
     }
 
+    /**
+     * Handles java.lang.SecurityException thrown by TokenRevocationGuard and AuthServiceImpl
+     * for revoked / expired / not-found refresh tokens.
+     * Must map to 401 — NOT 500 — so the frontend re-auth flow is triggered correctly.
+     */
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSecurityException(SecurityException ex) {
+        log.warn("Security violation (token/auth): {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Authentication failed. Please log in again.", "AUTH_FAILED"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()

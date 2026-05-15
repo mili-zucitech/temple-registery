@@ -106,4 +106,5 @@ export const resetAllApiCaches = () => (dispatch: AppDispatch) => {
   dispatch(governanceV2Api.util.resetApiState())
   dispatch(auditorApi.util.resetApiState())
   dispatch(viewerApi.util.resetApiState())
+  dispatch(timelineApi.util.resetApiState())
 }

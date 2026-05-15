@@ -59,6 +59,8 @@ trm:
     base-dir: ./exports
 
 app:
+  flyway:
+    auto-repair: true  # dev-only: auto-repairs failed migrations on each startup. NEVER enable in production.
   jwt:
     private-key-path: classpath:keys/jwt-private.pem
     public-key-path: classpath:keys/jwt-public.pem
