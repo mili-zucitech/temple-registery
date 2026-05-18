@@ -8,6 +8,7 @@ import com.templeregistry.dto.request.admin.UpdateUserRequest;
 import com.templeregistry.dto.response.admin.GovernanceHistoryResponse;
 import com.templeregistry.dto.response.admin.NotificationRuleResponse;
 import com.templeregistry.dto.response.admin.StatewideDashboardResponse;
+import com.templeregistry.dto.response.admin.TempleOptionResponse;
 import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.entity.audit.GovernanceActionHistory;
 import com.templeregistry.repository.audit.AuditAuthEventRepository;
@@ -85,6 +86,18 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long id) {
         adminService.activateUser(id);
         return ResponseEntity.ok(ApiResponse.success("User activated."));
+    }
+
+    /* ───── Temple assignment search ───── */
+
+    @GetMapping("/temples/search")
+    @Operation(summary = "Search active temples for TA user assignment dropdown")
+    public ResponseEntity<ApiResponse<PaginatedResponse<TempleOptionResponse>>> searchTemples(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success("Temples retrieved.",
+                adminService.searchTemples(q, page, size)));
     }
 
     /* ───── Audit logs ───── */

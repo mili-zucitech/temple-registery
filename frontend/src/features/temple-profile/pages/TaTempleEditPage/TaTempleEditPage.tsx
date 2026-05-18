@@ -56,7 +56,22 @@ export function TaTempleEditPage() {
   } = useTempleProfile()
 
   const [showConfirm, setShowConfirm] = useState(false)
-  const [geoSelection, setGeoSelection] = useState<GeoSelection>({})
+  // Lazily initialise from cached data so taluks/hoblis queries are subscribed
+  // on the very first render (second+ visit). Falls back to {} when data is not
+  // yet cached, and the geo-init effect below handles that case.
+  const [geoSelection, setGeoSelection] = useState<GeoSelection>(() => {
+    if (temple) {
+      const geoSource = stagingProfile ?? temple
+      return {
+        stateId: 1,
+        cityId: temple.cityId ?? undefined,
+        districtId: temple.districtId ?? undefined,
+        talukId: (geoSource as any).talukId ?? temple.talukId ?? undefined,
+        hobliId: (geoSource as any).hobliId ?? temple.hobliId ?? undefined,
+      }
+    }
+    return {}
+  })
 
   const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
@@ -137,6 +152,33 @@ export function TaTempleEditPage() {
   // Track whether the form has been initialized from server data so photo uploads
   // don't trigger a form.reset() via the isLoading refetch cycle.
   const isFormInitialized = useRef(false)
+  // Separate ref for geo — must NOT share the form-init guard because
+  // GeoHierarchySelectGrid child effects can set form.setValue({shouldDirty:true})
+  // in the same effects flush, causing isDirty=true before this parent effect
+  // reads it, which would block setGeoSelection on every remount after the first.
+  const isGeoInitialized = useRef(false)
+
+  // Dedicated geo initialization — no isDirty dependency.
+  // Runs once per mount when data first becomes available (handles first visit /
+  // expired-cache cases where the lazy useState initialiser above returned {}).
+  useEffect(() => {
+    if (isGeoInitialized.current) return
+    if (isLoading || !temple) return
+    isGeoInitialized.current = true
+    // Skip redundant write if lazy init already populated geoSelection
+    // (districtId is always present on a valid TempleResponse).
+    setGeoSelection(prev => {
+      if (prev.districtId !== undefined) return prev
+      const geoSource = stagingProfile ?? temple
+      return {
+        stateId: 1,
+        cityId: temple.cityId ?? undefined,
+        districtId: temple.districtId ?? undefined,
+        talukId: (geoSource as any).talukId ?? temple.talukId ?? undefined,
+        hobliId: (geoSource as any).hobliId ?? temple.hobliId ?? undefined,
+      }
+    })
+  }, [isLoading, temple, stagingProfile])
 
   // Prefill logic: staging → current → temple contact
   // Guard: only run once after initial load; photo uploads must not re-trigger this.
@@ -210,24 +252,6 @@ export function TaTempleEditPage() {
         yearEstablished: (source as any).yearEstablished ?? temple?.yearEstablished ?? null,
       })
       isFormInitialized.current = true
-      // Also initialize the geo hierarchy selector from temple data.
-      // Use functional update to preserve stateId that was auto-selected by GeoHierarchySelectGrid.
-      if (temple?.districtId) {
-        // Use stagingProfile.talukId first (resolved server-side from hobli), fall back to temple.talukId.
-        // Always set stateId=1 (Karnataka) explicitly to avoid race with GeoHierarchySelectGrid's
-        // stateId auto-select firing after the prefill, which could leave stateId undefined and
-        // cause the cities/districts queries to be skipped (making dropdowns appear empty).
-        const effectiveHobliId = (source as any).hobliId ?? temple.hobliId ?? undefined
-        const effectiveTalukId = (source as any).talukId ?? temple.talukId ?? undefined
-        const effectiveCityId = temple.cityId ?? undefined
-        setGeoSelection({
-          stateId: 1,
-          cityId: effectiveCityId,
-          districtId: temple.districtId ?? undefined,
-          talukId: effectiveTalukId,
-          hobliId: effectiveHobliId,
-        })
-      }
     }
   }, [isLoading, temple, stagingProfile, form, form.formState.isDirty])
 
@@ -375,7 +399,9 @@ export function TaTempleEditPage() {
                 <FormField control={form.control} name="addressLine1" render={({ field }) => (
                   <FormItem className="sm:col-span-2">
                     <FormLabel>Street / Address</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g. Temple Road, Near Bus Stand" disabled /></FormControl>
+                    <FormControl><Input {...field} placeholder="e.g. Temple Road, Near Bus Stand" 
+                    // disabled={!isEditable} 
+                    /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -384,7 +410,9 @@ export function TaTempleEditPage() {
                   <FormItem>
                     <FormLabel>PIN Code</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="560001" inputMode="numeric" maxLength={6} disabled />
+                      <Input {...field} placeholder="560001" inputMode="numeric" maxLength={6} 
+                      // disabled={!isEditable} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -400,7 +428,7 @@ export function TaTempleEditPage() {
                         placeholder="e.g. 12.9716"
                         value={field.value ?? ''}
                         onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        disabled={!isEditable}
+                        // disabled={!isEditable}
                       />
                     </FormControl>
                     <FormMessage />
@@ -417,7 +445,7 @@ export function TaTempleEditPage() {
                         placeholder="e.g. 77.5946"
                         value={field.value ?? ''}
                         onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        disabled={!isEditable}
+                        // disabled={!isEditable}
                       />
                     </FormControl>
                     <FormMessage />

@@ -44,16 +44,16 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Staff & Contractor — No DC Approval Workflow
+ * Staff & Contractor â€” No DC Approval Workflow
  *
  * Enforces the strict business rule:
- *   ❌ Staff (Employee) and Contractor modules have NO DC approval workflow.
- *   ✅ Changes are effective immediately on save.
- *   ✅ DC can only verify/flag (compliance oversight), NOT approve/reject.
+ *   âŒ Staff (Employee) and Contractor modules have NO DC approval workflow.
+ *   âœ… Changes are effective immediately on save.
+ *   âœ… DC can only verify/flag (compliance oversight), NOT approve/reject.
  *
  * Test cases:
- *   TC-CR-01: TA edits staff — saved immediately, no approval needed
- *   TC-CR-02: TA edits contractor — saved immediately, no approval needed
+ *   TC-CR-01: TA edits staff â€” saved immediately, no approval needed
+ *   TC-CR-02: TA edits contractor â€” saved immediately, no approval needed
  *   TC-CR-03: GovernanceWorkflowService has NO employee approval methods
  *   TC-CR-04: GovernanceWorkflowService has NO contractor approval methods
  *   TC-CR-05: GovernanceWorkflowController has NO employee/contractor endpoints
@@ -67,10 +67,10 @@ import static org.mockito.Mockito.*;
  *   TC-CR-13: Trust and Declaration approval workflow still intact
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Staff & Contractor — No DC Approval Workflow")
+@DisplayName("Staff & Contractor â€” No DC Approval Workflow")
 class StaffContractorNoApprovalTest {
 
-    // ── Employee service under test ───────────────────────────────────────────
+    // â”€â”€ Employee service under test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Mock EmployeeRepository employeeRepository;
     @Mock TempleRepository templeRepository;
@@ -81,7 +81,7 @@ class StaffContractorNoApprovalTest {
 
     @InjectMocks EmployeeServiceImpl employeeService;
 
-    // ── Contractor service under test ─────────────────────────────────────────
+    // â”€â”€ Contractor service under test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Mock ContractorRepository contractorRepository;
 
@@ -94,7 +94,7 @@ class StaffContractorNoApprovalTest {
     @BeforeEach
     void setUp() {
         // Temple Authority security context
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user", "EDIT");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
 
@@ -129,11 +129,11 @@ class StaffContractorNoApprovalTest {
     }
 
     // =========================================================================
-    // TC-CR-01: TA edits staff — saved immediately, no approval needed
+    // TC-CR-01: TA edits staff â€” saved immediately, no approval needed
     // =========================================================================
 
     @Nested
-    @DisplayName("TC-CR-01: TA edits staff — saved immediately")
+    @DisplayName("TC-CR-01: TA edits staff â€” saved immediately")
     class TaEditsStaff {
 
         @Test
@@ -149,7 +149,7 @@ class StaffContractorNoApprovalTest {
 
             EmployeeResponse response = employeeService.update(10L, rq);
 
-            // Change persisted immediately — no approval state
+            // Change persisted immediately â€” no approval state
             assertThat(response.getDesignation()).isEqualTo("Senior Priest");
             verify(employeeRepository).save(argThat(e -> "Senior Priest".equals(e.getDesignation())));
         }
@@ -171,18 +171,18 @@ class StaffContractorNoApprovalTest {
 
             EmployeeResponse response = employeeService.create(1L, rq);
 
-            // Immediately ACTIVE — no pending/draft state
+            // Immediately ACTIVE â€” no pending/draft state
             assertThat(response.getStatus()).isEqualTo(EmployeeStatus.ACTIVE);
             assertThat(response.getId()).isEqualTo(99L);
         }
     }
 
     // =========================================================================
-    // TC-CR-02: TA edits contractor — saved immediately, no approval needed
+    // TC-CR-02: TA edits contractor â€” saved immediately, no approval needed
     // =========================================================================
 
     @Nested
-    @DisplayName("TC-CR-02: TA edits contractor — saved immediately")
+    @DisplayName("TC-CR-02: TA edits contractor â€” saved immediately")
     class TaEditsContractor {
 
         @Test
@@ -311,10 +311,10 @@ class StaffContractorNoApprovalTest {
     class DcViewsData {
 
         @Test
-        @DisplayName("DC can read employee by ID — response has no approval state fields")
+        @DisplayName("DC can read employee by ID â€” response has no approval state fields")
         void dc_can_read_employee_without_approval_state() {
             // Switch to DC security context
-            ScopeHelper.Claims dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", 1L, null, "dc_user");
+            ScopeHelper.Claims dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", 1L, null, "dc_user", "EDIT");
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(dcClaims, null, Collections.emptyList()));
 
@@ -329,9 +329,9 @@ class StaffContractorNoApprovalTest {
         }
 
         @Test
-        @DisplayName("DC can read contractor by ID — response has no approval state fields")
+        @DisplayName("DC can read contractor by ID â€” response has no approval state fields")
         void dc_can_read_contractor_without_approval_state() {
-            ScopeHelper.Claims dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", 1L, null, "dc_user");
+            ScopeHelper.Claims dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", 1L, null, "dc_user", "EDIT");
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(dcClaims, null, Collections.emptyList()));
 
@@ -378,22 +378,22 @@ class StaffContractorNoApprovalTest {
             }
 
             assertThat(hasDcDecisionStatus)
-                    .as("EmployeeResponse must NOT have dcDecisionStatus — Staff has no DC approval")
+                    .as("EmployeeResponse must NOT have dcDecisionStatus â€” Staff has no DC approval")
                     .isFalse();
             assertThat(hasSendBackReason)
-                    .as("EmployeeResponse must NOT have sendBackReason — Staff has no DC approval")
+                    .as("EmployeeResponse must NOT have sendBackReason â€” Staff has no DC approval")
                     .isFalse();
             assertThat(hasSubmissionStatus)
-                    .as("EmployeeResponse must NOT have submissionStatus — Staff has no DC approval")
+                    .as("EmployeeResponse must NOT have submissionStatus â€” Staff has no DC approval")
                     .isFalse();
             assertThat(hasGovernanceVersion)
-                    .as("EmployeeResponse must NOT have governanceVersion — Staff has no DC approval")
+                    .as("EmployeeResponse must NOT have governanceVersion â€” Staff has no DC approval")
                     .isFalse();
             assertThat(hasIsVerifiedByDc)
-                    .as("EmployeeResponse must NOT have isVerifiedByDc — verification removed from Staff")
+                    .as("EmployeeResponse must NOT have isVerifiedByDc â€” verification removed from Staff")
                     .isFalse();
             assertThat(hasDcFlagReason)
-                    .as("EmployeeResponse must NOT have dcFlagReason — verification removed from Staff")
+                    .as("EmployeeResponse must NOT have dcFlagReason â€” verification removed from Staff")
                     .isFalse();
         }
     }
@@ -431,22 +431,22 @@ class StaffContractorNoApprovalTest {
             }
 
             assertThat(hasDcDecisionStatus)
-                    .as("ContractorResponse must NOT have dcDecisionStatus — Contractors have no DC approval")
+                    .as("ContractorResponse must NOT have dcDecisionStatus â€” Contractors have no DC approval")
                     .isFalse();
             assertThat(hasSendBackReason)
-                    .as("ContractorResponse must NOT have sendBackReason — Contractors have no DC approval")
+                    .as("ContractorResponse must NOT have sendBackReason â€” Contractors have no DC approval")
                     .isFalse();
             assertThat(hasSubmissionStatus)
-                    .as("ContractorResponse must NOT have submissionStatus — Contractors have no DC approval")
+                    .as("ContractorResponse must NOT have submissionStatus â€” Contractors have no DC approval")
                     .isFalse();
             assertThat(hasGovernanceVersion)
-                    .as("ContractorResponse must NOT have governanceVersion — Contractors have no DC approval")
+                    .as("ContractorResponse must NOT have governanceVersion â€” Contractors have no DC approval")
                     .isFalse();
             assertThat(hasIsVerifiedByDc)
-                    .as("ContractorResponse must NOT have isVerifiedByDc — verification removed from Contractors")
+                    .as("ContractorResponse must NOT have isVerifiedByDc â€” verification removed from Contractors")
                     .isFalse();
             assertThat(hasDcFlagReason)
-                    .as("ContractorResponse must NOT have dcFlagReason — verification removed from Contractors")
+                    .as("ContractorResponse must NOT have dcFlagReason â€” verification removed from Contractors")
                     .isFalse();
         }
     }

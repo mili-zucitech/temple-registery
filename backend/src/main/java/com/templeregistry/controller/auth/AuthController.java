@@ -26,7 +26,7 @@ import java.util.Arrays;
 @Tag(name = "Authentication", description = "Login, MFA, token refresh, and logout endpoints")
 public class AuthController {
 
-    private static final int ACCESS_MAX_AGE  = 15 * 60;        // 15 minutes
+    private static final int ACCESS_MAX_AGE  = 2 * 60 * 60;    // 2 hours
     private static final int REFRESH_MAX_AGE = 7 * 24 * 3600;  // 7 days
 
     private final AuthService authService;

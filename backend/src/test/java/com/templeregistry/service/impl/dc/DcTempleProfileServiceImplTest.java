@@ -35,6 +35,7 @@ import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.document.FileStorageService;
 import com.templeregistry.service.governance.GovernanceStatusResolver;
+import com.templeregistry.service.governance.TempleVisibilityPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -58,7 +59,7 @@ import static org.mockito.Mockito.never;
 @ExtendWith(MockitoExtension.class)
 class DcTempleProfileServiceImplTest {
 
-    // ── Repositories ──────────────────────────────────────────────────────────
+    // â”€â”€ Repositories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @Mock private TempleRepository templeRepository;
     @Mock private TempleSearchSummaryRepository summaryRepository;
     @Mock private TrustRepository trustRepository;
@@ -84,19 +85,20 @@ class DcTempleProfileServiceImplTest {
     @Mock private JurisdictionGuard jurisdictionGuard;
     @Mock private FileStorageService fileStorageService;
     @Mock private GovernanceStatusResolver governanceStatusResolver;
+    @Mock private TempleVisibilityPolicy visibilityPolicy;
 
     @InjectMocks
     private DcTempleProfileServiceImpl service;
 
-    // ── Shared test data ──────────────────────────────────────────────────────
+    // â”€â”€ Shared test data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private final ScopeHelper.Claims SUPER_ADMIN_CLAIMS =
-            new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "admin");
+            new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "admin", "EDIT");
 
     private final ScopeHelper.Claims DC_CLAIMS =
-            new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc");
+            new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc", "EDIT");
 
-    // ── Helper builders ───────────────────────────────────────────────────────
+    // â”€â”€ Helper builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private Temple templeWithFullGeo() {
         District district = District.builder().name("Mysuru").build();
@@ -181,7 +183,7 @@ class DcTempleProfileServiceImplTest {
         when(profileCurrentRepository.findByTempleId(temple.getId())).thenReturn(Optional.empty());
     }
 
-    // ── Test: full geo data ───────────────────────────────────────────────────
+    // â”€â”€ Test: full geo data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnFullProfile_when_templeHasCompleteGeoAndCityData() {
@@ -217,7 +219,7 @@ class DcTempleProfileServiceImplTest {
         verify(jurisdictionGuard).assertDistrictScope(eq(temple), eq(DC_CLAIMS));
     }
 
-    // ── Test: hobli is null (partial geo) ────────────────────────────────────
+    // â”€â”€ Test: hobli is null (partial geo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnPartialProfile_when_hobliIsNull() {
@@ -235,7 +237,7 @@ class DcTempleProfileServiceImplTest {
         assertThat(result.getTemple()).isNotNull();
     }
 
-    // ── Test: hobli present, taluk is null ────────────────────────────────────
+    // â”€â”€ Test: hobli present, taluk is null â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnPartialProfile_when_talukIsNull() {
@@ -251,7 +253,7 @@ class DcTempleProfileServiceImplTest {
         assertThat(result.getDistrictName()).isNull();
     }
 
-    // ── Test: taluk present, district is null ─────────────────────────────────
+    // â”€â”€ Test: taluk present, district is null â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnPartialProfile_when_districtIsNull() {
@@ -267,7 +269,7 @@ class DcTempleProfileServiceImplTest {
         assertThat(result.getDistrictName()).isNull();
     }
 
-    // ── Test: null city_id in search summary (the primary 500 bug) ───────────
+    // â”€â”€ Test: null city_id in search summary (the primary 500 bug) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnProfileWithNullCityName_when_cityIdIsNullInSearchSummary() {
@@ -275,21 +277,21 @@ class DcTempleProfileServiceImplTest {
         temple.setId(5L);
         stubMinimumForGetFullProfile(temple);
 
-        // Summary row exists but city_id is NULL — this caused IllegalArgumentException before the fix
+        // Summary row exists but city_id is NULL â€” this caused IllegalArgumentException before the fix
         TempleSearchSummary summaryWithNullCity = TempleSearchSummary.builder()
                 .templeId(5L)
                 .cityId(null)
                 .build();
         when(summaryRepository.findByTempleId(5L)).thenReturn(Optional.of(summaryWithNullCity));
 
-        // Should NOT throw — cityRepository.findById must never be called with null
+        // Should NOT throw â€” cityRepository.findById must never be called with null
         TempleFullProfileResponse result = service.getFullProfile(5L, SUPER_ADMIN_CLAIMS);
 
         assertThat(result.getCityName()).isNull();
         assertThat(result.getTemple()).isNotNull();
     }
 
-    // ── Test: no search summary row at all ───────────────────────────────────
+    // â”€â”€ Test: no search summary row at all â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnProfileWithNullCityName_when_searchSummaryAbsent() {
@@ -303,7 +305,7 @@ class DcTempleProfileServiceImplTest {
         assertThat(result.getCityName()).isNull();
     }
 
-    // ── Test: temple not found ────────────────────────────────────────────────
+    // â”€â”€ Test: temple not found â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_throwEntityNotFoundException_when_templeDoesNotExist() {
@@ -333,7 +335,7 @@ class DcTempleProfileServiceImplTest {
                 eq(List.of(WorkflowStatus.REJECTED)));
     }
 
-    // ── Test: DcTrustSummary canonical governanceStatus ───────────────────────
+    // â”€â”€ Test: DcTrustSummary canonical governanceStatus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_includeCanonicalGovernanceStatus_when_trustIsSummarised() {
@@ -365,6 +367,7 @@ class DcTempleProfileServiceImplTest {
         when(templeRepository.findWithGeoById(10L)).thenReturn(Optional.of(temple));
         when(trustRepository.findAllByTempleId(10L)).thenReturn(List.of(trust));
         when(governanceStatusResolver.resolve(WorkflowEntityType.TRUST, 200L)).thenReturn(payload);
+        when(visibilityPolicy.canViewGovernance(SUPER_ADMIN_CLAIMS, 10L)).thenReturn(true);
         when(trustFinancialRepository.findAllByTrustIdOrderByFinancialYearDesc(200L)).thenReturn(List.of());
         when(boardMeetingRepository.findAllByTrustIdOrderByMeetingDateDesc(200L)).thenReturn(List.of());
         when(boardMemberRepository.findAllByTrustIdOrderByAppointmentDateDescIdDesc(200L)).thenReturn(List.of());

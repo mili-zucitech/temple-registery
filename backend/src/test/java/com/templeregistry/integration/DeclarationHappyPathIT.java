@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration test: full happy-path workflow
- * DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED
+ * DRAFT â†’ SUBMITTED â†’ UNDER_REVIEW â†’ APPROVED
  *
  * Asserts:
  * - Status at each step
@@ -53,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Audit log entries exist for SUBMIT, UNDER_REVIEW, APPROVED actions
  *
  * Disabled because H2 does not support TINYINT(1) column definitions used in entities.
- * Testcontainers MySQL base resolves this — see {@link MySQLContainerBase}.
+ * Testcontainers MySQL base resolves this â€” see {@link MySQLContainerBase}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -111,18 +111,18 @@ class DeclarationHappyPathIT extends MySQLContainerBase {
         stateRepository.deleteAll();
 
         // Set up TA security context first (needed for JPA auditing)
-        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user");
+        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user", "EDIT");
         setSecurityContext(bootstrapClaims);
 
-        // Create geo hierarchy: State → City → District → Taluk → Hobli
+        // Create geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli
         Hobli hobli = createGeoHierarchy();
         districtId = hobli.getTaluk().getDistrict().getId();
 
         Temple temple = createTemple(hobli);
         templeId = temple.getId();
 
-        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
-        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user");
+        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
+        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user", "EDIT");
 
         // Set TA security context
         setSecurityContext(taClaims);
@@ -187,10 +187,10 @@ class DeclarationHappyPathIT extends MySQLContainerBase {
         assertThat(actions).anyMatch(a -> a.equalsIgnoreCase("APPROVE") || a.contains("APPROVE"));
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Creates the full geo hierarchy: State → City → District → Taluk → Hobli.
+     * Creates the full geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli.
      * Returns the Hobli (leaf node) with all parent references loaded.
      */
     private Hobli createGeoHierarchy() {

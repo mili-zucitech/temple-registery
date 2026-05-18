@@ -64,15 +64,15 @@ class DcTempleVerificationServiceImplTest {
         temple.setId(7L);
         temple.setVerificationStatus(VerificationStatus.UNVERIFIED);
 
-        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user", "EDIT");
 
-        // Default: no pending staging (multi-status query — Bug-1 fix)
+        // Default: no pending staging (multi-status query â€” Bug-1 fix)
         lenient().when(profileStagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
                         anyLong(), any()))
                 .thenReturn(Optional.empty());
     }
 
-    // ── verifyTempleProfile ───────────────────────────────────────────────────
+    // â”€â”€ verifyTempleProfile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_setStatusToVerified_when_verifyTempleProfileCalled() {
@@ -110,7 +110,7 @@ class DcTempleVerificationServiceImplTest {
         verifyNoInteractions(summaryService, notificationHelper);
     }
 
-    // ── Bug-1 fix: auto-approve covers SUBMITTED, UNDER_REVIEW, RESUBMITTED ──
+    // â”€â”€ Bug-1 fix: auto-approve covers SUBMITTED, UNDER_REVIEW, RESUBMITTED â”€â”€
 
     @Test
     void should_autoApprove_SUBMITTED_staging_when_verifyTempleProfileCalled() {
@@ -172,7 +172,7 @@ class DcTempleVerificationServiceImplTest {
         verify(notificationHelper, never()).notifyTempleApproved(anyLong(), anyLong());
     }
 
-    // ── flagTempleProfile ─────────────────────────────────────────────────────
+    // â”€â”€ flagTempleProfile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_setStatusToFlagged_and_setRejectionReason_when_flagTempleProfileCalled() {
@@ -191,7 +191,7 @@ class DcTempleVerificationServiceImplTest {
         verify(notificationHelper).notifyTempleFlagged(7L, 5L, "Missing land survey documents.");
     }
 
-    // ── unflagTempleProfile ───────────────────────────────────────────────────
+    // â”€â”€ unflagTempleProfile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_setStatusToUnverified_and_clearReason_when_unflagTempleProfileCalled() {
@@ -223,7 +223,7 @@ class DcTempleVerificationServiceImplTest {
         verifyNoInteractions(summaryService, notificationHelper);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    // â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static void setField(Object target, String name, Object value) {
         try {

@@ -36,26 +36,26 @@ class OwnershipGuardTest {
 
     @Test
     void should_allow_when_SA_assertOwnsTemple() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user", "EDIT"));
         assertThatCode(() -> guard.assertOwnsTemple(10L)).doesNotThrowAnyException();
     }
 
     @Test
     void should_allow_when_TA_ownsTemple() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user", "EDIT"));
         assertThatCode(() -> guard.assertOwnsTemple(10L)).doesNotThrowAnyException();
     }
 
     @Test
     void should_throw_when_TA_doesNotOwnTemple() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user", "EDIT"));
         assertThatThrownBy(() -> guard.assertOwnsTemple(99L))
                 .isInstanceOf(JurisdictionAccessDeniedException.class);
     }
 
     @Test
     void should_throw_when_TA_and_resourceTempleIdIsNull() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.TEMPLE_AUTHORITY, null, 10L, "ta_user", "EDIT"));
         assertThatThrownBy(() -> guard.assertOwnsTemple(null))
                 .isInstanceOf(JurisdictionAccessDeniedException.class);
     }
@@ -63,7 +63,7 @@ class OwnershipGuardTest {
     @Test
     void should_allow_when_DC_assertOwnsTemple() {
         // DC role: not TEMPLE_AUTHORITY, so ownership check is skipped
-        setAuthenticatedClaims(new ScopeHelper.Claims(3L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(3L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user", "EDIT"));
         assertThatCode(() -> guard.assertOwnsTemple(10L)).doesNotThrowAnyException();
     }
 }

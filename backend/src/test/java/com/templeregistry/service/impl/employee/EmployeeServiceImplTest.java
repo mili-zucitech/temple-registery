@@ -48,7 +48,7 @@ class EmployeeServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user", "EDIT");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
 
@@ -66,7 +66,7 @@ class EmployeeServiceImplTest {
         lenient().doNothing().when(auditService).logDataEvent(any(), any(), any(), any(), any(), any());
     }
 
-    /* ── VAL-012: Terminal status guard ─────────────────────────────── */
+    /* â”€â”€ VAL-012: Terminal status guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @Test
     void should_throw_IllegalStatusTransition_when_RESIGNED_employee_set_to_ACTIVE() {
@@ -94,7 +94,7 @@ class EmployeeServiceImplTest {
                 .hasMessageContaining("TRM-EMP-TERMINAL");
     }
 
-    /* ── VAL-015: dateOfLeaving required for terminal status ────────── */
+    /* â”€â”€ VAL-015: dateOfLeaving required for terminal status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @Test
     void should_throw_when_transitioning_to_RESIGNED_without_dateOfLeaving() {
@@ -141,7 +141,7 @@ class EmployeeServiceImplTest {
         assertThat(activeEmployee.getDateOfLeaving()).isEqualTo(leavingDate);
     }
 
-    /* ── ON_LEAVE is reversible (not terminal) ───────────────────────── */
+    /* â”€â”€ ON_LEAVE is reversible (not terminal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @Test
     void should_allow_ON_LEAVE_to_ACTIVE_transition() {
@@ -157,7 +157,7 @@ class EmployeeServiceImplTest {
         assertThat(onLeaveEmployee.getStatus()).isEqualTo(EmployeeStatus.ACTIVE);
     }
 
-    /* ── EntityNotFoundException ────────────────────────────────────── */
+    /* â”€â”€ EntityNotFoundException â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @Test
     void should_throw_EntityNotFoundException_when_employee_not_found() {

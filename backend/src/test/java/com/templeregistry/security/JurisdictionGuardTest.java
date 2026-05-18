@@ -28,7 +28,7 @@ class JurisdictionGuardTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
-    // ── assertSameDistrict ─────────────────────────────────────────────────────
+    // â”€â”€ assertSameDistrict â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_allowAny_when_anonymous_assertSameDistrict() {
@@ -39,24 +39,24 @@ class JurisdictionGuardTest {
 
     @Test
     void should_allow_when_DC_and_sameDistrict() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user", "EDIT"));
         assertThatCode(() -> guard.assertSameDistrict(5L)).doesNotThrowAnyException();
     }
 
     @Test
     void should_throw_when_DC_and_differentDistrict() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user", "EDIT"));
         assertThatThrownBy(() -> guard.assertSameDistrict(7L))
                 .isInstanceOf(JurisdictionAccessDeniedException.class);
     }
 
     @Test
     void should_allow_when_SA_and_differentDistrict() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user", "EDIT"));
         assertThatCode(() -> guard.assertSameDistrict(7L)).doesNotThrowAnyException();
     }
 
-    // ── enforceDistrictId ─────────────────────────────────────────────────────
+    // â”€â”€ enforceDistrictId â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnRequestedDistrictId_when_anonymous_enforceDistrictId() {
@@ -67,21 +67,21 @@ class JurisdictionGuardTest {
 
     @Test
     void should_returnJwtDistrictId_when_DC_enforceDistrictId() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user", "EDIT"));
         Long result = guard.enforceDistrictId(99L); // requested a different district
         assertThat(result).isEqualTo(5L); // JWT claim wins
     }
 
     @Test
     void should_returnRequestedDistrictId_when_SA_enforceDistrictId() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user", "EDIT"));
         Long result = guard.enforceDistrictId(77L);
         assertThat(result).isEqualTo(77L);
     }
 
     @Test
     void should_returnRequestedDistrictId_when_DCStaff_uses_ownDistrict() {
-        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.DC_STAFF, 3L, null, "dc_staff"));
+        setAuthenticatedClaims(new ScopeHelper.Claims(2L, RoleConstants.DC_STAFF, 3L, null, "dc_staff", "EDIT"));
         Long result = guard.enforceDistrictId(10L); // requested another, but JWT wins
         assertThat(result).isEqualTo(3L);
     }

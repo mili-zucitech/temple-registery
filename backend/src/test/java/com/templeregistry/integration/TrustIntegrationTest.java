@@ -82,12 +82,12 @@ class TrustIntegrationTest extends MySQLContainerBase {
         templeId = saved.getId();
 
         // TA security context
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
     }
 
-    // ─── Trust CRUD ───────────────────────────────────────────────────────────
+    // â”€â”€â”€ Trust CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class TrustCrud {
@@ -225,7 +225,7 @@ class TrustIntegrationTest extends MySQLContainerBase {
         }
     }
 
-    // ─── Board Member Operations ──────────────────────────────────────────────
+    // â”€â”€â”€ Board Member Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class BoardMemberOperations {
@@ -311,7 +311,7 @@ class TrustIntegrationTest extends MySQLContainerBase {
         }
     }
 
-    // ─── Security: Cross-Temple Access ───────────────────────────────────────
+    // â”€â”€â”€ Security: Cross-Temple Access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class SecurityTests {
@@ -328,7 +328,7 @@ class TrustIntegrationTest extends MySQLContainerBase {
                     .path("data").path("id").asLong();
 
             // Switch to a different TA (different templeId)
-            ScopeHelper.Claims otherClaims = new ScopeHelper.Claims(2L, "TEMPLE_AUTHORITY", null, 9999L, "other_ta");
+            ScopeHelper.Claims otherClaims = new ScopeHelper.Claims(2L, "TEMPLE_AUTHORITY", null, 9999L, "other_ta", "EDIT");
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(otherClaims, null, Collections.emptyList()));
 
@@ -338,7 +338,7 @@ class TrustIntegrationTest extends MySQLContainerBase {
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private CreateTrustRequest validTrustRequest() {
         return CreateTrustRequest.builder()

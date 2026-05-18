@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration test: full clarification cycle
- * DRAFT → SUBMITTED → CLARIFICATION_REQUIRED → CLARIFICATION_RESPONDED → APPROVED
+ * DRAFT â†’ SUBMITTED â†’ CLARIFICATION_REQUIRED â†’ CLARIFICATION_RESPONDED â†’ APPROVED
  *
  * Asserts:
  * - clarification_round = 1 after requestClarification
@@ -56,7 +56,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Snapshot created at respondToClarification and approve
  * - Status transitions correctly at each step
  *
- * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
+ * Testcontainers MySQL base resolves H2 incompatibility â€” see {@link MySQLContainerBase}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -118,7 +118,7 @@ class DeclarationClarificationIT extends MySQLContainerBase {
         stateRepository.deleteAll();
 
         // Set up bootstrap security context for JPA auditing
-        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user");
+        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user", "EDIT");
         setSecurityContext(bootstrapClaims);
 
         Hobli hobli = createGeoHierarchy();
@@ -127,8 +127,8 @@ class DeclarationClarificationIT extends MySQLContainerBase {
         Temple temple = createTemple(hobli);
         templeId = temple.getId();
 
-        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
-        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user");
+        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
+        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user", "EDIT");
 
         setSecurityContext(taClaims);
     }
@@ -199,10 +199,10 @@ class DeclarationClarificationIT extends MySQLContainerBase {
         assertThat(versionsAfterApprove).isGreaterThan(versionsAfterRespond);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Creates the full geo hierarchy: State → City → District → Taluk → Hobli.
+     * Creates the full geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli.
      */
     private Hobli createGeoHierarchy() {
         State state = stateRepository.save(State.builder()

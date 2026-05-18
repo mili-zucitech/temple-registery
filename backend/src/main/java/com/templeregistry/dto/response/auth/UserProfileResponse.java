@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.auth;
 
+import com.templeregistry.entity.auth.UserAccessType;
 import com.templeregistry.entity.auth.UserRole;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,6 +23,8 @@ public class UserProfileResponse {
     private Long districtId;
     private Long templeId;
     private boolean aadhaarVerified;
+    private String designation;
+    private UserAccessType accessType;
 
     /** Null for non-TEMPLE_AUTHORITY roles. */
     private TempleCompletionChecklist completionChecklist;

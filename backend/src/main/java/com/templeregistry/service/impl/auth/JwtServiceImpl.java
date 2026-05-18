@@ -29,6 +29,7 @@ public class JwtServiceImpl implements JwtService {
     private static final String CLAIM_ROLE       = "role";
     private static final String CLAIM_DISTRICT   = "districtId";
     private static final String CLAIM_TEMPLE     = "templeId";
+    private static final String CLAIM_ACCESS_TYPE = "accessType";
     private static final String TOKEN_TYPE_TEMP  = "TEMP";
 
     private final RSAPrivateKey privateKey;
@@ -49,10 +50,11 @@ public class JwtServiceImpl implements JwtService {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(user.getUsername())
-                .claim(CLAIM_USER_ID,  user.getId())
-                .claim(CLAIM_ROLE,     user.getRole().name())
-                .claim(CLAIM_DISTRICT, user.getDistrictId())
-                .claim(CLAIM_TEMPLE,   user.getTempleId())
+                .claim(CLAIM_USER_ID,   user.getId())
+                .claim(CLAIM_ROLE,      user.getRole().name())
+                .claim(CLAIM_DISTRICT,  user.getDistrictId())
+                .claim(CLAIM_TEMPLE,    user.getTempleId())
+                .claim(CLAIM_ACCESS_TYPE, user.getAccessType() != null ? user.getAccessType().name() : null)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + accessTokenExpiryMs))
                 .signWith(privateKey)

@@ -74,7 +74,7 @@ class TrustServiceImplTest {
     @BeforeEach
     void setUp() {
         // Set up a TA security context
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user", "EDIT");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
 
@@ -121,7 +121,7 @@ class TrustServiceImplTest {
                 .thenReturn(new Long[]{});
     }
 
-    // ─── Trust Creation ───────────────────────────────────────────────────────
+    // â”€â”€â”€ Trust Creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class TrustCreation {
@@ -198,7 +198,7 @@ class TrustServiceImplTest {
         }
     }
 
-    // ─── PAN Masking ──────────────────────────────────────────────────────────
+    // â”€â”€â”€ PAN Masking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class PanMasking {
@@ -210,7 +210,7 @@ class TrustServiceImplTest {
 
             TrustResponse response = sut.getById(10L);
 
-            // ABCDE1234F → AB*****4F
+            // ABCDE1234F â†’ AB*****4F
             assertThat(response.getMaskedPanNumber()).isEqualTo("AB*****4F");
         }
 
@@ -221,12 +221,12 @@ class TrustServiceImplTest {
 
             TrustResponse response = sut.getById(10L);
 
-            // 123456789012 → ******9012
+            // 123456789012 â†’ ******9012
             assertThat(response.getMaskedBankAccountNumber()).isEqualTo("******9012");
         }
     }
 
-    // ─── Board Member Operations ──────────────────────────────────────────────
+    // â”€â”€â”€ Board Member Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class BoardMemberOperations {
@@ -261,7 +261,7 @@ class TrustServiceImplTest {
 
         @Test
         void masked_aadhaar_uses_last4_column() {
-            // last4 = "1234" → mask = "XXXX-XXXX-1234"
+            // last4 = "1234" â†’ mask = "XXXX-XXXX-1234"
             assertThat(activeMember.getMaskedAadhaar()).isEqualTo("XXXX-XXXX-1234");
         }
 
@@ -335,7 +335,7 @@ class TrustServiceImplTest {
         }
     }
 
-    // ─── Financial Operations ─────────────────────────────────────────────────
+    // â”€â”€â”€ Financial Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class FinancialOperations {
@@ -370,7 +370,7 @@ class TrustServiceImplTest {
         }
     }
 
-    // ─── Meeting Operations ───────────────────────────────────────────────────
+    // â”€â”€â”€ Meeting Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class MeetingOperations {
@@ -408,7 +408,7 @@ class TrustServiceImplTest {
         }
     }
 
-    // ─── VAL-014: Board member cessation date ────────────────────────────────
+    // â”€â”€â”€ VAL-014: Board member cessation date â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class Val014CessationDate {
@@ -430,7 +430,7 @@ class TrustServiceImplTest {
         }
     }
 
-    // ─── VAL-013: One financial record per FY ────────────────────────────────
+    // â”€â”€â”€ VAL-013: One financial record per FY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Nested
     class Val013FinancialYear {
