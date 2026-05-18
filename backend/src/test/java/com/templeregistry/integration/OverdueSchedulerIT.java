@@ -49,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - overdueFlaggedAt is non-null
  * - status is still SUBMITTED (unchanged)
  *
- * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
+ * Testcontainers MySQL base resolves H2 incompatibility â€” see {@link MySQLContainerBase}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -105,14 +105,14 @@ class OverdueSchedulerIT extends MySQLContainerBase {
         stateRepository.deleteAll();
 
         // Set up bootstrap security context for JPA auditing
-        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user");
+        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user", "EDIT");
         setSecurityContext(bootstrapClaims);
 
         Hobli hobli = createGeoHierarchy();
         Temple temple = createTemple(hobli);
         templeId = temple.getId();
 
-        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
+        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
         setSecurityContext(taClaims);
     }
 
@@ -173,15 +173,15 @@ class OverdueSchedulerIT extends MySQLContainerBase {
         // Re-fetch from DB
         AssetDeclaration afterScheduler = declarationRepository.findById(declarationId).orElseThrow();
 
-        // Assert isOverdue is still false (APPROVED is terminal — should not be flagged)
+        // Assert isOverdue is still false (APPROVED is terminal â€” should not be flagged)
         assertThat(afterScheduler.isOverdue()).isFalse();
         assertThat(afterScheduler.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Creates the full geo hierarchy: State → City → District → Taluk → Hobli.
+     * Creates the full geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli.
      */
     private Hobli createGeoHierarchy() {
         State state = stateRepository.save(State.builder()

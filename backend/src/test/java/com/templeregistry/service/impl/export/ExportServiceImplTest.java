@@ -44,7 +44,7 @@ class ExportServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user", "EDIT");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(dcClaims, "n/a", List.of())
         );

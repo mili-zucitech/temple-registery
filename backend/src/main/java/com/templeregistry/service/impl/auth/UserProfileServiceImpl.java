@@ -65,6 +65,8 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .districtId(user.getDistrictId())
                 .templeId(user.getTempleId())
                 .aadhaarVerified(user.isAadhaarVerified())
+                .designation(user.getDesignation())
+                .accessType(user.getAccessType())
                 .completionChecklist(checklist)
                 .build();
     }

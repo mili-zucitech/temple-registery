@@ -1,5 +1,6 @@
 package com.templeregistry.dto.request.admin;
 
+import com.templeregistry.entity.auth.UserAccessType;
 import com.templeregistry.entity.auth.UserRole;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -32,16 +33,48 @@ public class CreateUserRequest {
     private Long cityId;
 
     /**
-     * Required when role = TEMPLE_AUTHORITY.
-     * The backend automatically creates a Temple record using this name.
-     */
-    @Size(max = 255)
-    private String templeName;
-
-    /**
      * Aadhaar number — 12 numeric digits. Required for TEMPLE_AUTHORITY.
      * Validated at service layer when role = TEMPLE_AUTHORITY.
      */
     @Pattern(regexp = "^\\d{12}$", message = "Aadhaar number must be exactly 12 digits.")
     private String aadhaarNumber;
+
+    // ─── Temple Authority: Two-case assignment ────────────────────────────────
+
+    /**
+     * When role = TEMPLE_AUTHORITY:
+     *   true  → create a new temple (Case 1). templeName is required.
+     *   false → assign an existing temple (Case 2). existingTempleId is required.
+     * Defaults to true to preserve backward compatibility.
+     */
+    @Builder.Default
+    private boolean createTemple = true;
+
+    /**
+     * Required when createTemple = true.
+     * Used as the name of the newly created Temple record.
+     */
+    @Size(max = 255)
+    private String templeName;
+
+    /**
+     * Required when createTemple = false.
+     * The ID of the existing active temple to assign to this user.
+     */
+    private Long existingTempleId;
+
+    /**
+     * Optional role/designation for TEMPLE_AUTHORITY users
+     * (e.g. "Trust Secretary", "Archaka", "Trustee").
+     */
+    @Size(max = 150)
+    private String designation;
+
+    /**
+     * Access level for TEMPLE_AUTHORITY users.
+     * VIEW = read-only; EDIT = full write access.
+     * Defaults to EDIT. Non-TA roles are stored as EDIT.
+     */
+    @Builder.Default
+    private UserAccessType accessType = UserAccessType.EDIT;
 }

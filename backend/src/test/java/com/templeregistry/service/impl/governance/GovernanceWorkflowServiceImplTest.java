@@ -40,7 +40,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for GovernanceWorkflowServiceImpl — focuses on:
+ * Unit tests for GovernanceWorkflowServiceImpl â€” focuses on:
  *   - Trust workflow methods call WorkflowEngineAdaptor correctly
  *   - sendBackTrust persists sendBackReason display field
  *   - EntityNotFoundException propagates when Trust not found
@@ -96,7 +96,7 @@ class GovernanceWorkflowServiceImplTest {
             .build();
         org.springframework.test.util.ReflectionTestUtils.setField(temple, "id", TEMPLE_ID);
 
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(ACTOR_ID, "DISTRICT_COLLECTOR", DISTRICT_ID, null, "dc_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(ACTOR_ID, "DISTRICT_COLLECTOR", DISTRICT_ID, null, "dc_user", "EDIT");
         var auth = new UsernamePasswordAuthenticationToken(claims, null);
         var secCtx = new org.springframework.security.core.context.SecurityContextImpl(auth);
         SecurityContextHolder.setContext(secCtx);
@@ -107,7 +107,7 @@ class GovernanceWorkflowServiceImplTest {
         lenient().doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
     }
 
-    // ── approveTrust ──────────────────────────────────────────────────────────
+    // â”€â”€ approveTrust â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("approveTrust() calls adaptor, takes snapshot, and stores approved_data")
@@ -129,7 +129,7 @@ class GovernanceWorkflowServiceImplTest {
     void should_notThrow_when_approvedDataSnapshotFails() throws Exception {
         when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("serialization error"));
 
-        // Must not throw — snapshot failure is non-fatal
+        // Must not throw â€” snapshot failure is non-fatal
         service.approveTrust(TRUST_ID);
 
         verify(workflowEngineAdaptor).adaptApprove(any(), any(), any(), any());
@@ -137,7 +137,7 @@ class GovernanceWorkflowServiceImplTest {
         verify(trustRepository, never()).save(any());
     }
 
-    // ── sendBackTrust ─────────────────────────────────────────────────────────
+    // â”€â”€ sendBackTrust â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("sendBackTrust() calls adaptor and persists sendBackReason on trust entity")
@@ -151,23 +151,23 @@ class GovernanceWorkflowServiceImplTest {
         verify(trustRepository, atLeastOnce()).save(argThat(t -> "Missing document".equals(t.getSendBackReason())));
     }
 
-    // ── rejectTrust — first-time rejection (no approvedData) ─────────────────
+    // â”€â”€ rejectTrust â€” first-time rejection (no approvedData) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("rejectTrust() when trust was never approved: calls adaptor only, does not save trust")
     void should_callAdaptorOnly_when_rejectTrustWithNoApprovedData() {
-        // trust.approvedData == null (never approved) — default from builder
+        // trust.approvedData == null (never approved) â€” default from builder
         RejectRequest req = new RejectRequest();
         req.setReason("Non-compliant");
         service.rejectTrust(TRUST_ID, req);
 
         verify(workflowEngineAdaptor).adaptReject(
             eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(DISTRICT_ID), eq(ACTOR_ID), eq("Non-compliant"));
-        // No entity save for first-time rejection — no data to restore
+        // No entity save for first-time rejection â€” no data to restore
         verify(trustRepository, never()).save(any());
     }
 
-    // ── rejectTrust — rejection of an edit to an approved trust ──────────────
+    // â”€â”€ rejectTrust â€” rejection of an edit to an approved trust â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("rejectTrust() when trust has approvedData: restores approved fields, saves trust, and uses adaptRejectEdit (non-terminal)")
@@ -199,13 +199,13 @@ class GovernanceWorkflowServiceImplTest {
             "REG-001".equals(t.getTrustRegistrationNumber()) &&
             LocalDate.of(2020, 1, 15).equals(t.getDateOfRegistration())
         ));
-        // Edit rejection must use adaptRejectEdit (→ RE_APPROVED), NOT adaptReject (→ REJECTED).
+        // Edit rejection must use adaptRejectEdit (â†’ RE_APPROVED), NOT adaptReject (â†’ REJECTED).
         verify(workflowEngineAdaptor).adaptRejectEdit(
             eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(DISTRICT_ID), eq(ACTOR_ID), eq("Data mismatch"));
         verify(workflowEngineAdaptor, never()).adaptReject(any(), anyLong(), anyLong(), anyLong(), any());
     }
 
-    // ── EntityNotFoundException propagates ────────────────────────────────────
+    // â”€â”€ EntityNotFoundException propagates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("approveTrust() throws EntityNotFoundException when trust is not found")
@@ -216,7 +216,7 @@ class GovernanceWorkflowServiceImplTest {
             .isInstanceOf(EntityNotFoundException.class);
     }
 
-    // ── No WorkflowInstance — no throw ────────────────────────────────────────
+    // â”€â”€ No WorkflowInstance â€” no throw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     @DisplayName("approveTrust() does not throw when no WorkflowInstance exists for trust")
@@ -228,7 +228,7 @@ class GovernanceWorkflowServiceImplTest {
             eq(WorkflowEntityType.TRUST), eq(TRUST_ID), anyLong(), eq(ACTOR_ID));
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @SuppressWarnings("unused")
     private WorkflowInstance workflowInstanceWithStatus(WorkflowStatus status) {

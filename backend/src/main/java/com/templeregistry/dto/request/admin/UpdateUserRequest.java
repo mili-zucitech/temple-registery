@@ -1,5 +1,6 @@
 package com.templeregistry.dto.request.admin;
 
+import com.templeregistry.entity.auth.UserAccessType;
 import com.templeregistry.entity.auth.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
@@ -23,4 +24,9 @@ public class UpdateUserRequest {
     private Long districtId;
     private Long cityId;
     private Long templeId;
+
+    @Size(max = 150)
+    private String designation;
+
+    private UserAccessType accessType;
 }

@@ -33,6 +33,7 @@ import { useDcTempleProfile, useDcPendingProfileStaging } from '@/features/dc/dc
 import { extractApiErrorMessage } from '@/lib/apiError'
 import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
 import type { GeoSelection } from '@/features/geo/geoTypes'
+import { TempleLocationPicker } from '@/features/temple-profile/components/TempleLocationPicker/TempleLocationPicker'
 
 const TRADITION_LABELS: Record<string, string> = {
   SHAIVITE: 'Shaivite',
@@ -80,7 +81,11 @@ export function SaTempleEditPage() {
   const [createOrUpdateDraft, { isLoading: isSaving }] = useCreateOrUpdateDraftMutation()
   const [submitForReview, { isLoading: isSubmitting }] = useSubmitForReviewMutation()
 
-  const isFormInitialized = useRef(false)
+  const initializedForTempleId = useRef<number | null>(null)
+  // Separate geo ref: must NOT be blocked by isDirty because GeoHierarchySelectGrid
+  // child effects call form.setValue({shouldDirty:true}) in the same effects flush,
+  // which can set isDirty=true before the parent effect reads its guard on remount.
+  const isGeoInitialized = useRef(false)
 
   const form = useForm<TaProfileStagingFormValues>({
     resolver: zodResolver(taProfileStagingSchema),
@@ -113,7 +118,50 @@ export function SaTempleEditPage() {
     },
   })
 
-  const [geoSelection, setGeoSelection] = useState<GeoSelection>({})
+  // Lazily initialise from cached data so taluks/hoblis queries are subscribed
+  // on the very first render (second+ visit). Falls back to {} when data is not
+  // yet cached, and the geo-init effect below handles that case.
+  const [geoSelection, setGeoSelection] = useState<GeoSelection>(() => {
+    if (profile?.temple) {
+      const temple = profile.temple
+      const staging = pendingStaging
+      return {
+        stateId: 1,
+        cityId: temple.cityId ?? undefined,
+        districtId: temple.districtId ?? undefined,
+        talukId: staging?.talukId ?? temple.talukId ?? undefined,
+        hobliId: staging?.hobliId ?? temple.hobliId ?? undefined,
+      }
+    }
+    return {}
+  })
+
+  // Reset geo selection when navigating to a different temple
+  useEffect(() => {
+    setGeoSelection({})
+    isGeoInitialized.current = false
+  }, [id])
+
+  // Dedicated geo initialization — no isDirty dependency.
+  // Fires once per mount (or id change) as soon as profile data is ready.
+  // Uses functional setState to skip the write when lazy init already ran.
+  useEffect(() => {
+    if (isGeoInitialized.current) return
+    if (isLoading || !profile) return
+    isGeoInitialized.current = true
+    const temple = profile.temple
+    const staging = pendingStaging
+    setGeoSelection(prev => {
+      if (prev.districtId !== undefined) return prev
+      return {
+        stateId: 1,
+        cityId: temple.cityId ?? undefined,
+        districtId: temple.districtId ?? undefined,
+        talukId: staging?.talukId ?? temple.talukId ?? undefined,
+        hobliId: staging?.hobliId ?? temple.hobliId ?? undefined,
+      }
+    })
+  }, [isLoading, profile, pendingStaging, id])
 
   const handleGeoChange = useCallback((sel: GeoSelection) => {
     setGeoSelection(sel)
@@ -122,9 +170,9 @@ export function SaTempleEditPage() {
     }
   }, [form])
 
-  // Prefill once after data loads
+  // Prefill once per temple after data loads
   useEffect(() => {
-    if (form.formState.isDirty || isFormInitialized.current || isLoading || !profile) return
+    if (form.formState.isDirty || initializedForTempleId.current === id || isLoading || !profile) return
 
     const temple = profile.temple
     const staging = pendingStaging
@@ -169,16 +217,8 @@ export function SaTempleEditPage() {
       yearEstablished: staging?.yearEstablished ?? temple.yearEstablished ?? null,
     })
 
-    setGeoSelection({
-      stateId: 1,
-      cityId: temple.cityId ?? undefined,
-      districtId: temple.districtId ?? undefined,
-      talukId: staging?.talukId ?? temple.talukId ?? undefined,
-      hobliId: staging?.hobliId ?? temple.hobliId ?? undefined,
-    })
-
-    isFormInitialized.current = true
-  }, [isLoading, profile, pendingStaging, form, form.formState.isDirty])
+    initializedForTempleId.current = id
+  }, [isLoading, profile, pendingStaging, form, form.formState.isDirty, id])
 
   const buildBody = (values: TaProfileStagingFormValues) => ({
     phone: values.phone || undefined,
@@ -327,58 +367,73 @@ export function SaTempleEditPage() {
             />
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-            <FormField control={form.control} name="addressLine1" render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Street / Address</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="Street address" disabled={!!temple.districtId} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+          <div className="space-y-4 mt-4">
+            <TempleLocationPicker
+              lat={form.watch('latitude') ?? null}
+              lng={form.watch('longitude') ?? null}
+              placeId={form.watch('placeId') ?? null}
+              formattedAddress={form.watch('formattedAddress') ?? null}
+              onChange={({ lat, lng, placeId: pid, formattedAddress: fa }) => {
+                form.setValue('latitude', lat, { shouldDirty: true })
+                form.setValue('longitude', lng, { shouldDirty: true })
+                if (pid !== undefined) form.setValue('placeId', pid, { shouldDirty: true })
+                if (fa !== undefined) form.setValue('formattedAddress', fa, { shouldDirty: true })
+              }}
+            />
 
-            <FormField control={form.control} name="pinCode" render={({ field }) => (
-              <FormItem>
-                <FormLabel>PIN Code</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="560001" maxLength={6} disabled={!!temple.districtId} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="addressLine1" render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Street / Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Street address" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
-            <FormField control={form.control} name="latitude" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Latitude</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="12.9716"
-                    value={field.value ?? ''}
-                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                    disabled={!!temple.districtId}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+              <FormField control={form.control} name="pinCode" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>PIN Code</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="560001" maxLength={6} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
-            <FormField control={form.control} name="longitude" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Longitude</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="77.5946"
-                    value={field.value ?? ''}
-                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                    disabled={!!temple.districtId}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+              <FormField control={form.control} name="latitude" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Latitude</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.0000001"
+                      placeholder="12.9716"
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="longitude" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Longitude</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.0000001"
+                      placeholder="77.5946"
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
           </div>
         </AccordionSection>
 

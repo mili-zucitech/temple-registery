@@ -3,11 +3,11 @@ package com.templeregistry.service.impl.admin;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.admin.CreateUserRequest;
 import com.templeregistry.dto.request.admin.UpdateUserRequest;
+import com.templeregistry.dto.response.admin.TempleOptionResponse;
 import com.templeregistry.dto.response.admin.UserAdminResponse;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.entity.temple.Temple;
-import com.templeregistry.entity.temple.TempleGrade;
 import com.templeregistry.entity.temple.TempleStatus;
 import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.exception.EntityNotFoundException;
@@ -31,7 +31,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -76,33 +81,11 @@ public class AdminServiceImpl implements AdminService {
         Long templeId = null;
 
         if (rq.getRole() == UserRole.TEMPLE_AUTHORITY) {
-            // Validate fields required for Temple Authority
-            if (rq.getTempleName() == null || rq.getTempleName().isBlank()) {
-                throw new IllegalStateException("Temple name is required when creating a Temple Authority user.");
+            if (rq.isCreateTemple()) {
+                templeId = createAndSaveTemple(rq);
+            } else {
+                templeId = resolveExistingTemple(rq);
             }
-            if (rq.getDistrictId() == null) {
-                throw new IllegalStateException("District is required when creating a Temple Authority user.");
-            }
-
-            // Auto-create a minimal temple record in the same transaction
-            String registrationNumber = generateTempleRegistrationNumber();
-            Temple temple = Temple.builder()
-                    .registrationNumber(registrationNumber)
-                    .name(rq.getTempleName())
-                    .grade(TempleGrade.C)
-                    .primaryDeity("To be updated")
-                    .districtId(rq.getDistrictId())
-                    .status(TempleStatus.ACTIVE)
-                    .trustRegistered(false)
-                    .build();
-            Temple savedTemple = templeRepository.save(temple);
-            templeId = savedTemple.getId();
-
-            // Schedule search summary after commit
-            searchSummaryService.scheduleRefresh(templeId);
-
-            log.info("Auto-created temple [id={}, regNo={}, name='{}'] for new TA user '{}'",
-                    templeId, registrationNumber, rq.getTempleName(), rq.getUsername());
         }
 
         User user = User.builder()
@@ -113,11 +96,53 @@ public class AdminServiceImpl implements AdminService {
                 .cityId(rq.getCityId())
                 .templeId(templeId)
                 .aadhaarNumber(rq.getAadhaarNumber())
+                .designation(rq.getDesignation())
+                .accessType(rq.getAccessType() != null ? rq.getAccessType() : com.templeregistry.entity.auth.UserAccessType.EDIT)
                 .isActive(true).build();
         User saved = userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "CREATE_USER",
                 "User", saved.getId(), "Created user: " + saved.getUsername());
         return toResponse(saved);
+    }
+
+    /** Case 1: auto-create a minimal Temple, return its ID. */
+    private Long createAndSaveTemple(CreateUserRequest rq) {
+        if (rq.getTempleName() == null || rq.getTempleName().isBlank()) {
+            throw new IllegalStateException("Temple name is required when creating a new temple.");
+        }
+        if (rq.getDistrictId() == null) {
+            throw new IllegalStateException("District is required when creating a new temple.");
+        }
+
+        String registrationNumber = generateTempleRegistrationNumber();
+        Temple temple = Temple.builder()
+                .registrationNumber(registrationNumber)
+                .name(rq.getTempleName())
+                .primaryDeity("To be updated")
+                .districtId(rq.getDistrictId())
+                .status(TempleStatus.ACTIVE)
+                .trustRegistered(false)
+                .build();
+        Temple saved = templeRepository.save(temple);
+        searchSummaryService.scheduleRefresh(saved.getId());
+        log.info("Auto-created temple [id={}, regNo={}, name='{}'] for new TA user",
+                saved.getId(), registrationNumber, rq.getTempleName());
+        return saved.getId();
+    }
+
+    /** Case 2: validate and return the ID of an existing temple. */
+    private Long resolveExistingTemple(CreateUserRequest rq) {
+        if (rq.getExistingTempleId() == null) {
+            throw new IllegalStateException("An existing temple must be selected when createTemple is false.");
+        }
+        Temple temple = templeRepository.findById(rq.getExistingTempleId())
+                .orElseThrow(() -> new EntityNotFoundException("Temple", rq.getExistingTempleId()));
+        if (temple.getStatus() == TempleStatus.ARCHIVED) {
+            throw new IllegalStateException("Cannot assign an archived temple to a user.");
+        }
+        log.info("Assigning existing temple [id={}, name='{}'] to new TA user",
+                temple.getId(), temple.getName());
+        return temple.getId();
     }
 
     @Override
@@ -139,6 +164,8 @@ public class AdminServiceImpl implements AdminService {
         if (rq.getDistrictId() != null) user.setDistrictId(rq.getDistrictId());
         if (rq.getCityId() != null) user.setCityId(rq.getCityId());
         if (rq.getTempleId() != null) user.setTempleId(rq.getTempleId());
+        if (rq.getDesignation() != null) user.setDesignation(rq.getDesignation());
+        if (rq.getAccessType() != null) user.setAccessType(rq.getAccessType());
         User saved = userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "UPDATE_USER",
                 "User", id, "Updated user details");
@@ -187,6 +214,47 @@ public class AdminServiceImpl implements AdminService {
                 "System", 0L, "Triggered manual rebuild");
     }
 
+    @Override
+    @PreAuthorize(RoleConstants.ADMIN_ONLY)
+    @Transactional(readOnly = true)
+    public PaginatedResponse<TempleOptionResponse> searchTemples(String query, int page, int size) {
+        int clampedSize = paginationUtil.clampSize(size);
+        String trimmed = (query == null) ? "" : query.trim();
+
+        // Collect district IDs matching the query (for district-name search)
+        List<Long> districtIds = trimmed.isBlank()
+                ? Collections.emptyList()
+                : districtRepository.findByNameContainingIgnoreCase(trimmed)
+                        .stream().map(d -> d.getId()).collect(Collectors.toList());
+
+        // Pad with a sentinel if empty so IN clause doesn't fail
+        if (districtIds.isEmpty()) {
+            districtIds = Collections.singletonList(-1L);
+        }
+
+        Page<Temple> result = templeRepository.searchForAssignment(
+                trimmed, districtIds, PageRequest.of(page, clampedSize));
+
+        // Batch-load district names
+        java.util.Set<Long> dIds = result.getContent().stream()
+                .map(Temple::getDistrictId).collect(Collectors.toSet());
+        Map<Long, String> districtNameById = districtRepository.findAllById(dIds)
+                .stream().collect(Collectors.toMap(
+                        d -> d.getId(),
+                        d -> d.getName()));
+
+        return PaginatedResponse.of(result.map(t -> TempleOptionResponse.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .registrationNumber(t.getRegistrationNumber())
+                .districtName(districtNameById.getOrDefault(t.getDistrictId(), ""))
+                .grade(t.getGrade() != null ? t.getGrade().name() : null)
+                .status(t.getStatus() != null ? t.getStatus().name() : null)
+                .districtId(t.getDistrictId())
+                .cityId(t.getCityId())
+                .build()));
+    }
+
     private Long currentActorId() {
         var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof ScopeHelper.Claims) {
@@ -215,6 +283,8 @@ public class AdminServiceImpl implements AdminService {
                 .districtId(u.getDistrictId()).districtName(districtName)
                 .cityId(u.getCityId())
                 .templeId(u.getTempleId()).templeName(templeName)
+                .designation(u.getDesignation())
+                .accessType(u.getAccessType())
                 .lastLoginAt(u.getLastLoginAt()).createdAt(u.getCreatedAt()).build();
     }
 

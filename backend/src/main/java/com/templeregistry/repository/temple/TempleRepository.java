@@ -46,4 +46,18 @@ public interface TempleRepository extends JpaRepository<Temple, Long>,
      */
     @Query("SELECT t FROM Temple t LEFT JOIN FETCH t.hobli h LEFT JOIN FETCH h.taluk ta LEFT JOIN FETCH ta.district d LEFT JOIN FETCH d.city")
     List<Temple> findAllWithFullGeo();
+
+    /**
+     * Search active temples for the admin 'assign existing temple' dropdown.
+     * Matches by name, registration number, or district ID.
+     * Only returns non-deleted, active/suspended (not ARCHIVED) temples.
+     */
+    @Query("SELECT t FROM Temple t WHERE t.status != com.templeregistry.entity.temple.TempleStatus.ARCHIVED " +
+           "AND (LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR LOWER(t.registrationNumber) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR t.districtId IN :districtIds)")
+    Page<Temple> searchForAssignment(
+            @org.springframework.data.repository.query.Param("q") String q,
+            @org.springframework.data.repository.query.Param("districtIds") java.util.Collection<Long> districtIds,
+            Pageable pageable);
 }

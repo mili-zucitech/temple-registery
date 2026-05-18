@@ -12,6 +12,7 @@ import com.templeregistry.exception.EntityNotFoundException;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.security.AccessGuard;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.workflow.ActionContextResolver;
 import com.templeregistry.util.PaginationUtil;
@@ -39,6 +40,7 @@ class TempleProfileStagingServiceImplTest {
     @Mock TempleRepository templeRepository;
     @Mock TempleSearchSummaryService summaryService;
     @Mock OwnershipGuard ownershipGuard;
+    @Mock AccessGuard accessGuard;
     @Mock PaginationUtil paginationUtil;
     @Mock com.templeregistry.service.workflow.WorkflowEngine workflowEngine;
     @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
@@ -47,6 +49,7 @@ class TempleProfileStagingServiceImplTest {
     @Mock ActionContextResolver actionContextResolver;
     @Mock com.templeregistry.service.document.FileStorageService fileStorageService;
     @Mock com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
+    @Mock com.templeregistry.repository.geo.HobliRepository hobliRepository;
 
     @InjectMocks TempleProfileStagingServiceImpl stagingService;
 
@@ -59,6 +62,7 @@ class TempleProfileStagingServiceImplTest {
         suspendedTemple = Temple.builder().id(1L).status(TempleStatus.SUSPENDED).build();
 
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(any());
+        lenient().doNothing().when(accessGuard).assertCanEdit();
 
         // Mock security context
         SecurityContext ctx = mock(SecurityContext.class);
@@ -206,5 +210,50 @@ class TempleProfileStagingServiceImplTest {
         stagingService.createOrUpdateDraft(1L, request);
 
         verify(stagingRepository).save(argThat(s -> "existing-place-id".equals(s.getPlaceId())));
+    }
+
+    // ── AccessGuard: VIEW-only enforcement ──────────────────────────────────
+
+    @Test
+    void should_reject_createOrUpdateDraft_when_user_has_VIEW_access() {
+        doThrow(new org.springframework.security.access.AccessDeniedException("VIEW-only"))
+                .when(accessGuard).assertCanEdit();
+
+        assertThatThrownBy(() -> stagingService.createOrUpdateDraft(1L, new CreateTempleProfileStagingRequest()))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("VIEW-only");
+
+        verifyNoInteractions(templeRepository);
+        verifyNoInteractions(stagingRepository);
+    }
+
+    @Test
+    void should_reject_submitForReview_when_user_has_VIEW_access() {
+        doThrow(new org.springframework.security.access.AccessDeniedException("VIEW-only"))
+                .when(accessGuard).assertCanEdit();
+
+        assertThatThrownBy(() -> stagingService.submitForReview(1L))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("VIEW-only");
+
+        verifyNoInteractions(templeRepository);
+        verifyNoInteractions(stagingRepository);
+    }
+
+    @Test
+    void should_allow_createOrUpdateDraft_when_user_has_EDIT_access() {
+        doNothing().when(accessGuard).assertCanEdit();
+        when(templeRepository.findById(1L)).thenReturn(Optional.of(activeTemple));
+        when(stagingRepository.findFirstByTempleIdAndStatus(1L, WorkflowStatus.DRAFT))
+                .thenReturn(Optional.empty());
+        lenient().when(stagingRepository.findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
+                eq(1L), any())).thenReturn(Optional.empty());
+        when(stagingRepository.findMaxVersionNumberByTempleId(1L)).thenReturn(Optional.of(0));
+        mockWorkflow(WorkflowStatus.DRAFT, 1);
+
+        stagingService.createOrUpdateDraft(1L, new CreateTempleProfileStagingRequest());
+
+        verify(accessGuard).assertCanEdit();
+        verify(stagingRepository).save(any(TempleProfileStaging.class));
     }
 }

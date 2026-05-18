@@ -26,7 +26,7 @@ public class ScopeHelper {
     /**
      * Typed claims extracted from a validated JWT.
      */
-    public record Claims(Long userId, String role, Long districtId, Long templeId, String username) {
+    public record Claims(Long userId, String role, Long districtId, Long templeId, String username, String accessType) {
         /**
          * Returns temple IDs as a Set for compatibility with ActionContext.
          * Currently supports single temple per user; returns singleton set.
@@ -58,13 +58,14 @@ public class ScopeHelper {
                 .parseSignedClaims(token)
                 .getPayload();
 
-        Long userId     = body.get("userId", Long.class);
-        String role     = body.get("role", String.class);
-        Long districtId = body.get("districtId", Long.class);
-        Long templeId   = body.get("templeId", Long.class);
-        String username = body.getSubject();
+        Long userId      = body.get("userId", Long.class);
+        String role      = body.get("role", String.class);
+        Long districtId  = body.get("districtId", Long.class);
+        Long templeId    = body.get("templeId", Long.class);
+        String username  = body.getSubject();
+        String accessType = body.get("accessType", String.class);
 
-        return new Claims(userId, role, districtId, templeId, username);
+        return new Claims(userId, role, districtId, templeId, username, accessType);
     }
 
     private RSAPublicKey loadPublicKey(Resource resource) throws Exception {

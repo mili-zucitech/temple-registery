@@ -83,6 +83,20 @@ public class User extends BaseEntity {
     @Column(name = "aadhaar_number", length = 12)
     private String aadhaarNumber;
 
+    /** Optional role/designation for TEMPLE_AUTHORITY users (e.g. "Trust Secretary", "Archaka"). */
+    @Column(name = "designation", length = 150)
+    private String designation;
+
+    /**
+     * Access level for TEMPLE_AUTHORITY users.
+     * VIEW = read-only; EDIT = full write access (default).
+     * Non-TA roles should always be EDIT but the field is stored for all users.
+     */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "access_type", nullable = false, length = 10)
+    private UserAccessType accessType = UserAccessType.EDIT;
+
     /** SHA-256 hash of the single-use password-reset token. Null when no reset is pending. */
     @Column(name = "password_reset_token_hash", length = 64)
     private String passwordResetTokenHash;

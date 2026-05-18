@@ -11,6 +11,7 @@ import com.templeregistry.repository.geo.HobliRepository;
 import com.templeregistry.repository.temple.TempleProfileStagingRepository;
 import com.templeregistry.repository.temple.TempleRepository;
 import com.templeregistry.security.OwnershipGuard;
+import com.templeregistry.security.AccessGuard;
 import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.temple.TempleProfileStagingService;
@@ -50,6 +51,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     private final TempleRepository templeRepository;
     private final TempleSearchSummaryService summaryService;
     private final OwnershipGuard ownershipGuard;
+    private final AccessGuard accessGuard;
     private final PaginationUtil paginationUtil;
     private final WorkflowEngine workflowEngine;
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
@@ -62,6 +64,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public TempleProfileStagingResponse createOrUpdateDraft(Long templeId, CreateTempleProfileStagingRequest request) {
+        accessGuard.assertCanEdit();
         ownershipGuard.assertOwnsTemple(templeId);
         Temple temple = findTempleOrThrow(templeId);
         assertNotSuspended(temple);
@@ -159,6 +162,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     @Transactional
     public TempleProfileStagingResponse submitForReview(Long templeId) {
+        accessGuard.assertCanEdit();
         ownershipGuard.assertOwnsTemple(templeId);
         Temple temple = findTempleOrThrow(templeId);
         assertNotSuspended(temple);
@@ -293,6 +297,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     @Transactional
     @PreAuthorize(RoleConstants.CAN_SUBMIT)
     public void respondToClarification(Long templeId, Long threadId, String response, Long respondedByUserId) {
+        accessGuard.assertCanEdit();
         // [P6] Canonical: ClarificationEngine handles response + WorkflowEngine transition
         clarificationEngine.respond(threadId,
             com.templeregistry.service.clarification.ClarificationResponse.builder()
@@ -307,6 +312,7 @@ public class TempleProfileStagingServiceImpl implements TempleProfileStagingServ
     @Transactional
     @PreAuthorize(RoleConstants.TEMPLE_AUTHORITY_ONLY)
     public void deleteDraftStaging(Long templeId, Long stagingId) {
+        accessGuard.assertCanEdit();
         TempleProfileStaging staging = stagingRepository.findById(stagingId)
                 .orElseThrow(() -> new EntityNotFoundException("TempleProfileStaging", stagingId));
 

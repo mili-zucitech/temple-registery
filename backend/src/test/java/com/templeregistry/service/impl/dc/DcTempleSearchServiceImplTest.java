@@ -30,14 +30,14 @@ class DcTempleSearchServiceImplTest {
     private DcTempleSearchServiceImpl service;
 
     private static final ScopeHelper.Claims SA_CLAIMS =
-            new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user");
+            new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "sa_user", "EDIT");
     private static final ScopeHelper.Claims DC_CLAIMS =
-            new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user");
+            new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc_user", "EDIT");
 
     @SuppressWarnings("unchecked")
     @Test
     void should_useFilterDistrictId_when_SA_searches_any_district() {
-        // SA provides districtId=7 — service must honour it (not override with JWT)
+        // SA provides districtId=7 â€” service must honour it (not override with JWT)
         TempleSearchFilterRequest filter = TempleSearchFilterRequest.builder()
                 .districtId(7L).build();
 
@@ -52,7 +52,7 @@ class DcTempleSearchServiceImplTest {
     @SuppressWarnings("unchecked")
     @Test
     void should_useFilterDistrictId_when_DC_searches_another_district() {
-        // After the unlock, DC can supply any districtId — resolveDistrictId returns filter.districtId
+        // After the unlock, DC can supply any districtId â€” resolveDistrictId returns filter.districtId
         TempleSearchFilterRequest filter = TempleSearchFilterRequest.builder()
                 .districtId(99L).build();
 
@@ -66,7 +66,7 @@ class DcTempleSearchServiceImplTest {
     @SuppressWarnings("unchecked")
     @Test
     void should_returnAllTemples_when_districtId_isNull() {
-        // No district filter — returns statewide results
+        // No district filter â€” returns statewide results
         TempleSearchFilterRequest filter = TempleSearchFilterRequest.builder().build();
 
         when(summaryRepository.findAll(any(Specification.class), any(Pageable.class)))

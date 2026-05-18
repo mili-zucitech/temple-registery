@@ -214,7 +214,7 @@ public class AuthServiceImpl implements AuthService {
         return AuthTokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(rawRefreshToken)
-                .expiresIn(900)
+                .expiresIn(7200)
                 .role(user.getRole().name())
                 .userId(user.getId())
                 .build();

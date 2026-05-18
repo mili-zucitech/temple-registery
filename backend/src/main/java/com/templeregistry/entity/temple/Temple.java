@@ -34,7 +34,7 @@ public class Temple extends BaseEntity {
     private String aliasName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "grade", nullable = false, length = 5)
+    @Column(name = "grade", nullable = true, length = 5)
     private TempleGrade grade;
 
     @Column(name = "primary_deity", nullable = false, length = 150)

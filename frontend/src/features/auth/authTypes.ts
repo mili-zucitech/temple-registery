@@ -95,6 +95,9 @@ export interface CurrentUser {
   districtId?: number
   templeId?: number
   aadhaarVerified: boolean
+  designation?: string
+  /** VIEW = read-only; EDIT = full write access. Only meaningful for TEMPLE_AUTHORITY. */
+  accessType?: 'VIEW' | 'EDIT'
   completionChecklist?: TempleCompletionChecklist
 }
 

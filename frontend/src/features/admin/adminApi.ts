@@ -7,7 +7,8 @@ export interface UserAdminResponse {
   id: number; username: string; email: string; fullName: string
   mobile?: string; role: UserRole; active: boolean; aadhaarVerified: boolean
   aadhaarNumber?: string; districtId?: number; districtName?: string; cityId?: number
-  templeId?: number; templeName?: string; lastLoginAt?: string; createdAt: string
+  templeId?: number; templeName?: string; designation?: string; accessType?: 'VIEW' | 'EDIT'
+  lastLoginAt?: string; createdAt: string
 }
 
 export interface DistrictOption {
@@ -21,9 +22,34 @@ export interface CreateUserRequest {
   username: string; email: string; password: string; fullName: string
   mobile?: string; role: UserRole; districtId: number; cityId?: number
   /** Required when role = TEMPLE_AUTHORITY */
-  templeName?: string
-  /** Required when role = TEMPLE_AUTHORITY — 12 numeric digits */
   aadhaarNumber?: string
+  /**
+   * true  → create a new temple (Case 1); templeName is required.
+   * false → assign existing temple (Case 2); existingTempleId is required.
+   * Defaults to true.
+   */
+  createTemple?: boolean
+  /** Required when createTemple = true */
+  templeName?: string
+  /** Required when createTemple = false */
+  existingTempleId?: number
+  /** Optional designation for TEMPLE_AUTHORITY users (e.g. "Trust Secretary") */
+  designation?: string
+  /** VIEW = read-only; EDIT = full write access. Defaults to EDIT. */
+  accessType?: 'VIEW' | 'EDIT'
+}
+
+export interface TempleOption {
+  id: number
+  name: string
+  registrationNumber: string
+  districtName?: string
+  grade?: string
+  status?: string
+  /** District ID — used for auto-filling the district field when assigning an existing temple. */
+  districtId?: number
+  /** City ID — used for auto-filling the city field when assigning an existing temple. */
+  cityId?: number
 }
 
 export interface AuditEventResponse {
@@ -80,7 +106,7 @@ export interface UpdateSystemConfigRequest {
 export const adminApi = createApi({
   reducerPath: 'adminApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch', 'Districts'],
+  tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch', 'Districts', 'TempleOption'],
   endpoints: (builder) => ({
     listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/users', params: { page, size } }),
@@ -105,6 +131,13 @@ export const adminApi = createApi({
     listAllDistricts: builder.query<ApiResponse<DistrictOption[]>, void>({
       query: () => ({ url: '/geo/districts' }),
       providesTags: ['Districts'],
+    }),
+    searchTemples: builder.query<ApiResponse<PaginatedResponse<TempleOption>>, { q?: string; page?: number; size?: number }>({
+      query: ({ q = '', page = 0, size = 20 } = {}) => ({
+        url: '/admin/temples/search',
+        params: { q, page, size },
+      }),
+      providesTags: ['TempleOption'],
     }),
     listAuditEvents: builder.query<ApiResponse<PaginatedResponse<AuditEventResponse>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/audit-events', params: { page, size } }),
@@ -183,7 +216,7 @@ export const adminApi = createApi({
 export const {
   useListUsersQuery, useCreateUserMutation, useUpdateUserMutation,
   useDeactivateUserMutation, useActivateUserMutation,
-  useListAllDistrictsQuery,
+  useListAllDistrictsQuery, useSearchTemplesQuery,
   useListAuditEventsQuery, useListAuthEventsQuery,
   useRebuildSearchSummaryMutation, useGetPhysicalVerificationPendingQuery,
   useGetStatewideDashboardQuery,

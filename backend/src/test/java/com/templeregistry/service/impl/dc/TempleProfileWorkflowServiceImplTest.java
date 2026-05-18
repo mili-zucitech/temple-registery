@@ -67,7 +67,7 @@ class TempleProfileWorkflowServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        dcClaims = new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc");
+        dcClaims = new ScopeHelper.Claims(2L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc", "EDIT");
         activeTemple = Temple.builder()
                 .id(1L)
                 .districtId(10L)
@@ -109,7 +109,7 @@ class TempleProfileWorkflowServiceImplTest {
                 .build();
     }
 
-    // ── Approve: SUBMITTED ────────────────────────────────────────────────────
+    // â”€â”€ Approve: SUBMITTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_approve_SUBMITTED_staging_and_call_workflow_engine() {
@@ -130,7 +130,7 @@ class TempleProfileWorkflowServiceImplTest {
                 argThat(req -> req.getAction() == WorkflowAction.APPROVE), any());
     }
 
-    // ── Approve: UNDER_REVIEW ─────────────────────────────────────────────────
+    // â”€â”€ Approve: UNDER_REVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_approve_UNDER_REVIEW_staging_with_APPROVE_action() {
@@ -148,7 +148,7 @@ class TempleProfileWorkflowServiceImplTest {
                 argThat(req -> req.getAction() == WorkflowAction.APPROVE), any());
     }
 
-    // ── Approve: RESUBMITTED (parity with Trust) ──────────────────────────────
+    // â”€â”€ Approve: RESUBMITTED (parity with Trust) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_approve_RESUBMITTED_staging_with_RE_APPROVE_action() {
@@ -164,12 +164,12 @@ class TempleProfileWorkflowServiceImplTest {
         WorkflowActionResponse result = service.approveProfile(300L, approveReq, dcClaims);
 
         assertThat(result.getNewStatus()).isEqualTo("APPROVED");
-        // RESUBMITTED → RE_APPROVE
+        // RESUBMITTED â†’ RE_APPROVE
         verify(workflowEngine).execute(eq(997L),
                 argThat(req -> req.getAction() == WorkflowAction.RE_APPROVE), any());
     }
 
-    // ── Reject: SUBMITTED ─────────────────────────────────────────────────────
+    // â”€â”€ Reject: SUBMITTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_reject_SUBMITTED_staging_and_call_workflow_engine() {
@@ -190,7 +190,7 @@ class TempleProfileWorkflowServiceImplTest {
                 any());
     }
 
-    // ── Reject: RESUBMITTED (parity with Trust) ───────────────────────────────
+    // â”€â”€ Reject: RESUBMITTED (parity with Trust) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_reject_RESUBMITTED_staging_via_REJECT_action() {
@@ -208,7 +208,7 @@ class TempleProfileWorkflowServiceImplTest {
                 argThat(req -> req.getAction() == WorkflowAction.REJECT), any());
     }
 
-    // ── Guard: non-reviewable status ──────────────────────────────────────────
+    // â”€â”€ Guard: non-reviewable status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_throw_when_approve_called_on_DRAFT_staging() {
@@ -252,7 +252,7 @@ class TempleProfileWorkflowServiceImplTest {
                 .hasMessageContaining("REJECTED");
     }
 
-    // ── Approve: reviewComment is cleared ────────────────────────────────────
+    // â”€â”€ Approve: reviewComment is cleared â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_nullReviewComment_when_profileApproved() {
@@ -274,7 +274,7 @@ class TempleProfileWorkflowServiceImplTest {
         assertThat(staging.getReviewComment()).isNull();
     }
 
-    // ── Approve: dcRejectionReason cleared on temple entity ──────────────────
+    // â”€â”€ Approve: dcRejectionReason cleared on temple entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_clearDcRejectionReason_when_profileApproved() {
@@ -294,7 +294,7 @@ class TempleProfileWorkflowServiceImplTest {
         assertThat(activeTemple.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
     }
 
-    // ── Location metadata (V97) promotion on approval ─────────────────────────
+    // â”€â”€ Location metadata (V97) promotion on approval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_promote_placeId_and_formattedAddress_to_temple_on_approval() {

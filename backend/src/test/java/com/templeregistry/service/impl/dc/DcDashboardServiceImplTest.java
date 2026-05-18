@@ -26,11 +26,11 @@ class DcDashboardServiceImplTest {
     @InjectMocks
     private DcDashboardServiceImpl dcDashboardService;
 
-    // ── DC role: district-scoped ──────────────────────────────────────────────
+    // â”€â”€ DC role: district-scoped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnDistrictScopedKpis_when_roleIsDistrictCollector() {
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user", "EDIT");
 
         when(summaryRepository.countByDistrict(eq(10L))).thenReturn(50L);
         when(summaryRepository.sumPendingDeclarationsByDistrict(eq(10L))).thenReturn(5L);
@@ -52,7 +52,7 @@ class DcDashboardServiceImplTest {
 
     @Test
     void should_returnAllDistrictKpis_when_roleIsSuperAdmin() {
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "admin");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.SUPER_ADMIN, null, null, "admin", "EDIT");
 
         when(summaryRepository.countByDistrict(null)).thenReturn(200L);
         when(summaryRepository.sumPendingDeclarationsByDistrict(null)).thenReturn(15L);
@@ -69,7 +69,7 @@ class DcDashboardServiceImplTest {
 
     @Test
     void should_mapGradeDistributionCorrectly_when_repositoryReturnsRawRows() {
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, RoleConstants.DISTRICT_COLLECTOR, 5L, null, "dc", "EDIT");
 
         when(summaryRepository.countByDistrict(eq(5L))).thenReturn(10L);
         when(summaryRepository.sumPendingDeclarationsByDistrict(eq(5L))).thenReturn(0L);
@@ -88,7 +88,7 @@ class DcDashboardServiceImplTest {
 
     @Test
     void should_useDistrictIdFromClaims_when_roleIsDcStaff() {
-        ScopeHelper.Claims claims = new ScopeHelper.Claims(2L, RoleConstants.DC_STAFF, 7L, null, "dc_staff");
+        ScopeHelper.Claims claims = new ScopeHelper.Claims(2L, RoleConstants.DC_STAFF, 7L, null, "dc_staff", "EDIT");
 
         when(summaryRepository.countByDistrict(eq(7L))).thenReturn(25L);
         when(summaryRepository.sumPendingDeclarationsByDistrict(eq(7L))).thenReturn(0L);

@@ -1,5 +1,6 @@
 package com.templeregistry.dto.response.admin;
 
+import com.templeregistry.entity.auth.UserAccessType;
 import com.templeregistry.entity.auth.UserRole;
 import lombok.*;
 
@@ -21,6 +22,8 @@ public class UserAdminResponse {
     private Long cityId;
     private Long templeId;
     private String templeName;
+    private String designation;
+    private UserAccessType accessType;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
 }

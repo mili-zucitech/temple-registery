@@ -54,7 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - The other throws an exception (optimistic locking or state transition violation)
  * - Final status is APPROVED
  *
- * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
+ * Testcontainers MySQL base resolves H2 incompatibility â€” see {@link MySQLContainerBase}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -112,7 +112,7 @@ class DeclarationConcurrencyIT extends MySQLContainerBase {
         stateRepository.deleteAll();
 
         // Set up bootstrap security context for JPA auditing
-        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user");
+        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user", "EDIT");
         setSecurityContext(bootstrapClaims);
 
         Hobli hobli = createGeoHierarchy();
@@ -121,8 +121,8 @@ class DeclarationConcurrencyIT extends MySQLContainerBase {
         Temple temple = createTemple(hobli);
         templeId = temple.getId();
 
-        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
-        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user");
+        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
+        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user", "EDIT");
 
         setSecurityContext(taClaims);
     }
@@ -188,10 +188,10 @@ class DeclarationConcurrencyIT extends MySQLContainerBase {
         assertThat(finalDeclaration.getStatus()).isEqualTo(DeclarationStatus.APPROVED);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Creates the full geo hierarchy: State → City → District → Taluk → Hobli.
+     * Creates the full geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli.
      */
     private Hobli createGeoHierarchy() {
         State state = stateRepository.save(State.builder()

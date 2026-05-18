@@ -46,7 +46,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for GovernanceWorkflowServiceImpl — declaration workflow actions.
+ * Unit tests for GovernanceWorkflowServiceImpl â€” declaration workflow actions.
  *
  * Verifies that GovernanceWorkflowServiceImpl is the SINGLE SOURCE OF TRUTH
  * for all declaration workflow transitions (approve, reject, clarify,
@@ -100,12 +100,12 @@ class GovernanceDeclarationWorkflowTest {
                 .build();
         temple.setId(1L);
 
-        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user");
+        dcClaims = new ScopeHelper.Claims(5L, RoleConstants.DISTRICT_COLLECTOR, 10L, null, "dc_user", "EDIT");
 
         // Standard workflow instance stub
         com.templeregistry.entity.workflow.WorkflowInstance instance = com.templeregistry.entity.workflow.WorkflowInstance.builder()
             .id(500L).lockVersion(1L).districtId(10L).build();
-        // findState returns empty → assertEntityStatusConsistency guard is no-op (correct for unit tests)
+        // findState returns empty â†’ assertEntityStatusConsistency guard is no-op (correct for unit tests)
         lenient().when(workflowEngineAdaptor.findState(any(), anyLong())).thenReturn(Optional.empty());
         // ensureInitiated returns instance so executeDeclarationTransition doesn't NPE on wi.getId()
         lenient().when(workflowEngineAdaptor.ensureInitiated(any(), anyLong(), anyLong(), anyLong(), anyLong())).thenReturn(instance);
@@ -114,7 +114,7 @@ class GovernanceDeclarationWorkflowTest {
             .thenReturn(Optional.of(instance));
     }
 
-    // ── Approve ───────────────────────────────────────────────────────────────
+    // â”€â”€ Approve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_approveDeclaration_and_generateAcknowledgementNumber_when_statusIsPendingReview() {
@@ -157,7 +157,7 @@ class GovernanceDeclarationWorkflowTest {
         verifyNoInteractions(summaryService, notificationPublisher);
     }
 
-    // ── Reject ────────────────────────────────────────────────────────────────
+    // â”€â”€ Reject â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_rejectDeclaration_and_setStatusToRejected_when_statusIsPendingReview() {
@@ -180,7 +180,7 @@ class GovernanceDeclarationWorkflowTest {
         verify(ackGenerator, never()).generate();
     }
 
-    // ── Request Clarification ─────────────────────────────────────────────────
+    // â”€â”€ Request Clarification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_requestClarification_and_incrementClarificationRound_when_statusIsPendingReview() {
@@ -243,7 +243,7 @@ class GovernanceDeclarationWorkflowTest {
         verify(notificationPublisher).publish(eq(1001L), eq("CLARIFICATION_ESCALATION"), eq(42L), eq("ASSET_DECLARATION"));
     }
 
-    // ── Mark Under Review ─────────────────────────────────────────────────────
+    // â”€â”€ Mark Under Review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_markDeclarationUnderReview_when_statusIsPendingReview() {
@@ -261,7 +261,7 @@ class GovernanceDeclarationWorkflowTest {
         assertThat(pendingDeclaration.getStatus()).isEqualTo(DeclarationStatus.UNDER_REVIEW);
     }
 
-    // ── Flag Physical Verification ────────────────────────────────────────────
+    // â”€â”€ Flag Physical Verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_flagDeclaration_for_physicalVerification_when_statusIsPendingReview() {
@@ -274,7 +274,7 @@ class GovernanceDeclarationWorkflowTest {
         when(declarationRepository.save(any())).thenReturn(pendingDeclaration);
 
         DcClarifyRequest request = new DcClarifyRequest();
-        setField(request, "message", "Physical inspection required — discrepancy in land area.");
+        setField(request, "message", "Physical inspection required â€” discrepancy in land area.");
 
         WorkflowActionResponse result = workflowService.flagPhysicalVerification(42L, request, dcClaims);
 
@@ -283,7 +283,7 @@ class GovernanceDeclarationWorkflowTest {
         verify(summaryService).scheduleRefresh(1L);
     }
 
-    // ── Send-Back regression ──────────────────────────────────────────────────
+    // â”€â”€ Send-Back regression â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_callAdaptSendBack_not_adaptReject_when_sendBackDeclarationInvoked() {
@@ -318,7 +318,7 @@ class GovernanceDeclarationWorkflowTest {
         verify(declarationRepository).save(any());
     }
 
-    // ── District scope ────────────────────────────────────────────────────────
+    // â”€â”€ District scope â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_callAssertDistrictScope_with_templeAndClaims_on_approve() {
@@ -333,9 +333,9 @@ class GovernanceDeclarationWorkflowTest {
         verify(jurisdictionGuard).assertDistrictScope(temple, dcClaims);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    // â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /** Reflectively sets a private field — used for Lombok @Getter-only DTOs. */
+    /** Reflectively sets a private field â€” used for Lombok @Getter-only DTOs. */
     private static void setField(Object target, String name, Object value) {
         try {
             var field = target.getClass().getDeclaredField(name);

@@ -45,13 +45,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration test: full site visit workflow
- * DRAFT → SUBMITTED → SITE_VISIT_SCHEDULED → SITE_VISIT_COMPLETED → VERIFIED → APPROVED
+ * DRAFT â†’ SUBMITTED â†’ SITE_VISIT_SCHEDULED â†’ SITE_VISIT_COMPLETED â†’ VERIFIED â†’ APPROVED
  *
  * Asserts:
- * - Status at each step: SUBMITTED → SITE_VISIT_SCHEDULED → SITE_VISIT_COMPLETED → VERIFIED → APPROVED
+ * - Status at each step: SUBMITTED â†’ SITE_VISIT_SCHEDULED â†’ SITE_VISIT_COMPLETED â†’ VERIFIED â†’ APPROVED
  * - Snapshot count = 5 (submit + scheduleSiteVisit + completeSiteVisit + verify + approve)
  *
- * Testcontainers MySQL base resolves H2 incompatibility — see {@link MySQLContainerBase}.
+ * Testcontainers MySQL base resolves H2 incompatibility â€” see {@link MySQLContainerBase}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -109,7 +109,7 @@ class DeclarationSiteVisitIT extends MySQLContainerBase {
         stateRepository.deleteAll();
 
         // Set up bootstrap security context for JPA auditing
-        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user");
+        ScopeHelper.Claims bootstrapClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, null, "ta_user", "EDIT");
         setSecurityContext(bootstrapClaims);
 
         Hobli hobli = createGeoHierarchy();
@@ -118,8 +118,8 @@ class DeclarationSiteVisitIT extends MySQLContainerBase {
         Temple temple = createTemple(hobli);
         templeId = temple.getId();
 
-        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user");
-        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user");
+        taClaims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, templeId, "ta_user", "EDIT");
+        dcClaims = new ScopeHelper.Claims(2L, "DISTRICT_COLLECTOR", districtId, null, "dc_user", "EDIT");
 
         setSecurityContext(taClaims);
     }
@@ -177,10 +177,10 @@ class DeclarationSiteVisitIT extends MySQLContainerBase {
         assertThat(versions).hasSize(5);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Creates the full geo hierarchy: State → City → District → Taluk → Hobli.
+     * Creates the full geo hierarchy: State â†’ City â†’ District â†’ Taluk â†’ Hobli.
      */
     private Hobli createGeoHierarchy() {
         State state = stateRepository.save(State.builder()

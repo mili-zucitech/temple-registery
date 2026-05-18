@@ -161,6 +161,9 @@ export function useTempleProfile() {
   const [createOrUpdateDraft, { isLoading: isSaving }] = useCreateOrUpdateDraftMutation()
   const [submitForReview, { isLoading: isSubmitting }] = useSubmitForReviewMutation()
 
+  /** True when the current user has EDIT access (not VIEW-only). */
+  const canEdit = user?.accessType !== 'VIEW'
+
   const isLoading = userLoading || templeLoading || stagingLoading || historyLoading
 
   const profileStatus = deriveProfileStatus(
@@ -401,6 +404,7 @@ export function useTempleProfile() {
     isSubmitting,
     isDeleting: false, // TODO: update when backend DELETE endpoint is ready
     isEditable,
+    canEdit,
     form,
     handleSave,
     handleSubmit,

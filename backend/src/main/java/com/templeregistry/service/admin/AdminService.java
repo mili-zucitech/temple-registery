@@ -3,6 +3,7 @@ package com.templeregistry.service.admin;
 import com.templeregistry.common.PaginatedResponse;
 import com.templeregistry.dto.request.admin.CreateUserRequest;
 import com.templeregistry.dto.request.admin.UpdateUserRequest;
+import com.templeregistry.dto.response.admin.TempleOptionResponse;
 import com.templeregistry.dto.response.admin.UserAdminResponse;
 
 public interface AdminService {
@@ -22,4 +23,10 @@ public interface AdminService {
     void rebuildSearchSummary();
 
     void refreshTempleSearchSummary(Long templeId);
+
+    /**
+     * Search active temples for the "assign existing temple" dropdown.
+     * Searches by name, registration number, or district name.
+     */
+    PaginatedResponse<TempleOptionResponse> searchTemples(String query, int page, int size);
 }

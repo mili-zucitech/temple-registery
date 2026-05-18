@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Autocomplete, GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api'
 import type { Libraries } from '@react-google-maps/api'
 import { Input } from '@/components/ui/input'
-import { MapPin } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Locate, Loader2, MapPin } from 'lucide-react'
 
 // Defined outside component — stable reference prevents LoadScript remounts
 const LIBRARIES: Libraries = ['places']
@@ -44,6 +45,21 @@ export function TempleLocationPicker({
 
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
   const [searchValue, setSearchValue] = useState(formattedAddress ?? '')
+  const [isGettingLocation, setIsGettingLocation] = useState(false)
+
+  const handleGetCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) return
+    setIsGettingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude: curLat, longitude: curLng } = position.coords
+        setMapCenter({ lat: curLat, lng: curLng })
+        onChange({ lat: curLat, lng: curLng, placeId: null, formattedAddress: null })
+        setIsGettingLocation(false)
+      },
+      () => { setIsGettingLocation(false) },
+    )
+  }, [onChange])
 
   // mapCenter only updates on place select (pan), not on drag/click (marker moves without pan)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
@@ -136,18 +152,34 @@ export function TempleLocationPicker({
   return (
     <div className="space-y-3">
       {!disabled && (
-        <Autocomplete onLoad={onAutocompleteLoad} onPlaceChanged={onPlaceChanged}>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              className="pl-9"
-              placeholder="Search location (e.g. ISKCON Bangalore)"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-            />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Autocomplete onLoad={onAutocompleteLoad} onPlaceChanged={onPlaceChanged}>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  className="pl-9"
+                  placeholder="Search location (e.g. ISKCON Bangalore)"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                />
+              </div>
+            </Autocomplete>
           </div>
-        </Autocomplete>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            title="Use my current location"
+            onClick={handleGetCurrentLocation}
+            disabled={isGettingLocation}
+          >
+            {isGettingLocation
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Locate className="h-4 w-4" />}
+          </Button>
+        </div>
       )}
       <GoogleMap
         mapContainerStyle={MAP_CONTAINER_STYLE}

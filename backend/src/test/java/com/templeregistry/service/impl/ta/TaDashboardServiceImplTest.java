@@ -79,7 +79,7 @@ class TaDashboardServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        claims = new ScopeHelper.Claims(USER_ID, "TEMPLE_AUTHORITY", null, TEMPLE_ID, "ta_user");
+        claims = new ScopeHelper.Claims(USER_ID, "TEMPLE_AUTHORITY", null, TEMPLE_ID, "ta_user", "EDIT");
         activeTemple = Temple.builder()
                 .status(TempleStatus.ACTIVE)
                 .grade(TempleGrade.A)
@@ -89,7 +89,7 @@ class TaDashboardServiceImplTest {
         lenient().doNothing().when(ownershipGuard).assertOwnsTemple(anyLong());
     }
 
-    // ─── Dashboard ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnDashboard_when_templeHasApprovedProfile() {
@@ -124,7 +124,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getPendingActions()).containsExactly("Complete and submit your temple profile");
     }
 
-    // ─── Create / update staging profile ─────────────────────────────────────
+    // â”€â”€â”€ Create / update staging profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_createStagingProfile_when_noDraftExistsForTemple() {
@@ -170,7 +170,7 @@ class TaDashboardServiceImplTest {
         verify(stagingService, times(1)).createOrUpdateDraft(eq(TEMPLE_ID), any());
     }
 
-    // ─── EC-04: Editing locked during PENDING_REVIEW ──────────────────────────
+    // â”€â”€â”€ EC-04: Editing locked during PENDING_REVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_throwException_when_profileInPendingReviewAndEditAttempted() {
@@ -188,7 +188,7 @@ class TaDashboardServiceImplTest {
                 .hasMessageContaining("SUBMITTED");
     }
 
-    // ─── Submit profile ────────────────────────────────────────────────────────
+    // â”€â”€â”€ Submit profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_submitProfile_when_draftExistsAndRequiredFieldsPresent() {
@@ -208,7 +208,7 @@ class TaDashboardServiceImplTest {
         verify(stagingService).submitForReview(TEMPLE_ID);
     }
 
-    // ─── Current profile ──────────────────────────────────────────────────────
+    // â”€â”€â”€ Current profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnNullCurrentProfile_when_noApprovedProfileExists() {
@@ -239,7 +239,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getBankName()).isEqualTo("SBI");
     }
 
-    // ─── Cross-temple access denial ───────────────────────────────────────────
+    // â”€â”€â”€ Cross-temple access denial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_throwJurisdictionException_when_taAccessesAnotherTemple() {
@@ -253,7 +253,7 @@ class TaDashboardServiceImplTest {
         verify(templeRepository, never()).findById(anyLong());
     }
 
-    // ─── Document registration ────────────────────────────────────────────────
+    // â”€â”€â”€ Document registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_registerDocument_when_validMetadataProvided() {
@@ -284,7 +284,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getMimeType()).isEqualTo("application/pdf");
     }
 
-    // ─── Activity summary ─────────────────────────────────────────────────────
+    // â”€â”€â”€ Activity summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnEmptyActivity_when_noStagingRecordExists() {
@@ -331,7 +331,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getLastReviewAction()).isEqualTo("APPROVED");
     }
 
-    // ─── Profile status ────────────────────────────────────────────────────────
+    // â”€â”€â”€ Profile status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnSubmittedStatus_when_stagingIsPendingReview() {
@@ -370,7 +370,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getReviewComment()).isEqualTo("Contact person name is missing");
     }
 
-    // ─── Version number propagated from WorkflowInstance ──────────────────────
+    // â”€â”€â”€ Version number propagated from WorkflowInstance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnVersionFromWorkflowInstance_when_currentProfileMapped() {
@@ -403,7 +403,7 @@ class TaDashboardServiceImplTest {
         assertThat(result.getVersion()).isEqualTo(3);
     }
 
-    // ─── Profile photo URL uses serve endpoint ─────────────────────────────────
+    // â”€â”€â”€ Profile photo URL uses serve endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void should_returnServeUrl_when_currentProfileHasPhotoFilePath() {
