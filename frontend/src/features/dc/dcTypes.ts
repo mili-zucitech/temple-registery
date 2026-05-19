@@ -387,6 +387,7 @@ export interface TempleFullProfileResponse {
     hobliId: number | null
     talukId: number | null
     districtId: number | null
+    cityId: number | null
     districtName: string | null
     latitude: number | null
     longitude: number | null

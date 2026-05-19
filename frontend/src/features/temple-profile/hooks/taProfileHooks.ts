@@ -149,7 +149,7 @@ export function useTempleProfile() {
   const effectiveHobliId = temple?.hobliId ?? stagingProfile?.hobliId ?? undefined
 
   const { data: taluksData } = useGetTaluksQuery(
-    temple?.districtId!, { skip: !temple?.districtId },
+    temple?.districtId ?? 0, { skip: !temple?.districtId },
   )
   const talukName = taluksData?.data?.find(t => t.id === effectiveTalukId)?.name
 

@@ -80,15 +80,15 @@ export function TaTrustPage() {
   const trust = useMemo(() => trustData?.data?.[0] ?? null, [trustData])
 
   const { data: membersData, isLoading: membersLoading } = useGetBoardMembersQuery(
-    { trustId: trust?.id! },
+    { trustId: trust?.id ?? 0 },
     { skip: !trust?.id || tab !== 'board', refetchOnMountOrArgChange: true }
   )
   const { data: financialsData, isLoading: financialsLoading } = useListFinancialsQuery(
-    { trustId: trust?.id! },
+    { trustId: trust?.id ?? 0 },
     { skip: !trust?.id || tab !== 'financials', refetchOnMountOrArgChange: true }
   )
   const { data: meetingsData, isLoading: meetingsLoading } = useListBoardMeetingsQuery(
-    { trustId: trust?.id!, page, size: DEFAULT_PAGE_SIZE },
+    { trustId: trust?.id ?? 0, page, size: DEFAULT_PAGE_SIZE },
     { skip: !trust?.id || tab !== 'meetings', refetchOnMountOrArgChange: true }
   )
 
