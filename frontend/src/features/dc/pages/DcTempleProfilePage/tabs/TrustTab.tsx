@@ -29,7 +29,6 @@ interface TrustTabProps {
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
   onEditTrust?: () => void
-<<<<<<< HEAD
   onCreateTrust?: () => void
   /** True while profile data is refetching after a trust governance action — replaces stale trust section with skeleton. */
   isRefetching?: boolean
@@ -472,8 +471,8 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
         </SectionCard>
       )}
 
-      {/* Oversight block - shown only when governance data is available (hidden for TA viewing other temples) */}
-      {showGovernance && trust && !isRefetching && (
+      {/* Oversight block: keep mounted during refetch so open approve/reject dialogs are not unmounted mid-action. */}
+      {showGovernance && trust && (
         <SectionCard
           title="Trust Verification"
           icon={<Shield size={18} className="text-emerald-600" />}
@@ -483,7 +482,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
             isVerified={panelIsVerified}
             canonicalStatus={oversightStatus}
             rejectionReason={oversightRejectionReason}
-            canAct={dcCanAct}
+            canAct={dcCanAct && !isRefetching}
             statusHint={statusHint}
             onVerify={(notes) => onVerifyTrust(trust.id, notes)}
             onReject={(reason) => onRejectTrust(trust.id, reason)}

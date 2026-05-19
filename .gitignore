@@ -1,0 +1,200 @@
+# ============================================================
+# TEMPLE REGISTRY — ROOT .gitignore
+# ============================================================
+
+# ─── IDE & Editor ───────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.suo
+*.user
+.classpath
+.project
+.settings/
+
+# ─── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Node / npm ─────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Frontend build artefacts ───────────────────────────────
+frontend/dist/
+frontend/tsconfig.app.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+
+# ─── Frontend secrets & env ─────────────────────────────────
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ─── Frontend log / debug dumps ─────────────────────────────
+frontend/dev_log.txt
+frontend/frontend-test.log
+frontend/frontend_dev.log
+frontend/vitest_full.txt
+frontend/vitest_out.txt
+frontend/vitest_targeted.txt
+frontend/vitest_targeted2.txt
+
+# ─── Backend build artefacts ────────────────────────────────
+backend/target/
+backend/BOOT-INF/
+*.class
+
+# ─── Backend — private keys / secrets ───────────────────────
+backend/src/main/resources/keys/
+backend/src/main/resources/application-prod.yml
+
+# ─── Backend — log files ────────────────────────────────────
+backend/app.log
+backend/app_error.log
+backend/backend_live.log
+backend/backend_live.err
+backend/backend_run.log
+backend/build.log
+backend/compile-errors-grouped.txt
+backend/failing-files.txt
+backend/fg_run.out.log
+backend/fg_run.err.log
+backend/log.txt
+backend/my_log.txt
+backend/my_run.log
+backend/mvn_build.log
+backend/mvn_build_now.log
+backend/mvn_compile_session.log
+backend/runtime_fresh.log
+backend/runtime_live.log
+backend/runtime_live.err
+backend/runtime_live.pid
+backend/startup.log
+backend/startup_app.log
+backend/startup_app_err.log
+backend/startup_build.txt
+backend/startup_dev.log
+backend/startup_dev_err.txt
+backend/startup_dev_out.txt
+backend/startup_err.txt
+backend/startup_err2.txt
+backend/startup_err_latest.txt
+backend/startup_full.txt
+backend/startup_jar.txt
+backend/startup_latest.txt
+backend/startup_live.log
+backend/startup_live_err.log
+backend/startup_log.txt
+backend/startup_new.txt
+backend/startup_noflyway.txt
+backend/startup_now.log
+backend/startup_out.txt
+backend/startup_out2.txt
+backend/startup_rn.txt
+backend/startup_stderr.txt
+backend/startup_stdout.txt
+backend/startup_timeline_test.txt
+backend/startup_timeline_v2.txt
+backend/startup_verify_err.txt
+backend/startup_verify_out.txt
+backend/tail.log
+backend/test-compile.log
+backend/v1_err.txt
+backend/v1_errors_only.txt
+backend/v1_output.txt
+
+# ─── Backend — session/auth cookie files ────────────────────
+backend/cookies.txt
+backend/cookies_admin.txt
+backend/cookies_admin_fresh.txt
+backend/cookies_dc.txt
+backend/cookies_dc_bengaluru.txt
+backend/cookies_dc_fresh.txt
+backend/cookies_ta.txt
+backend/dc_cookies_test.txt
+backend/ta_cookies_test.txt
+
+# ─── Backend — one-off JSON request/response payloads ───────
+backend/approve_req.json
+backend/create_response.json
+backend/db_files.txt
+backend/dc_login.json
+backend/login_admin.json
+backend/login_dc.json
+backend/login_ta.json
+backend/p0_idempotency_proof.json
+backend/proof_result.json
+backend/query_create.json
+backend/staging_create.json
+backend/staging_req.json
+backend/ta_login.json
+backend/bucket-summary.txt
+
+# ─── Backend — exported/generated data ──────────────────────
+backend/exports/
+
+# ─── Backend — uploaded user files ──────────────────────────
+backend/uploads/
+
+# ─── Backend — temp test artefacts ──────────────────────────
+backend/temp_tests/
+backend/.jqwik-database
+
+# ─── Backend — scratch scripts & debug helpers ──────────────
+backend/TestDB.java
+backend/TestDB.class
+backend/audit_proof.js
+backend/audit_proof.sql
+backend/fix_governance_version.sql
+backend/reset_db.sql
+backend/run_api_tests.ps1
+backend/run_debug.bat
+backend/run_fix.ps1
+backend/run_p0_idempotency.ps1
+backend/proof_run.ps1
+backend/smoke.ps1
+backend/smoke_test_temple_workflow.ps1
+backend/track4_smoke_test.ps1
+backend/track4_smoke_test_v2.ps1
+backend/test_admin_apis.ps1
+
+# ─── Root-level log / analysis dumps ────────────────────────
+startup_latest.txt
+startup_now.log
+playwright_run1.txt
+workflow_proof_result.json
+idempotency_duplicate_check.json
+run_idempotency_check.ps1
+
+# ─── Root-level loose source files (misplaced) ──────────────
+KeyGenerator.java
+TempleGovernancePage.tsx
+
+# ─── Graphify tool output ────────────────────────────────────
+graphify-out/
+
+# ─── Uploads (root level) ────────────────────────────────────
+uploads/
+
+# ─── E2E test artefacts ──────────────────────────────────────
+e2e/node_modules/
+e2e/playwright-report/
+e2e/test-results/
+e2e/cookies_ta.txt
+e2e/run_auth.log
+e2e/run_closure-runtime-proof.log
+e2e/run_concurrency.log
+e2e/run_declaration-workflow.log
+e2e/run_notification-inbox.log
+e2e/notification_inbox_test.log
+
+# ─── Kiro (AI tool) ──────────────────────────────────────────
+.kiro/
+
+# ─── Misc ────────────────────────────────────────────────────
+*.log
+*.pid
+*.tmp
