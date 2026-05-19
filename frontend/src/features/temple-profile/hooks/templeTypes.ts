@@ -45,6 +45,9 @@ export const templeSearchFilterSchema = z.object({
   hobliId: z.number().optional(),
   trustRegistered: z.boolean().optional(),
   assetDeclarationStatus: z.string().optional(),
+  declarationStatus: z.string().optional(),
+  verificationRequired: z.boolean().optional(),
+  pendingProfileReview: z.boolean().optional(),
 })
 
 export type CreateTempleRequest = z.infer<typeof createTempleSchema>

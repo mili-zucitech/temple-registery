@@ -320,6 +320,22 @@ export function TaDeclarationDetailPage() {
         </div>
       )}
 
+      {/* Download acknowledgement — visible when APPROVED */}
+      {declaration.status === 'APPROVED' && declaration.acknowledgementNumber && (
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <span className="text-sm text-emerald-800 font-medium flex-1">
+            Acknowledgement No: <span className="font-bold">{declaration.acknowledgementNumber}</span>
+          </span>
+          <a
+            href={`/api/v1/declarations/${declaration.id}/acknowledgement/download`}
+            download={`acknowledgement-${declaration.acknowledgementNumber}.pdf`}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+          >
+            Download Acknowledgement
+          </a>
+        </div>
+      )}
+
       {/* Withdraw button — visible to TA when status allows it */}
       {getAvailableActions(declaration.status, userRole).canWithdraw && (
         <AlertDialog>

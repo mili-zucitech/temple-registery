@@ -143,7 +143,7 @@ export function GovernanceActionPanel({
               Approve
             </Button>
           )}
-          {!isVerified && (
+          {!isVerified && !isRejected && (
             <Button
               size="sm"
               variant="outline"
@@ -151,7 +151,7 @@ export function GovernanceActionPanel({
               className="flex-1 border-red-200 font-semibold h-10 text-xs tracking-button hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-all"
             >
               <XCircle size={14} className="mr-1.5" />
-              {isRejected ? 'Reject Again' : 'Reject'}
+              Reject
             </Button>
           )}
         </div>

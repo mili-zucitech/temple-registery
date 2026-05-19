@@ -236,6 +236,14 @@ public class GlobalExceptionHandler {
         log.debug("Async request timed out (SSE/long-poll keep-alive — expected)");
     }
 
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
+    public void handleAsyncNotUsable(org.springframework.web.context.request.async.AsyncRequestNotUsableException ex) {
+        // Client disconnected mid-stream (browser tab closed, navigation, network drop).
+        // The SSE emitter's onCompletion/onError callback handles cleanup.
+        // Do NOT attempt to write a response body — the connection is already gone.
+        log.debug("SSE client disconnected (expected): {}", ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);

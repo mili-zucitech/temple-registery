@@ -121,9 +121,8 @@ export function DcTempleProfilePage() {
     role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
   // Governance visibility: TEMPLE_AUTHORITY sees governance only for their own temple.
-  // For all other roles (DC, SA, AUDITOR, VIEWER) governance is always visible.
-  // This mirrors the backend TempleVisibilityPolicy so the UI reflects what the API returns.
-  const showGovernance = !isTa || isOwnTemple
+  // For DC/SA roles, only show governance when the temple has a pending profile submission.
+  // This prevents showing an empty action panel on a newly-created temple with no staging data.
 
   // SA can edit any temple — DC cannot
   const canEdit = role === USER_ROLES.SUPER_ADMIN
@@ -147,6 +146,7 @@ export function DcTempleProfilePage() {
   const { profile, isLoading, isError, refetch: refetchProfile } = useDcTempleProfile(id)
   // TA cannot act on profile staging — skip the fetch to avoid unnecessary 404 noise
   const { pendingStaging, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
+  const showGovernance = isTa ? isOwnTemple : !!pendingStaging
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
   const [selectedDeclarationId, setSelectedDeclarationId] = useState<number | null>(null)

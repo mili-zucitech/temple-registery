@@ -118,7 +118,7 @@ public class AdminServiceImpl implements AdminService {
         Temple temple = Temple.builder()
                 .registrationNumber(registrationNumber)
                 .name(rq.getTempleName())
-                .primaryDeity("To be updated")
+                .primaryDeity("")
                 .districtId(rq.getDistrictId())
                 .status(TempleStatus.ACTIVE)
                 .trustRegistered(false)

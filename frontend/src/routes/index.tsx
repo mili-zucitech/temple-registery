@@ -12,7 +12,6 @@ import { TaTempleReviewPage } from '@/features/temple-profile/pages/TaTempleRevi
 
 // ── Lazy-loaded pages ─────────────────────────────────────────────────────────
 const LoginPage       = lazy(() => import('@/features/auth/pages/LoginPage/LoginPage').then(m => ({ default: m.LoginPage })))
-const MfaVerifyPage   = lazy(() => import('@/features/auth/pages/MfaVerifyPage/MfaVerifyPage').then(m => ({ default: m.MfaVerifyPage })))
 const DcDashboardPage = lazy(() => import('@/features/dc/pages/DcDashboardPage/DcDashboardPage').then(m => ({ default: m.DcModuleDashboardPage })))
 const DcTempleSearchPage = lazy(() => import('@/features/dc/pages/DcTempleSearchPage/DcTempleSearchPage').then(m => ({ default: m.DcTempleSearchPage })))
 const DcTempleProfilePage = lazy(() => import('@/features/dc/pages/DcTempleProfilePage/DcTempleProfilePage').then(m => ({ default: m.DcTempleProfilePage })))
@@ -65,7 +64,6 @@ const router = createBrowserRouter([
   // ── Public routes ─────────────────────────────────────────────────────────
   { path: ROUTE_PATHS.PUBLIC_SEARCH, element: <Suspense fallback={<PageLoader />}><PublicTempleSearchPage /></Suspense> },
   { path: ROUTE_PATHS.LOGIN, element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
-  { path: ROUTE_PATHS.MFA_VERIFY, element: <Suspense fallback={<PageLoader />}><MfaVerifyPage /></Suspense> },
   { path: ROUTE_PATHS.UNAUTHORIZED, element: <div className="flex min-h-screen items-center justify-center"><h1 className="text-2xl font-bold text-destructive">403 — Access Denied</h1></div> },
 
   // ── Protected routes ──────────────────────────────────────────────────────

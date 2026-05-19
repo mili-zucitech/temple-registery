@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { useNotificationDropdown } from '../hooks/useNotificationDropdown'
 import { useMarkReadMutation } from '../notificationApi'
 import { Button } from '@/components/ui/button'
@@ -52,16 +51,11 @@ interface DropdownItemProps {
 }
 
 function DropdownItem({ notification, onClose, onDelete }: DropdownItemProps) {
-  const navigate = useNavigate()
   const [markRead] = useMarkReadMutation()
 
   const handleClick = async () => {
     if (!notification.read) {
       markRead(notification.id)
-    }
-    const target = notification.redirectUrl ?? notification.actionUrl
-    if (target) {
-      navigate(target)
     }
     onClose()
   }

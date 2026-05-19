@@ -189,7 +189,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                         .build(),
                 context);
 
-        notificationHelper.notifyTempleApproved(staging.getTempleId(), claims.userId());
+        // notificationHelper.notifyTempleApproved — removed: WorkflowEngine outbox already fires TA notification.
         auditService.logDataEvent(claims.userId(), claims.role(), "APPROVE", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Approved version " + staging.getVersionNumber());
         
@@ -239,7 +239,7 @@ public class TempleProfileWorkflowServiceImpl implements TempleProfileWorkflowSe
                         .build(),
                 context);
 
-        notificationHelper.notifyTempleRejected(staging.getTempleId(), claims.userId(), request.getReason());
+        // notificationHelper.notifyTempleRejected — removed: WorkflowEngine outbox already fires TA notification.
         auditService.logDataEvent(claims.userId(), claims.role(), "REJECT", "TEMPLE_PROFILE", staging.getTempleId(),
                 "Rejected version " + staging.getVersionNumber() + ": " + request.getReason());
         

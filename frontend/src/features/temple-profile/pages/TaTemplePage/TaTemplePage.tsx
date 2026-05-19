@@ -29,7 +29,7 @@ function OverviewTab() {
   // Local dismissal for the rejection banner. Auto-resets if status changes away from REJECTED.
   const [rejectionDismissed, setRejectionDismissed] = useState(false)
 
-  const { data: photosData, isLoading: photosLoading } = useGetTemplePhotosQuery(temple?.id ?? 0, {
+  const { data: photosData, isLoading: photosLoading } = useGetTemplePhotosQuery(temple?.id!, {
     skip: !temple?.id,
   })
 

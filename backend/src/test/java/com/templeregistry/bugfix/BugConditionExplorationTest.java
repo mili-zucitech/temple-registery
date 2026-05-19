@@ -79,13 +79,13 @@ class BugConditionExplorationTest {
         for (int v = 34; v <= 39; v++) {
             String versionKey = "V" + v;
             List<String> filesForVersion = filesByVersion.getOrDefault(versionKey, Collections.emptyList());
-            if (filesForVersion.size() > 1) {
+            if (filesForVersion.size() != 1) {
                 versionsWithDuplicates.add(versionKey + " → " + filesForVersion);
             }
         }
 
         assertThat(versionsWithDuplicates)
-                .as("FIX 1a: Each Flyway version V34–V39 must have at most ONE migration file. " +
+                .as("FIX 1a: Each Flyway version V34–V39 must have exactly ONE migration file. " +
                     "Duplicate versions cause FlywayException: Found more than one migration with version X. " +
                     "Merge each conflicting pair into a single numbered file (V45–V50).")
                 .isEmpty();

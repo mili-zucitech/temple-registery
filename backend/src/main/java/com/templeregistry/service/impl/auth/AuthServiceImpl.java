@@ -2,8 +2,6 @@ package com.templeregistry.service.impl.auth;
 
 import com.templeregistry.dto.request.auth.*;
 import com.templeregistry.dto.response.auth.AuthTokenResponse;
-import com.templeregistry.dto.response.auth.MfaChallengeResponse;
-import com.templeregistry.entity.auth.MfaType;
 import com.templeregistry.entity.auth.RefreshToken;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.exception.AccountLockedException;
@@ -42,7 +40,6 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final MfaService mfaService;
     private final TokenRevocationGuard tokenRevocationGuard;
     private final EmailService emailService;
 
@@ -78,27 +75,9 @@ public class AuthServiceImpl implements AuthService {
 
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
-
-        if (user.getMfaType() == MfaType.NONE) {
-            user.setLastLoginAt(LocalDateTime.now());
-            userRepository.save(user);
-            return issueTokenPair(user);
-        }
-
+        user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
-
-        String tempToken = jwtService.generateTempToken(user);
-        String challengeType = user.getMfaType() == MfaType.SMS_OTP ? "SMS_OTP" : "TOTP";
-
-        if (user.getMfaType() == MfaType.SMS_OTP) {
-            mfaService.sendSmsOtp(user.getMobile());
-        }
-
-        return MfaChallengeResponse.builder()
-                .mfaRequired(true)
-                .challengeType(challengeType)
-                .tempToken(tempToken)
-                .build();
+        return issueTokenPair(user);
     }
 
     @Override
@@ -109,12 +88,6 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("User not found.", "USER_NOT_FOUND"));
-
-        if (user.getMfaType() == MfaType.TOTP) {
-            mfaService.verifyTotp(user.getMfaSecret(), request.getMfaCode());
-        } else if (user.getMfaType() == MfaType.SMS_OTP) {
-            mfaService.verifySmsOtp(username, request.getMfaCode());
-        }
 
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
