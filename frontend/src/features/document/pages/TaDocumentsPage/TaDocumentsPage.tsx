@@ -67,6 +67,7 @@ export function TaDocumentsPage() {
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
+  const isViewOnly = userData?.data?.accessType === 'VIEW'
   const ownerType = 'TEMPLE' as const
 
   const { data, isLoading, isError, refetch } = useListDocumentsQuery(
@@ -164,6 +165,7 @@ export function TaDocumentsPage() {
       </Card>
 
       {/* Upload Zone — drag-and-drop */}
+      {!isViewOnly && (
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -216,6 +218,7 @@ export function TaDocumentsPage() {
           disabled={uploading}
         />
       </div>
+      )}
 
       {/* Document List */}
       {isLoading ? (
@@ -268,31 +271,33 @@ export function TaDocumentsPage() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <DocumentDownloadButton documentId={doc.id} />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                            Remove
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove document?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              "{doc.originalFilename}" will be permanently deleted.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground"
-                              onClick={() => handleDelete(doc)}
-                              disabled={deleting}
-                            >
+                      {!isViewOnly && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
                               Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove document?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                "{doc.originalFilename}" will be permanently deleted.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground"
+                                onClick={() => handleDelete(doc)}
+                                disabled={deleting}
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </div>
                   </td>
                 </tr>

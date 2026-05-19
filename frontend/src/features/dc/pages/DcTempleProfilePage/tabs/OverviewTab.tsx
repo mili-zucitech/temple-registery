@@ -2,6 +2,7 @@ import { Building2, MapPin, Phone, Shield, TrendingUp, UserCircle, Info, Clock, 
 import { useMemo, useState } from 'react'
 import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { ProfileGovernanceSectionSkeleton } from '@/features/dc/components/DcSkeletons/DcSkeletons'
 import { Button } from '@/components/ui/button'
 import { formatList } from '../utils'
 import type { TempleFullProfileResponse, ProfileStagingResponse, ProfileCurrentResponse } from '@/features/dc/dcTypes'
@@ -18,6 +19,8 @@ interface OverviewTabProps {
   onVerifyTemple: (notes: string) => Promise<void>
   onFlagTemple: (reason: string) => Promise<void>
   onEditProfile?: () => void
+  /** True while profile/staging data is refetching after a governance action — replaces stale governance panel with skeleton. */
+  isRefetching?: boolean
 }
 
 export function OverviewTab({
@@ -30,6 +33,7 @@ export function OverviewTab({
   onVerifyTemple,
   onFlagTemple,
   onEditProfile,
+  isRefetching = false,
 }: OverviewTabProps) {
   const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
   const currentProfile = profile.currentProfile
@@ -448,7 +452,10 @@ export function OverviewTab({
              the Verify / Flag temple-entity actions.
              Hidden for TEMPLE_AUTHORITY viewing other temples — governance data
              is stripped by the backend and must not leak through the UI. */}
-        {showGovernance && (() => {
+        {(canAct || showGovernance) && (
+          isRefetching ? (
+            <ProfileGovernanceSectionSkeleton />
+          ) : (() => {
           if (actionablePendingStaging && onApproveProfile && onRejectProfile) {
             // An update from the TA is awaiting DC review — show the governance card
             // for the profile staging, not the old verified state.
@@ -499,6 +506,9 @@ export function OverviewTab({
           // message is not rendered — the hint text surfaces the "profile still active"
           // context instead.
           const panelIsVerified = !latestStagingRejected && isVerified
+          const noSubmissionHint = canAct && !pendingStaging
+            ? 'The temple authority has not yet submitted their profile for review. Once they submit, you will be able to review and approve or reject it here.'
+            : statusHintText
           return (
             <div className="rounded-xl overflow-hidden border border-slate-200/60 shadow-md bg-white hover:shadow-lg transition-all duration-300">
               <GovernanceActionPanel
@@ -507,15 +517,16 @@ export function OverviewTab({
                 flagReason={flagReason}
                 canonicalStatus={overrideCanonicalStatus}
                 rejectionReason={overrideRejectionReason}
-                statusHint={statusHintText}
-                canAct={canAct}
+                statusHint={noSubmissionHint}
+                canAct={canAct && !!pendingStaging}
                 onVerify={onVerifyTemple}
                 onFlag={onFlagTemple}
                 onReject={onFlagTemple}
               />
             </div>
           )
-        })()}
+        })()
+        )}
 
       </div>
     </div>

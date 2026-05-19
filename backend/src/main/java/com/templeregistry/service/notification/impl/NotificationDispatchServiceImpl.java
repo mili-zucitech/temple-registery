@@ -40,12 +40,12 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void dispatch(GovernanceDomainEvent event, NotificationRule rule, Long recipientId) {
         // ── Resolve rich context ────────────────────────────────────────────
-        String templeName = resolveTempleName(event.templeId());
-        String actorName  = resolveActorName(event.actorId());
-        String reason     = extractReason(event);
+        String templeName  = resolveTempleName(event.templeId());
+        String actorLabel  = resolveActorLabel(event.actorId());
+        String reason      = extractReason(event);
 
         String title          = buildRichTitle(event);
-        String body           = buildRichBody(event, templeName, actorName, reason, rule.getRecipientType());
+        String body           = buildRichBody(event, templeName, actorLabel, reason, rule.getRecipientType());
         String notifType      = buildNotificationType(event);
         String redirectUrl    = buildRedirectUrl(event, rule.getRecipientType());
         String entityTypeName = event.entityType() != null ? event.entityType().name() : "SYSTEM";
@@ -66,7 +66,7 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
                             rule.getPriority(), notifType, entityTypeName,
                             event.entityId(), event.workflowInstanceId(),
                             event.templeId(), templeName,
-                            actorName, event.actorRole(),
+                            actorLabel, event.actorRole(),
                             redirectUrl, workflowStatus
                     );
                     sseService.push(recipientId, title, body);
@@ -112,6 +112,21 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         return templeRepository.findById(templeId)
                 .map(Temple::getName)
                 .orElse("the temple");
+    }
+
+    private String resolveActorLabel(Long actorId) {
+        if (actorId == null) return "System";
+        return userRepository.findById(actorId).map(user -> {
+            String roleLabel = switch (user.getRole()) {
+                case SUPER_ADMIN         -> "Super Administrator";
+                case DISTRICT_COLLECTOR  -> "District Commissioner";
+                case DC_STAFF            -> "DC Staff";
+                case TEMPLE_AUTHORITY    -> "Temple Authority";
+                case AUDITOR             -> "Auditor";
+                case VIEWER              -> "Viewer";
+            };
+            return roleLabel + " - " + user.getFullName();
+        }).orElse("System");
     }
 
     private String resolveActorName(Long actorId) {
@@ -183,7 +198,7 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         return entityLabel + " " + actionLabel;
     }
 
-    private String buildRichBody(GovernanceDomainEvent event, String templeName, String actorName,
+    private String buildRichBody(GovernanceDomainEvent event, String templeName, String actorLabel,
                                   String reason, String recipientType) {
         WorkflowEntityType entityType = event.entityType();
         WorkflowAction     action     = event.action();
@@ -192,15 +207,15 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
             return switch (action != null ? action : WorkflowAction.SUBMIT) {
                 case SUBMIT -> templeName + " profile has been submitted for District Commissioner review.";
                 case RESUBMIT -> templeName + " profile has been resubmitted for District Commissioner review.";
-                case APPROVE -> "District Commissioner " + actorName + " approved the profile of " + templeName + ".";
-                case REJECT -> buildRejectionBody("District Commissioner " + actorName,
+                case APPROVE -> actorLabel + " approved the profile of " + templeName + ".";
+                case REJECT -> buildRejectionBody(actorLabel,
                         "the profile of " + templeName, reason);
-                case REQUEST_CLARIFICATION -> "District Commissioner " + actorName +
+                case REQUEST_CLARIFICATION -> actorLabel +
                         " has requested clarification on the profile of " + templeName +
                         (reason != null ? ": " + reason : ".");
                 case RESPOND_CLARIFICATION -> templeName + " Temple Authority has responded to the clarification request.";
-                case BEGIN_REVIEW -> "District Commissioner " + actorName + " has started reviewing the profile of " + templeName + ".";
-                case SEND_BACK -> "District Commissioner " + actorName + " sent back the profile of " + templeName + " for revision" +
+                case BEGIN_REVIEW -> actorLabel + " has started reviewing the profile of " + templeName + ".";
+                case SEND_BACK -> actorLabel + " sent back the profile of " + templeName + " for revision" +
                         (reason != null ? ". Reason: " + reason : ".");
                 default -> "An update was made to the profile of " + templeName + ".";
             };
@@ -209,8 +224,8 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         if (entityType == WorkflowEntityType.TRUST) {
             return switch (action != null ? action : WorkflowAction.SUBMIT) {
                 case SUBMIT -> "Trust details for " + templeName + " have been submitted for review.";
-                case APPROVE -> "Trust details for " + templeName + " have been approved by District Commissioner " + actorName + ".";
-                case REJECT -> buildRejectionBody("District Commissioner " + actorName,
+                case APPROVE -> "Trust details for " + templeName + " have been approved by " + actorLabel + ".";
+                case REJECT -> buildRejectionBody(actorLabel,
                         "the trust details of " + templeName, reason);
                 case SEND_BACK -> "Trust details for " + templeName + " sent back for revision" +
                         (reason != null ? ". Reason: " + reason : ".");
@@ -239,7 +254,7 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         if (entityType == WorkflowEntityType.DOCUMENT) {
             return switch (action != null ? action : WorkflowAction.SUBMIT) {
                 case SUBMIT -> "A new document has been uploaded for " + templeName + ".";
-                case REJECT -> buildRejectionBody("District Commissioner " + actorName,
+                case REJECT -> buildRejectionBody(actorLabel,
                         "a document of " + templeName, reason);
                 default     -> "A document change has been made for " + templeName + ".";
             };

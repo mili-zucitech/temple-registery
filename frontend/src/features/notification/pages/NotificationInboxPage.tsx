@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNotificationInbox } from '../hooks/useNotificationInbox'
-import { NotificationPriority, NotificationCategory } from '../notificationApi'
+import { NotificationPriority, NotificationCategory, useDeleteBulkNotificationsMutation } from '../notificationApi'
 import { NotificationCard } from '../components/NotificationCard'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
-import { Loader2, Search, Settings, Trash2, CheckCheck } from 'lucide-react'
+import { Loader2, Search, Settings, Trash2, CheckCheck, SquareCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractApiErrorMessage } from '@/lib/apiError'
@@ -18,6 +19,7 @@ export function NotificationInboxPage() {
   const [priorityFilter, setPriorityFilter] = useState<NotificationPriority | 'ALL'>('ALL')
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'ALL'>('ALL')
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   const {
     notifications, totalPages, totalElements,
@@ -26,26 +28,9 @@ export function NotificationInboxPage() {
     markAllRead, clearAll,
   } = useNotificationInbox(page)
 
+  const [deleteBulk, { isLoading: isDeletingBulk }] = useDeleteBulkNotificationsMutation()
+
   const unreadCount = notifications.filter((n) => !n.read).length
-
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllRead().unwrap()
-      toast.success('All notifications marked as read.')
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Failed to mark notifications as read.'))
-    }
-  }
-
-  const handleClearAll = async () => {
-    try {
-      await clearAll().unwrap()
-      toast.success('All notifications cleared.')
-      setPage(0)
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Failed to clear notifications.'))
-    }
-  }
 
   // Client-side filter on current page
   const filteredNotifications = notifications.filter((notification) => {
@@ -63,6 +48,65 @@ export function NotificationInboxPage() {
     if (activeTab === 'read' && !notification.read) return false
     return true
   })
+
+  const allFilteredSelected =
+    filteredNotifications.length > 0 &&
+    filteredNotifications.every((n) => selectedIds.has(n.id))
+
+  const handleToggleSelect = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      checked ? next.add(id) : next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        filteredNotifications.forEach((n) => next.add(n.id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        filteredNotifications.forEach((n) => next.delete(n.id))
+        return next
+      })
+    }
+  }
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllRead().unwrap()
+      toast.success('All notifications marked as read.')
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to mark notifications as read.'))
+    }
+  }
+
+  const handleClearAll = async () => {
+    try {
+      await clearAll().unwrap()
+      toast.success('All notifications cleared.')
+      setPage(0)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to clear notifications.'))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds)
+    try {
+      await deleteBulk(ids).unwrap()
+      toast.success(`${ids.length} notification(s) deleted.`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete selected notifications.'))
+    }
+  }
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -179,9 +223,48 @@ export function NotificationInboxPage() {
             </Card>
           ) : (
             <>
-              <div className="space-y-3">
+              {/* Bulk action toolbar */}
+              <div className="flex items-center justify-between gap-3 px-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    aria-label="Select all"
+                  />
+                  <SquareCheck className="h-4 w-4 opacity-60" />
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} selected`
+                    : 'Select all'}
+                </label>
+                {selectedIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive border-destructive/30"
+                    onClick={handleDeleteSelected}
+                    disabled={isDeletingBulk}
+                  >
+                    {isDeletingBulk
+                      ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                      : <Trash2 className="h-4 w-4 mr-1.5" />}
+                    Delete selected ({selectedIds.size})
+                  </Button>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 {filteredNotifications.map((notification) => (
-                  <NotificationCard key={notification.id} notification={notification} />
+                  <div key={notification.id} className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(notification.id)}
+                      onCheckedChange={(checked) => handleToggleSelect(notification.id, !!checked)}
+                      className="mt-4 flex-shrink-0"
+                      aria-label={`Select notification: ${notification.title}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <NotificationCard notification={notification} />
+                    </div>
+                  </div>
                 ))}
               </div>
 

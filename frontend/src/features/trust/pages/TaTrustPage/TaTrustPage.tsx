@@ -72,6 +72,7 @@ export function TaTrustPage() {
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
+  const isViewOnly = userData?.data?.accessType === 'VIEW'
 
   const { data: trustData, isLoading: trustLoading } = useGetTrustByTempleQuery(templeId!, {
     skip: !templeId,
@@ -352,13 +353,13 @@ export function TaTrustPage() {
                 </p>
               </div>
             </div>
-            {!trust && (
+            {!trust && !isViewOnly && (
               <Button className="bg-gradient-gold shadow-gold" onClick={() => setShowTrustForm(true)}>
                 <Plus size={16} className="mr-2" />
                 Register Trust
               </Button>
             )}
-            {trust && reviewStatus === 'DRAFT' && (
+            {trust && reviewStatus === 'DRAFT' && !isViewOnly && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
@@ -392,7 +393,7 @@ export function TaTrustPage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {trust && reviewStatus === 'UPDATED_AFTER_APPROVAL' && (
+            {trust && reviewStatus === 'UPDATED_AFTER_APPROVAL' && !isViewOnly && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
@@ -426,7 +427,7 @@ export function TaTrustPage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {trust && reviewStatus === 'REJECTED' && (
+            {trust && reviewStatus === 'REJECTED' && !isViewOnly && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button className="bg-gradient-gold shadow-gold" disabled={submittingTrust}>
@@ -477,7 +478,7 @@ export function TaTrustPage() {
         <EmptyState
           title="Trust not registered"
           description="Register your temple trust before submitting board, meeting, and financial details."
-          action={{ label: 'Register Trust', onClick: () => setShowTrustForm(true) }}
+          action={!isViewOnly ? { label: 'Register Trust', onClick: () => setShowTrustForm(true) } : undefined}
         />
       ) : (
         <Tabs value={tab} onValueChange={(value) => { setTab(value); setPage(0) }} className="w-full">
@@ -580,20 +581,22 @@ export function TaTrustPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <StatusBadge status={reviewStatus} />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'}
-                        title={
-                          reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'
-                            ? 'Trust is currently under DC review — editing is locked'
-                            : undefined
-                        }
-                        onClick={() => setShowTrustForm(true)}
-                      >
-                        <Edit size={14} className="mr-1.5" />
-                        Edit
-                      </Button>
+                      {!isViewOnly && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'}
+                          title={
+                            reviewStatus === 'SUBMITTED' || reviewStatus === 'RESUBMITTED' || reviewStatus === 'UNDER_REVIEW'
+                              ? 'Trust is currently under DC review — editing is locked'
+                              : undefined
+                          }
+                          onClick={() => setShowTrustForm(true)}
+                        >
+                          <Edit size={14} className="mr-1.5" />
+                          Edit
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {trust.sendBackReason && (
@@ -626,10 +629,12 @@ export function TaTrustPage() {
           <TabsContent value="board" className="mt-5 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Board Members</h2>
-              <Button size="sm" onClick={() => { setShowMemberForm(true); setEditingMemberId(null) }}>
-                <Plus size={14} className="mr-1.5" />
-                Add Member
-              </Button>
+              {!isViewOnly && (
+                <Button size="sm" onClick={() => { setShowMemberForm(true); setEditingMemberId(null) }}>
+                  <Plus size={14} className="mr-1.5" />
+                  Add Member
+                </Button>
+              )}
             </div>
             {showMemberForm && (
               <Form {...memberForm}>
@@ -726,6 +731,7 @@ export function TaTrustPage() {
                     onEdit={(id) => setEditingMemberId(id)} 
                     deleting={deletingMember}
                     onView={(id) => setViewingMemberId(id)}
+                    isViewOnly={isViewOnly}
                   />
                 </div>
 
@@ -844,7 +850,7 @@ export function TaTrustPage() {
           <TabsContent value="meetings" className="mt-6 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Board Meetings</h2>
-              <Button size="sm" onClick={() => setShowMeetingForm(true)}>+ Record Meeting</Button>
+              <Button size="sm" onClick={() => setShowMeetingForm(true)} disabled={isViewOnly}>+ Record Meeting</Button>
             </div>
             {showMeetingForm && (
               <Form {...meetingForm}>
@@ -925,7 +931,7 @@ export function TaTrustPage() {
           <TabsContent value="financials" className="mt-6 space-y-4 animate-in fade-in-50 duration-300">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-foreground">Financial Statements</h2>
-              <Button size="sm" onClick={() => setShowFinancialForm(true)}>+ Submit Statement</Button>
+              <Button size="sm" onClick={() => setShowFinancialForm(true)} disabled={isViewOnly}>+ Submit Statement</Button>
             </div>
             {showFinancialForm && (
               <Form {...financialForm}>
@@ -1005,6 +1011,7 @@ function MemberTable({
   onEdit,
   onView,
   deleting,
+  isViewOnly = false,
 }: {
   members: Array<{
     id: number
@@ -1020,6 +1027,7 @@ function MemberTable({
   onEdit: (memberId: number) => void
   onView: (memberId: number) => void
   deleting: boolean
+  isViewOnly?: boolean
 }) {
   return (
     <Card className="overflow-hidden border-border/60 bg-card/95 shadow-sm">
@@ -1063,25 +1071,29 @@ function MemberTable({
                         >
                           <Eye size={14} />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => onEdit(member.id)}
-                          className="h-8 w-8 p-0"
-                          title="Edit member"
-                        >
-                          <Edit size={14} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          disabled={deleting} 
-                          onClick={() => void onDelete(member.id)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          title="Delete member"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
+                        {!isViewOnly && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => onEdit(member.id)}
+                            className="h-8 w-8 p-0"
+                            title="Edit member"
+                          >
+                            <Edit size={14} />
+                          </Button>
+                        )}
+                        {!isViewOnly && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={deleting} 
+                            onClick={() => void onDelete(member.id)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title="Delete member"
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -20,14 +20,17 @@ import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.auth.UserProfileService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Optional;
+import com.templeregistry.entity.temple.TempleProfileStaging;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserProfileServiceImpl implements UserProfileService {
@@ -72,77 +75,26 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private UserProfileResponse.TempleCompletionChecklist buildChecklist(Long templeId) {
-        // Temple.verificationStatus is the DC's authoritative verdict on the temple
-        // profile as a whole. It must override any in-flight staging status so that
-        // the checklist reflects the ground truth rather than a stale workflow state.
-        //   VERIFIED  → treat as APPROVED (DC accepted the profile)
-        //   FLAGGED   → treat as FLAGGED  (DC raised an issue; TA must act)
-        // For all other verificationStatus values (UNVERIFIED, UNDER_REVIEW) fall
-        // through to the staging workflow for the most granular status.
         Temple temple = templeRepository.findById(templeId).orElse(null);
-        if (temple != null && temple.getVerificationStatus() == VerificationStatus.VERIFIED) {
-            // Short-circuit: no need to inspect staging — profile is verified.
-            String profileStatus = "APPROVED";
-            boolean trustExists = !trustRepository.findAllByTempleId(templeId).isEmpty();
-            long employeeCount = employeeRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
-            long contractorCount = contractorRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
-            String declarationStatus = declarationRepository
-                    .findAllByTempleId(templeId, PageRequest.of(0, 1))
-                    .stream().findFirst().map(d -> d.getStatus().name()).orElse(null);
-            return UserProfileResponse.TempleCompletionChecklist.builder()
-                    .templeProfileStatus(profileStatus)
-                    .trustExists(trustExists)
-                    .employeeCount(employeeCount)
-                    .contractorCount(contractorCount)
-                    .latestDeclarationStatus(declarationStatus)
-                    .build();
-        }
 
-        if (temple != null && temple.getVerificationStatus() == VerificationStatus.FLAGGED) {
-            // DC flagged the profile — surface FLAGGED directly so the TA knows action is needed.
-            boolean trustExists = !trustRepository.findAllByTempleId(templeId).isEmpty();
-            long employeeCount = employeeRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
-            long contractorCount = contractorRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
-            String declarationStatus = declarationRepository
-                    .findAllByTempleId(templeId, PageRequest.of(0, 1))
-                    .stream().findFirst().map(d -> d.getStatus().name()).orElse(null);
-            return UserProfileResponse.TempleCompletionChecklist.builder()
-                    .templeProfileStatus("FLAGGED")
-                    .trustExists(trustExists)
-                    .employeeCount(employeeCount)
-                    .contractorCount(contractorCount)
-                    .latestDeclarationStatus(declarationStatus)
-                    .build();
-        }
+        // Derive the profile status from the latest non-superseded staging record.
+        // This must always be checked first — even for VERIFIED temples — because a
+        // subsequent staging submission may have been REJECTED after the initial approval.
+        String profileStatus = deriveProfileStatusForChecklist(templeId, temple);
 
-        // Fall through: derive status from the staging workflow (DRAFT/SUBMITTED/APPROVED/REJECTED)
-        String profileStatus = stagingRepository
-                .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
-                        templeId,
-                        List.of(com.templeregistry.entity.workflow.WorkflowStatus.DRAFT,
-                                com.templeregistry.entity.workflow.WorkflowStatus.SUBMITTED,
-                                com.templeregistry.entity.workflow.WorkflowStatus.APPROVED))
-                .map(s -> {
-                    WorkflowInstance instance = workflowEngine.getState(WorkflowEntityType.TEMPLE_PROFILE, s.getId());
-                    return instance.getStatus().name();
-                })
-                .orElse(null);
+        if (temple != null && temple.getVerificationStatus() == VerificationStatus.FLAGGED
+                && !"REJECTED".equals(profileStatus) && !"DRAFT".equals(profileStatus)
+                && !"SUBMITTED".equals(profileStatus)) {
+            // Only override with FLAGGED if there is no more specific workflow status.
+            profileStatus = "FLAGGED";
+        }
 
         boolean trustExists = !trustRepository.findAllByTempleId(templeId).isEmpty();
-
-        long employeeCount = employeeRepository.findAllByTempleId(
-                templeId, PageRequest.of(0, 1)).getTotalElements();
-
-        long contractorCount = contractorRepository.findAllByTempleId(
-                templeId, PageRequest.of(0, 1)).getTotalElements();
-
-        // Latest declaration status
+        long employeeCount = employeeRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
+        long contractorCount = contractorRepository.findAllByTempleId(templeId, PageRequest.of(0, 1)).getTotalElements();
         String declarationStatus = declarationRepository
                 .findAllByTempleId(templeId, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .map(d -> d.getStatus().name())
-                .orElse(null);
+                .stream().findFirst().map(d -> d.getStatus().name()).orElse(null);
 
         return UserProfileResponse.TempleCompletionChecklist.builder()
                 .templeProfileStatus(profileStatus)
@@ -151,6 +103,47 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .contractorCount(contractorCount)
                 .latestDeclarationStatus(declarationStatus)
                 .build();
+    }
+
+    /**
+     * Derives the canonical profile status for the completion checklist by inspecting
+     * the most recent workflow instance for the temple's profile staging.
+     * Uses findTopByTempleIdOrderByVersionNumberDesc (paginated) to avoid
+     * IncorrectResultSizeDataAccessException from the raw @Query method.
+     * Falls back to "APPROVED" only when the temple is VERIFIED and no staging exists.
+     */
+    private String deriveProfileStatusForChecklist(Long templeId, Temple temple) {
+        // Use the paginated helper — safe to call even when multiple staging records exist.
+        Optional<TempleProfileStaging> latestStaging =
+                stagingRepository.findTopByTempleIdOrderByVersionNumberDesc(templeId);
+
+        if (latestStaging.isPresent()) {
+            try {
+                WorkflowInstance instance = workflowEngine.getState(
+                        WorkflowEntityType.TEMPLE_PROFILE, latestStaging.get().getId());
+                return switch (instance.getStatus()) {
+                    case REJECTED                -> "REJECTED";
+                    case DRAFT,
+                         UPDATED_AFTER_APPROVAL  -> "DRAFT";
+                    case SUBMITTED,
+                         UNDER_REVIEW,
+                         RESUBMITTED             -> "SUBMITTED";
+                    case APPROVED,
+                         RE_APPROVED,
+                         SUPERSEDED             -> "APPROVED";
+                    default                      -> instance.getStatus().name();
+                };
+            } catch (Exception e) {
+                log.warn("[UserProfile] No workflow instance for staging id={} templeId={} — skipping",
+                        latestStaging.get().getId(), templeId);
+            }
+        }
+
+        // No staging found (or no workflow instance) — fall back to verificationStatus.
+        if (temple != null && temple.getVerificationStatus() == VerificationStatus.VERIFIED) {
+            return "APPROVED";
+        }
+        return null;
     }
 
     private ScopeHelper.Claims currentClaims() {

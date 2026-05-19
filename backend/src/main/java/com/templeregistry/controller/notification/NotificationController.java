@@ -72,6 +72,16 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(count + " notification(s) cleared.", count));
     }
 
+    @DeleteMapping("/bulk")
+    @Operation(summary = "Soft-delete a specific set of notifications by ID")
+    public ResponseEntity<ApiResponse<Integer>> deleteBulk(@RequestBody java.util.List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success("Nothing to delete.", 0));
+        }
+        int count = notificationService.deleteBulk(ids, currentUserId());
+        return ResponseEntity.ok(ApiResponse.success(count + " notification(s) deleted.", count));
+    }
+
     @GetMapping("/unread-count")
     @Operation(summary = "Returns the count of unread notifications for the current user")
     public ResponseEntity<ApiResponse<Long>> unreadCount() {

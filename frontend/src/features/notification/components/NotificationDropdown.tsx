@@ -57,7 +57,7 @@ function DropdownItem({ notification, onClose, onDelete }: DropdownItemProps) {
     if (!notification.read) {
       markRead(notification.id)
     }
-    onClose()
+    // Do NOT close the dropdown — just mark as read in place
   }
 
   const handleDelete = (e: React.MouseEvent) => {

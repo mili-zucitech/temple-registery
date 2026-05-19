@@ -191,6 +191,7 @@ export function TaDashboardPage() {
 
   const { data: userData, isLoading: userLoading }     = useGetCurrentUserQuery()
   const user      = userData?.data
+  const isViewOnly = user?.accessType === 'VIEW'
   const checklist = user?.completionChecklist
   const templeId  = user?.templeId
 
@@ -348,8 +349,8 @@ export function TaDashboardPage() {
                 onClick={() => navigate(ROUTE_PATHS.TA_TEMPLE)}
                 className="flex items-center gap-1.5 rounded-lg bg-white/25 border border-white/30 hover:bg-white/40 transition-colors px-3 py-1.5 text-xs font-semibold text-white"
               >
-                <Pencil size={12} />
-                Edit Profile
+                {isViewOnly ? null : <Pencil size={12} />}
+                {isViewOnly ? 'View Profile' : 'Edit Profile'}
               </button>
             </div>
           </div>

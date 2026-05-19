@@ -4,6 +4,8 @@ import com.templeregistry.dto.response.notification.NotificationResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface NotificationService {
 
     /**
@@ -27,6 +29,9 @@ public interface NotificationService {
 
     /** Soft-delete all notifications for the given user. Returns count deleted. */
     int clearAll(Long userId);
+
+    /** Soft-delete a specific set of notifications for the given user. Returns count deleted. */
+    int deleteBulk(List<Long> ids, Long userId);
 
     /**
      * Create a persisted in-app notification with full workflow-aware context.

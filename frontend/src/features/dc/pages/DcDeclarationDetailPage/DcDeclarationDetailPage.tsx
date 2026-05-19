@@ -50,6 +50,7 @@ import {
 import { dcClarifySchema } from '@/features/governance/governanceTypes'
 import { useGetDeclarationDiffQuery, useGetDeclarationVersionsQuery } from '@/features/declaration/declarationApi'
 import { ChatPanel } from '@/features/declaration/components/ChatPanel'
+import { DeclarationActionCardSkeleton } from '@/features/dc/components/DcSkeletons/DcSkeletons'
 
 export function DcDeclarationDetailPage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -60,7 +61,7 @@ export function DcDeclarationDetailPage() {
   const role = useAppSelector((state) => state.auth.currentUser?.role)
   const canAct = role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
 
-  const { declaration, isLoading, isError } = useDcDeclarationDetail(id)
+  const { declaration, isLoading, isError, isFetching } = useDcDeclarationDetail(id)
   const { dialog, openDialog, closeDialog, confirmApprove, confirmReject, confirmClarify, confirmScheduleSiteVisit, isSubmitting } = useWorkflowActions()
 
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
@@ -289,6 +290,9 @@ export function DcDeclarationDetailPage() {
           </Tabs>
 
           {canAct && actionable && (
+            isFetching ? (
+              <DeclarationActionCardSkeleton />
+            ) : (
             <Card className="border-border/60 bg-card/95 shadow-soft-md">
               <CardHeader>
                 <CardTitle className="text-base">Review outcomes</CardTitle>
@@ -313,6 +317,7 @@ export function DcDeclarationDetailPage() {
                 </Button>
               </CardContent>
             </Card>
+            )
           )}
         </div>
 

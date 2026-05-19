@@ -1,16 +1,20 @@
+import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { type NotificationResponse } from '@/features/notification/notificationApi'
+import { type NotificationResponse, useDeleteBulkNotificationsMutation, useClearAllNotificationsMutation } from '@/features/notification/notificationApi'
 import { useTaActivity } from './useTaActivity'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { usePagination } from '@/hooks/usePagination'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import {
   Bell, FileText, Building2, ClipboardList, CheckCheck,
-  ChevronLeft, ChevronRight, File,
+  ChevronLeft, ChevronRight, File, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -62,9 +66,11 @@ interface ActivityItemProps {
   notification: NotificationResponse
   onRead: (id: number) => void
   isMarking: boolean
+  isSelected: boolean
+  onToggleSelect: (id: number, checked: boolean) => void
 }
 
-function ActivityItem({ notification, onRead, isMarking }: ActivityItemProps) {
+function ActivityItem({ notification, onRead, isMarking, isSelected, onToggleSelect }: ActivityItemProps) {
   const navigate = useNavigate()
 
   const handleClick = () => {
@@ -82,24 +88,42 @@ function ActivityItem({ notification, onRead, isMarking }: ActivityItemProps) {
     <motion.div
       variants={fadeUp}
       className={cn(
-        'flex items-start gap-4 rounded-lg border bg-card px-5 py-4 shadow-soft-sm transition-all duration-150',
-        !notification.read && 'border-l-[3px] border-l-primary border-r-border border-t-border border-b-border',
-        notification.read && 'border-border opacity-75',
+        'flex items-start gap-3 rounded-lg border bg-card px-5 py-4 shadow-soft-sm transition-all duration-150',
+        isSelected && 'bg-primary/5 border-primary/30',
+        !isSelected && !notification.read && 'border-l-[3px] border-l-primary border-r-border border-t-border border-b-border',
+        !isSelected && notification.read && 'border-border opacity-75',
         isClickable && 'hover:shadow-soft-md cursor-pointer',
         !isClickable && 'cursor-default',
       )}
-      onClick={isClickable ? handleClick : undefined}
     >
+      {/* Checkbox */}
+      <div
+        className="flex-shrink-0 flex items-center pt-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onToggleSelect(notification.id, !!checked)}
+          aria-label={`Select notification: ${notification.title}`}
+        />
+      </div>
+
       {/* Icon */}
-      <div className={cn(
-        'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
-        notification.read ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary',
-      )}>
+      <div
+        className={cn(
+          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
+          notification.read ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary',
+        )}
+        onClick={isClickable ? handleClick : undefined}
+      >
         {notifIcon(notification.referenceType)}
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div
+        className="flex-1 min-w-0"
+        onClick={isClickable ? handleClick : undefined}
+      >
         <p className={cn(
           'text-sm leading-snug',
           notification.read ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground',
@@ -113,7 +137,10 @@ function ActivityItem({ notification, onRead, isMarking }: ActivityItemProps) {
       </div>
 
       {/* Meta */}
-      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+      <div
+        className="flex flex-col items-end gap-2 flex-shrink-0"
+        onClick={isClickable ? handleClick : undefined}
+      >
         <span className="text-[11px] text-muted-foreground whitespace-nowrap">
           {relativeTime(notification.createdAt)}
         </span>
@@ -148,12 +175,57 @@ function ActivitySkeletonItem() {
 
 export function TaActivityPage() {
   const { page, pageSize, goToPage } = usePagination()
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   const {
     notifications, totalPages, totalElements, unreadCount,
     isLoading, isError, isMarking, isMarkingAll,
     markRead: handleMarkRead, markAllRead: handleMarkAll, refetch,
   } = useTaActivity(page, pageSize)
+
+  const [deleteBulk, { isLoading: isDeletingBulk }] = useDeleteBulkNotificationsMutation()
+  const [clearAll, { isLoading: isClearingAll }] = useClearAllNotificationsMutation()
+
+  const allSelected =
+    notifications.length > 0 && notifications.every((n) => selectedIds.has(n.id))
+  const someSelected = selectedIds.size > 0
+
+  const handleToggleSelect = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      checked ? next.add(id) : next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(notifications.map((n) => n.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds)
+    try {
+      await deleteBulk(ids).unwrap()
+      toast.success(`${ids.length} notification${ids.length !== 1 ? 's' : ''} deleted.`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete selected notifications.'))
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    try {
+      await clearAll().unwrap()
+      toast.success('All notifications deleted.')
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete all notifications.'))
+    }
+  }
 
   return (
     <motion.div
@@ -178,19 +250,61 @@ export function TaActivityPage() {
                   </p>
                 </div>
               </div>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                  onClick={handleMarkAll}
-                  disabled={isMarkingAll}
-                >
-                  <CheckCheck size={14} />
-                  {isMarkingAll ? 'Marking…' : 'Mark all read'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    onClick={handleMarkAll}
+                    disabled={isMarkingAll}
+                  >
+                    <CheckCheck size={14} />
+                    {isMarkingAll ? 'Marking…' : 'Mark all read'}
+                  </Button>
+                )}
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={handleDeleteAll}
+                    disabled={isClearingAll}
+                  >
+                    <Trash2 size={14} />
+                    {isClearingAll ? 'Deleting…' : 'Delete all'}
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Select-all + bulk-delete toolbar — shown when notifications are present */}
+            {notifications.length > 0 && !isLoading && (
+              <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    aria-label="Select all notifications"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {allSelected ? 'Deselect all' : `Select all (${notifications.length})`}
+                  </span>
+                </label>
+                {someSelected && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={handleDeleteSelected}
+                    disabled={isDeletingBulk}
+                  >
+                    <Trash2 size={13} />
+                    {isDeletingBulk ? 'Deleting…' : `Delete selected (${selectedIds.size})`}
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -222,6 +336,8 @@ export function TaActivityPage() {
                 notification={n}
                 onRead={handleMarkRead}
                 isMarking={isMarking}
+                isSelected={selectedIds.has(n.id)}
+                onToggleSelect={handleToggleSelect}
               />
             ))}
           </motion.div>

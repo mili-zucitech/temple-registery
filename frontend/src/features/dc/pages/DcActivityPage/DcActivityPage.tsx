@@ -1,16 +1,22 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useListNotificationsQuery, useMarkReadMutation, useMarkAllReadMutation } from '@/features/notification/notificationApi'
+import {
+  useListNotificationsQuery, useMarkReadMutation, useMarkAllReadMutation,
+  useDeleteBulkNotificationsMutation, useClearAllNotificationsMutation,
+} from '@/features/notification/notificationApi'
 import type { NotificationResponse } from '@/features/notification/notificationApi'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { usePagination } from '@/hooks/usePagination'
+import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 import {
   Bell, CheckCheck, ChevronLeft, ChevronRight,
-  CheckCircle2, XCircle, AlertCircle, FileText, Building2, Info,
+  CheckCircle2, XCircle, AlertCircle, FileText, Building2, Info, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -54,9 +60,11 @@ function iconBg(n: NotificationResponse) {
 interface ActivityItemProps {
   notification: NotificationResponse
   onRead: (id: number) => void
+  isSelected: boolean
+  onToggleSelect: (id: number, checked: boolean) => void
 }
 
-function ActivityItem({ notification, onRead }: ActivityItemProps) {
+function ActivityItem({ notification, onRead, isSelected, onToggleSelect }: ActivityItemProps) {
   const navigate = useNavigate()
 
   const handleClick = () => {
@@ -73,24 +81,39 @@ function ActivityItem({ notification, onRead }: ActivityItemProps) {
     <motion.div
       variants={fadeUp}
       className={cn(
-        'flex items-start gap-4 rounded-lg border bg-card px-5 py-4 shadow-sm transition-all',
-        !notification.read && 'border-l-[3px] border-l-primary',
-        notification.read && 'border-border opacity-80',
+        'flex items-start gap-3 rounded-lg border bg-card px-5 py-4 shadow-sm transition-all',
+        isSelected && 'bg-primary/5 border-primary/30',
+        !isSelected && !notification.read && 'border-l-[3px] border-l-primary',
+        !isSelected && notification.read && 'border-border opacity-80',
         isClickable && 'hover:shadow-md cursor-pointer',
         !isClickable && 'cursor-default',
       )}
-      onClick={isClickable ? handleClick : undefined}
     >
+      {/* Checkbox */}
+      <div
+        className="flex-shrink-0 flex items-center pt-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onToggleSelect(notification.id, !!checked)}
+          aria-label={`Select notification: ${notification.title}`}
+        />
+      </div>
+
       {/* Icon */}
-      <div className={cn(
-        'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
-        iconBg(notification),
-      )}>
+      <div
+        className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full', iconBg(notification))}
+        onClick={isClickable ? handleClick : undefined}
+      >
         {notifIcon(notification)}
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div
+        className="flex-1 min-w-0"
+        onClick={isClickable ? handleClick : undefined}
+      >
         <p className={cn(
           'text-sm leading-snug',
           notification.read ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground',
@@ -104,7 +127,10 @@ function ActivityItem({ notification, onRead }: ActivityItemProps) {
       </div>
 
       {/* Meta */}
-      <div className="flex flex-col items-end gap-2 flex-shrink-0 min-w-[70px]">
+      <div
+        className="flex flex-col items-end gap-2 flex-shrink-0 min-w-[70px]"
+        onClick={isClickable ? handleClick : undefined}
+      >
         <span className="text-[11px] text-muted-foreground whitespace-nowrap">
           {relativeTime(notification.createdAt)}
         </span>
@@ -137,18 +163,61 @@ export function DcActivityPage() {
   const { page, goToPage } = usePagination()
   const [_page, setPage] = useState(0)
   const currentPage = page ?? _page
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   const { data, isLoading, isError, refetch } = useListNotificationsQuery({ page: currentPage, size: PAGE_SIZE })
   const [markRead] = useMarkReadMutation()
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllReadMutation()
+  const [deleteBulk, { isLoading: isDeletingBulk }] = useDeleteBulkNotificationsMutation()
+  const [clearAll, { isLoading: isClearingAll }] = useClearAllNotificationsMutation()
 
   const notifications = data?.data?.content ?? []
   const totalPages = data?.data?.totalPages ?? 0
   const totalElements = data?.data?.totalElements ?? 0
   const unreadCount = notifications.filter((n) => !n.read).length
 
+  const allSelected = notifications.length > 0 && notifications.every((n) => selectedIds.has(n.id))
+  const someSelected = selectedIds.size > 0
+
   const handleMarkRead = (id: number) => markRead(id)
   const handleMarkAll  = () => markAllRead()
+
+  const handleToggleSelect = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      checked ? next.add(id) : next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(notifications.map((n) => n.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds)
+    try {
+      await deleteBulk(ids).unwrap()
+      toast.success(`${ids.length} notification${ids.length !== 1 ? 's' : ''} deleted.`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete selected notifications.'))
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    try {
+      await clearAll().unwrap()
+      toast.success('All notifications deleted.')
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Failed to delete all notifications.'))
+    }
+  }
 
   return (
     <motion.div
@@ -174,19 +243,61 @@ export function DcActivityPage() {
                   </p>
                 </div>
               </div>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                  onClick={handleMarkAll}
-                  disabled={isMarkingAll}
-                >
-                  <CheckCheck size={14} />
-                  {isMarkingAll ? 'Marking…' : 'Mark all read'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    onClick={handleMarkAll}
+                    disabled={isMarkingAll}
+                  >
+                    <CheckCheck size={14} />
+                    {isMarkingAll ? 'Marking…' : 'Mark all read'}
+                  </Button>
+                )}
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={handleDeleteAll}
+                    disabled={isClearingAll}
+                  >
+                    <Trash2 size={14} />
+                    {isClearingAll ? 'Deleting…' : 'Delete all'}
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Select-all + bulk-delete toolbar */}
+            {notifications.length > 0 && !isLoading && (
+              <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    aria-label="Select all notifications"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {allSelected ? 'Deselect all' : `Select all (${notifications.length})`}
+                  </span>
+                </label>
+                {someSelected && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={handleDeleteSelected}
+                    disabled={isDeletingBulk}
+                  >
+                    <Trash2 size={13} />
+                    {isDeletingBulk ? 'Deleting…' : `Delete selected (${selectedIds.size})`}
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -213,7 +324,13 @@ export function DcActivityPage() {
             variants={{ show: { transition: { staggerChildren: 0.05 } } }}
           >
             {notifications.map((n) => (
-              <ActivityItem key={n.id} notification={n} onRead={handleMarkRead} />
+              <ActivityItem
+                key={n.id}
+                notification={n}
+                onRead={handleMarkRead}
+                isSelected={selectedIds.has(n.id)}
+                onToggleSelect={handleToggleSelect}
+              />
             ))}
           </motion.div>
         )}

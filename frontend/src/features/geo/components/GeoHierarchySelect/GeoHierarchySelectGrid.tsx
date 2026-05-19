@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Lock, RotateCcw } from 'lucide-react'
+import { Lock, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGeoHierarchy } from '../../geoHooks'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
@@ -11,6 +11,9 @@ interface GeoHierarchySelectGridProps {
   disabled?: boolean
   /** Levels that should be displayed as read-only locked fields. State is always locked. */
   lockedLevels?: ('city' | 'district' | 'taluk' | 'hobli')[]
+  /** When provided, a "Detect my current location" button is shown. The callback should set lat/lng on the parent form. */
+  onDetectLocation?: () => void
+  detectingLocation?: boolean
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -25,7 +28,7 @@ function hasLocationSelection(value: GeoSelection): boolean {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function GeoHierarchySelectGrid({ value, onChange, disabled, lockedLevels = [] }: GeoHierarchySelectGridProps) {
+export function GeoHierarchySelectGrid({ value, onChange, disabled, lockedLevels = [], onDetectLocation, detectingLocation }: GeoHierarchySelectGridProps) {
   const { states, cities, districts, taluks, hoblis } = useGeoHierarchy(value)
 
   const isCityLocked     = lockedLevels.includes('city')
@@ -195,28 +198,32 @@ export function GeoHierarchySelectGrid({ value, onChange, disabled, lockedLevels
         </GeoLevel>
       </div>
 
-      {/* ── Reset location ─────────────────────────────────────────────── */}
-      {hasLocationSelection(value) && (
-        <div className="flex items-center justify-between pt-0.5">
-          <p className="text-[11px] text-muted-foreground/70">
-            Partial selections are allowed — results narrow as you go deeper.
-          </p>
+      {/* ── Footer row ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between pt-0.5">
+        <p className="text-[11px] text-muted-foreground/70">
+          {hasLocationSelection(value)
+            ? 'Partial selections are allowed — results narrow as you go deeper.'
+            : '\u00a0'}
+        </p>
+        {onDetectLocation && (
           <button
             type="button"
-            onClick={resetLocation}
+            onClick={onDetectLocation}
+            disabled={detectingLocation || disabled}
             className={cn(
-              'flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground',
+              'flex items-center gap-1.5 text-[11px] font-medium text-primary',
               'rounded px-2 py-1 transition-colors',
-              'hover:text-foreground hover:bg-muted/60',
+              'hover:bg-primary/10',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
             )}
-            aria-label="Reset location filters — clear city, district, taluk and hobli"
+            aria-label="Detect my current location using GPS"
           >
-            <RotateCcw size={11} aria-hidden />
-            Reset location
+            <MapPin size={11} aria-hidden />
+            {detectingLocation ? 'Detecting…' : 'Detect my current location'}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

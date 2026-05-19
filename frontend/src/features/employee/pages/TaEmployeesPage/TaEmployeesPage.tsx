@@ -45,6 +45,7 @@ export function TaEmployeesPage() {
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
+  const isViewOnly = userData?.data?.accessType === 'VIEW'
 
   const { data, isLoading, isError, refetch } = useListEmployeesQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
@@ -170,10 +171,12 @@ export function TaEmployeesPage() {
                 </p>
               </div>
             </div>
-            <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
-              <Plus className="size-4 mr-2" />
-              Add Employee
-            </Button>
+            {!isViewOnly && (
+              <Button className="bg-gradient-gold shadow-gold" onClick={() => setMode('create')}>
+                <Plus className="size-4 mr-2" />
+                Add Employee
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -393,7 +396,7 @@ export function TaEmployeesPage() {
         <EmptyState
           title="No employees yet"
           description="Add your first employee record to get started."
-          action={{ label: '+ Add Employee', onClick: () => setMode('create') }}
+          action={!isViewOnly ? { label: '+ Add Employee', onClick: () => setMode('create') } : undefined}
         />
       ) : (
         <div className="rounded-lg border border-border overflow-hidden bg-card shadow-sm">
@@ -467,43 +470,47 @@ export function TaEmployeesPage() {
                         >
                           <Eye className="size-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => openEdit(emp)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remove {emp.fullName}?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action marks the employee record as deleted. It cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction 
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90" 
-                                onClick={() => onDelete(emp.id)} 
-                                disabled={deleting}
+                        {!isViewOnly && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => openEdit(emp)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                        )}
+                        {!isViewOnly && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                               >
-                                Remove
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove {emp.fullName}?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action marks the employee record as deleted. It cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90" 
+                                  onClick={() => onDelete(emp.id)} 
+                                  disabled={deleting}
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </td>
                   </tr>

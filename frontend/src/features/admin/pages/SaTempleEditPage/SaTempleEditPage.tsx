@@ -173,6 +173,28 @@ export function SaTempleEditPage() {
     }
   }, [form])
 
+  const [detectingLocation, setDetectingLocation] = useState(false)
+
+  const handleDetectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.')
+      return
+    }
+    setDetectingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        form.setValue('latitude', position.coords.latitude, { shouldDirty: true })
+        form.setValue('longitude', position.coords.longitude, { shouldDirty: true })
+        setDetectingLocation(false)
+        toast.success('Location detected successfully.')
+      },
+      () => {
+        setDetectingLocation(false)
+        toast.error('Unable to detect location. Please allow location access and try again.')
+      },
+    )
+  }, [form])
+
   // Prefill once per temple after data loads
   useEffect(() => {
     if (form.formState.isDirty || initializedForTempleId.current === id || isLoading || !profile) return
@@ -361,6 +383,8 @@ export function SaTempleEditPage() {
                 value={geoSelection}
                 onChange={handleGeoChange}
                 lockedLevels={['city', 'district']}
+                onDetectLocation={handleDetectLocation}
+                detectingLocation={detectingLocation}
               />
             </>
           ) : (
@@ -369,6 +393,8 @@ export function SaTempleEditPage() {
               value={geoSelection}
               onChange={handleGeoChange}
               lockedLevels={['city', 'district']}
+              onDetectLocation={handleDetectLocation}
+              detectingLocation={detectingLocation}
             />
           )}
 

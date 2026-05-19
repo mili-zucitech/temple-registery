@@ -9,6 +9,7 @@ interface Props {
   onView?: () => void
   onCreateNew?: () => void
   isSubmitting?: boolean
+  isViewOnly?: boolean
   className?: string
 }
 
@@ -29,12 +30,13 @@ export function TaActionButtons({
   onView,
   onCreateNew,
   isSubmitting = false,
+  isViewOnly = false,
   className = '',
 }: Props) {
   return (
     <div className={`flex flex-wrap gap-2 ${className}`} role="group" aria-label="Record actions">
       {/* REJECTED: TA must create a new record */}
-      {submissionStatus === 'REJECTED' && (
+      {!isViewOnly && submissionStatus === 'REJECTED' && (
         <button
           type="button"
           onClick={onCreateNew}
@@ -46,7 +48,7 @@ export function TaActionButtons({
       )}
 
       {/* SENT_BACK: TA can edit and resubmit */}
-      {submissionStatus === 'SENT_BACK' && (
+      {!isViewOnly && submissionStatus === 'SENT_BACK' && (
         <>
           {onEdit && (
             <button
@@ -62,7 +64,7 @@ export function TaActionButtons({
       )}
 
       {/* DRAFT: TA can edit and submit */}
-      {submissionStatus === 'DRAFT' && (
+      {!isViewOnly && submissionStatus === 'DRAFT' && (
         <>
           {onEdit && (
             <button

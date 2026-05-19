@@ -143,9 +143,11 @@ export function DcTempleProfilePage() {
   const [createContractor, { isLoading: isCreatingContractor }] = useCreateContractorMutation()
   const [updateContractor, { isLoading: isUpdatingContractor }] = useUpdateContractorMutation()
 
-  const { profile, isLoading, isError, refetch: refetchProfile } = useDcTempleProfile(id)
+  const { profile, isLoading, isError, isFetching: profileFetching, refetch: refetchProfile } = useDcTempleProfile(id)
   // TA cannot act on profile staging — skip the fetch to avoid unnecessary 404 noise
-  const { pendingStaging, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
+  const { pendingStaging, isFetching: stagingFetching, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
+  // isRefetchingProfile: true when a profile/staging governance action is in-flight and data is being refreshed
+  const isRefetchingProfile = profileFetching || stagingFetching
   const showGovernance = isTa ? isOwnTemple : !!pendingStaging
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
@@ -185,6 +187,8 @@ export function DcTempleProfilePage() {
   const [unflagTemple, { isLoading: isUnflagging }] = useUnflagTempleMutation()
   const [approveTrust, { isLoading: verifyingTrust }] = useApproveTrustMutation()
   const [rejectTrust, { isLoading: rejectingTrust }] = useRejectTrustMutation()
+  // isRefetchingTrust: true while trust is being approved/rejected AND profile data is refreshing
+  const isRefetchingTrust = (verifyingTrust || rejectingTrust) || profileFetching
 
   const overdueDecls = useMemo(() =>
     profile?.declarations.filter((d) => d.status === 'OVERDUE') ?? [],
@@ -313,7 +317,7 @@ export function DcTempleProfilePage() {
                     <h1 className="text-xl font-bold text-white leading-tight">
                       {temple.name}
                     </h1>
-                    {temple.grade && <TempleGradeBadge grade={temple.grade as TempleGrade} />}
+                    {temple.grade && <TempleGradeBadge grade={temple.grade as TempleGrade} variant="on-dark" />}
                     {verificationPosture && (
                       <span className={cn(
                         "px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider border backdrop-blur-sm",
@@ -388,7 +392,7 @@ export function DcTempleProfilePage() {
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
                   { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
                 ] as const
-              ).filter((tab) => tab.v !== 'timeline' || showGovernance)
+              ).filter((tab) => tab.v !== 'timeline' || showGovernance || canAct)
               .map((tab) => (
                 <TabsTrigger
                   key={tab.v}
@@ -440,6 +444,7 @@ export function DcTempleProfilePage() {
               canAct={canAct}
               showGovernance={showGovernance}
               pendingStaging={pendingStaging}
+              isRefetching={isRefetchingProfile}
               onApproveProfile={async (notes) => {
                 if (!pendingStaging) return
                 const success = await submitApproveProfile(pendingStaging.id, id, { remarks: notes })
@@ -492,6 +497,7 @@ export function DcTempleProfilePage() {
               boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
               showGovernance={showGovernance}
+              isRefetching={isRefetchingTrust}
               onEditTrust={
                 isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
                 : canEdit && trust ? () => setTrustEditOpen(true)
@@ -558,7 +564,7 @@ export function DcTempleProfilePage() {
           </TabsContent>
 
           <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {showGovernance
+            {(showGovernance || canAct)
               ? <TimelineTab templeId={id} />
               : null
             }

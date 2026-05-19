@@ -3,7 +3,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import ReactSelect from 'react-select'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Building2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog'
@@ -149,20 +150,28 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
     }
   }, [isTempleAuthority])
 
-  // Auto-fill district and city from selected existing temple (Case 2)
+  // Auto-fill district and city from selected existing temple (Case 2).
+  // cityId is derived from the loaded districts list if the temple record doesn't carry it directly
+  // (city_id is nullable on temples created before geo hierarchy was enforced).
   useEffect(() => {
     if (!createTemple && selectedTempleOption) {
       if (selectedTempleOption.districtId != null) {
         form.setValue('districtId', String(selectedTempleOption.districtId))
       }
-      if (selectedTempleOption.cityId != null) {
-        form.setValue('cityId', String(selectedTempleOption.cityId))
+      // Prefer direct cityId; fall back to city derived from the district record
+      const resolvedCityId =
+        selectedTempleOption.cityId
+        ?? districts.find(d => d.id === selectedTempleOption.districtId)?.cityId
+      if (resolvedCityId != null) {
+        form.setValue('cityId', String(resolvedCityId))
       }
     }
-  }, [selectedTempleOption, createTemple])
+  }, [selectedTempleOption, createTemple, districts])
 
-  // Clear districtId when city changes
+  // Clear districtId when city changes — but skip when a temple is already selected
+  // (city changed because auto-fill set it, not because the user picked a new city).
   useEffect(() => {
+    if (!createTemple && selectedTempleOption != null) return
     form.setValue('districtId', '')
   }, [watchedCityId])
 
@@ -257,31 +266,109 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                 </div>
               )}
 
-              {/* City — shown for TA, DC, DC_STAFF */}
-              {showGeoCity && (
-                <FormField control={form.control} name="cityId" render={({ field }) => (
+              {/* Select Existing Temple — shown directly below the toggle when createTemple is off */}
+              {isTempleAuthority && !isEdit && !createTemple && (
+                <FormField control={form.control} name="existingTempleId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City / Division <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingCities ? 'Loading...' : 'Select city'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-64">
-                        {cities.map(c => (
-                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Building2 size={13} className="text-muted-foreground" />
+                      Select Existing Temple
+                    </FormLabel>
+                    <ReactSelect
+                      inputId="templeSelect"
+                      placeholder="Search by name, reg. no., or district..."
+                      isLoading={loadingTemples}
+                      isClearable
+                      options={templeOptions}
+                      value={selectedTempleOption ?? null}
+                      onInputChange={(val) => setTempleSearchInput(val)}
+                      onChange={(selected) => {
+                        if (selected) {
+                          field.onChange(String(selected.value))
+                          setSelectedTempleOption(selected)
+                        } else {
+                          field.onChange('')
+                          setSelectedTempleOption(null)
+                        }
+                      }}
+                      filterOption={() => true}
+                      noOptionsMessage={({ inputValue }) =>
+                        inputValue.length === 0 ? 'Type to search temples' : 'No temples found'
+                      }
+                      loadingMessage={() => 'Searching temples...'}
+                      formatOptionLabel={(opt) => (
+                        <div className="py-0.5">
+                          <div className="font-medium text-sm text-foreground">{opt.label}</div>
+                          <div className="text-xs text-muted-foreground">{opt.subLabel}</div>
+                        </div>
+                      )}
+                      classNames={{
+                        control: (state) => cn(
+                          '!min-h-9 !rounded-md !border !bg-background !text-sm !shadow-sm !transition-colors !cursor-text',
+                          state.isFocused
+                            ? '!border-ring !ring-2 !ring-ring/20'
+                            : '!border-input hover:!border-ring/60',
+                        ),
+                        valueContainer: () => '!px-3 !py-0 !gap-1',
+                        singleValue: () => '!text-foreground !text-sm !m-0',
+                        placeholder: () => '!text-muted-foreground !text-sm !m-0',
+                        input: () => '!text-sm !text-foreground !m-0 !p-0',
+                        indicatorsContainer: () => '!pr-1 !gap-0',
+                        clearIndicator: () => '!text-muted-foreground hover:!text-foreground !cursor-pointer !p-1.5 !rounded',
+                        dropdownIndicator: () => '!text-muted-foreground hover:!text-foreground !cursor-pointer !p-1.5 !rounded',
+                        indicatorSeparator: () => '!bg-border !my-2',
+                        loadingIndicator: () => '!text-muted-foreground',
+                        menu: () => '!z-50 !mt-1 !rounded-md !border !border-border !bg-popover !text-popover-foreground !shadow-md !overflow-hidden',
+                        menuList: () => '!p-1',
+                        option: (state) => cn(
+                          '!rounded-sm !px-2 !py-2 !text-sm !cursor-pointer !transition-colors',
+                          state.isSelected
+                            ? '!bg-primary !text-primary-foreground'
+                            : state.isFocused
+                            ? '!bg-accent !text-accent-foreground'
+                            : '!text-popover-foreground',
+                        ),
+                        noOptionsMessage: () => '!text-muted-foreground !text-sm !py-6 !text-center',
+                        loadingMessage: () => '!text-muted-foreground !text-sm !py-6 !text-center',
+                      }}
+                      unstyled
+                    />
                     <FormMessage />
                   </FormItem>
                 )} />
               )}
 
+              {/* City — shown for TA, DC, DC_STAFF */}
+              {showGeoCity && (
+                <FormField control={form.control} name="cityId" render={({ field }) => {
+                  const lockedByTemple = isTempleAuthority && !createTemple && selectedTempleOption != null
+                  return (
+                    <FormItem>
+                      <FormLabel>City / Division <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={lockedByTemple}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingCities ? 'Loading...' : 'Select city'} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="max-h-64">
+                          {cities.map(c => (
+                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {lockedByTemple && (
+                        <p className="text-xs text-muted-foreground">Auto-filled from selected temple</p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }} />
+              )}
+
               {/* District */}
               <FormField control={form.control} name="districtId" render={({ field }) => {
-                const lockedByTemple = isTempleAuthority && !createTemple && !!selectedTempleOption?.districtId
+                const lockedByTemple = isTempleAuthority && !createTemple && selectedTempleOption != null
                 return (
                   <FormItem>
                     <FormLabel>District</FormLabel>
@@ -432,53 +519,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                     )} />
                   )}
 
-                  {/* Case 2: Assign existing temple via react-select */}
-                  {!createTemple && (
-                    <FormField control={form.control} name="existingTempleId" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Select Existing Temple</FormLabel>
-                        <ReactSelect
-                          inputId="templeSelect"                          placeholder="Search by name, registration no., or district..."
-                          isLoading={loadingTemples}
-                          options={templeOptions}
-                          value={selectedTempleOption ?? null}
-                          onInputChange={(val) => setTempleSearchInput(val)}
-                          onChange={(selected) => {
-                            if (selected) {
-                              field.onChange(String(selected.value))
-                              setSelectedTempleOption(selected)
-                            } else {
-                              field.onChange('')
-                              setSelectedTempleOption(null)
-                            }
-                          }}
-                          filterOption={() => true} // server-side filtering only
-                          noOptionsMessage={({ inputValue }) =>
-                            inputValue.length === 0
-                              ? 'Type to search temples'
-                              : 'No temples found'
-                          }
-                          formatOptionLabel={(opt) => (
-                            <div>
-                              <div className="font-medium text-sm">{opt.label}</div>
-                              <div className="text-xs text-muted-foreground">{opt.subLabel}</div>
-                            </div>
-                          )}
-                          classNames={{
-                            control: (state) =>
-                              `!min-h-9 !rounded-md !border !border-input !bg-background !text-sm !shadow-sm ${state.isFocused ? '!ring-2 !ring-ring !ring-offset-2' : ''}`,
-                            placeholder: () => '!text-muted-foreground !text-sm',
-                            menu: () => '!z-50 !rounded-md !border !bg-popover !shadow-md',
-                            option: (state) =>
-                              `!cursor-pointer !px-3 !py-2 !text-sm ${state.isSelected ? '!bg-primary !text-primary-foreground' : state.isFocused ? '!bg-accent !text-accent-foreground' : '!bg-popover'}`,
-                            input: () => '!text-sm',
-                          }}
-                          unstyled
-                        />
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  )}
                 </div>
               )}
 
@@ -501,20 +541,31 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                       <Select onValueChange={field.onChange} value={field.value ?? 'EDIT'}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select access level" />
+                            <SelectValue>
+                              {field.value === 'VIEW'
+                                ? <span className="flex items-center gap-1.5"><Eye size={13} className="text-muted-foreground" />View Only</span>
+                                : <span className="flex items-center gap-1.5"><Pencil size={13} className="text-primary" />Edit Access</span>
+                              }
+                            </SelectValue>
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="EDIT">
-                            <div>
-                              <div className="font-medium">Edit</div>
-                              <div className="text-xs text-muted-foreground">Can create drafts, submit for review, and upload documents</div>
+                            <div className="flex items-start gap-2.5 py-0.5">
+                              <Pencil size={13} className="text-primary mt-0.5 shrink-0" />
+                              <div>
+                                <div className="font-medium text-sm">Edit Access</div>
+                                <div className="text-xs text-muted-foreground">Submit, upload &amp; manage temple data</div>
+                              </div>
                             </div>
                           </SelectItem>
                           <SelectItem value="VIEW">
-                            <div>
-                              <div className="font-medium">View Only</div>
-                              <div className="text-xs text-muted-foreground">Can log in and view temple data but cannot make changes</div>
+                            <div className="flex items-start gap-2.5 py-0.5">
+                              <Eye size={13} className="text-muted-foreground mt-0.5 shrink-0" />
+                              <div>
+                                <div className="font-medium text-sm">View Only</div>
+                                <div className="text-xs text-muted-foreground">Read-only access, no changes allowed</div>
+                              </div>
                             </div>
                           </SelectItem>
                         </SelectContent>

@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle, Download, Loader2 } from 'lucide-react'
 import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
+import { TrustSectionSkeleton } from '@/features/dc/components/DcSkeletons/DcSkeletons'
 import { ModuleStatusBadge } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import type { ModuleVerificationStatus } from '@/features/dc/components/ModuleStatusBadge/ModuleStatusBadge'
 import { formatCurrency } from '../utils'
@@ -28,10 +29,13 @@ interface TrustTabProps {
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
   onEditTrust?: () => void
+<<<<<<< HEAD
   onCreateTrust?: () => void
+  /** True while profile data is refetching after a trust governance action — replaces stale trust section with skeleton. */
+  isRefetching?: boolean
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, showGovernance = true, onVerifyTrust, onRejectTrust, onEditTrust, onCreateTrust }: TrustTabProps) {
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, showGovernance = true, onVerifyTrust, onRejectTrust, onEditTrust, onCreateTrust, isRefetching = false }: TrustTabProps) {
   const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
 
   const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
@@ -146,8 +150,10 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Trust registration block */}
-      {trust ? (
+      {/* Trust registration block — show skeleton while refetching after a governance action */}
+      {isRefetching ? (
+        <TrustSectionSkeleton />
+      ) : trust ? (
         <SectionCard
           title="Trust Registration"
           icon={<Shield size={18} className="text-emerald-600" />}
@@ -467,7 +473,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
       )}
 
       {/* Oversight block - shown only when governance data is available (hidden for TA viewing other temples) */}
-      {showGovernance && trust && (
+      {showGovernance && trust && !isRefetching && (
         <SectionCard
           title="Trust Verification"
           icon={<Shield size={18} className="text-emerald-600" />}

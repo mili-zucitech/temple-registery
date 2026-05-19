@@ -90,6 +90,11 @@ export const notificationApi = createApi({
       invalidatesTags: ['Notification'],
     }),
 
+    deleteBulkNotifications: builder.mutation<ApiResponse<number>, number[]>({
+      query: (ids) => ({ url: '/notifications/bulk', method: 'DELETE', body: ids }),
+      invalidatesTags: ['Notification'],
+    }),
+
     // ── Preferences ────────────────────────────────────────────────────────
 
     getPreferences: builder.query<ApiResponse<NotificationPreferenceResponse[]>, void>({
@@ -115,6 +120,7 @@ export const {
   useMarkAllReadMutation,
   useDeleteNotificationMutation,
   useClearAllNotificationsMutation,
+  useDeleteBulkNotificationsMutation,
   useGetPreferencesQuery,
   useUpdatePreferencesMutation,
 } = notificationApi

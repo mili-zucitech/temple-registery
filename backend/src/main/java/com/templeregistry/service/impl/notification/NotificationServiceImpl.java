@@ -113,6 +113,15 @@ public class NotificationServiceImpl implements NotificationService {
         return count;
     }
 
+    @Override
+    @Transactional
+    public int deleteBulk(java.util.List<Long> ids, Long userId) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int count = inAppRepository.softDeleteByIds(ids, userId);
+        log.debug("Bulk-deleted {} notification(s) for userId=[{}]", count, userId);
+        return count;
+    }
+
     /**
      * Full workflow-aware in-app notification persistence.
      * Idempotency key includes notificationType so SUBMIT and APPROVE for the same entity both persist.

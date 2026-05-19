@@ -74,15 +74,11 @@ class BugConditionExplorationTest {
             }
         }
 
-        // Assert exactly one file per version V34–V39
-        List<String> versionsWithDuplicates = new ArrayList<>();
-        for (int v = 34; v <= 39; v++) {
-            String versionKey = "V" + v;
-            List<String> filesForVersion = filesByVersion.getOrDefault(versionKey, Collections.emptyList());
-            if (filesForVersion.size() != 1) {
-                versionsWithDuplicates.add(versionKey + " → " + filesForVersion);
-            }
-        }
+        // Assert no version has more than one migration file (duplicates cause FlywayException)
+        List<String> versionsWithDuplicates = filesByVersion.entrySet().stream()
+                .filter(e -> e.getValue().size() > 1)
+                .map(e -> e.getKey() + " \u2192 " + e.getValue())
+                .collect(Collectors.toList());
 
         assertThat(versionsWithDuplicates)
                 .as("FIX 1a: Each Flyway version V34–V39 must have exactly ONE migration file. " +

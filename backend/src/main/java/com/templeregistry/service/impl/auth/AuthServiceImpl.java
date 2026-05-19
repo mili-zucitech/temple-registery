@@ -2,6 +2,8 @@ package com.templeregistry.service.impl.auth;
 
 import com.templeregistry.dto.request.auth.*;
 import com.templeregistry.dto.response.auth.AuthTokenResponse;
+import com.templeregistry.dto.response.auth.MfaChallengeResponse;
+import com.templeregistry.entity.auth.MfaType;
 import com.templeregistry.entity.auth.RefreshToken;
 import com.templeregistry.entity.auth.User;
 import com.templeregistry.exception.AccountLockedException;
@@ -40,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final MfaService mfaService;
     private final TokenRevocationGuard tokenRevocationGuard;
     private final EmailService emailService;
 
@@ -75,6 +78,17 @@ public class AuthServiceImpl implements AuthService {
 
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
+        userRepository.save(user);
+
+        if (user.getMfaType() != null && user.getMfaType() != MfaType.NONE) {
+            String tempToken = jwtService.generateTempToken(user);
+            return MfaChallengeResponse.builder()
+                    .mfaRequired(true)
+                    .challengeType(user.getMfaType().name())
+                    .tempToken(tempToken)
+                    .build();
+        }
+
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         return issueTokenPair(user);

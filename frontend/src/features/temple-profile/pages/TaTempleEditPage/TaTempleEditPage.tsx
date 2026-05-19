@@ -59,6 +59,7 @@ export function TaTempleEditPage() {
   } = useTempleProfile()
 
   const [showConfirm, setShowConfirm] = useState(false)
+  const [detectingLocation, setDetectingLocation] = useState(false)
   // Lazily initialise from cached data so taluks/hoblis queries are subscribed
   // on the very first render (second+ visit). Falls back to {} when data is not
   // yet cached, and the geo-init effect below handles that case.
@@ -150,6 +151,26 @@ export function TaTempleEditPage() {
     if (sel.hobliId) {
       form.setValue('hobliId', sel.hobliId, { shouldValidate: true, shouldDirty: true })
     }
+  }, [form])
+
+  const handleDetectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.')
+      return
+    }
+    setDetectingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        form.setValue('latitude', position.coords.latitude, { shouldDirty: true })
+        form.setValue('longitude', position.coords.longitude, { shouldDirty: true })
+        setDetectingLocation(false)
+        toast.success('Location detected successfully.')
+      },
+      () => {
+        setDetectingLocation(false)
+        toast.error('Unable to detect location. Please allow location access and try again.')
+      },
+    )
   }, [form])
 
   // Track whether the form has been initialized from server data so photo uploads
@@ -331,6 +352,16 @@ export function TaTempleEditPage() {
             {/* Sticky action bar */}
             <div className="flex items-center gap-2">
               <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                disabled={isViewOnly || isSaving || !form.formState.isDirty}
+                className="gap-1.5"
+              >
+                <Save size={14} />
+                {isSaving ? 'Saving…' : 'Save Draft'}
+              </Button>
+              <Button
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -341,16 +372,6 @@ export function TaTempleEditPage() {
               >
                 <FileCheck2 size={14} />
                 Review Profile
-              </Button>
-              <Button
-                type="submit"
-                variant="outline"
-                size="sm"
-                disabled={isViewOnly || isSaving || !form.formState.isDirty}
-                className="gap-1.5"
-              >
-                <Save size={14} />
-                {isSaving ? 'Saving…' : 'Save Draft'}
               </Button>
               <Button
                 type="button"
@@ -382,6 +403,8 @@ export function TaTempleEditPage() {
                 value={geoSelection}
                 onChange={handleGeoChange}
                 lockedLevels={['city', 'district']}
+                onDetectLocation={handleDetectLocation}
+                detectingLocation={detectingLocation}
               />
 
               <TempleLocationPicker

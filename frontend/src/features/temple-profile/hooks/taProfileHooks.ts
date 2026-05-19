@@ -144,9 +144,9 @@ export function useTempleProfile() {
 
   // ── Geo name resolution ────────────────────────────────────────────────────
   // For display in overview: resolve taluk/hobli names from temple entity first,
-  // then fall back to staging's talukId/hobliId if temple values are null.
-  const effectiveTalukId = temple?.talukId ?? stagingProfile?.talukId ?? undefined
-  const effectiveHobliId = temple?.hobliId ?? stagingProfile?.hobliId ?? undefined
+  // Prefer staging values so the review page shows the TA's pending edits.
+  const effectiveTalukId = stagingProfile?.talukId ?? temple?.talukId ?? undefined
+  const effectiveHobliId = stagingProfile?.hobliId ?? temple?.hobliId ?? undefined
 
   const { data: taluksData } = useGetTaluksQuery(
     temple?.districtId!, { skip: !temple?.districtId },

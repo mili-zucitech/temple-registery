@@ -22,10 +22,18 @@ export function TagDisplay({ value, className, emptyLabel = '\u2014' }: TagDispl
   if (Array.isArray(value)) {
     tags = value.filter(Boolean)
   } else if (value) {
-    tags = value
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
+    const trimmed = value.trim()
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) tags = parsed.filter(Boolean).map(String)
+      } catch {
+        // fall through
+      }
+    }
+    if (tags.length === 0) {
+      tags = trimmed.split(',').map((t) => t.trim()).filter(Boolean)
+    }
   }
 
   if (tags.length === 0) return <span className="text-sm text-muted-foreground">{emptyLabel}</span>

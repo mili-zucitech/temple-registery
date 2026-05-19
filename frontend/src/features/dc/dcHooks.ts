@@ -344,6 +344,7 @@ export function useDcTempleProfile(templeId: number) {
     data: profileData,
     isLoading: profileLoading,
     isError: profileError,
+    isFetching: profileFetching,
     refetch,
   } = useGetDcTempleProfileQuery(templeId, { skip: !templeId })
 
@@ -351,6 +352,7 @@ export function useDcTempleProfile(templeId: number) {
     profile: profileData?.data ?? null,
     isLoading: profileLoading,
     isError: profileError,
+    isFetching: profileFetching,
     profileLoading,
     refetch,
   }
@@ -362,7 +364,7 @@ export function useDcTempleProfile(templeId: number) {
  * Returns `{ pendingStaging: null }` when the temple has no pending review submission.
  */
 export function useDcPendingProfileStaging(templeId: number, skip = false) {
-  const { data, isLoading, isError, refetch } = useGetDcPendingProfileStagingQuery(templeId, {
+  const { data, isLoading, isError, isFetching, refetch } = useGetDcPendingProfileStagingQuery(templeId, {
     skip: !templeId || skip,
   })
 
@@ -370,6 +372,7 @@ export function useDcPendingProfileStaging(templeId: number, skip = false) {
     pendingStaging: data?.data ?? null,
     isLoading,
     isError,
+    isFetching,
     refetch,
   }
 }
@@ -378,7 +381,7 @@ export function useDcPendingProfileStaging(templeId: number, skip = false) {
  * Loads enriched declaration detail with all sub-table line items and clarification history.
  */
 export function useDcDeclarationDetail(declarationId: number) {
-  const { data, isLoading, isError } = useGetDcDeclarationDetailQuery(declarationId, {
+  const { data, isLoading, isError, isFetching } = useGetDcDeclarationDetailQuery(declarationId, {
     skip: !declarationId,
   })
 
@@ -386,6 +389,7 @@ export function useDcDeclarationDetail(declarationId: number) {
     declaration: data?.data ?? null,
     isLoading,
     isError,
+    isFetching,
   }
 }
 

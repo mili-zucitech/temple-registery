@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAppSelector } from '@/app/store'
 import { Building2, Phone, MapPin, BookOpen, Star, Link2, Image, AlertTriangle, CheckCircle2, Clock, XCircle, FileEdit, X } from 'lucide-react'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ function fmt(iso?: string | null) {
 function OverviewTab() {
   const { temple, stagingProfile, currentProfile, profileStatus, profileReviewComment, talukName, hobliName } = useTempleProfile()
   const navigate = useNavigate()
+  const isViewOnly = useAppSelector((s) => s.auth.currentUser?.accessType === 'VIEW')
   // Local dismissal for the rejection banner. Auto-resets if status changes away from REJECTED.
   const [rejectionDismissed, setRejectionDismissed] = useState(false)
 
@@ -157,17 +159,19 @@ function OverviewTab() {
       )}
 
       {/* Edit action */}
-      <div className="flex items-center justify-end">
-        <Button
-          onClick={handleEdit}
-          disabled={profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED'}
-          className="bg-gradient-gold shadow-gold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium"
-          title={(profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED') ? 'Editing locked while under DC review' : undefined}
-        >
-          <span className="mr-2">✎</span>
-          {editLabel}
-        </Button>
-      </div>
+      {!isViewOnly && (
+        <div className="flex items-center justify-end">
+          <Button
+            onClick={handleEdit}
+            disabled={profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED'}
+            className="bg-gradient-gold shadow-gold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium"
+            title={(profileStatus === 'SUBMITTED' || profileStatus === 'RESUBMITTED') ? 'Editing locked while under DC review' : undefined}
+          >
+            <span className="mr-2">✎</span>
+            {editLabel}
+          </Button>
+        </div>
+      )}
 
       {/* ── Temple Identity & Photo ── */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm overflow-hidden">
@@ -525,7 +529,7 @@ export function TaTemplePage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-white leading-tight">{temple.name}</h1>
-                <TempleGradeBadge grade={temple.grade} />
+                <TempleGradeBadge grade={temple.grade} variant="on-dark" />
               </div>
               <p className="text-sm text-white/80 mt-1 leading-relaxed">
                 {temple.tradition}{temple.primaryDeity ? ` · ${temple.primaryDeity}` : ''}

@@ -124,6 +124,7 @@ export function TaDeclarationDetailPage() {
   const id = Number(rawId)
   const isValid = Number.isFinite(id) && id > 0
   const userRole = useSelector((state: RootState) => state.auth.currentUser?.role ?? '')
+  const isViewOnly = useSelector((state: RootState) => state.auth.currentUser?.accessType === 'VIEW')
 
   const declarationQuery = useGetDeclarationQuery(id, { skip: !isValid })
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
@@ -337,7 +338,7 @@ export function TaDeclarationDetailPage() {
       )}
 
       {/* Withdraw button — visible to TA when status allows it */}
-      {getAvailableActions(declaration.status, userRole).canWithdraw && (
+      {!isViewOnly && getAvailableActions(declaration.status, userRole).canWithdraw && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10">

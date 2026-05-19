@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface InAppNotificationRepository extends JpaRepository<InAppNotification, Long> {
 
     /** Paginated inbox — excludes soft-deleted rows. */
@@ -32,6 +34,12 @@ public interface InAppNotificationRepository extends JpaRepository<InAppNotifica
     @Query("UPDATE InAppNotification n SET n.deletedAt = CURRENT_TIMESTAMP " +
            "WHERE n.userId = :userId AND n.deletedAt IS NULL")
     int softDeleteAllByUserId(@Param("userId") Long userId);
+
+    /** Soft-delete a specific set of notifications owned by the given user. */
+    @Modifying
+    @Query("UPDATE InAppNotification n SET n.deletedAt = CURRENT_TIMESTAMP " +
+           "WHERE n.id IN :ids AND n.userId = :userId AND n.deletedAt IS NULL")
+    int softDeleteByIds(@Param("ids") List<Long> ids, @Param("userId") Long userId);
 
     boolean existsByIdempotencyKey(String idempotencyKey);
 }

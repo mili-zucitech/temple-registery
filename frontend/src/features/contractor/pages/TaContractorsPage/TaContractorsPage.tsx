@@ -65,6 +65,7 @@ export function TaContractorsPage() {
 
   const { data: userData } = useGetCurrentUserQuery()
   const templeId = userData?.data?.templeId
+  const isViewOnly = userData?.data?.accessType === 'VIEW'
 
   const { data, isLoading, isError, refetch } = useListContractorsQuery(
     { templeId: templeId!, page, size: DEFAULT_PAGE_SIZE },
@@ -127,13 +128,15 @@ export function TaContractorsPage() {
                 </p>
               </div>
             </div>
-            <Button
-              className="bg-gradient-gold shadow-gold"
-              onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_NEW)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contractor
-            </Button>
+            {!isViewOnly && (
+              <Button
+                className="bg-gradient-gold shadow-gold"
+                onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_NEW)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Contractor
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -193,7 +196,7 @@ export function TaContractorsPage() {
               : 'No contractors match the selected filters.'
           }
           action={
-            contractors.length === 0
+            contractors.length === 0 && !isViewOnly
               ? { label: '+ Add Contractor', onClick: () => navigate(ROUTE_PATHS.TA_CONTRACTOR_NEW) }
               : undefined
           }
@@ -257,24 +260,28 @@ export function TaContractorsPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_EDIT.replace(':id', c.id.toString()))}
-                        title="Edit contractor"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => openDeleteDialog(c)}
-                        title="Delete contractor"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {!isViewOnly && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => navigate(ROUTE_PATHS.TA_CONTRACTOR_EDIT.replace(':id', c.id.toString()))}
+                          title="Edit contractor"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {!isViewOnly && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => openDeleteDialog(c)}
+                          title="Delete contractor"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

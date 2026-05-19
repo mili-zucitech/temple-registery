@@ -113,11 +113,15 @@ export function TaTempleDetailPage() {
   const pendingStatusLabel = staging?.statusLabel
   const hasPendingReview = pendingStatusLabel === 'SUBMITTED' || pendingStatusLabel === 'UNDER_REVIEW'
   const isDraft = pendingStatusLabel === 'DRAFT'
-  const isApproved = !staging
+  // When staging is null it could mean APPROVED *or* REJECTED — check the checklist for ground truth
+  const checklistStatus = currentUser?.completionChecklist?.templeProfileStatus
+  const isRejected = !staging && checklistStatus === 'REJECTED'
+  const isApproved = !staging && !isRejected
 
   const statusBadge = (() => {
     if (isDraft) return { label: 'Draft', color: 'bg-slate-100 text-slate-600 border-slate-200' }
     if (hasPendingReview) return { label: 'Pending Review', color: 'bg-amber-100 text-amber-700 border-amber-200' }
+    if (isRejected) return { label: 'Rejected', color: 'bg-red-100 text-red-700 border-red-200' }
     if (isApproved) return { label: 'Approved', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
     return null
   })()
