@@ -36,12 +36,14 @@ public class ActionContext {
 
     /** Convenience: returns true if this is a DC role. */
     public boolean isDc() {
-        return "DC".equals(actorRole) || "DC_STAFF".equals(actorRole);
+        return "DC".equals(actorRole)
+            || "DC_STAFF".equals(actorRole)
+            || "DISTRICT_COLLECTOR".equals(actorRole);
     }
 
     /** Convenience: returns true if this is a TA role. */
     public boolean isTa() {
-        return "TA".equals(actorRole);
+        return "TA".equals(actorRole) || "TEMPLE_AUTHORITY".equals(actorRole);
     }
 
     /** Convenience: returns true if SUPER_ADMIN. */

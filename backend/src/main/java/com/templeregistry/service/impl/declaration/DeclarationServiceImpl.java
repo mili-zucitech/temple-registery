@@ -76,6 +76,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -610,11 +611,15 @@ public class DeclarationServiceImpl implements DeclarationService {
             ownershipGuard.assertOwnsTemple(declaration.getTempleId());
             return;
         }
-        if (RoleConstants.DISTRICT_COLLECTOR.equals(role)
-                || RoleConstants.DC_STAFF.equals(role)
-                || RoleConstants.AUDITOR.equals(role)) {
-            jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
+        if (RoleConstants.SUPER_ADMIN.equals(role)) {
+            return;
         }
+        if (RoleConstants.DISTRICT_COLLECTOR.equals(role)
+                || RoleConstants.DC_STAFF.equals(role)) {
+            jurisdictionGuard.assertSameDistrict(declaration.getDistrictId());
+            return;
+        }
+        throw new AccessDeniedException("You are not authorized to access this declaration.");
     }
 
     private void replaceAssetItems(Long declarationId, CreateDeclarationRequest request) {

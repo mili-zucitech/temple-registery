@@ -95,6 +95,7 @@ import {
   useWorkflowActions,
   useDcTempleSearch,
 } from '@/features/dc/dcHooks'
+import { DC_TEMPLE_SEARCH_FILTERS } from '@/features/dc/declarationStatusFilters'
 import {
   useGetDcDashboardQuery,
   useSearchDcTemplesQuery,
@@ -408,6 +409,32 @@ describe('useDcTempleSearch', () => {
 
     expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenCalledWith(
       expect.objectContaining({ page: 4 }),
+      expect.anything()
+    )
+  })
+
+  it('should_passPendingDeclarationFilter_when_pendingChipIsApplied', () => {
+    const { result } = renderHook(() => useDcTempleSearch(), { wrapper: Wrapper })
+
+    act(() => {
+      result.current.applyFilters({ declarationStatus: DC_TEMPLE_SEARCH_FILTERS.PENDING })
+    })
+
+    expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ declarationStatus: DC_TEMPLE_SEARCH_FILTERS.PENDING }),
+      expect.anything()
+    )
+  })
+
+  it('should_passVerificationRequiredFilter_when_savedFilterIsApplied', () => {
+    const { result } = renderHook(() => useDcTempleSearch(), { wrapper: Wrapper })
+
+    act(() => {
+      result.current.applyFilters({ declarationStatus: DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED })
+    })
+
+    expect(vi.mocked(useSearchDcTemplesQuery)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ declarationStatus: DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED }),
       expect.anything()
     )
   })

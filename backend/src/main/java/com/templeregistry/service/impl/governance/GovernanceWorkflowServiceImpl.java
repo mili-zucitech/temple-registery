@@ -106,16 +106,24 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     public void submitTrust(Long trustId) {
         Trust trust = loadTrust(trustId);
         ownershipGuard.assertOwnsTemple(trust.getTempleId());
+        WorkflowStatus statusBeforeSubmit = workflowEngineAdaptor.currentStatus(WorkflowEntityType.TRUST, trustId);
 
         // Canonical: WorkflowEngine validates and transitions
         boolean transitioned = workflowEngineAdaptor.adaptSubmit(
             WorkflowEntityType.TRUST, trustId,
             trust.getTempleId(), districtIdForTrust(trust), currentUserId());
 
+        if (!transitioned) {
+            throw new IllegalStatusTransitionException(
+                "Trust [" + trustId + "] cannot be submitted from status [" + statusBeforeSubmit + "].");
+        }
+
         // [P2] Snapshot the domain entity only if a new transition occurred
         if (transitioned) {
             versionService.snapshot(WorkflowEntityType.TRUST, trustId, 1, trust, currentUserId(), null);
         }
+
+        summaryService.scheduleRefresh(trust.getTempleId());
 
         log.info("Trust [{}] submitted by userId={}", trustId, currentUserId());
     }
@@ -151,6 +159,8 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
             log.warn("Non-fatal: failed to store approved_data snapshot for trust [{}]: {}", trustId, ex.getMessage());
         }
 
+        summaryService.scheduleRefresh(trust.getTempleId());
+
         log.info("Trust [{}] APPROVED by userId={}", trustId, currentUserId());
     }
 
@@ -167,6 +177,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         trust.setSendBackReason(request.getReason());
         trustRepository.save(trust);
+        summaryService.scheduleRefresh(trust.getTempleId());
 
         log.info("Trust [{}] SENT BACK by userId={}", trustId, currentUserId());
     }
@@ -215,6 +226,8 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
                 WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
                 currentUserId(), request.getReason());
 
+            summaryService.scheduleRefresh(trust.getTempleId());
+
             log.info("Trust [{}] edit REJECTED (reverted to RE_APPROVED) by userId={}", trustId, currentUserId());
             return;
         }
@@ -223,6 +236,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         workflowEngineAdaptor.adaptReject(
             WorkflowEntityType.TRUST, trustId, districtIdForTrust(trust),
             currentUserId(), request.getReason());
+        summaryService.scheduleRefresh(trust.getTempleId());
 
         log.info("Trust [{}] REJECTED (terminal) by userId={}", trustId, currentUserId());
     }
@@ -349,6 +363,8 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
         declaration.setSendBackReason(request.getReason());
         declaration.setClarificationRound(declaration.getClarificationRound() + 1);
         declarationRepository.save(declaration);
+
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         // [V-H1] Guard: verify entity status matches WorkflowInstance status after dual-write
         assertEntityStatusConsistency(WorkflowEntityType.DECLARATION, declarationId, DeclarationStatus.CLARIFICATION_REQUIRED.name());
@@ -484,6 +500,8 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
         declaration.setStatus(DeclarationStatus.UNDER_REVIEW);
         declarationRepository.save(declaration);
+
+        summaryService.scheduleRefresh(declaration.getTempleId());
 
         log.info("Declaration [{}] marked UNDER_REVIEW by userId={}", declarationId, claims.userId());
         return WorkflowActionResponse.builder()
@@ -835,6 +853,7 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
 
     private String generateAcknowledgementDocument(AssetDeclaration declaration, String acknowledgementNumber) {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Temple temple = loadTempleWithGeo(declaration.getTempleId());
             PdfWriter writer = new PdfWriter(output);
             PdfDocument pdf = new PdfDocument(writer);
             Document document = new Document(pdf);
@@ -842,17 +861,22 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
             document.add(new Paragraph("Temple Registry - Declaration Acknowledgement"));
             document.add(new Paragraph("Acknowledgement Number: " + acknowledgementNumber));
             document.add(new Paragraph("Declaration ID: " + declaration.getId()));
+            document.add(new Paragraph("Temple Name: " + temple.getName()));
             document.add(new Paragraph("Temple ID: " + declaration.getTempleId()));
+            document.add(new Paragraph("District ID: " + declaration.getDistrictId()));
             document.add(new Paragraph("Financial Year: " + declaration.getFinancialYear()));
+            document.add(new Paragraph("Version: " + declaration.getVersionNumber()));
+            document.add(new Paragraph("Annual Income (INR): " + (declaration.getAnnualIncome() != null ? declaration.getAnnualIncome() : "N/A")));
+            document.add(new Paragraph("Annual Expenditure (INR): " + (declaration.getAnnualExpenditure() != null ? declaration.getAnnualExpenditure() : "N/A")));
             document.add(new Paragraph("Approved At: " + LocalDateTime.now()));
             document.close();
 
             String filename = "ACK_DECLARATION_" + declaration.getId() + ".pdf";
             return fileStorageService.uploadBytes("declarations/acknowledgements", filename, output.toByteArray());
         } catch (Exception ex) {
-            log.warn("Acknowledgement PDF generation failed for declarationId={} ackNumber={}: {}",
+            log.error("Acknowledgement PDF generation failed for declarationId={} ackNumber={}: {}",
                 declaration.getId(), acknowledgementNumber, ex.getMessage());
-            return null;
+            throw new IllegalStateException("Failed to generate acknowledgement document.", ex);
         }
     }
 

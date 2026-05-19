@@ -2,6 +2,7 @@ package com.templeregistry.service.workflow;
 
 import com.templeregistry.entity.workflow.*;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
+import com.templeregistry.security.RoleConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,8 +48,17 @@ public class WorkflowEngineAdaptor {
         WorkflowEntityType entityType, Long entityId,
         Long templeId, Long districtId, Long createdBy
     ) {
+        return ensureInitiated(entityType, entityId, templeId, districtId, createdBy, "TA");
+    }
+
+    @Transactional
+    public WorkflowInstance ensureInitiated(
+        WorkflowEntityType entityType, Long entityId,
+        Long templeId, Long districtId, Long createdBy,
+        String actorRole
+    ) {
         return instanceRepo.findByEntityTypeAndEntityId(entityType, entityId)
-            .orElseGet(() -> workflowEngine.initiate(entityType, entityId, templeId, districtId, createdBy));
+            .orElseGet(() -> workflowEngine.initiate(entityType, entityId, templeId, districtId, createdBy, actorRole));
     }
 
     /**
@@ -233,7 +243,7 @@ public class WorkflowEngineAdaptor {
 
     private void execute(Long instanceId, WorkflowAction action, Long actorId,
                                 Long templeId, Long districtId, String comment, String clientIdempotencyKey) {
-        String role = districtId != null ? "DC" : "TA";
+        String role = resolveRole(action, districtId);
         ActionContext ctx = ActionContext.builder()
             .actorId(actorId)
             .actorRole(role)
@@ -255,5 +265,14 @@ public class WorkflowEngineAdaptor {
         return StringUtils.hasText(clientProvidedKey)
             ? clientProvidedKey
             : java.util.UUID.randomUUID().toString();
+    }
+
+    private String resolveRole(WorkflowAction action, Long districtId) {
+        return switch (action) {
+            case APPROVE, REJECT, REJECT_EDIT, SEND_BACK, REQUEST_CLARIFICATION,
+                 VERIFY_TEMPLE_PROFILE, FLAG_TEMPLE_PROFILE, UNFLAG_TEMPLE_PROFILE ->
+                districtId != null ? "DC" : RoleConstants.SUPER_ADMIN;
+            default -> "TA";
+        };
     }
 }

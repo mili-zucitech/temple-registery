@@ -71,9 +71,10 @@ import {
   useSubmitTrustMutation,
 } from '@/features/governance/governanceApi'
 import {
+  useCreateTrustMutation,
   useUpdateTrustMutation,
 } from '@/features/trust/trustApi'
-import { TRUST_TYPES, updateTrustSchema, type UpdateTrustRequest } from '@/features/trust/trustTypes'
+import { createTrustSchema, TRUST_TYPES, updateTrustSchema, type CreateTrustRequest, type UpdateTrustRequest } from '@/features/trust/trustTypes'
 import {
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
@@ -135,6 +136,7 @@ export function DcTempleProfilePage() {
   const [editingContractor, setEditingContractor] = useState<DcContractorResponse | null>(null)
 
   // SA edit mutations
+  const [createTrust, { isLoading: isCreatingTrust }] = useCreateTrustMutation()
   const [updateTrust, { isLoading: isUpdatingTrust }] = useUpdateTrustMutation()
   const [submitTrust, { isLoading: isSubmittingTrust }] = useSubmitTrustMutation()
   const [createEmployee, { isLoading: isCreatingEmployee }] = useCreateEmployeeMutation()
@@ -495,6 +497,9 @@ export function DcTempleProfilePage() {
                 : canEdit && trust ? () => setTrustEditOpen(true)
                 : undefined
               }
+              onCreateTrust={
+                canEdit && !trust ? () => setTrustEditOpen(true) : undefined
+              }
               onVerifyTrust={async (trustId, _notes) => {
                 try {
                   await approveTrust(trustId).unwrap()
@@ -592,18 +597,20 @@ export function DcTempleProfilePage() {
       />
 
       {/* ── SA TRUST EDIT DIALOG ────────────────────────────────────────── */}
-      {canEdit && trust && (
+      {canEdit && (
         <SaTrustEditDialog
           open={trustEditOpen}
+          templeId={id}
           trust={trust}
           onClose={() => setTrustEditOpen(false)}
           onSaved={async () => {
             setTrustEditOpen(false)
             refetchProfile()
           }}
+          createTrust={createTrust}
           updateTrust={updateTrust}
           submitTrust={submitTrust}
-          isSaving={isUpdatingTrust || isSubmittingTrust}
+          isSaving={isCreatingTrust || isUpdatingTrust || isSubmittingTrust}
         />
       )}
 
@@ -905,61 +912,70 @@ function SaContractorDialog({
 
 interface SaTrustEditDialogProps {
   open: boolean
-  trust: import('@/features/dc/dcTypes').DcTrustSummary
+  templeId: number
+  trust: import('@/features/dc/dcTypes').DcTrustSummary | null
   onClose: () => void
   onSaved: () => Promise<void>
-  updateTrust: (args: any) => Promise<any>
-  submitTrust: (trustId: number) => Promise<any>
+  createTrust: (args: any) => any
+  updateTrust: (args: any) => any
+  submitTrust: (trustId: number) => any
   isSaving: boolean
 }
 
 function SaTrustEditDialog({
-  open, trust, onClose, onSaved, updateTrust, submitTrust, isSaving,
+  open, templeId, trust, onClose, onSaved, createTrust, updateTrust, submitTrust, isSaving,
 }: SaTrustEditDialogProps) {
-  const form = useForm<UpdateTrustRequest>({
-    resolver: zodResolver(updateTrustSchema),
+  const isEdit = trust !== null
+
+  const buildFormValues = (currentTrust: import('@/features/dc/dcTypes').DcTrustSummary | null) => ({
+    trustName: currentTrust?.trustName ?? '',
+    trustType: (currentTrust?.trustType as CreateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
+    registrationNumber: currentTrust?.registrationNumber ?? '',
+    registeringAuthority: currentTrust?.registeringAuthority ?? '',
+    dateOfRegistration: currentTrust?.dateOfRegistration ?? '',
+    panNumber: '',
+    bankAccountNumber: '',
+    bankName: currentTrust?.bankName ?? '',
+    bankBranch: currentTrust?.bankBranch ?? '',
+    annualIncome: currentTrust?.annualIncome ?? null,
+  })
+
+  const form = useForm<CreateTrustRequest | UpdateTrustRequest>({
+    resolver: zodResolver(isEdit ? updateTrustSchema : createTrustSchema),
     defaultValues: {
-      trustName: trust.trustName ?? '',
-      trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
-      registrationNumber: trust.registrationNumber ?? '',
-      registeringAuthority: trust.registeringAuthority ?? '',
-      dateOfRegistration: trust.dateOfRegistration ?? '',
-      panNumber: '',
-      bankAccountNumber: '',
-      bankName: trust.bankName ?? '',
-      bankBranch: trust.bankBranch ?? '',
-      annualIncome: trust.annualIncome ?? null,
+      ...buildFormValues(trust),
     },
   })
 
   useEffect(() => {
     if (open) {
-      form.reset({
-        trustName: trust.trustName ?? '',
-        trustType: (trust.trustType as UpdateTrustRequest['trustType']) ?? 'MULTI_TRUSTEE',
-        registrationNumber: trust.registrationNumber ?? '',
-        registeringAuthority: trust.registeringAuthority ?? '',
-        dateOfRegistration: trust.dateOfRegistration ?? '',
-        panNumber: '',
-        bankAccountNumber: '',
-        bankName: trust.bankName ?? '',
-        bankBranch: trust.bankBranch ?? '',
-        annualIncome: trust.annualIncome ?? null,
-      })
+      form.reset(buildFormValues(trust))
     }
   }, [open, trust])
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const onSubmit = form.handleSubmit(async (values: CreateTrustRequest | UpdateTrustRequest) => {
     try {
-      const body: Partial<UpdateTrustRequest> = { ...values }
-      if (!body.panNumber) delete body.panNumber
-      if (!body.bankAccountNumber) delete body.bankAccountNumber
-      await updateTrust({ trustId: trust.id, body })
-      await submitTrust(trust.id)
-      toast.success('Trust updated and submitted for review.')
+      if (isEdit && trust) {
+        const body: Partial<UpdateTrustRequest> = { ...(values as UpdateTrustRequest) }
+        if (!body.panNumber) delete body.panNumber
+        if (!body.bankAccountNumber) delete body.bankAccountNumber
+        await updateTrust({ trustId: trust.id, body }).unwrap()
+        await submitTrust(trust.id).unwrap()
+        toast.success('Trust updated and submitted for review.')
+      } else {
+        const created = await createTrust({ templeId, body: values as CreateTrustRequest }).unwrap()
+        const createdTrustId = created?.data?.id
+        if (!createdTrustId) {
+          throw new Error('Trust created but trust id was missing in response.')
+        }
+        await submitTrust(createdTrustId).unwrap()
+        toast.success('Trust created and submitted for review.')
+      }
       await onSaved()
     } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Failed to update trust. Please try again.'))
+      toast.error(extractApiErrorMessage(err, isEdit
+        ? 'Failed to update trust. Please try again.'
+        : 'Failed to create trust. Please try again.'))
     }
   })
 
@@ -967,7 +983,7 @@ function SaTrustEditDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Trust Registration (SA)</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Trust Registration (SA)' : 'Create Trust Registration (SA)'}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -998,12 +1014,12 @@ function SaTrustEditDialog({
               )} />
               <FormField control={form.control} name="panNumber" render={({ field }) => (
                 <FormItem><FormLabel>PAN Number</FormLabel>
-                  <FormControl><Input {...field} className="uppercase" placeholder={trust.panNumberMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormControl><Input {...field} className="uppercase" placeholder={trust?.panNumberMasked ?? (isEdit ? 'Leave blank to keep existing' : 'ABCDE1234F')} /></FormControl>
                   <FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
                 <FormItem><FormLabel>Bank Account Number</FormLabel>
-                  <FormControl><Input inputMode="numeric" {...field} placeholder={trust.bankAccountMasked ?? 'Leave blank to keep existing'} /></FormControl>
+                  <FormControl><Input inputMode="numeric" {...field} placeholder={trust?.bankAccountMasked ?? (isEdit ? 'Leave blank to keep existing' : 'Enter account number')} /></FormControl>
                   <FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="bankName" render={({ field }) => (
@@ -1024,7 +1040,7 @@ function SaTrustEditDialog({
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving…' : 'Save & Submit for Review'}
+                {isSaving ? 'Saving…' : isEdit ? 'Save & Submit for Review' : 'Create & Submit for Review'}
               </Button>
             </DialogFooter>
           </form>

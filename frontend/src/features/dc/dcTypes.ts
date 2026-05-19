@@ -1,25 +1,14 @@
 import { z } from 'zod'
+import { DC_DECLARATION_FILTER_STATUSES, type DcDeclarationFilterStatus } from './declarationStatusFilters'
+import type { DeclarationStatus as AssetDeclarationStatus } from '@/features/declaration/declarationTypes'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 export const DC_ROLES = ['DISTRICT_COLLECTOR', 'DC_STAFF', 'SUPER_ADMIN'] as const
 export type DcRole = (typeof DC_ROLES)[number]
 
-export const DECLARATION_STATUSES = [
-  'DRAFT',
-  'SUBMITTED',
-  'UNDER_REVIEW',
-  'CLARIFICATION_REQUIRED',
-  'CLARIFICATION_RESPONDED',
-  'SITE_VISIT_SCHEDULED',
-  'SITE_VISIT_COMPLETED',
-  'VERIFIED',
-  'APPROVED',
-  'REJECTED',
-  'OVERDUE',
-  'SUPERSEDED',
-] as const
-export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number]
+export const DECLARATION_STATUSES = DC_DECLARATION_FILTER_STATUSES
+export type DeclarationStatus = DcDeclarationFilterStatus
 
 export const EXPORT_FORMATS = ['CSV', 'PDF'] as const
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]
@@ -36,7 +25,7 @@ export const dcTempleSearchFilterSchema = z.object({
   deityName: z.string().optional(),
   tradition: z.string().optional(),
   trustRegistered: z.boolean().optional(),
-  declarationStatus: z.string().optional(),
+  declarationStatus: z.enum(DC_DECLARATION_FILTER_STATUSES).optional(),
   hasApprovedDeclaration: z.boolean().optional(),
   pendingProfileReview: z.boolean().optional(),
   establishedYearFrom: z.number().optional(),
@@ -115,6 +104,12 @@ export type ExportTemplesRequest = z.infer<typeof exportTemplesSchema>
 export type ExportDeclarationsRequest = z.infer<typeof exportDeclarationsSchema>
 export type DcFlagRequest = z.infer<typeof dcFlagSchema>
 export type DcVerifyRequest = z.infer<typeof dcVerifySchema>
+
+type DcDeclarationApiStatus =
+  | AssetDeclarationStatus
+  | 'PENDING_REVIEW'
+  | 'CLARIFICATION_REQUESTED'
+  | 'PHYSICAL_VERIFICATION_REQUESTED'
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
@@ -286,7 +281,7 @@ export interface DeclarationDetailResponse {
   districtId: number
   financialYear: string
   versionNumber: number
-  status: DeclarationStatus
+  status: DcDeclarationApiStatus
   agriculturalLandAcres: number | null
   agriculturalLandValue: number | null
   buildingsSqft: number | null

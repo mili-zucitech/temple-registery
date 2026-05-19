@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { DeclarationStatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
-import { ArrowLeft, PencilLine, Sparkles, FileCheck2, Calendar, Building2, TrendingUp } from 'lucide-react'
+import { ArrowLeft, PencilLine, Sparkles, FileCheck2, Calendar, Building2, TrendingUp, Download, Loader2 } from 'lucide-react'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,18 @@ import { ChatModal } from '@/features/declaration/components/ChatModal'
 interface DeclarationHeaderProps {
   declaration: CompleteDeclarationResponse
   versions: DeclarationVersionResponse[]
+  canDownloadAcknowledgement: boolean
+  onDownloadAcknowledgement: () => void
+  isDownloadingAcknowledgement: boolean
 }
 
-export function DeclarationHeader({ declaration, versions }: DeclarationHeaderProps) {
+export function DeclarationHeader({
+  declaration,
+  versions,
+  canDownloadAcknowledgement,
+  onDownloadAcknowledgement,
+  isDownloadingAcknowledgement,
+}: DeclarationHeaderProps) {
   const navigate = useNavigate()
   const role = useAppSelector((state) => state.auth.currentUser?.role)
   const actions = getAvailableActions(declaration.status, role ?? '')
@@ -47,6 +56,21 @@ export function DeclarationHeader({ declaration, versions }: DeclarationHeaderPr
               >
                 <PencilLine size={16} className="mr-2" />
                 {declaration.status === 'REJECTED' ? 'Update & Resubmit' : 'Edit draft'}
+              </Button>
+            )}
+            {canDownloadAcknowledgement && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDownloadAcknowledgement}
+                disabled={isDownloadingAcknowledgement || declaration.status !== 'APPROVED'}
+              >
+                {isDownloadingAcknowledgement ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Download size={16} className="mr-2" />
+                )}
+                Download Acknowledgement
               </Button>
             )}
           </div>

@@ -13,6 +13,7 @@ import com.templeregistry.repository.trust.BoardMemberRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
 import com.templeregistry.service.trust.TrustValidationService;
+import com.templeregistry.service.validation.FinancialYearValidationService;
 import com.templeregistry.util.HmacUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,12 +30,11 @@ public class TrustValidationServiceImpl implements TrustValidationService {
     private static final Pattern PAN_PATTERN = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[6-9][0-9]{9}$");
     private static final Pattern BANK_ACCOUNT_PATTERN = Pattern.compile("^[0-9]{6,32}$");
-    private static final Pattern FY_PATTERN = Pattern.compile("^\\d{4}-\\d{2}$");
-
     private final TrustRepository trustRepository;
     private final BoardMemberRepository boardMemberRepository;
     private final TrustFinancialRepository trustFinancialRepository;
     private final HmacUtil hmacUtil;
+    private final FinancialYearValidationService financialYearValidationService;
 
     @Override
     public void validateTrustRequest(CreateTrustRequest request, Long existingTrustId) {
@@ -113,15 +113,14 @@ public class TrustValidationServiceImpl implements TrustValidationService {
 
     @Override
     public void validateFinancialRequest(Long trustId, SubmitTrustFinancialRequest request) {
-        if (!FY_PATTERN.matcher(request.getFinancialYear().trim()).matches()) {
-            throw new IllegalArgumentException("Financial year must be in YYYY-YY format.");
-        }
+        String normalizedFinancialYear = financialYearValidationService.normalizeAndValidate(request.getFinancialYear());
+        request.setFinancialYear(normalizedFinancialYear);
         validateMoney(request.getAnnualIncome(), "Annual income");
         validateMoney(request.getAnnualExpenditure(), "Annual expenditure");
         if (request.getAnnualIncome() == null && request.getAnnualExpenditure() == null && request.getDocumentId() == null) {
             throw new IllegalArgumentException("At least one financial value or supporting document is required.");
         }
-        if (trustFinancialRepository.existsByTrustIdAndFinancialYear(trustId, request.getFinancialYear().trim())) {
+        if (trustFinancialRepository.existsByTrustIdAndFinancialYearAndDeletedFalse(trustId, normalizedFinancialYear)) {
             throw new DuplicateResourceException("A financial record for this year already exists.");
         }
     }

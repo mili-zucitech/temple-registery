@@ -37,6 +37,11 @@ import { useGeoHierarchy } from '@/features/geo/geoHooks'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { FilterChip } from '@/features/dc/components/FilterChip/FilterChip'
 import type { DcTempleSearchItemResponse } from '@/features/dc/dcTypes'
+import {
+  DC_TEMPLE_SEARCH_FILTERS,
+  getDeclarationBadgeClass,
+  getDeclarationBadgeLabel,
+} from '@/features/dc/declarationStatusFilters'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -507,33 +512,69 @@ export function DcTempleSearchPage() {
         <div className="flex gap-1.5 flex-wrap">
           <FilterChip
             label="Overdue"
-            selected={filters.declarationStatus === 'OVERDUE'}
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.OVERDUE}
             selectedClassName="bg-destructive hover:bg-destructive/90 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'OVERDUE' ? undefined : 'OVERDUE' })}
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.OVERDUE
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.OVERDUE,
+            })}
           />
           <FilterChip
             label="Pending"
-            selected={filters.declarationStatus === 'PENDING_REVIEW'}
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.PENDING}
             selectedClassName="bg-amber-500 hover:bg-amber-600 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW' })}
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.PENDING
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.PENDING,
+            })}
           />
           <FilterChip
-            label="Resubmitted"
-            selected={filters.declarationStatus === 'RESUBMITTED'}
+            label="Clarification Req."
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_REQUIRED}
+            selectedClassName="bg-violet-600 hover:bg-violet-700 border-transparent text-white"
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_REQUIRED
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_REQUIRED,
+            })}
+          />
+          <FilterChip
+            label="Clarification Resp."
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_RESPONDED}
             selectedClassName="bg-info hover:bg-info/90 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'RESUBMITTED' ? undefined : 'RESUBMITTED' })}
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_RESPONDED
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_RESPONDED,
+            })}
           />
           <FilterChip
             label="Under Review"
-            selected={filters.declarationStatus === 'UNDER_REVIEW'}
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.UNDER_REVIEW}
             selectedClassName="bg-primary hover:bg-primary/90 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'UNDER_REVIEW' ? undefined : 'UNDER_REVIEW' })}
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.UNDER_REVIEW
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.UNDER_REVIEW,
+            })}
           />
           <FilterChip
             label="Declared"
-            selected={filters.declarationStatus === 'APPROVED'}
+            selected={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.APPROVED}
             selectedClassName="bg-emerald-600 hover:bg-emerald-700 border-transparent text-white"
-            onToggle={() => applyFilters({ declarationStatus: filters.declarationStatus === 'APPROVED' ? undefined : 'APPROVED' })}
+            onToggle={() => applyFilters({
+              declarationStatus:
+                filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.APPROVED
+                  ? undefined
+                  : DC_TEMPLE_SEARCH_FILTERS.APPROVED,
+            })}
           />
         </div>
       </div>
@@ -830,37 +871,43 @@ export function DcTempleSearchPage() {
             </div>
           </div>
 
-          {/* Saved filters (presets) */}
+          {/* Saved filters (presets) — each preset is mutually exclusive:
+               clicking one clears the other preset's conflicting param so results
+               are always unambiguous. Active state mirrors the current URL filters. */}
           <div className="flex flex-wrap gap-2 pt-2">
             <span className="text-[11px] text-muted-foreground font-medium mr-1.5">Saved filters:</span>
             <Button
-              variant="outline"
+              variant={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.NO_DECLARATION ? 'default' : 'outline'}
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => setSearchParams((prev) => {
-                const updated = new URLSearchParams(prev)
-                updated.set('page', '0')
-                updated.set('hasApprovedDeclaration', 'false')
-                return updated
+              onClick={() => applyFilters({
+                declarationStatus: DC_TEMPLE_SEARCH_FILTERS.NO_DECLARATION,
+                hasApprovedDeclaration: undefined,
               })}
               title="Temples with no approved declaration"
             >
               No Declaration
             </Button>
             <Button
-              variant="outline"
+              variant={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED ? 'default' : 'outline'}
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => applyFilters({ declarationStatus: 'PENDING_REVIEW' })}
-              title="Declarations pending review"
+              onClick={() => applyFilters({
+                declarationStatus: DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED,
+                hasApprovedDeclaration: undefined,
+              })}
+              title="Declarations submitted and pending DC review"
             >
               Pending Verification
             </Button>
             <Button
-              variant="outline"
+              variant={filters.declarationStatus === DC_TEMPLE_SEARCH_FILTERS.OVERDUE ? 'default' : 'outline'}
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => applyFilters({ declarationStatus: 'OVERDUE' })}
+              onClick={() => applyFilters({
+                declarationStatus: DC_TEMPLE_SEARCH_FILTERS.OVERDUE,
+                hasApprovedDeclaration: undefined,
+              })}
               title="Overdue declarations"
             >
               High Risk (Overdue)
@@ -1026,7 +1073,7 @@ export function DcTempleSearchPage() {
                                 {t.talukId ? (talukIdToName[t.talukId] ?? `Taluk #${t.talukId}`) : '—'}
                               </td>
                               <td className="px-3 py-2">
-                                <span className="text-muted-foreground text-xs">{t.assetDeclarationStatus ?? '—'}</span>
+                                <span className="text-muted-foreground text-xs">{getDeclarationBadgeLabel(t.assetDeclarationStatus)}</span>
                               </td>
                               <td className="px-3 py-2">
                                 <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', riskClass)}>
@@ -1413,28 +1460,8 @@ function TempleGradeBadge({ grade }: { grade?: string | null }) {
 /** Inline declaration status badge with colour-coded background. */
 function DeclarationStatusBadge({ status }: { status: string | null | undefined }) {
   if (!status) return <span className="text-[11px] italic text-muted-foreground/60">No declaration</span>
-  const styles: Record<string, string> = {
-    APPROVED:                          'bg-emerald-50 text-emerald-800 border-emerald-200',
-    PENDING_REVIEW:                    'bg-amber-50  text-amber-800  border-amber-200',
-    OVERDUE:                           'bg-red-50    text-red-800    border-red-200',
-    CLARIFICATION_REQUESTED:           'bg-violet-50 text-violet-800 border-violet-200',
-    PHYSICAL_VERIFICATION_REQUESTED:   'bg-sky-50    text-sky-800    border-sky-200',
-    REJECTED:                          'bg-rose-50   text-rose-800   border-rose-200',
-    SUBMITTED:                         'bg-blue-50   text-blue-800   border-blue-200',
-    DRAFT:                             'bg-muted      text-muted-foreground border-border',
-  }
-  const LABELS: Record<string, string> = {
-    APPROVED:                         'Declared',
-    PENDING_REVIEW:                   'Pending',
-    OVERDUE:                          'Overdue',
-    CLARIFICATION_REQUESTED:          'Clarification',
-    PHYSICAL_VERIFICATION_REQUESTED:  'Verification',
-    REJECTED:                         'Rejected',
-    SUBMITTED:                        'Submitted',
-    DRAFT:                            'Draft',
-  }
-  const cls = styles[status] ?? 'bg-muted text-muted-foreground border-border'
-  const label = LABELS[status] ?? status.replace(/_/g, ' ')
+  const cls = getDeclarationBadgeClass(status)
+  const label = getDeclarationBadgeLabel(status)
   return (
     <span
       className={cn(

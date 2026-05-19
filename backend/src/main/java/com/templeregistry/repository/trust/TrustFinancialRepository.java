@@ -9,4 +9,5 @@ import java.util.List;
 public interface TrustFinancialRepository extends JpaRepository<TrustFinancial, Long> {
     List<TrustFinancial> findAllByTrustIdOrderByFinancialYearDesc(Long trustId);
     boolean existsByTrustIdAndFinancialYear(Long trustId, String financialYear);
+    boolean existsByTrustIdAndFinancialYearAndDeletedFalse(Long trustId, String financialYear);
 }
