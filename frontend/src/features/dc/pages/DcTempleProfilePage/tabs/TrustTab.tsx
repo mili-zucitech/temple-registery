@@ -29,7 +29,6 @@ interface TrustTabProps {
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
   onEditTrust?: () => void
-<<<<<<< HEAD
   onCreateTrust?: () => void
   /** True while profile data is refetching after a trust governance action — replaces stale trust section with skeleton. */
   isRefetching?: boolean
@@ -328,7 +327,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
       </div>
 
       {/* Member Detail Modal */}
-      <Dialog open={viewingMemberId !== null} onOpenChange={(open) => !open && setViewingMemberId(null)}>
+      <Dialog open={viewingMemberId !== null} onOpenChange={(open: any) => !open && setViewingMemberId(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           {viewingMember && (
             <div className="space-y-5">
