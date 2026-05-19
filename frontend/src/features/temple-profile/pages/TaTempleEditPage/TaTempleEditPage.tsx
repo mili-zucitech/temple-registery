@@ -25,6 +25,7 @@ import { submitTempleProfileSchema, taProfileStagingSchema, type TaProfileStagin
 import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
 import type { GeoSelection } from '@/features/geo/geoTypes'
 import { TempleLocationPicker } from '../../components/TempleLocationPicker/TempleLocationPicker'
+import { useAppSelector } from '@/app/store'
 
 const TRADITION_LABELS: Record<string, string> = {
   SHAIVITE: 'Shaivite',
@@ -43,6 +44,8 @@ const TRADITION_LABELS: Record<string, string> = {
 
 export function TaTempleEditPage() {
   const navigate = useNavigate()
+  const currentUser = useAppSelector(state => state.auth.currentUser)
+  const isViewOnly = currentUser?.accessType === 'VIEW'
   const {
     temple,
     stagingProfile,
@@ -343,7 +346,7 @@ export function TaTempleEditPage() {
                 type="submit"
                 variant="outline"
                 size="sm"
-                disabled={isSaving || !form.formState.isDirty}
+                disabled={isViewOnly || isSaving || !form.formState.isDirty}
                 className="gap-1.5"
               >
                 <Save size={14} />
@@ -353,7 +356,7 @@ export function TaTempleEditPage() {
                 type="button"
                 size="sm"
                 onClick={onSubmitClick}
-                disabled={isSubmitting || form.formState.isDirty}
+                disabled={isViewOnly || isSubmitting || form.formState.isDirty}
                 className="bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-sm gap-1.5"
                 title={form.formState.isDirty ? 'Save draft before submitting' : undefined}
               >

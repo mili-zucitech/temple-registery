@@ -222,7 +222,7 @@ export function useTempleProfile() {
         bankAccountNumber: '',
         // Identity fields (V93) — prefer staging values, fall back to temple entity
         aliasName: (source as any).aliasName ?? temple?.aliasName ?? '',
-        primaryDeity: (source as any).primaryDeity ?? temple?.primaryDeity ?? '',
+        primaryDeity: [(source as any).primaryDeity, temple?.primaryDeity].map(v => (!v || v === 'To be updated') ? '' : v).find(v => v) ?? '',
         grade: (source as any).grade ?? temple?.grade ?? undefined,
         tradition: (source as any).tradition ?? temple?.tradition ?? undefined,
         hobliId: (source as any).hobliId ?? temple?.hobliId ?? undefined,
@@ -257,7 +257,7 @@ export function useTempleProfile() {
         bankAccountNumber: '',
         // Identity fields (V93)
         aliasName: temple.aliasName ?? '',
-        primaryDeity: temple.primaryDeity ?? '',
+        primaryDeity: (!temple.primaryDeity || temple.primaryDeity === 'To be updated') ? '' : temple.primaryDeity,
         grade: temple.grade ?? undefined,
         tradition: temple.tradition ?? undefined,
         hobliId: temple.hobliId ?? undefined,

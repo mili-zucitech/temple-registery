@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import ReactSelect from 'react-select'
+import { Eye, EyeOff } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog'
@@ -39,7 +40,7 @@ const userSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'At least 8 characters').optional().or(z.literal('')),
   fullName: z.string().min(2, 'Full name is required'),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile').optional().or(z.literal('')),
+  mobile: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile'),
   cityId: z.string().optional(),
   districtId: z.string().min(1, 'District is required'),
   aadhaarNumber: z.string().regex(/^\d{12}$/, 'Must be 12 digits').optional().or(z.literal('')),
@@ -48,7 +49,7 @@ const userSchema = z.object({
   // TA: existing temple — stored as string because RHF works with strings for now
   existingTempleId: z.string().optional(),
   // TA: designation and access type
-  designation: z.string().max(150).optional().or(z.literal('')),
+  designation: z.string().min(1, 'Designation is required').max(150),
   accessType: z.enum(['VIEW', 'EDIT']).default('EDIT'),
 })
 
@@ -64,6 +65,8 @@ interface UserFormDialogProps {
 
 export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }: UserFormDialogProps) {
   const isEdit = !!user
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordValue, setPasswordValue] = useState('')
   const [districtSearch, setDistrictSearch] = useState('')
   /** Toggle: true = create new temple, false = assign existing */
   const [createTemple, setCreateTemple] = useState(true)
@@ -131,6 +134,8 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       setTempleSearchInput('')
       setTempleSearchDebounced('')
       setSelectedTempleOption(null)
+      setShowPassword(false)
+      setPasswordValue('')
     }
   }, [open, user])
 
@@ -176,7 +181,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       email: values.email,
       password: values.password || '',
       fullName: values.fullName,
-      mobile: values.mobile || undefined,
+      mobile: values.mobile,
       role: values.role,
       districtId: Number(values.districtId),
       cityId: values.cityId ? Number(values.cityId) : undefined,
@@ -186,7 +191,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       existingTempleId: isTempleAuthority && !createTemple && values.existingTempleId
         ? Number(values.existingTempleId)
         : undefined,
-      designation: isTempleAuthority && values.designation ? values.designation : undefined,
+      designation: isTempleAuthority ? values.designation : undefined,
       accessType: isTempleAuthority ? (values.accessType ?? 'EDIT') : undefined,
     })
   }
@@ -335,15 +340,50 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                 )} />
               </div>
 
-              {/* Password â€” create only */}
+              {/* Password — create only */}
               {!isEdit && (
-                <FormField control={form.control} name="password" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl><Input {...field} type="password" placeholder="Min 8 characters" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                <FormField control={form.control} name="password" render={({ field }) => {
+                  const score = getPasswordStrength(passwordValue)
+                  const colors = ['bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-emerald-500']
+                  const labels = ['Weak', 'Fair', 'Good', 'Strong']
+                  return (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Min 8 characters"
+                            className="pr-10"
+                            onChange={e => { field.onChange(e); setPasswordValue(e.target.value) }}
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => setShowPassword(p => !p)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      {passwordValue.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <div className="flex gap-1 h-1.5">
+                            {[0, 1, 2, 3].map(i => (
+                              <div key={i} className={`flex-1 rounded-full transition-colors ${i < score ? colors[score - 1] : 'bg-muted'}`} />
+                            ))}
+                          </div>
+                          <p className={`text-xs font-medium ${score >= 3 ? 'text-emerald-600' : score === 2 ? 'text-yellow-600' : 'text-red-500'}`}>
+                            {labels[score - 1] ?? 'Too short'}
+                          </p>
+                        </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }} />
               )}
 
               {/* Full Name */}
@@ -358,7 +398,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
               {/* Mobile */}
               <FormField control={form.control} name="mobile" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mobile <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                  <FormLabel>Mobile</FormLabel>
                   <FormControl><Input {...field} placeholder="9876543210" inputMode="numeric" /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -447,7 +487,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
                 <>
                   <FormField control={form.control} name="designation" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Designation <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                      <FormLabel>Designation</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="e.g. Trust Secretary, Archaka, Trustee" />
                       </FormControl>
@@ -498,6 +538,15 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       </DialogContent>
     </Dialog>
   )
+}
+
+function getPasswordStrength(password: string): number {
+  if (password.length < 8) return 0
+  let score = 1
+  if (/[A-Z]/.test(password)) score++
+  if (/[0-9]/.test(password)) score++
+  if (/[^A-Za-z0-9]/.test(password)) score++
+  return score
 }
 
 function buildDefaults(user?: UserAdminResponse | null): UserFormValues {

@@ -97,9 +97,9 @@ export function TaTempleReviewPage() {
       <SectionCard title="Basic Information" icon={<FileText size={16} />}>
         <InfoRow label="Temple Name" value={temple.name} />
         <InfoRow label="Registration Number" value={temple.registrationNumber} />
-        <InfoRow label="Grade" value={temple.grade} />
-        <InfoRow label="Primary Deity" value={temple.primaryDeity} />
-        <InfoRow label="Tradition" value={temple.tradition} />
+        <InfoRow label="Grade" value={(source as any)?.grade ?? temple.grade} />
+        <InfoRow label="Primary Deity" value={(source as any)?.primaryDeity ?? temple.primaryDeity} />
+        <InfoRow label="Tradition" value={(source as any)?.tradition ?? temple.tradition} />
         <InfoRow label="Description" value={source?.description} multiline />
         <InfoRow label="Historical Significance" value={source?.historicalSignificance} multiline />
       </SectionCard>

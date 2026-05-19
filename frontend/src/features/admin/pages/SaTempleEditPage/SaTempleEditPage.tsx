@@ -30,10 +30,12 @@ import {
   useSubmitForReviewMutation,
 } from '@/features/temple-profile/hooks/templeApi'
 import { useDcTempleProfile, useDcPendingProfileStaging } from '@/features/dc/dcHooks'
+import { dcApi } from '@/features/dc/dcApi'
 import { extractApiErrorMessage } from '@/lib/apiError'
 import { GeoHierarchySelectGrid } from '@/features/geo/components/GeoHierarchySelect/GeoHierarchySelectGrid'
 import type { GeoSelection } from '@/features/geo/geoTypes'
 import { TempleLocationPicker } from '@/features/temple-profile/components/TempleLocationPicker/TempleLocationPicker'
+import { useAppDispatch } from '@/app/store'
 
 const TRADITION_LABELS: Record<string, string> = {
   SHAIVITE: 'Shaivite',
@@ -73,6 +75,7 @@ const serializeTagList = (value?: string | null): string | undefined => {
 export function SaTempleEditPage() {
   const { templeId: templeIdStr } = useParams<{ templeId: string }>()
   const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const id = Number(templeIdStr)
 
   const { profile, isLoading, isError } = useDcTempleProfile(id)
@@ -250,6 +253,7 @@ export function SaTempleEditPage() {
   const onSaveDraft = form.handleSubmit(async (values) => {
     try {
       await createOrUpdateDraft({ templeId: id, body: buildBody(values) }).unwrap()
+      dispatch(dcApi.util.invalidateTags([{ type: 'DcTempleProfile', id }, { type: 'DcProfileStaging', id }]))
       toast.success('Draft saved.')
       form.reset(values)
     } catch (err) {
@@ -261,6 +265,7 @@ export function SaTempleEditPage() {
     try {
       await createOrUpdateDraft({ templeId: id, body: buildBody(values) }).unwrap()
       await submitForReview(id).unwrap()
+      dispatch(dcApi.util.invalidateTags([{ type: 'DcTempleProfile', id }, { type: 'DcProfileStaging', id }]))
       toast.success('Profile saved and submitted for review.')
       navigate(ROUTE_PATHS.DC_TEMPLE_DETAIL.replace(':templeId', String(id)))
     } catch (err) {

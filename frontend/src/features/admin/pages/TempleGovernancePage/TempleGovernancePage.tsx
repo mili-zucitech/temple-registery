@@ -31,6 +31,9 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
   const [inputValue, setInputValue] = useState('')
   const [open, setOpen] = useState(false)
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
+  const [declarationStatus, setDeclarationStatus] = useState('')
+  const [verificationRequired, setVerificationRequired] = useState<boolean | undefined>(undefined)
+  const [pendingProfileReview, setPendingProfileReview] = useState<boolean | undefined>(undefined)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -39,8 +42,13 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
     return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }
   }, [inputValue])
 
+  const filters: Record<string, unknown> = { name: debouncedKeyword }
+  if (declarationStatus) filters.declarationStatus = declarationStatus
+  if (verificationRequired !== undefined) filters.verificationRequired = verificationRequired
+  if (pendingProfileReview !== undefined) filters.pendingProfileReview = pendingProfileReview
+
   const { data, isFetching } = useSearchTemplesQuery(
-    { filters: { name: debouncedKeyword }, page: 0, size: 10 },
+    { filters, page: 0, size: 10 },
     { skip: false }
   )
   const results = data?.data?.content ?? []
@@ -96,7 +104,39 @@ function TempleSelector({ selected, onSelect }: TempleSelectorProps) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={declarationStatus}
+          onChange={(e) => setDeclarationStatus(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">All Declaration Statuses</option>
+          <option value="DRAFT">Draft</option>
+          <option value="SUBMITTED">Submitted</option>
+          <option value="UNDER_REVIEW">Under Review</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+        <select
+          value={verificationRequired === undefined ? '' : String(verificationRequired)}
+          onChange={(e) => setVerificationRequired(e.target.value === '' ? undefined : e.target.value === 'true')}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Any Verification</option>
+          <option value="true">Verification Required</option>
+          <option value="false">No Verification Required</option>
+        </select>
+        <select
+          value={pendingProfileReview === undefined ? '' : String(pendingProfileReview)}
+          onChange={(e) => setPendingProfileReview(e.target.value === '' ? undefined : e.target.value === 'true')}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Any Profile Status</option>
+          <option value="true">Pending Review</option>
+          <option value="false">Not Pending Review</option>
+        </select>
+      </div>
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input

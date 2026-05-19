@@ -11,9 +11,10 @@ import { TableSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { EmptyState } from '@/components/feedback/EmptyState/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Users, Plus, Pencil, Building2, MapPin, ShieldCheck, ClipboardCheck, Landmark, UserCog, Search, X } from 'lucide-react'
+import { Users, Plus, Pencil, Building2, MapPin, ShieldCheck, ClipboardCheck, Landmark, UserCog, Search, X, Eye } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { UserFormDialog } from '../../components/UserFormDialog/UserFormDialog'
+import { UserViewModal } from '../../components/UserViewModal/UserViewModal'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog/ConfirmDialog'
 import { USER_ROLES, type UserRole } from '@/constants/roles'
 import { cn } from '@/lib/utils'
@@ -189,13 +190,14 @@ function StatusFilterBar({
 interface UsersTableProps {
   users: UserAdminResponse[]
   role: UserRole | 'ALL'
+  onView: (u: UserAdminResponse) => void
   onEdit: (u: UserAdminResponse) => void
   onToggleStatus: (u: UserAdminResponse) => void
   deactivating: boolean
   activating: boolean
 }
 
-function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activating }: UsersTableProps) {
+function UsersTable({ users, role, onView, onEdit, onToggleStatus, deactivating, activating }: UsersTableProps) {
   const showDistrict = role === 'ALL' || DISTRICT_ROLES.has(role as 'DISTRICT_COLLECTOR' | 'DC_STAFF' | 'TEMPLE_AUTHORITY')
   const showTemple = role === 'ALL' || TEMPLE_ROLES.has(role as 'TEMPLE_AUTHORITY')
 
@@ -314,6 +316,15 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
+                    onClick={() => onView(user)}
+                    title="View user"
+                  >
+                    <Eye size={13} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
                     onClick={() => onEdit(user)}
                     title="Edit user"
                   >
@@ -341,9 +352,10 @@ function UsersTable({ users, role, onEdit, onToggleStatus, deactivating, activat
 // ─── Per-role tab content ──────────────────────────────────────────────────────
 
 function RoleTabContent({
-  role, onEdit, onToggleStatus, deactivating, activating,
+  role, onView, onEdit, onToggleStatus, deactivating, activating,
 }: {
   role: UserRole | 'ALL'
+  onView: (u: UserAdminResponse) => void
   onEdit: (u: UserAdminResponse) => void
   onToggleStatus: (u: UserAdminResponse) => void
   deactivating: boolean
@@ -477,6 +489,7 @@ function RoleTabContent({
             <UsersTable
               users={filtered}
               role={role}
+              onView={onView}
               onEdit={onEdit}
               onToggleStatus={onToggleStatus}
               deactivating={deactivating}
@@ -511,11 +524,13 @@ export function UserManagementPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserAdminResponse | null>(null)
+  const [viewUser, setViewUser] = useState<UserAdminResponse | null>(null)
   const [confirmStatusUser, setConfirmStatusUser] = useState<UserAdminResponse | null>(null)
 
   const totalUsers = countData?.data?.totalElements ?? 0
 
   const handleCreate = () => { setSelectedUser(null); setDialogOpen(true) }
+  const handleView = (user: UserAdminResponse) => setViewUser(user)
   const handleEdit = (user: UserAdminResponse) => { setSelectedUser(user); setDialogOpen(true) }
   const handleToggleStatus = (user: UserAdminResponse) => setConfirmStatusUser(user)
 
@@ -561,7 +576,7 @@ export function UserManagementPage() {
     { value: USER_ROLES.AUDITOR,              label: 'Auditor',            icon: <ClipboardCheck size={14} />,count: null },
   ] as const
 
-  const tabProps = { onEdit: handleEdit, onToggleStatus: handleToggleStatus, deactivating, activating }
+  const tabProps = { onView: handleView, onEdit: handleEdit, onToggleStatus: handleToggleStatus, deactivating, activating }
 
   return (
     <div className="space-y-6">
@@ -659,6 +674,12 @@ export function UserManagementPage() {
         user={selectedUser}
         onSubmit={handleFormSubmit}
         isLoading={creating || updating}
+      />
+
+      <UserViewModal
+        user={viewUser}
+        open={viewUser !== null}
+        onOpenChange={(open) => { if (!open) setViewUser(null) }}
       />
 
       <ConfirmDialog

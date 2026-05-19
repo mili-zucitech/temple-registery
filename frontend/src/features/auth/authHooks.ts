@@ -20,7 +20,7 @@ import {
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
 import type { UseFormSetError } from 'react-hook-form'
-import type { LoginRequest, MfaVerifyRequest, MfaChallengeResponse, AuthTokenResponse } from './authTypes'
+import type { LoginRequest, MfaVerifyRequest, AuthTokenResponse } from './authTypes'
 import { resetFilters } from '../temple-profile/hooks/templeSlice'
 
 export function useCurrentUser() {
@@ -49,30 +49,21 @@ export function useLogin() {
         return
       }
 
-      const payload = res.data
-      if ('tempToken' in payload) {
-        // MFA required — navigate to MFA page carrying temp token
-        const challenge = payload as MfaChallengeResponse
-        navigate(ROUTE_PATHS.MFA_VERIFY, {
-          state: { tempToken: challenge.tempToken, mfaType: challenge.challengeType },
-        })
-      } else {
-        // Direct auth — tokens are set as httpOnly cookies by the server.
-        // Immediately hydrate Redux so PrivateRoute / RoleRoute don't redirect to login
-        // before the /auth/me refetch completes.
-        const meta = payload as AuthTokenResponse
-        dispatch(setCurrentUser({
-          userId: meta.userId,
-          username: values.username,
-          fullName: values.username,    // placeholder — /auth/me will overwrite
-          role: meta.role as import('@/constants/roles').UserRole,
-          aadhaarVerified: false,
-        }))
-        // Invalidate stale getCurrentUser cache so PrivateRoute re-fetches cleanly
-        dispatch(authApi.util.invalidateTags(['CurrentUser']))
-        toast.success('Login successful')
-        navigate(getDashboardPath(meta.role))
-      }
+      const meta = res.data as AuthTokenResponse
+      // Tokens are set as httpOnly cookies by the server.
+      // Immediately hydrate Redux so PrivateRoute / RoleRoute don't redirect to login
+      // before the /auth/me refetch completes.
+      dispatch(setCurrentUser({
+        userId: meta.userId,
+        username: values.username,
+        fullName: values.username,    // placeholder — /auth/me will overwrite
+        role: meta.role as import('@/constants/roles').UserRole,
+        aadhaarVerified: false,
+      }))
+      // Invalidate stale getCurrentUser cache so PrivateRoute re-fetches cleanly
+      dispatch(authApi.util.invalidateTags(['CurrentUser']))
+      toast.success('Login successful')
+      navigate(getDashboardPath(meta.role))
     } catch (err) {
       toast.error(extractApiErrorMessage(err, 'Login failed. Please check your credentials.'))
     }

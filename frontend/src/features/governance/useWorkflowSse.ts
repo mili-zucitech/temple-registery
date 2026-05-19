@@ -32,6 +32,10 @@ export const useWorkflowSse = ({
   const esRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryDelayRef = useRef(2000)
+  const isMountedRef = useRef(false)
+  // Keep latest callback in a ref so connect() doesn't need it as a dependency
+  const onNotificationRef = useRef(onNotification)
+  useEffect(() => { onNotificationRef.current = onNotification })
 
   const connect = useCallback(() => {
     if (!userId || !enabled) return
@@ -49,7 +53,7 @@ export const useWorkflowSse = ({
     es.addEventListener('notification', (event) => {
       try {
         const data = JSON.parse(event.data) as { title: string; body: string }
-        onNotification?.({ type: 'notification', ...data })
+        onNotificationRef.current?.({ type: 'notification', ...data })
         // Invalidate badge count and workflow state in RTK Query cache
         dispatch(workflowApi.util.invalidateTags(['BadgeCount', 'WorkflowState', 'Dashboard']))
       } catch (e) {
@@ -60,7 +64,7 @@ export const useWorkflowSse = ({
     es.addEventListener('badge', (event) => {
       try {
         const data = JSON.parse(event.data) as { unreadCount: number }
-        onNotification?.({ type: 'badge', unreadCount: data.unreadCount })
+        onNotificationRef.current?.({ type: 'badge', unreadCount: data.unreadCount })
         dispatch(workflowApi.util.invalidateTags(['BadgeCount']))
       } catch (e) {
         console.warn('[SSE] Failed to parse badge event', e)
@@ -69,17 +73,24 @@ export const useWorkflowSse = ({
 
     es.onerror = () => {
       es.close()
+      // Guard: only update state and reconnect if this is still the active emitter
+      // and the component is still mounted. Prevents stale onerror from a
+      // cleanup-closed connection overwriting esRef set by the next render's connect().
+      if (esRef.current !== es) return
       esRef.current = null
+      if (!isMountedRef.current) return
       // Exponential backoff: 2s, 4s, 8s, max 30s
       const delay = Math.min(retryDelayRef.current * 2, 30000)
       retryDelayRef.current = delay
       reconnectTimeoutRef.current = setTimeout(connect, delay)
     }
-  }, [userId, enabled, dispatch, onNotification])
+  }, [userId, enabled, dispatch])
 
   useEffect(() => {
+    isMountedRef.current = true
     connect()
     return () => {
+      isMountedRef.current = false
       esRef.current?.close()
       esRef.current = null
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
@@ -87,6 +98,7 @@ export const useWorkflowSse = ({
   }, [connect])
 
   const disconnect = useCallback(() => {
+    isMountedRef.current = false
     esRef.current?.close()
     esRef.current = null
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
