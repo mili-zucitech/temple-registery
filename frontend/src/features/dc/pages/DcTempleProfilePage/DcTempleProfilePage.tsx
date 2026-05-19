@@ -148,7 +148,10 @@ export function DcTempleProfilePage() {
   const { pendingStaging, isFetching: stagingFetching, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
   // isRefetchingProfile: true when a profile/staging governance action is in-flight and data is being refreshed
   const isRefetchingProfile = profileFetching || stagingFetching
-  const showGovernance = isTa ? isOwnTemple : !!pendingStaging
+  // Profile oversight panel depends on pending profile staging for DC/SA.
+  // Trust oversight is independent and should be visible for all non-readonly viewers.
+  const showProfileGovernance = isTa ? isOwnTemple : !!pendingStaging
+  const showTrustGovernance = isTa ? isOwnTemple : true
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
   const [selectedDeclarationId, setSelectedDeclarationId] = useState<number | null>(null)
@@ -255,13 +258,13 @@ export function DcTempleProfilePage() {
 
   return (
     <div className="animate-in fade-in duration-500">
-      {(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER || (isTa && !isOwnTemple)) && (
+      {/*(role === USER_ROLES.AUDITOR || role === USER_ROLES.VIEWER || (isTa && !isOwnTemple)) && (
         <ReadOnlyBanner message={
           isTa && !isOwnTemple
             ? 'Viewing in read-only mode. Use your TA dashboard to edit your own temple.'
             : 'You are viewing this temple profile in read-only mode. Verification, flagging, and approval actions are not available.'
         } />
-      )}
+      )*/}
       {/* Tabs must wrap TabsList — so we wrap the whole content including the header */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
 
@@ -392,7 +395,7 @@ export function DcTempleProfilePage() {
                   { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
                   { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
                 ] as const
-              ).filter((tab) => tab.v !== 'timeline' || showGovernance || canAct)
+              ).filter((tab) => tab.v !== 'timeline' || showProfileGovernance || canAct)
               .map((tab) => (
                 <TabsTrigger
                   key={tab.v}
@@ -442,7 +445,7 @@ export function DcTempleProfilePage() {
             <OverviewTab
               profile={profile}
               canAct={canAct}
-              showGovernance={showGovernance}
+              showGovernance={showProfileGovernance}
               pendingStaging={pendingStaging}
               isRefetching={isRefetchingProfile}
               onApproveProfile={async (notes) => {
@@ -496,7 +499,7 @@ export function DcTempleProfilePage() {
               trustFinancials={profile.trustFinancials}
               boardMeetings={profile.boardMeetings ?? []}
               canAct={canAct}
-              showGovernance={showGovernance}
+              showGovernance={showTrustGovernance}
               isRefetching={isRefetchingTrust}
               onEditTrust={
                 isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
@@ -564,7 +567,7 @@ export function DcTempleProfilePage() {
           </TabsContent>
 
           <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {(showGovernance || canAct)
+            {(showProfileGovernance || canAct)
               ? <TimelineTab templeId={id} />
               : null
             }

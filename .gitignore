@@ -19,7 +19,6 @@ desktop.ini
 
 # ─── Node / npm ─────────────────────────────────────────────
 node_modules/
-frontend/node_modules
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
@@ -199,4 +198,7 @@ e2e/notification_inbox_test.log
 *.log
 *.pid
 *.tmp
+<<<<<<< HEAD
  
+=======
+>>>>>>> fa3ba8b57563b4b041932fb9a7193b651c55551c

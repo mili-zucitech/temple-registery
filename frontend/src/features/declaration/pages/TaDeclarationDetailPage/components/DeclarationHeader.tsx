@@ -42,7 +42,7 @@ export function DeclarationHeader({
             <ArrowLeft size={14} className="mr-1.5" />
             Back to Declarations
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             <ChatModal 
               declarationId={declaration.id}
               declarationStatus={declaration.status}
