@@ -74,7 +74,7 @@ public class TempleSearchSummary {
 
     // ---- DC module dashboard / search counters ----
 
-    /** Count of PENDING_REVIEW + CLARIFICATION_REQUESTED + PHYSICAL_VERIFICATION_REQUESTED declarations. */
+    /** Count of in-flight declarations requiring workflow attention in the DC module. */
     @Column(name = "pending_declarations")
     private Integer pendingDeclarations;
 

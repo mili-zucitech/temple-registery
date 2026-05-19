@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
+  useDownloadAcknowledgementMutation,
   useGetDeclarationQuery,
   useGetDeclarationVersionsQuery,
 } from '../../declarationApi'
@@ -31,6 +32,8 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 import { DeclarationHeader, ClarificationAlert, RejectionAlert } from './components'
 import { useWithdrawDeclarationMutation } from '@/features/governance/governanceApi'
 import type { RootState } from '@/app/store'
+import { toast } from 'sonner'
+import { extractApiErrorMessage } from '@/lib/apiError'
 
 // Lazy load tab components for code splitting
 const OverviewTab = lazy(() =>
@@ -124,6 +127,7 @@ export function TaDeclarationDetailPage() {
 
   const declarationQuery = useGetDeclarationQuery(id, { skip: !isValid })
   const versionsQuery = useGetDeclarationVersionsQuery(id, { skip: !isValid })
+  const [downloadAcknowledgement, { isLoading: isDownloadingAcknowledgement }] = useDownloadAcknowledgementMutation()
   const [withdrawDeclaration, { isLoading: isWithdrawing }] = useWithdrawDeclarationMutation()
   const declaration = declarationQuery.data?.data
   const versions = versionsQuery.data?.data ?? []
@@ -236,6 +240,33 @@ export function TaDeclarationDetailPage() {
     [versions, compareVersion]
   )
 
+  const declarationStatus = declaration?.status
+  const canDownloadAcknowledgement = declarationStatus === 'APPROVED'
+
+  async function handleDownloadAcknowledgement() {
+    if (!declaration || declaration.status !== 'APPROVED') {
+      toast.error('Acknowledgement is available only after declaration approval.')
+      return
+    }
+    const currentDeclaration = declaration
+    try {
+      const fileBlob = await downloadAcknowledgement(currentDeclaration.id).unwrap()
+      const acknowledgementNumber = currentDeclaration.acknowledgementNumber?.trim()
+      const safeAcknowledgement = acknowledgementNumber?.replace(/[^a-zA-Z0-9_-]/g, '_')
+      const filename = `${safeAcknowledgement || `ACK_DECLARATION_${currentDeclaration.id}`}.pdf`
+      const objectUrl = URL.createObjectURL(fileBlob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, 'Failed to download acknowledgement.'))
+    }
+  }
+
   if (!isValid) {
     return <EmptyState title="Invalid declaration" description="The declaration ID is not valid." />
   }
@@ -258,7 +289,13 @@ export function TaDeclarationDetailPage() {
 
   return (
     <div className="space-y-5 pb-10">
-      <DeclarationHeader declaration={declaration} versions={versions} />
+      <DeclarationHeader
+        declaration={declaration}
+        versions={versions}
+        canDownloadAcknowledgement={canDownloadAcknowledgement}
+        onDownloadAcknowledgement={handleDownloadAcknowledgement}
+        isDownloadingAcknowledgement={isDownloadingAcknowledgement}
+      />
       
       {/* Show clarification alert if clarification is required */}
       <ClarificationAlert status={declaration.status} />

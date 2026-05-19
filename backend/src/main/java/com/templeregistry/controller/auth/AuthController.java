@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -109,13 +110,24 @@ public class AuthController {
     //  Cookie helpers 
 
     private void setAuthCookies(HttpServletResponse response, AuthTokenResponse tokens) {
+        clearLegacyAuthCookies(response);
         addCookie(response, "access_token",  tokens.getAccessToken(),  "/api",                ACCESS_MAX_AGE);
         addCookie(response, "refresh_token", tokens.getRefreshToken(), "/api/v1/auth/refresh", REFRESH_MAX_AGE);
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
+        clearLegacyAuthCookies(response);
         addCookie(response, "access_token",  "", "/api",                0);
         addCookie(response, "refresh_token", "", "/api/v1/auth/refresh", 0);
+    }
+
+    private void clearLegacyAuthCookies(HttpServletResponse response) {
+        // Backward compatibility: previous builds used wider cookie paths.
+        // Clear them on every login/refresh/logout so stale role tokens cannot leak across sessions.
+        addCookie(response, "access_token", "", "/", 0);
+        addCookie(response, "access_token", "", "/api/v1", 0);
+        addCookie(response, "refresh_token", "", "/", 0);
+        addCookie(response, "refresh_token", "", "/api/v1", 0);
     }
 
     private void addCookie(HttpServletResponse response, String name, String value,
@@ -134,6 +146,7 @@ public class AuthController {
         return Arrays.stream(request.getCookies())
                 .filter(c -> name.equals(c.getName()))
                 .map(Cookie::getValue)
+                .filter(StringUtils::hasText)
                 .findFirst().orElse(null);
     }
 

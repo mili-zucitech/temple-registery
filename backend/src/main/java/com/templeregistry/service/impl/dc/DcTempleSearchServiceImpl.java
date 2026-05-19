@@ -23,7 +23,10 @@ import org.springframework.util.StringUtils;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +42,42 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
             "name", "grade", "yearEstablished", "assetDeclarationStatus",
             "districtId", "trustRegistered", "pendingDeclarations", "overdueDeclarations"
     );
+
+        /**
+         * Backward-compatible legacy declaration aliases from pre-V42 values.
+         * Key = legacy value, value = canonical value used by current backend.
+         */
+        private static final Map<String, String> DECLARATION_STATUS_ALIASES = Map.of(
+            "PENDING_REVIEW",                  "SUBMITTED",
+            "RESUBMITTED",                     "SUBMITTED",
+            "CLARIFICATION_REQUESTED",         "CLARIFICATION_REQUIRED",
+            "PHYSICAL_VERIFICATION_REQUESTED", "SITE_VISIT_SCHEDULED"
+        );
+
+        /** Reverse lookup so canonical filters also match stale legacy summary rows. */
+        private static final Map<String, List<String>> CANONICAL_TO_LEGACY = Map.of(
+            "SUBMITTED", List.of("PENDING_REVIEW", "RESUBMITTED"),
+            "CLARIFICATION_REQUIRED", List.of("CLARIFICATION_REQUESTED"),
+            "SITE_VISIT_SCHEDULED", List.of("PHYSICAL_VERIFICATION_REQUESTED")
+        );
+
+        /**
+         * Saved filter + chip semantics for Temple Directory declaration filtering.
+         *
+         * PENDING = freshly submitted declarations awaiting initial DC action.
+         * VERIFICATION_REQUIRED = all in-flight verification states under DC workflow.
+         */
+        private static final Map<String, List<String>> DECLARATION_FILTER_GROUPS = Map.of(
+            "PENDING", List.of("SUBMITTED"),
+            "VERIFICATION_REQUIRED", List.of(
+                "SUBMITTED",
+                "UNDER_REVIEW",
+                "CLARIFICATION_RESPONDED",
+                "SITE_VISIT_SCHEDULED",
+                "SITE_VISIT_COMPLETED",
+                "VERIFIED"
+            )
+        );
 
     private final TempleSearchSummaryRepository summaryRepository;
     private final TempleVisibilityPolicy visibilityPolicy;
@@ -135,7 +174,23 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
                 predicates.add(cb.equal(root.get("trustRegistered"), filter.getTrustRegistered()));
             }
             if (StringUtils.hasText(filter.getDeclarationStatus())) {
-                predicates.add(cb.equal(root.get("assetDeclarationStatus"), filter.getDeclarationStatus()));
+                String normalizedStatus = filter.getDeclarationStatus().trim().toUpperCase();
+                if ("NO_DECLARATION".equals(normalizedStatus)) {
+                    predicates.add(cb.isNull(root.get("assetDeclarationStatus")));
+                } else if ("OVERDUE".equals(normalizedStatus)) {
+                    predicates.add(cb.greaterThan(root.get("overdueDeclarations"), 0));
+                } else {
+                    List<String> statusValues = expandDeclarationFilter(normalizedStatus);
+                    if (statusValues.isEmpty()) {
+                        // No status values means the filter key maps to a non-status predicate
+                        // (handled above) or an unsupported input that should produce no-op.
+                        log.warn("DC temple search: unsupported declarationStatus '{}'", normalizedStatus);
+                    } else if (statusValues.size() == 1) {
+                        predicates.add(cb.equal(root.get("assetDeclarationStatus"), statusValues.get(0)));
+                    } else {
+                        predicates.add(root.get("assetDeclarationStatus").in(statusValues));
+                    }
+                }
             }
             if (filter.getHasApprovedDeclaration() != null) {
                 predicates.add(cb.equal(root.get("hasApprovedDeclaration"), filter.getHasApprovedDeclaration()));
@@ -186,6 +241,51 @@ public class DcTempleSearchServiceImpl implements DcTempleSearchService {
         Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
                 ? Sort.Direction.DESC : Sort.Direction.ASC;
         return Sort.by(direction, field);
+    }
+
+    /** Package-private for unit testing; do not call from outside this package. */
+    List<String> expandDeclarationStatus(String input) {
+        String upper = input.trim().toUpperCase();
+        String canonical = DECLARATION_STATUS_ALIASES.get(upper);
+        if (canonical != null) {
+            // Return both the legacy alias and canonical form so the query matches mixed-state rows.
+            return List.of(upper, canonical);
+        }
+        return List.of(upper);
+    }
+
+    /**
+     * Expands a declaration filter value to all matched DB status values.
+     * This handles both grouped filter keys (e.g. VERIFICATION_REQUIRED) and
+     * canonical/legacy one-to-one status values.
+     */
+    List<String> expandDeclarationFilter(String input) {
+        String normalized = input.trim().toUpperCase();
+        if ("NO_DECLARATION".equals(normalized) || "OVERDUE".equals(normalized)) {
+            return List.of();
+        }
+
+        List<String> baseStatuses = DECLARATION_FILTER_GROUPS.getOrDefault(normalized, List.of(normalized));
+        Set<String> expanded = new LinkedHashSet<>();
+
+        for (String base : baseStatuses) {
+            String upper = base.trim().toUpperCase();
+            expanded.add(upper);
+
+            // If input/base is a legacy alias, include canonical.
+            String canonical = DECLARATION_STATUS_ALIASES.get(upper);
+            if (canonical != null) {
+                expanded.add(canonical);
+            }
+
+            // If input/base is canonical, include known legacy aliases so stale rows still match.
+            List<String> legacyValues = CANONICAL_TO_LEGACY.get(upper);
+            if (legacyValues != null) {
+                expanded.addAll(legacyValues);
+            }
+        }
+
+        return List.copyOf(expanded);
     }
 
     private DcTempleSearchItemResponse toResponse(TempleSearchSummary s, ScopeHelper.Claims claims) {

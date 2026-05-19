@@ -13,6 +13,7 @@ import com.templeregistry.security.JurisdictionGuard;
 import com.templeregistry.security.OwnershipGuard;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.document.DocumentService;
+import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.trust.TrustValidationService;
 import com.templeregistry.util.HmacUtil;
 import com.templeregistry.util.PaginationUtil;
@@ -64,6 +65,7 @@ class TrustServiceImplTest {
     @Mock com.templeregistry.service.notification.NotificationEventPublisher eventPublisher;
     @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
     @Mock com.templeregistry.service.governance.GovernanceStatusResolver governanceStatusResolver;
+    @Mock TempleSearchSummaryService summaryService;
 
     @InjectMocks TrustServiceImpl sut;
 
@@ -157,6 +159,15 @@ class TrustServiceImplTest {
             assertThat(result.getTrustName()).isEqualTo("New Trust");
             // Verify temple flag is persisted
             verify(templeRepository).save(argThat(t -> t.isTrustRegistered()));
+                // First-time trust creation must initialize workflow with the creator's role.
+                verify(workflowEngineAdaptor).ensureInitiated(
+                    eq(com.templeregistry.entity.workflow.WorkflowEntityType.TRUST),
+                    anyLong(),
+                    eq(1L),
+                    eq(1L),
+                    eq(1L),
+                    eq("TEMPLE_AUTHORITY"));
+                verify(summaryService).scheduleRefresh(1L);
         }
 
         @Test

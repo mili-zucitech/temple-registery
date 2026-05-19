@@ -100,6 +100,27 @@ export const declarationApi = createApi({
     getAcknowledgement: builder.query<ApiResponse<AcknowledgementResponse>, number>({
       query: (id) => `/declarations/${id}/acknowledgement`,
     }),
+    downloadAcknowledgement: builder.mutation<Blob, number>({
+      query: (id) => ({
+        url: `/declarations/${id}/acknowledgement/download`,
+        responseHandler: async (response) => {
+          const contentType = response.headers.get('content-type') ?? ''
+
+          if (!response.ok) {
+            if (contentType.includes('application/json')) {
+              return response.json()
+            }
+
+            const message = await response.text()
+            return {
+              message: message || 'Failed to download acknowledgement.',
+            }
+          }
+
+          return response.blob()
+        },
+      }),
+    }),
     getDeclarationDiff: builder.query<ApiResponse<DeclarationDiffItem[]>, { id: number; compareToVersion?: number }>({
       query: ({ id, compareToVersion }) => ({
         url: `/declarations/${id}/diff`,
@@ -132,6 +153,8 @@ export const {
   useVerifyDeclarationMutation,
   useFailSiteVisitMutation,
   useGetAcknowledgementQuery,
+  useLazyGetAcknowledgementQuery,
+  useDownloadAcknowledgementMutation,
   useGetDeclarationDiffQuery,
   useGetConversationQuery,
 } = declarationApi

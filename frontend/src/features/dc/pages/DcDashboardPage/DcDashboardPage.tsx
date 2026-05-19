@@ -28,6 +28,7 @@ import { useDcDashboard, useDcNotifications } from '@/features/dc/dcHooks'
 import { useAppSelector } from '@/app/store'
 import { useGeoHierarchy } from '@/features/geo/geoHooks'
 import type { AreaDistributionItem } from '@/features/dc/dcTypes'
+import { DC_TEMPLE_SEARCH_FILTERS } from '@/features/dc/declarationStatusFilters'
 import type { ReactNode } from 'react'
 import {
   ResponsiveContainer,
@@ -323,7 +324,7 @@ export function DcModuleDashboardPage() {
             iconColor: 'text-amber-600',
             accentBar: 'bg-amber-500',
             sub: 'Awaiting DC approval',
-            onClick: () => navigate(`${ROUTE_PATHS.DC_TEMPLES}?declarationStatus=PENDING_REVIEW`),
+            onClick: () => navigate(`${ROUTE_PATHS.DC_TEMPLES}?declarationStatus=${DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED}`),
           },
           {
             label: 'Overdue',

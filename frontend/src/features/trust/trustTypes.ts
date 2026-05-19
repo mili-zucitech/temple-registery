@@ -9,6 +9,32 @@ export type TrustType = (typeof TRUST_TYPES)[number]
 
 const today = new Date().toISOString().slice(0, 10)
 
+function currentFinancialYearStart(now = new Date()): number {
+  const month = now.getMonth() + 1
+  const year = now.getFullYear()
+  return month >= 4 ? year : year - 1
+}
+
+export function buildFinancialYearOptions(count = 15): string[] {
+  const safeCount = Math.max(0, count)
+  const startYear = currentFinancialYearStart()
+  return Array.from({ length: safeCount }, (_, index) => {
+    const fyStart = startYear - index
+    const fyEndShort = (fyStart + 1) % 100
+    return `${fyStart}-${fyEndShort.toString().padStart(2, '0')}`
+  })
+}
+
+function isValidFinancialYear(value: string): boolean {
+  const trimmed = value.trim()
+  if (!/^\d{4}-\d{2}$/.test(trimmed)) return false
+  const start = Number(trimmed.slice(0, 4))
+  const endShort = Number(trimmed.slice(5, 7))
+  if (Number.isNaN(start) || Number.isNaN(endShort)) return false
+  if ((start + 1) % 100 !== endShort) return false
+  return start <= currentFinancialYearStart()
+}
+
 export const createTrustSchema = z.object({
   trustName: z.string().min(1, 'Trust name is required').max(255),
   trustType: z.enum(TRUST_TYPES),
@@ -58,7 +84,10 @@ export const updateBoardMemberSchema = z.object({
 })
 
 export const submitTrustFinancialSchema = z.object({
-  financialYear: z.string().regex(/^\d{4}-\d{2}$/, 'Format: YYYY-YY').min(1, 'Financial year is required'),
+  financialYear: z
+    .string()
+    .min(1, 'Financial year is required')
+    .refine((value) => isValidFinancialYear(value), 'Financial year must be valid (YYYY-YY) and not in the future'),
   annualIncome: z.number().nonnegative().nullable().optional(),
   annualExpenditure: z.number().nonnegative().nullable().optional(),
   documentId: z.number().optional(),

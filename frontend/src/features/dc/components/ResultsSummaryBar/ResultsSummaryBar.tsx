@@ -1,23 +1,18 @@
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/feedback/Skeleton/Skeleton'
+import {
+  DC_TEMPLE_SEARCH_FILTERS,
+  getDeclarationFilterStatusLabel,
+} from '@/features/dc/declarationStatusFilters'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 const STATUS_KEY = {
-  OVERDUE:        'OVERDUE',
-  PENDING_REVIEW: 'PENDING_REVIEW',
-  APPROVED:       'APPROVED',
+  OVERDUE: DC_TEMPLE_SEARCH_FILTERS.OVERDUE,
+  PENDING: DC_TEMPLE_SEARCH_FILTERS.PENDING,
+  APPROVED: DC_TEMPLE_SEARCH_FILTERS.APPROVED,
 } as const
-
-const DECLARATION_STATUS_LABELS: Record<string, string> = {
-  OVERDUE:                          'Overdue',
-  PENDING_REVIEW:                   'Pending',
-  APPROVED:                         'Declared',
-  CLARIFICATION_REQUESTED:          'Clarification',
-  PHYSICAL_VERIFICATION_REQUESTED:  'Verification',
-  REJECTED:                         'Rejected',
-}
 
 const TRUST_LABELS: Record<string, string> = {
   true:  'Trust: Registered',
@@ -139,7 +134,7 @@ function buildBreadcrumbs(props: ResultsSummaryBarProps): string[] {
   else if (props.activeTalukName)  parts.push(`Taluk: ${props.activeTalukName}`)
   else if (props.activeDistrictName) parts.push(`District: ${props.activeDistrictName}`)
   if (props.activeGrades?.length) parts.push(`Grade: ${props.activeGrades.join(', ')}`)
-  if (props.activeStatus)        parts.push(`Status: ${DECLARATION_STATUS_LABELS[props.activeStatus] ?? props.activeStatus}`)
+  if (props.activeStatus)        parts.push(`Status: ${getDeclarationFilterStatusLabel(props.activeStatus)}`)
   if (props.activeTrust !== undefined) parts.push(TRUST_LABELS[String(props.activeTrust)])
   if (props.activeTradition)     parts.push(`Tradition: ${props.activeTradition}`)
   if (props.activeDeityName)     parts.push(`Deity: ${props.activeDeityName}`)
@@ -211,11 +206,11 @@ export function ResultsSummaryBar(props: ResultsSummaryBarProps) {
           icon="🟠"
           label="Pending"
           count={pending}
-          status={STATUS_KEY.PENDING_REVIEW}
-          isActive={activeStatus === STATUS_KEY.PENDING_REVIEW}
+          status={STATUS_KEY.PENDING}
+          isActive={activeStatus === STATUS_KEY.PENDING}
           colorClass="text-amber-600"
           activeColorClass="bg-amber-500 border-transparent text-white"
-          onToggle={() => onStatusClick(activeStatus === STATUS_KEY.PENDING_REVIEW ? undefined : STATUS_KEY.PENDING_REVIEW)}
+          onToggle={() => onStatusClick(activeStatus === STATUS_KEY.PENDING ? undefined : STATUS_KEY.PENDING)}
           onClear={() => onStatusClick(undefined)}
         />
 

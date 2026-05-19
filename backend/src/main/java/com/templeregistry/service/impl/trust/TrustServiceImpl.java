@@ -22,6 +22,7 @@ import com.templeregistry.service.document.DocumentService;
 import com.templeregistry.service.governance.GovernanceEditGuard;
 import com.templeregistry.service.notification.NotificationHelper;
 import com.templeregistry.service.notification.NotificationRecipientResolver;
+import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.service.trust.TrustService;
 import com.templeregistry.service.trust.TrustValidationService;
 import com.templeregistry.service.workflow.WorkflowEngineAdaptor;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -71,6 +73,7 @@ public class TrustServiceImpl implements TrustService {
     private final NotificationRecipientResolver recipientResolver;
     private final WorkflowEngineAdaptor workflowEngineAdaptor;
     private final GovernanceStatusResolver governanceStatusResolver;
+    private final TempleSearchSummaryService summaryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -89,8 +92,9 @@ public class TrustServiceImpl implements TrustService {
     public TrustResponse create(Long templeId, CreateTrustRequest rq) {
         Temple temple = templeRepository.findById(templeId)
                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
+        ScopeHelper.Claims claims = currentClaims();
         ownershipGuard.assertOwnsTemple(templeId);
-        jurisdictionGuard.assertDistrictScope(temple, currentClaims());
+        jurisdictionGuard.assertDistrictScope(temple, claims);
         trustValidationService.validateTrustRequest(rq, null);
         // Prevent duplicate trust per temple
         if (trustRepository.existsByTempleIdAndDeletedFalse(templeId)) {
@@ -116,7 +120,8 @@ public class TrustServiceImpl implements TrustService {
         // ── Workflow Engine: initiate governance instance ──────────────────────
         workflowEngineAdaptor.ensureInitiated(
             WorkflowEntityType.TRUST, saved.getId(),
-            templeId, temple.getDistrictId(), currentUserId());
+            templeId, temple.getDistrictId(), currentUserId(), claims.role());
+        summaryService.scheduleRefresh(templeId);
         log.info("Trust created: id=[{}] for temple=[{}]", saved.getId(), templeId);
         return toResponse(saved);
     }
@@ -381,7 +386,9 @@ public class TrustServiceImpl implements TrustService {
         trustRepository.delete(trust);
         templeRepository.findById(trust.getTempleId()).ifPresent(temple -> {
             temple.setTrustRegistered(trustRepository.existsByTempleIdAndDeletedFalse(temple.getId()));
+            templeRepository.save(temple);
         });
+        summaryService.scheduleRefresh(trust.getTempleId());
     }
 
     @Override
@@ -404,7 +411,12 @@ public class TrustServiceImpl implements TrustService {
                 .submittedAt(LocalDateTime.now())
                 .documentId(rq.getDocumentId())
                 .build();
-        financialRepository.save(fin);
+            try {
+                financialRepository.save(fin);
+            } catch (DataIntegrityViolationException ex) {
+                throw new com.templeregistry.exception.DuplicateResourceException(
+                    "A financial record for this year already exists.");
+            }
         log.info("Financial submitted for trust [{}], FY [{}]", trustId, rq.getFinancialYear());
 
         // Notify DCs of financial submission

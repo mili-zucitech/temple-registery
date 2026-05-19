@@ -31,12 +31,23 @@ public interface WorkflowEngine {
      * @param createdBy   User creating the entity
      * @return The newly created WorkflowInstance
      */
-    WorkflowInstance initiate(
+    default WorkflowInstance initiate(
         WorkflowEntityType entityType,
         Long entityId,
         Long templeId,
         Long districtId,
         Long createdBy
+    ) {
+        return initiate(entityType, entityId, templeId, districtId, createdBy, "TA");
+    }
+
+    WorkflowInstance initiate(
+        WorkflowEntityType entityType,
+        Long entityId,
+        Long templeId,
+        Long districtId,
+        Long createdBy,
+        String actorRole
     );
 
     /**

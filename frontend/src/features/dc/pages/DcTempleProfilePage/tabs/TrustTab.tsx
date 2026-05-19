@@ -28,9 +28,10 @@ interface TrustTabProps {
   onVerifyTrust: (id: number, notes: string) => Promise<void>
   onRejectTrust: (id: number, reason: string) => Promise<void>
   onEditTrust?: () => void
+  onCreateTrust?: () => void
 }
 
-export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, showGovernance = true, onVerifyTrust, onRejectTrust, onEditTrust }: TrustTabProps) {
+export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, canAct, showGovernance = true, onVerifyTrust, onRejectTrust, onEditTrust, onCreateTrust }: TrustTabProps) {
   const [docLoading, setDocLoading] = useState<Record<string, boolean>>({})
 
   const handleMeetingDocument = async (meetingId: number, trustId: number, mode: 'preview' | 'download', meetingDate: string) => {
@@ -65,8 +66,8 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
     }
   }
 
-  // Canonical status from governanceStatus (preferred) with fallback to legacy workflowStatus
-  const canonicalStatus = trust?.governanceStatus?.status ?? trust?.workflowStatus ?? null
+  // Canonical status from governanceStatus only. Legacy fields are intentionally ignored.
+  const canonicalStatus = trust?.governanceStatus?.status ?? null
 
   // RE_APPROVED means the trust was approved and a subsequent TA edit was rejected.
   // The backend restores the approved data snapshot on rejection and transitions
@@ -85,7 +86,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
   const oversightRejectionReason: string | null =
     hasEditRejection
       ? (trust?.governanceStatus?.latestRejectionReason ?? null)
-      : (trust?.governanceStatus?.rejectionReason ?? trust?.dcFlagReason ?? null)
+      : (trust?.governanceStatus?.rejectionReason ?? null)
 
   // Derive the 3-state badge value from canonical WorkflowStatus
   const trustBadgeStatus: ModuleVerificationStatus = (() => {
@@ -215,6 +216,13 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
                 This temple is currently recorded as an individual management case. No formal trust entity has been verified.
                 District Collectors should verify the legitimacy of this governance model.
               </p>
+              {onCreateTrust && (
+                <div className="mt-4">
+                  <Button size="sm" onClick={onCreateTrust} className="bg-gradient-gold shadow-gold">
+                    Add Trust Details
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

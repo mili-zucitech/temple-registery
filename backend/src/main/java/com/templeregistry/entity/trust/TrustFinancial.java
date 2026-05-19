@@ -13,6 +13,8 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "trust_financials", indexes = {
         @Index(name = "idx_trust_fin_trust_id", columnList = "trust_id")
+}, uniqueConstraints = {
+    @UniqueConstraint(name = "uk_trust_financials_trust_fy_deleted", columnNames = {"trust_id", "financial_year", "is_deleted"})
 })
 @SQLRestriction("is_deleted = false")
 @SQLDelete(sql = "UPDATE trust_financials SET is_deleted = true, updated_at = NOW(6) WHERE id = ?")

@@ -103,6 +103,8 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
 
     List<AssetDeclaration> findAllByTempleIdAndFinancialYearOrderByVersionNumberDesc(Long templeId, String financialYear);
 
+        Optional<AssetDeclaration> findTopByTempleIdOrderByIdDesc(Long templeId);
+
     /**
      * Find all acknowledgement numbers that start with the given prefix.
      * Used by AcknowledgementService to determine the next sequence number.
@@ -143,4 +145,6 @@ public interface DeclarationRepository extends JpaRepository<AssetDeclaration, L
      * Used by TempleSearchSummaryService to populate overdueDeclarations counter.
      */
     long countByTempleIdAndStatus(Long templeId, DeclarationStatus status);
+
+        long countByTempleIdAndIsOverdueTrueAndStatusNotIn(Long templeId, List<DeclarationStatus> statuses);
 }

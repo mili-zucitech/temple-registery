@@ -1,16 +1,7 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { DcTempleSearchFilterRequest } from '@/features/dc/dcTypes'
-
-// Label map mirrors the DECLARATION_STATUSES constant in the page.
-const DECLARATION_STATUS_LABELS: Record<string, string> = {
-  PENDING_REVIEW:                   'Pending',
-  APPROVED:                         'Declared',
-  OVERDUE:                          'Overdue',
-  CLARIFICATION_REQUESTED:          'Clarification Requested',
-  PHYSICAL_VERIFICATION_REQUESTED:  'Physical Verification',
-  REJECTED:                         'Rejected',
-}
+import { getDeclarationFilterStatusLabel } from '@/features/dc/declarationStatusFilters'
 
 const TRADITION_LABELS: Record<string, string> = {
   SHAIVITE:   'Shaivite',
@@ -94,7 +85,7 @@ export function ActiveFiltersBar({ filters, onRemove, onClearAll, onRemoveGeo, g
   if (filters.declarationStatus) {
     chips.push({
       key: 'declarationStatus',
-      label: DECLARATION_STATUS_LABELS[filters.declarationStatus] ?? filters.declarationStatus,
+      label: getDeclarationFilterStatusLabel(filters.declarationStatus),
       onRemove: () => onRemove({ declarationStatus: undefined }),
     })
   }

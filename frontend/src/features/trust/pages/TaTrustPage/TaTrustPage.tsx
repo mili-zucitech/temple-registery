@@ -15,6 +15,7 @@ import {
 import { useSubmitTrustMutation } from '@/features/governance/governanceApi'
 import {
   createTrustSchema, updateTrustSchema, createBoardMemberSchema, updateBoardMemberSchema, submitTrustFinancialSchema, createBoardMeetingSchema,
+  buildFinancialYearOptions,
   TRUST_TYPES,
   type CreateTrustRequest, type UpdateTrustRequest, type CreateBoardMemberRequest, type UpdateBoardMemberRequest, type SubmitTrustFinancialRequest, type CreateBoardMeetingRequest,
 } from '@/features/trust/trustTypes'
@@ -78,6 +79,7 @@ export function TaTrustPage() {
     refetchOnFocus: true,
   })
   const trust = useMemo(() => trustData?.data?.[0] ?? null, [trustData])
+  const financialYearOptions = useMemo(() => buildFinancialYearOptions(20), [])
 
   const { data: membersData, isLoading: membersLoading } = useGetBoardMembersQuery(
     { trustId: trust?.id! },
@@ -930,7 +932,22 @@ export function TaTrustPage() {
                 <form onSubmit={financialForm.handleSubmit(onSubmitFinancial)} className="rounded-lg border border-border bg-card p-4 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <FormField control={financialForm.control} name="financialYear" render={({ field }) => (
-                      <FormItem><FormLabel>Financial Year *</FormLabel><FormControl><Input placeholder="2024-25" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem>
+                        <FormLabel>Financial Year *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select financial year" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {financialYearOptions.map((year) => (
+                              <SelectItem key={year} value={year}>{year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )} />
                     <FormField control={financialForm.control} name="annualIncome" render={({ field }) => (
                       <FormItem><FormLabel>Annual Income</FormLabel><FormControl><Input type="number" min={0} step="0.01" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>

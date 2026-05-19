@@ -69,13 +69,15 @@ public class WorkflowEngineImpl implements WorkflowEngine {
     @Override
     @Transactional
     public WorkflowInstance initiate(WorkflowEntityType entityType, Long entityId,
-                                      Long templeId, Long districtId, Long createdBy) {
+                                      Long templeId, Long districtId, Long createdBy, String actorRole) {
         // Idempotent: if an instance already exists, return it rather than throwing.
         // The unique index (entity_type, entity_id) is the true duplicate guard at the DB level.
         // Returning the existing instance here makes callers safe to call initiate() without
         // a prior existence check, eliminating the TOCTOU race in the service layer.
         return instanceRepo.findByEntityTypeAndEntityId(entityType, entityId)
             .orElseGet(() -> {
+                String effectiveActorRole = (actorRole == null || actorRole.isBlank()) ? "TA" : actorRole;
+
                 WorkflowInstance instance = WorkflowInstance.builder()
                     .entityType(entityType)
                     .entityId(entityId)
@@ -102,7 +104,7 @@ public class WorkflowEngineImpl implements WorkflowEngine {
                     .toSubStatus(null)
                     .action(WorkflowAction.SYSTEM_INITIATE)
                     .actorId(createdBy)
-                    .actorRole("TA")
+                    .actorRole(effectiveActorRole)
                     .comment("Workflow initiated — initial DRAFT created")
                     .instanceVersionAtTransition(0L)
                     .performedAt(Instant.now())

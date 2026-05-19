@@ -9,18 +9,24 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { DcTempleSearchFilterRequest } from '@/features/dc/dcTypes'
+import {
+  DC_TEMPLE_SEARCH_FILTERS,
+  getDeclarationFilterStatusLabel,
+} from '@/features/dc/declarationStatusFilters'
 
 const GRADES = ['A', 'B', 'C'] as const
 const TRADITIONS = [
   'SHAIVITE', 'VAISHNAVITE', 'SHAKTA', 'JAIN', 'BUDDHIST', 'OTHER',
 ] as const
-const DECLARATION_STATUSES = [
-  'PENDING_REVIEW',
-  'APPROVED',
-  'REJECTED',
-  'CLARIFICATION_REQUESTED',
-  'PHYSICAL_VERIFICATION_REQUESTED',
-  'OVERDUE',
+const DECLARATION_STATUS_OPTIONS = [
+  DC_TEMPLE_SEARCH_FILTERS.NO_DECLARATION,
+  DC_TEMPLE_SEARCH_FILTERS.VERIFICATION_REQUIRED,
+  DC_TEMPLE_SEARCH_FILTERS.PENDING,
+  DC_TEMPLE_SEARCH_FILTERS.UNDER_REVIEW,
+  DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_REQUIRED,
+  DC_TEMPLE_SEARCH_FILTERS.CLARIFICATION_RESPONDED,
+  DC_TEMPLE_SEARCH_FILTERS.APPROVED,
+  DC_TEMPLE_SEARCH_FILTERS.OVERDUE,
 ] as const
 
 interface SearchFiltersProps {
@@ -112,9 +118,9 @@ export function SearchFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            {DECLARATION_STATUSES.map((s) => (
+            {DECLARATION_STATUS_OPTIONS.map((s) => (
               <SelectItem key={s} value={s}>
-                {s.replace(/_/g, ' ')}
+                {getDeclarationFilterStatusLabel(s)}
               </SelectItem>
             ))}
           </SelectContent>

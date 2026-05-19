@@ -26,6 +26,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -127,7 +128,7 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .cityId(resolvedCityId)
                 .templeStatus(t.getStatus() != null ? t.getStatus().name() : TempleStatus.ACTIVE.name())
                 .trustRegistered(t.isTrustRegistered())
-                .assetDeclarationStatus(t.getAssetDeclarationStatus())
+                .assetDeclarationStatus(resolveAssetDeclarationStatus(t.getId()).orElse(null))
                 .yearEstablished(t.getYearEstablished())
                 .photoUrl(t.getPhotoUrl())
                 // DC module counters — computed live on each summary refresh
@@ -140,10 +141,16 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                                 DeclarationStatus.CLARIFICATION_RESPONDED,
                                 DeclarationStatus.SITE_VISIT_SCHEDULED,
                                 DeclarationStatus.SITE_VISIT_COMPLETED,
-                                DeclarationStatus.VERIFIED
+                        DeclarationStatus.VERIFIED,
+                        DeclarationStatus.OVERDUE
                         )))
-                .overdueDeclarations((int) declarationRepository.countByTempleIdAndStatus(
-                        t.getId(), DeclarationStatus.OVERDUE))
+                .overdueDeclarations((int) declarationRepository.countByTempleIdAndIsOverdueTrueAndStatusNotIn(
+                    t.getId(),
+                    java.util.List.of(
+                        DeclarationStatus.APPROVED,
+                        DeclarationStatus.REJECTED,
+                        DeclarationStatus.SUPERSEDED
+                    )))
                 .pendingProfileReview(
                         stagingRepository.existsByTempleIdAndStatusIn(
                                 t.getId(),
@@ -158,5 +165,18 @@ public class TempleSearchSummaryServiceImpl implements TempleSearchSummaryServic
                 .lastDeclarationAt(null)
                 .lastProfileUpdateAt(null)
                 .build();
+    }
+
+    private Optional<String> resolveAssetDeclarationStatus(Long templeId) {
+        return declarationRepository.findTopByTempleIdOrderByIdDesc(templeId)
+                .map(declaration -> {
+                    if (declaration.isOverdue()
+                            && declaration.getStatus() != DeclarationStatus.APPROVED
+                            && declaration.getStatus() != DeclarationStatus.REJECTED
+                            && declaration.getStatus() != DeclarationStatus.SUPERSEDED) {
+                        return DeclarationStatus.OVERDUE.name();
+                    }
+                    return declaration.getStatus() != null ? declaration.getStatus().name() : null;
+                });
     }
 }

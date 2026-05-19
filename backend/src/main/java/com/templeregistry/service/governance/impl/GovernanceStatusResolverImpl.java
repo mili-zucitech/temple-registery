@@ -1,6 +1,7 @@
 package com.templeregistry.service.governance.impl;
 
 import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
+import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.entity.workflow.WorkflowStatus;
@@ -53,7 +54,7 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
         // Fetch rejection reason for REJECTED and RE_APPROVED statuses.
         // For REJECTED: terminal state — the latest transition is always the rejection.
         // For RE_APPROVED: two sub-cases exist:
-        //   a) Edit was rejected → entity reverted to approved snapshot (latestRejectionReason populated)
+        //   a) Edit was rejected (REJECT_EDIT) → entity reverted to approved snapshot (latestRejectionReason populated)
         //   b) DC re-approved a resubmission → the latest transition is APPROVE, not REJECT.
         //      In this case latestRejectionReason must be null — "currently re-approved, not rejected."
         // We distinguish by inspecting only the most recent transition's action.
@@ -64,7 +65,7 @@ public class GovernanceStatusResolverImpl implements GovernanceStatusResolver {
         if (status == WorkflowStatus.REJECTED || status == WorkflowStatus.RE_APPROVED) {
             var latestTransition = transitionRepo.findLatestByInstanceId(wi.getId());
             boolean latestWasReject = latestTransition
-                    .map(t -> t.getAction() == com.templeregistry.entity.workflow.WorkflowAction.REJECT)
+                    .map(t -> t.getAction() == WorkflowAction.REJECT || t.getAction() == WorkflowAction.REJECT_EDIT)
                     .orElse(false);
             if (latestWasReject) {
                 latestRejectionReason = latestTransition.map(t -> t.getComment()).orElse(null);

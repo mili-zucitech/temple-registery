@@ -107,6 +107,38 @@ class GovernanceWorkflowServiceImplTest {
         lenient().doNothing().when(jurisdictionGuard).assertDistrictScope(any(), any());
     }
 
+        @Test
+        @DisplayName("submitTrust() transitions, snapshots, and refreshes summary when submit is valid")
+        void should_snapshotAndRefresh_when_submitTrustTransitions() {
+        when(workflowEngineAdaptor.currentStatus(WorkflowEntityType.TRUST, TRUST_ID))
+            .thenReturn(WorkflowStatus.UPDATED_AFTER_APPROVAL);
+        when(workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.TRUST, TRUST_ID, TEMPLE_ID, DISTRICT_ID, ACTOR_ID))
+            .thenReturn(true);
+
+        service.submitTrust(TRUST_ID);
+
+        verify(versionService).snapshot(
+            eq(WorkflowEntityType.TRUST), eq(TRUST_ID), eq(1), any(), eq(ACTOR_ID), isNull());
+        verify(summaryService).scheduleRefresh(TEMPLE_ID);
+        }
+
+        @Test
+        @DisplayName("submitTrust() throws when no workflow transition occurs")
+        void should_throw_when_submitTrustDoesNotTransition() {
+        when(workflowEngineAdaptor.currentStatus(WorkflowEntityType.TRUST, TRUST_ID))
+            .thenReturn(WorkflowStatus.APPROVED);
+        when(workflowEngineAdaptor.adaptSubmit(
+            WorkflowEntityType.TRUST, TRUST_ID, TEMPLE_ID, DISTRICT_ID, ACTOR_ID))
+            .thenReturn(false);
+
+        assertThatThrownBy(() -> service.submitTrust(TRUST_ID))
+            .isInstanceOf(com.templeregistry.exception.IllegalStatusTransitionException.class)
+            .hasMessageContaining("cannot be submitted");
+
+        verify(versionService, never()).snapshot(any(), anyLong(), anyInt(), any(), anyLong(), any());
+        }
+
     // â”€â”€ approveTrust â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test

@@ -11,6 +11,7 @@ import com.templeregistry.exception.DuplicateResourceException;
 import com.templeregistry.repository.trust.BoardMemberRepository;
 import com.templeregistry.repository.trust.TrustFinancialRepository;
 import com.templeregistry.repository.trust.TrustRepository;
+import com.templeregistry.service.validation.FinancialYearValidationService;
 import com.templeregistry.util.HmacUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -42,6 +43,7 @@ class TrustValidationServiceImplTest {
     @Mock BoardMemberRepository boardMemberRepository;
     @Mock TrustFinancialRepository trustFinancialRepository;
     @Mock HmacUtil hmacUtil;
+    @Mock FinancialYearValidationService financialYearValidationService;
 
     @InjectMocks TrustValidationServiceImpl sut;
 
@@ -261,7 +263,9 @@ class TrustValidationServiceImplTest {
             SubmitTrustFinancialRequest rq = new SubmitTrustFinancialRequest();
             rq.setFinancialYear("2024-25");
             rq.setAnnualIncome(BigDecimal.valueOf(500000));
-            when(trustFinancialRepository.existsByTrustIdAndFinancialYear(1L, "2024-25"))
+            when(financialYearValidationService.normalizeAndValidate("2024-25"))
+                .thenReturn("2024-25");
+            when(trustFinancialRepository.existsByTrustIdAndFinancialYearAndDeletedFalse(1L, "2024-25"))
                     .thenReturn(false);
             assertThatNoException().isThrownBy(() -> sut.validateFinancialRequest(1L, rq));
         }
@@ -271,22 +275,41 @@ class TrustValidationServiceImplTest {
             SubmitTrustFinancialRequest rq = new SubmitTrustFinancialRequest();
             rq.setFinancialYear("2023-24");
             rq.setAnnualIncome(BigDecimal.valueOf(100000));
-            when(trustFinancialRepository.existsByTrustIdAndFinancialYear(1L, "2023-24"))
+            when(financialYearValidationService.normalizeAndValidate("2023-24"))
+                .thenReturn("2023-24");
+            when(trustFinancialRepository.existsByTrustIdAndFinancialYearAndDeletedFalse(1L, "2023-24"))
                     .thenReturn(true);
             assertThatThrownBy(() -> sut.validateFinancialRequest(1L, rq))
                     .isInstanceOf(DuplicateResourceException.class)
                     .hasMessageContaining("already exists");
         }
 
-        @ParameterizedTest(name = "invalid FY format: {0}")
-        @ValueSource(strings = {"2024", "24-25", "2024/25", "FY2024"})
+        @ParameterizedTest(name = "invalid FY semantic value: {0}")
+        @ValueSource(strings = {"2024", "24-25", "2024/25", "FY2024", "2025-25", "2999-00"})
         void invalid_financial_year_format_is_rejected(String fy) {
             SubmitTrustFinancialRequest rq = new SubmitTrustFinancialRequest();
             rq.setFinancialYear(fy);
             rq.setAnnualIncome(BigDecimal.ONE);
+            when(financialYearValidationService.normalizeAndValidate(fy))
+                .thenThrow(new IllegalArgumentException("Financial year must be in YYYY-YY format."));
             assertThatThrownBy(() -> sut.validateFinancialRequest(1L, rq))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("YYYY-YY");
+                .hasMessageContaining("Financial year");
+        }
+
+        @Test
+        void financial_year_is_normalized_before_duplicate_check() {
+            SubmitTrustFinancialRequest rq = new SubmitTrustFinancialRequest();
+            rq.setFinancialYear(" 2024-25 ");
+            rq.setAnnualIncome(BigDecimal.valueOf(1000));
+
+            when(financialYearValidationService.normalizeAndValidate(" 2024-25 "))
+                .thenReturn("2024-25");
+            when(trustFinancialRepository.existsByTrustIdAndFinancialYearAndDeletedFalse(1L, "2024-25"))
+                .thenReturn(false);
+
+            assertThatNoException().isThrownBy(() -> sut.validateFinancialRequest(1L, rq));
+            assertThat(rq.getFinancialYear()).isEqualTo("2024-25");
         }
 
         @Test

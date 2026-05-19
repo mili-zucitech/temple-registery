@@ -1,9 +1,11 @@
 package com.templeregistry.service.governance;
 
 import com.templeregistry.dto.response.governance.GovernanceStatusPayload;
+import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.entity.workflow.WorkflowStatus;
+import com.templeregistry.entity.workflow.WorkflowTransition;
 import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.repository.workflow.WorkflowTransitionRepository;
 import com.templeregistry.service.governance.impl.GovernanceStatusResolverImpl;
@@ -247,5 +249,50 @@ class GovernanceStatusResolverImplTest {
         assertThat(payload.getActionableBy()).isEqualTo("TA");
         // AllowedActions may be empty if no TA RESUBMIT rule is registered for this entity type
         assertThat(payload.getAllowedActions()).isNotNull();
+    }
+
+    @Test
+    void should_returnLatestRejectionReason_when_reApprovedFromRejectEdit() {
+        WorkflowInstance reApproved = WorkflowInstance.builder()
+                .id(9L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(90L)
+                .status(WorkflowStatus.RE_APPROVED)
+                .build();
+        WorkflowTransition latestTransition = WorkflowTransition.builder()
+                .action(WorkflowAction.REJECT_EDIT)
+                .comment("Updated trustee details do not match supporting documents")
+                .build();
+        when(transitionRepo.findLatestByInstanceId(9L))
+                .thenReturn(Optional.of(latestTransition));
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(reApproved);
+
+        assertThat(payload.getStatus()).isEqualTo("RE_APPROVED");
+        assertThat(payload.getLatestRejectionReason())
+                .isEqualTo("Updated trustee details do not match supporting documents");
+        assertThat(payload.getRejectionReason()).isNull();
+    }
+
+    @Test
+    void should_notReturnLatestRejectionReason_when_reApprovedFromApproveAction() {
+        WorkflowInstance reApproved = WorkflowInstance.builder()
+                .id(10L)
+                .entityType(WorkflowEntityType.TRUST)
+                .entityId(100L)
+                .status(WorkflowStatus.RE_APPROVED)
+                .build();
+        WorkflowTransition latestTransition = WorkflowTransition.builder()
+                .action(WorkflowAction.RE_APPROVE)
+                .comment("All corrected records verified")
+                .build();
+        when(transitionRepo.findLatestByInstanceId(10L))
+                .thenReturn(Optional.of(latestTransition));
+
+        GovernanceStatusPayload payload = resolver.resolveFromInstance(reApproved);
+
+        assertThat(payload.getStatus()).isEqualTo("RE_APPROVED");
+        assertThat(payload.getLatestRejectionReason()).isNull();
+        assertThat(payload.getRejectionReason()).isNull();
     }
 }

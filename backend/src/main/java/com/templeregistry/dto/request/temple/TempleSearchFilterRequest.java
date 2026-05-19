@@ -27,7 +27,12 @@ public class TempleSearchFilterRequest {
     @Size(max = 200) private String deityName;
     private String tradition;
     private Boolean trustRegistered;
-    private String declarationStatus;    // PENDING, APPROVED, OVERDUE
+    /**
+     * Declaration filter key from Temple Directory.
+     * Supports workflow statuses (SUBMITTED, UNDER_REVIEW, ...), grouped keys
+     * (PENDING, VERIFICATION_REQUIRED), and special keys (NO_DECLARATION, OVERDUE).
+     */
+    private String declarationStatus;
     /** Filter by whether the temple has any approved declaration on record. */
     private Boolean hasApprovedDeclaration;
     /** Filter by whether a profile staging review is pending for the temple. */
