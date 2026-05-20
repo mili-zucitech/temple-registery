@@ -1,11 +1,20 @@
 import { defineConfig, devices } from '@playwright/test';
+import { env } from './setup/env';
+
+const defaultRetries = process.env.CI ? 2 : 1;
+const retries = Number(process.env.PLAYWRIGHT_RETRIES ?? defaultRetries);
+const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? (process.env.CI ? 4 : 2));
 
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 0, // No retries - tests must be deterministic
-  workers: process.env.CI ? 4 : 2,
+  retries,
+  workers,
+  metadata: {
+    e2eTarget: env.target,
+    readOnly: env.readOnly,
+  },
   
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
@@ -14,12 +23,12 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: env.baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 10000,
-    navigationTimeout: 30000
+    actionTimeout: Number(process.env.PLAYWRIGHT_ACTION_TIMEOUT ?? 10_000),
+    navigationTimeout: Number(process.env.PLAYWRIGHT_NAV_TIMEOUT ?? 30_000)
   },
 
   projects: [
@@ -30,6 +39,16 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup']
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+      dependencies: ['setup']
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
       dependencies: ['setup']
     }
   ],

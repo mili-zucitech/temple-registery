@@ -14,6 +14,7 @@
  * Never uses super_admin for declaration creation (TEMPLE_AUTHORITY_ONLY endpoint).
  */
 import { test, expect } from '../fixtures/data.fixture';
+import { env } from '../setup/env';
 
 const INBOX_PATH = '/notifications';
 
@@ -26,7 +27,7 @@ function toCookieJar(setCookieHeader: string | null): string {
 }
 
 async function getAuthCookie(username: string, password: string): Promise<string> {
-  const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+  const response = await fetch(`${env.apiOrigin}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -38,8 +39,8 @@ async function getAuthCookie(username: string, password: string): Promise<string
 }
 
 async function taAction(path: string, body: Record<string, unknown> = {}): Promise<any> {
-  const cookie = await getAuthCookie('ta_chamundi', 'password123');
-  const res = await fetch(`http://localhost:8080/api/v1${path}`, {
+  const cookie = await getAuthCookie(env.roles.TA.username, env.roles.TA.password);
+  const res = await fetch(`${env.apiOrigin}/api/v1${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: JSON.stringify(body),
@@ -51,8 +52,8 @@ async function taAction(path: string, body: Record<string, unknown> = {}): Promi
 }
 
 async function dcAction(path: string, body: Record<string, unknown> = {}): Promise<void> {
-  const cookie = await getAuthCookie('dc_mysuru', 'password123');
-  const res = await fetch(`http://localhost:8080/api/v1${path}`, {
+  const cookie = await getAuthCookie(env.roles.DC.username, env.roles.DC.password);
+  const res = await fetch(`${env.apiOrigin}/api/v1${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: JSON.stringify(body),
@@ -77,10 +78,34 @@ async function taCreateAndSubmit(templeId: number, fiscalYear: string): Promise<
 }
 
 function uniqueYear(seed: number): string {
-  // Include a time component so repeated runs don't reuse the same fiscal years.
-  const timeSalt = Math.floor(Date.now() / 1000) % 7000;
-  const start = 1100 + ((seed + timeSalt) % 7000);
+  // Combine hrtime nanos, pid, and seed for high entropy across parallel workers.
+  const nanos = Number(process.hrtime.bigint() & 0xffffffn);
+  const start = 1000 + ((seed ^ nanos ^ process.pid) % 8999);
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+}
+
+/**
+ * Returns a fiscal year that does not yet exist for the given temple.
+ * Uses uniqueYear() with retry against the asset_declarations table to
+ * avoid collisions with prior test-run pollution.
+ */
+async function pickUniqueYearForTemple(
+  db: { query: <T = any>(sql: string, params?: unknown[]) => Promise<T[]> },
+  templeId: number,
+  seed: number,
+): Promise<string> {
+  const existing = await db.query<{ financial_year: string }>(
+    `SELECT financial_year FROM asset_declarations WHERE temple_id = ?`,
+    [templeId],
+  );
+  const used = new Set(existing.map((r) => String(r.financial_year).trim()));
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = uniqueYear(seed + attempt * 7919);
+    if (!used.has(candidate)) return candidate;
+  }
+  // Last-resort: far-future year + random offset.
+  const fallback = 9000 + Math.floor(Math.random() * 900);
+  return `${fallback}-${String((fallback + 1) % 100).padStart(2, '0')}`;
 }
 
 test.describe('Notification Inbox', () => {
@@ -130,7 +155,7 @@ test.describe('Notification Inbox', () => {
     // Get ta_chamundi's user_id and poll for the TA-specific approval notification
     // (created asynchronously after DC approves)
     const taUser = await db.getOne<{ id: number }>(
-      `SELECT id FROM users WHERE username = 'ta_chamundi' LIMIT 1`, []
+      'SELECT id FROM users WHERE username = ? LIMIT 1', [env.roles.TA.username]
     );
     const wiRow = await db.getOne<{ id: number }>(
       `SELECT id FROM workflow_instances WHERE entity_type = 'DECLARATION' AND entity_id = ?`,
@@ -168,8 +193,8 @@ test.describe('Notification Inbox', () => {
     db,
     dbAssert,
   }) => {
-    const fy1 = uniqueYear(testContext.generateId());
-    const fy2 = uniqueYear(testContext.generateId() + 1000);
+    const fy1 = await pickUniqueYearForTemple(db, temple.id, testContext.generateId());
+    const fy2 = await pickUniqueYearForTemple(db, temple.id, testContext.generateId() + 1000);
     const d1Id = await taCreateAndSubmit(temple.id, fy1);
     const d2Id = await taCreateAndSubmit(temple.id, fy2);
     testContext.registerEntityForCleanup('DECLARATION', d1Id);
@@ -186,7 +211,7 @@ test.describe('Notification Inbox', () => {
 
     // Assert: no unread rows for the two test declarations belonging to ta_chamundi
     const taUser = await db.getOne<{ id: number }>(
-      `SELECT id FROM users WHERE username = 'ta_chamundi' LIMIT 1`, []
+      'SELECT id FROM users WHERE username = ? LIMIT 1', [env.roles.TA.username]
     );
     const wi1 = await db.getOne<{ id: number }>(
       `SELECT id FROM workflow_instances WHERE entity_type = 'DECLARATION' AND entity_id = ?`, [d1Id]

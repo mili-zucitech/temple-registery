@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/data.fixture';
 import { DeclarationFactory } from '../factories/DeclarationFactory';
 import { ApiClient } from '../lib/api-client';
+import { env } from '../setup/env';
 
 test.describe('Concurrency Control', () => {
   test('should_prevent_duplicate_submit_when_double_clicked', async ({
@@ -52,10 +53,10 @@ test.describe('Concurrency Control', () => {
     `, [declaration.id]);
     
     // Two DCs try to approve simultaneously (use DC credentials — workflow engine requires DC role)
-    const dcApi1 = new ApiClient({ baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1', testRunId: testContext.testRunId });
-    const dcApi2 = new ApiClient({ baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1', testRunId: testContext.testRunId });
-    await dcApi1.login('dc_mysuru', 'password123');
-    await dcApi2.login('dc_mysuru', 'password123');
+    const dcApi1 = new ApiClient({ baseURL: env.apiV1Base, testRunId: testContext.testRunId });
+    const dcApi2 = new ApiClient({ baseURL: env.apiV1Base, testRunId: testContext.testRunId });
+    await dcApi1.login(env.roles.DC.username, env.roles.DC.password);
+    await dcApi2.login(env.roles.DC.username, env.roles.DC.password);
 
     const approvePromises = [
       dcApi1.post(`/governance/declarations/${declaration.id}/approve`, { remarks: 'Approved by DC1' }),
@@ -109,7 +110,26 @@ test.describe('Concurrency Control', () => {
     } catch (err: any) {
       if (err.message && err.message.includes('409')) {
         const existing = await api.get<any[]>(`/temples/${temple.id}/trusts`);
-        trust = existing[0];
+        // Find an existing trust whose workflow state allows edits (DRAFT/APPROVED/null).
+        // CLARIFICATION_RESPONDED, SUBMITTED, etc. block edits and would cause this
+        // test to fail with ILLEGAL_STATUS_TRANSITION on the PUT below.
+        let editable: any = null;
+        for (const t of existing) {
+          const wi = await db.getOne<{ status: string }>(`
+            SELECT status FROM workflow_instances
+            WHERE entity_type = 'TRUST' AND entity_id = ?
+            ORDER BY id DESC LIMIT 1
+          `, [t.id]);
+          if (!wi || wi.status === 'DRAFT' || wi.status === 'APPROVED') {
+            editable = t;
+            break;
+          }
+        }
+        if (!editable) {
+          test.skip(true, 'No editable trust available for this temple (all in non-editable workflow states)');
+          return;
+        }
+        trust = editable;
       } else {
         throw err;
       }

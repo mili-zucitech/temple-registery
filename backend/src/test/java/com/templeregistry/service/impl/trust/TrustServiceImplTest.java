@@ -77,8 +77,9 @@ class TrustServiceImplTest {
     void setUp() {
         // Set up a TA security context
         ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user", "EDIT");
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList()));
+        var auth = new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList());
+        var secCtx = new org.springframework.security.core.context.SecurityContextImpl(auth);
+        SecurityContextHolder.setContext(secCtx);
 
         temple = Temple.builder()
                 .districtId(1L)
@@ -144,6 +145,11 @@ class TrustServiceImplTest {
 
         @Test
         void creates_trust_and_persists_temple_flag() {
+            ScopeHelper.Claims claims = new ScopeHelper.Claims(1L, "TEMPLE_AUTHORITY", null, 1L, "ta_user", "EDIT");
+            var auth = new UsernamePasswordAuthenticationToken(claims, null, Collections.emptyList());
+            var secCtx = new org.springframework.security.core.context.SecurityContextImpl(auth);
+            SecurityContextHolder.setContext(secCtx);
+
             when(templeRepository.findById(1L)).thenReturn(Optional.of(temple));
             when(trustRepository.existsByTempleIdAndDeletedFalse(1L)).thenReturn(false);
             when(trustRepository.save(any())).thenAnswer(inv -> {
@@ -165,8 +171,8 @@ class TrustServiceImplTest {
                     anyLong(),
                     eq(1L),
                     eq(1L),
-                    eq(1L),
-                    eq("TEMPLE_AUTHORITY"));
+                    eq(claims.userId()),
+                    eq(claims.role()));
                 verify(summaryService).scheduleRefresh(1L);
         }
 
