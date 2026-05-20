@@ -95,15 +95,19 @@ public class WorkflowEngineAdaptor {
             || instance.getStatus() == WorkflowStatus.UPDATED_AFTER_APPROVAL) {
 
             WorkflowAction action;
+            String comment = null;
             if (instance.getStatus() == WorkflowStatus.UPDATED_AFTER_APPROVAL) {
                 action = WorkflowAction.RESUBMIT;
             } else if (instance.getStatus() == WorkflowStatus.CLARIFICATION_REQUESTED) {
                 action = WorkflowAction.RESPOND_CLARIFICATION;
+                // Governance submit endpoints do not accept a body. Provide a default
+                // clarification response comment so RESPOND_CLARIFICATION remains valid.
+                comment = "Responded to clarification via submit action";
             } else {
                 action = WorkflowAction.SUBMIT;
             }
 
-            execute(instance.getId(), action, actorId, templeId, null, null, null);
+            execute(instance.getId(), action, actorId, templeId, null, comment, null);
             return true;
         } else if (instance.getStatus() == WorkflowStatus.REJECTED) {
             // REJECTED → UPDATED_AFTER_APPROVAL → RESUBMITTED (two-step per TransitionRuleRegistry)

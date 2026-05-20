@@ -72,6 +72,7 @@ class GovernanceDeclarationWorkflowTest {
     @Mock UserRepository userRepository;
     @Mock com.templeregistry.service.declaration.StateTransitionValidator stateTransitionValidator;
     @Mock com.templeregistry.service.declaration.AcknowledgementService acknowledgementService;
+    @Mock com.templeregistry.service.document.FileStorageService fileStorageService;
     @Mock com.templeregistry.service.workflow.WorkflowEngine workflowEngine;
     @Mock com.templeregistry.service.workflow.WorkflowEngineAdaptor workflowEngineAdaptor;
     @Mock com.templeregistry.repository.workflow.WorkflowInstanceRepository workflowInstanceRepository;
@@ -112,6 +113,8 @@ class GovernanceDeclarationWorkflowTest {
         // requestClarification calls workflowInstanceRepository directly (not through adaptor)
         lenient().when(workflowInstanceRepository.findByEntityTypeAndEntityId(any(), any()))
             .thenReturn(Optional.of(instance));
+        lenient().when(fileStorageService.uploadBytes(anyString(), anyString(), any(byte[].class)))
+            .thenReturn("declarations/acknowledgements/ACK_DECLARATION_42.pdf");
     }
 
     // â”€â”€ Approve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

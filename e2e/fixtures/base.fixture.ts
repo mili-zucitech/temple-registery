@@ -3,6 +3,7 @@ import { DbClient } from '../lib/db-client';
 import { ApiClient } from '../lib/api-client';
 import { TestContext } from '../lib/test-context';
 import { DbAssertions } from '../lib/assertions';
+import { env } from '../setup/env';
 
 export type BaseFixtures = {
   testContext: TestContext;
@@ -19,13 +20,7 @@ export const test = base.extend<BaseFixtures>({
   },
 
   db: async ({ testContext }, use) => {
-    const client = new DbClient({
-      host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
-      port: parseInt(process.env.DB_PORT || '4000'),
-      user: process.env.DB_USER || '3Nkwm2fKtuGqoiu.root',
-      password: process.env.DB_PASSWORD || '6sXYNlDhrX80xnDz',
-      database: process.env.DB_NAME || 'test'
-    });
+    const client = new DbClient(env.db);
     
     await client.connect();
     await use(client);
@@ -34,11 +29,11 @@ export const test = base.extend<BaseFixtures>({
 
   api: async ({ testContext }, use) => {
     const client = new ApiClient({
-      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+      baseURL: env.apiV1Base,
       testRunId: testContext.testRunId
     });
 
-    await client.login('super_admin', 'password123');
+    await client.login(env.roles.SA.username, env.roles.SA.password);
     
     await use(client);
     await client.dispose();

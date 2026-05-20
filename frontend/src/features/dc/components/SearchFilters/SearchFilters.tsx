@@ -111,7 +111,11 @@ export function SearchFilters({
         {/* Declaration status */}
         <Select
           value={filters.declarationStatus ?? 'all'}
-          onValueChange={(v) => onFilterChange({ declarationStatus: v && v !== 'all' ? v : undefined })}
+          onValueChange={(v) =>
+            onFilterChange({
+              declarationStatus: (v && v !== 'all' ? v : undefined) as DcTempleSearchFilterRequest['declarationStatus'],
+            })
+          }
         >
           <SelectTrigger className="w-56">
             <SelectValue placeholder="Declaration status" />

@@ -42,6 +42,7 @@ import {
   useWorkflowActions,
 } from '@/features/dc/dcHooks'
 import type { ClarificationItemResponse } from '@/features/dc/dcTypes'
+import { normalizeDeclarationStatusForDisplay } from '@/features/dc/declarationStatusFilters'
 import type { DeclarationVersionResponse } from '@/features/declaration/declarationTypes'
 import {
   workflowApproveSchema,
@@ -94,6 +95,8 @@ export function DcDeclarationDetailPage() {
       />
     )
   }
+
+  const chatStatus = normalizeDeclarationStatusForDisplay(declaration.status) ?? 'SUBMITTED'
 
   return (
     <div className="space-y-6 pb-8">
@@ -188,7 +191,7 @@ export function DcDeclarationDetailPage() {
 
               <ChatPanel
                 declarationId={declaration.id}
-                declarationStatus={declaration.status}
+                declarationStatus={chatStatus}
                 readonly={true}
               />
             </TabsContent>

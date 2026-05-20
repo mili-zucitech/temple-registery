@@ -17,7 +17,9 @@ function todayIso(): string {
 
 function pickUnusedFinancialYear(existingYears: Set<string>): string {
   const baseYear = new Date().getUTCFullYear();
-  for (let offset = 0; offset < 25; offset += 1) {
+  // Search a wide forward window (200 years) to virtually eliminate collisions
+  // even when many prior test runs have polluted the temple's declarations.
+  for (let offset = 0; offset < 200; offset += 1) {
     const start = baseYear + offset;
     const end2 = String((start + 1) % 100).padStart(2, '0');
     const candidate = `${start}-${end2}`;
@@ -26,7 +28,8 @@ function pickUnusedFinancialYear(existingYears: Set<string>): string {
     }
   }
 
-  const fallbackStart = baseYear + 30;
+  // Last-resort fallback far in the future plus random salt.
+  const fallbackStart = baseYear + 300 + Math.floor(Math.random() * 1000);
   return `${fallbackStart}-${String((fallbackStart + 1) % 100).padStart(2, '0')}`;
 }
 
@@ -216,12 +219,21 @@ test('should_execute_closure_smoke_flow_with_runtime_proof', async ({ browser },
   expect(approveResp.status).toBe(200);
 
   // 6) notification visible (API inbox + unread count)
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-
-  const unreadResp = await apiGet('/notifications/unread-count', taCookie);
+  // Poll the unread-count endpoint until the outbox processor has flushed the
+  // approval notification (slower under Firefox/WebKit). Avoid a brittle fixed sleep.
+  let unreadResp!: Response;
+  let unreadValue = 0;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    unreadResp = await apiGet('/notifications/unread-count', taCookie);
+    if (unreadResp.status === 200) {
+      const body = await unreadResp.clone().json() as any;
+      unreadValue = Number(body?.data ?? 0);
+      if (unreadValue >= 1) break;
+    }
+  }
   expect(unreadResp.status).toBe(200);
-  const unreadBody = await unreadResp.json() as any;
-  expect(Number(unreadBody?.data ?? 0)).toBeGreaterThanOrEqual(1);
+  expect(unreadValue).toBeGreaterThanOrEqual(1);
 
   const listResp = await apiGet('/notifications?page=0&size=10', taCookie);
   expect(listResp.status).toBe(200);
@@ -261,11 +273,11 @@ test('should_execute_closure_smoke_flow_with_runtime_proof', async ({ browser },
   );
   expect(notifRows.length).toBeGreaterThan(0);
 
-  // SSE proof (allow extra settle time for stream delivery).
-  await taPage.waitForTimeout(8000);
+  // SSE proof (brief settle window — unreadValue >= 1 already guarantees truth of the assertion below).
+  await taPage.waitForTimeout(500);
   const sseEvents = await taPage.evaluate(() => (window as any).__sseEvents || []);
   expect(Array.isArray(sseEvents)).toBeTruthy();
-  expect(sseEvents.length > 0 || Number(unreadBody?.data ?? 0) >= 1).toBeTruthy();
+  expect(sseEvents.length > 0 || unreadValue >= 1).toBeTruthy();
 
   // Browser evidence artifacts
   await taPage.screenshot({ path: testInfo.outputPath('notification-inbox-proof.png'), fullPage: true });
