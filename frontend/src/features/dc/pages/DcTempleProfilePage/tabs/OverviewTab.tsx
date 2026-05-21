@@ -485,28 +485,32 @@ export function OverviewTab({
           const latestStaging = profile.latestProfileStaging
           const latestStagingStatus = latestStaging?.status ?? null
           const latestStagingRejected = latestStagingStatus === 'REJECTED'
+          // RE_APPROVED means the workflow approved a resubmission — treat it as approved
+          // for display purposes, same as TrustTab and ProfileHistoryTab.
+          const latestStagingApproved = latestStagingStatus === 'APPROVED' || latestStagingStatus === 'RE_APPROVED'
           const reviewedAtDisplay = latestStaging?.reviewedAt
             ? new Date(latestStaging.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
             : null
-          // When the latest staging was rejected but the temple is already verified (prior
-          // approved profile exists), the oversight panel must still show REJECTED so the DC
-          // sees the latest review outcome, not the stale approved state.
-          // The statusHintText below provides the nuanced context ("Profile active · update rejected").
-          const overrideCanonicalStatus = latestStagingRejected
+          // hasEditRejection: temple is verified (a prior profile was approved) but the
+          // latest staging is REJECTED (the TA submitted an edit and it was rejected).
+          // The original approved profile data remains live — mirroring TrustTab's logic.
+          // When true: panel shows REJECTED badge + hint that original data is still active.
+          const hasEditRejection = isVerified && latestStagingRejected
+          const overrideCanonicalStatus = hasEditRejection
             ? 'REJECTED'
-            : (isVerified ? 'APPROVED' : latestStagingStatus ?? undefined)
+            : latestStagingRejected
+              ? 'REJECTED'
+              : (latestStagingApproved || isVerified ? 'APPROVED' : latestStagingStatus ?? undefined)
           const overrideRejectionReason = latestStagingRejected
             ? (latestStaging?.reviewComment ?? null)
             : null
-          const statusHintText = latestStagingRejected && isVerified
-            ? `Profile active · Latest update (v${latestStaging?.versionNumber}) rejected${reviewedAtDisplay ? ' on ' + reviewedAtDisplay : ''}`
+          const statusHintText = hasEditRejection
+            ? `Profile active · Latest update (v${latestStaging?.versionNumber}) rejected${reviewedAtDisplay ? ' on ' + reviewedAtDisplay : ''}. Original approved data is still live.`
             : undefined
-          // When the latest staging is rejected, the oversight panel shows REJECTED
-          // (most recent review state). isVerified=false here so the "Approved by DC"
-          // message is not rendered — the hint text surfaces the "profile still active"
-          // context instead.
-          const panelIsVerified = !latestStagingRejected && isVerified
-          const noSubmissionHint = canAct && !pendingStaging
+          // panelIsVerified: true when the profile is in a clean approved state with no
+          // pending or rejected edits. Mirrors TrustTab's panelIsVerified logic.
+          const panelIsVerified = (latestStagingApproved || isVerified) && !latestStagingRejected
+          const noSubmissionHint = canAct && !pendingStaging && !hasEditRejection
             ? 'The temple authority has not yet submitted their profile for review. Once they submit, you will be able to review and approve or reject it here.'
             : statusHintText
           return (

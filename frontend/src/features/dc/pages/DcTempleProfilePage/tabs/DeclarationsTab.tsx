@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Eye, Calendar, IndianRupee, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { FileText, MessageSquare, Eye, Calendar, IndianRupee, CheckCircle2, AlertCircle, Clock, PlusCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { DeclarationCard } from '../components'
 import { DeclarationDetailSection } from '../components/DeclarationDetailSection'
@@ -19,6 +19,8 @@ interface DeclarationsTabProps {
   onReject: (id: number) => void
   onClarify: (id: number) => void
   onFlagPhysical: (id: number) => void
+  /** SA-only: navigate to the full declarations management page */
+  onManageDeclarations?: () => void
 }
 
 export function DeclarationsTab({
@@ -31,6 +33,7 @@ export function DeclarationsTab({
   onReject,
   onClarify,
   onFlagPhysical,
+  onManageDeclarations,
 }: DeclarationsTabProps) {
   const [conversationModalOpen, setConversationModalOpen] = useState(false)
   const [conversationDeclarationId, setConversationDeclarationId] = useState<number | null>(null)
@@ -71,12 +74,26 @@ export function DeclarationsTab({
         </div>
         <p className="text-md font-semibold text-slate-900 mb-2">No declarations on record</p>
         <p className="text-sm font-regular text-slate-500 max-w-[320px]">This temple has not filed any asset declarations. If overdue, consider sending an official notice.</p>
+        {onManageDeclarations && (
+          <Button size="sm" className="mt-5 gap-1.5" onClick={onManageDeclarations}>
+            <PlusCircle className="size-3.5" />
+            Add Declaration
+          </Button>
+        )}
       </div>
     )
   }
 
   return (
     <div className="relative animate-in fade-in duration-500 max-w-[1200px] mx-auto">
+      {onManageDeclarations && (
+        <div className="flex justify-end mb-4">
+          <Button size="sm" className="gap-1.5" onClick={onManageDeclarations}>
+            <PlusCircle className="size-3.5" />
+            Add / Manage Declarations
+          </Button>
+        </div>
+      )}
       {/* Timeline spine */}
       <div className="absolute left-[21px] top-8 bottom-0 w-0.5 bg-slate-200" aria-hidden />
 

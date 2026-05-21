@@ -346,7 +346,7 @@ export function useDcTempleProfile(templeId: number) {
     isError: profileError,
     isFetching: profileFetching,
     refetch,
-  } = useGetDcTempleProfileQuery(templeId, { skip: !templeId })
+  } = useGetDcTempleProfileQuery(templeId, { skip: !templeId, refetchOnMountOrArgChange: true })
 
   return {
     profile: profileData?.data ?? null,

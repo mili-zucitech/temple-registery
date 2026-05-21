@@ -398,7 +398,8 @@ public class WorkflowEngineImpl implements WorkflowEngine {
 
     private boolean roleMatches(String required, ActionContext ctx) {
         return switch (required) {
-            case "TA"         -> ctx.isTa();
+            // SUPER_ADMIN can act on any TA-level transition (no ownership restriction applied)
+            case "TA"         -> ctx.isTa() || ctx.isSuperAdmin();
             // SUPER_ADMIN can act on any DC-level transition (no jurisdiction restriction applied)
             case "DC"         -> ctx.isDc() || ctx.isSuperAdmin();
             case "SYSTEM"     -> ctx.isSystem();

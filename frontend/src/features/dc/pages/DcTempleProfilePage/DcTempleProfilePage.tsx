@@ -1,6 +1,6 @@
 // imports
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -127,22 +127,6 @@ export function DcTempleProfilePage() {
   // SA can edit any temple — DC cannot
   const canEdit = role === USER_ROLES.SUPER_ADMIN
 
-  // SA edit dialog states
-  const [trustEditOpen, setTrustEditOpen] = useState(false)
-  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false)
-  const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null)
-  const [contractorDialogOpen, setContractorDialogOpen] = useState(false)
-  const [editingContractor, setEditingContractor] = useState<DcContractorResponse | null>(null)
-
-  // SA edit mutations
-  const [createTrust, { isLoading: isCreatingTrust }] = useCreateTrustMutation()
-  const [updateTrust, { isLoading: isUpdatingTrust }] = useUpdateTrustMutation()
-  const [submitTrust, { isLoading: isSubmittingTrust }] = useSubmitTrustMutation()
-  const [createEmployee, { isLoading: isCreatingEmployee }] = useCreateEmployeeMutation()
-  const [updateEmployee, { isLoading: isUpdatingEmployee }] = useUpdateEmployeeMutation()
-  const [createContractor, { isLoading: isCreatingContractor }] = useCreateContractorMutation()
-  const [updateContractor, { isLoading: isUpdatingContractor }] = useUpdateContractorMutation()
-
   const { profile, isLoading, isError, isFetching: profileFetching, refetch: refetchProfile } = useDcTempleProfile(id)
   // TA cannot act on profile staging — skip the fetch to avoid unnecessary 404 noise
   const { pendingStaging, isFetching: stagingFetching, refetch: refetchPendingStaging } = useDcPendingProfileStaging(id, isTa)
@@ -155,7 +139,8 @@ export function DcTempleProfilePage() {
   const { submitApproveProfile, submitRejectProfile } = useProfileWorkflowActions()
 
   const [selectedDeclarationId, setSelectedDeclarationId] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? 'overview')
 
   const { declaration: selectedDeclarationDetail } = useDcDeclarationDetail(selectedDeclarationId ?? 0)
 
@@ -266,7 +251,7 @@ export function DcTempleProfilePage() {
         } />
       )*/}
       {/* Tabs must wrap TabsList — so we wrap the whole content including the header */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col bg-slate-50 min-h-screen">
+      <Tabs value={activeTab} onValueChange={(tab) => { setActiveTab(tab); setSearchParams({ tab }, { replace: true }) }} className="flex flex-col bg-slate-50 min-h-screen">
 
         {/* ── HERO CASE HEADER ─────────────────────────────────────────────── */}
         <header 
@@ -489,6 +474,9 @@ export function DcTempleProfilePage() {
               onReject={(declarationId) => openDialog('reject', declarationId, id)}
               onClarify={(declarationId) => openDialog('clarify', declarationId, id)}
               onFlagPhysical={(declarationId) => openDialog('schedule-site-visit', declarationId, id)}
+              onManageDeclarations={
+                canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_DECLARATIONS.replace(':templeId', String(id))) : undefined
+              }
             />
           </TabsContent>
 
@@ -503,11 +491,11 @@ export function DcTempleProfilePage() {
               isRefetching={isRefetchingTrust}
               onEditTrust={
                 isOwnTemple && trust ? () => navigate(ROUTE_PATHS.TA_TRUST)
-                : canEdit && trust ? () => setTrustEditOpen(true)
+                : canEdit && trust ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_TRUST.replace(':templeId', String(id)))
                 : undefined
               }
               onCreateTrust={
-                canEdit && !trust ? () => setTrustEditOpen(true) : undefined
+                canEdit && !trust ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_TRUST.replace(':templeId', String(id))) : undefined
               }
               onVerifyTrust={async (trustId, _notes) => {
                 try {
@@ -535,12 +523,12 @@ export function DcTempleProfilePage() {
               employees={employees}
               onAddEmployee={
                 isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
-                : canEdit ? () => { setEditingEmployeeId(null); setEmployeeDialogOpen(true) }
+                : canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_EMPLOYEES.replace(':templeId', String(id)) + '?from=staff')
                 : undefined
               }
               onEditEmployee={
                 isOwnTemple ? () => navigate(ROUTE_PATHS.TA_EMPLOYEES)
-                : canEdit ? (empId) => { setEditingEmployeeId(empId); setEmployeeDialogOpen(true) }
+                : canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_EMPLOYEES.replace(':templeId', String(id)) + '?from=staff')
                 : undefined
               }
             />
@@ -551,12 +539,12 @@ export function DcTempleProfilePage() {
               contractors={contractors}
               onAddContractor={
                 isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
-                : canEdit ? () => { setEditingContractor(null); setContractorDialogOpen(true) }
+                : canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_CONTRACTORS.replace(':templeId', String(id)) + '?from=contractors')
                 : undefined
               }
               onEditContractor={
                 isOwnTemple ? () => navigate(ROUTE_PATHS.TA_CONTRACTORS)
-                : canEdit ? (c) => { setEditingContractor(c); setContractorDialogOpen(true) }
+                : canEdit ? () => navigate(ROUTE_PATHS.ADMIN_TEMPLE_CONTRACTORS.replace(':templeId', String(id)) + '?from=contractors')
                 : undefined
               }
             />
@@ -605,51 +593,7 @@ export function DcTempleProfilePage() {
         isSubmitting={isSubmitting}
       />
 
-      {/* ── SA TRUST EDIT DIALOG ────────────────────────────────────────── */}
-      {canEdit && (
-        <SaTrustEditDialog
-          open={trustEditOpen}
-          templeId={id}
-          trust={trust}
-          onClose={() => setTrustEditOpen(false)}
-          onSaved={async () => {
-            setTrustEditOpen(false)
-            refetchProfile()
-          }}
-          createTrust={createTrust}
-          updateTrust={updateTrust}
-          submitTrust={submitTrust}
-          isSaving={isCreatingTrust || isUpdatingTrust || isSubmittingTrust}
-        />
-      )}
 
-      {/* ── SA CONTRACTOR DIALOG ───────────────────────────────────────── */}
-      {canEdit && (
-        <SaContractorDialog
-          open={contractorDialogOpen}
-          templeId={id}
-          contractor={editingContractor}
-          onClose={() => { setContractorDialogOpen(false); setEditingContractor(null) }}
-          onSaved={() => { setContractorDialogOpen(false); setEditingContractor(null); refetchProfile() }}
-          createContractor={createContractor}
-          updateContractor={updateContractor}
-          isSaving={isCreatingContractor || isUpdatingContractor}
-        />
-      )}
-
-      {/* ── SA EMPLOYEE DIALOG ─────────────────────────────────────────── */}
-      {canEdit && (
-        <SaEmployeeDialog
-          open={employeeDialogOpen}
-          templeId={id}
-          employeeId={editingEmployeeId}
-          onClose={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null) }}
-          onSaved={() => { setEmployeeDialogOpen(false); setEditingEmployeeId(null); refetchProfile() }}
-          createEmployee={createEmployee}
-          updateEmployee={updateEmployee}
-          isSaving={isCreatingEmployee || isUpdatingEmployee}
-        />
-      )}
     </div>
   )
 }

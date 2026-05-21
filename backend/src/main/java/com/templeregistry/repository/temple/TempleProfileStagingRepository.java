@@ -15,8 +15,13 @@ import java.util.Optional;
 @Repository
 public interface TempleProfileStagingRepository extends JpaRepository<TempleProfileStaging, Long> {
 
-    /** Returns all staging records for a temple ordered by most recent version first. */
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId ORDER BY wi.versionNumber DESC")
+    /** Returns all staging records for a temple ordered by most recent version first.
+     *  Ordered by s.versionNumber DESC (the staging record's own sequential version: 1, 2, 3…)
+     *  with s.id DESC as a tiebreaker for records that share the same versionNumber.
+     *  NOTE: do NOT order by wi.versionNumber — that is the WorkflowInstance transition count
+     *  (incremented only on EDIT_APPROVED), which can be higher on an old REJECTED staging than
+     *  on a newer RE_APPROVED one, causing the wrong record to be returned. */
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId ORDER BY s.versionNumber DESC, s.id DESC")
     Page<TempleProfileStaging> findAllByTempleIdOrderByVersionNumberDesc(Long templeId, Pageable pageable);
 
         default Optional<TempleProfileStaging> findTopByTempleIdOrderByVersionNumberDesc(Long templeId) {
@@ -26,12 +31,12 @@ public interface TempleProfileStagingRepository extends JpaRepository<TempleProf
         }
 
     /** Returns the latest staging record matching any of the given statuses. */
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status IN :statuses ORDER BY wi.versionNumber DESC")
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status IN :statuses ORDER BY s.versionNumber DESC, s.id DESC")
     Optional<TempleProfileStaging> findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
             Long templeId, java.util.List<com.templeregistry.entity.workflow.WorkflowStatus> statuses);
 
     /** Returns the latest staging record in a specific status. */
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status = :status ORDER BY wi.versionNumber DESC")
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM TempleProfileStaging s JOIN WorkflowInstance wi ON wi.entityId = s.id AND wi.entityType = 'TEMPLE_PROFILE' WHERE s.templeId = :templeId AND wi.status = :status ORDER BY s.versionNumber DESC, s.id DESC")
     org.springframework.data.domain.Page<TempleProfileStaging> findAllByTempleIdAndStatus(
             Long templeId, com.templeregistry.entity.workflow.WorkflowStatus status, Pageable pageable);
 

@@ -150,7 +150,7 @@ function TimelineEventRow({ event }: { event: TempleTimelineEventResponse }) {
           </div>
         )}
 
-        {/* Footer: performer role */}
+        {/* Footer: performer name + role */}
         <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-50 dark:border-slate-800">
           <span className={`
             inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md
@@ -159,6 +159,11 @@ function TimelineEventRow({ event }: { event: TempleTimelineEventResponse }) {
             <span className={`h-1.5 w-1.5 rounded-full ${variantDotClass(variant)}`} />
             {resolveRoleLabel(event.performerRole)}
           </span>
+          {event.performerName && (
+            <span className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
+              {event.performerName}
+            </span>
+          )}
           {event.moduleName && (
             <span className="text-[10px] text-slate-400 uppercase tracking-wide">
               {event.moduleName.replace(/_/g, ' ')}

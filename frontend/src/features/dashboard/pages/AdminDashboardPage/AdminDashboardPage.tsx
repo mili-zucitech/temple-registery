@@ -123,7 +123,7 @@ export function AdminDashboardPage() {
                 return (
                   <div key={item.districtId}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">District #{item.districtId}</span>
+                      <span className="text-muted-foreground">{item.districtName ?? `District #${item.districtId}`}</span>
                       <span className="font-medium">{item.count}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -151,7 +151,7 @@ export function AdminDashboardPage() {
                       <span className="font-medium">{item.count}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-secondary" style={{ width: `${Math.max(width, 8)}%` }} />
+                      <div className="h-full bg-amber-500" style={{ width: `${Math.max(width, 8)}%` }} />
                     </div>
                   </div>
                 )
@@ -187,9 +187,9 @@ export function AdminDashboardPage() {
               <tbody className="divide-y divide-border">
                 {auditEvents.map((event: AuditEventResponse) => (
                   <tr key={event.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap">{event.actorRole} #{event.actorId}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{event.actorName ?? `${event.actorRole} #${event.actorId}`}</td>
                     <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{event.action}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{event.entityType} #{event.entityId}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{event.entityName ?? `${event.entityType} #${event.entityId}`}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                       {event.occurredAt ? new Date(event.occurredAt).toLocaleString() : ''}
                     </td>

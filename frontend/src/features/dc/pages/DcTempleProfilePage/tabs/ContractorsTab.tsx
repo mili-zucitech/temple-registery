@@ -1,4 +1,4 @@
-import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download, User, Building2 } from 'lucide-react'
+import { Briefcase, Calendar, Receipt, Hash, CheckCircle2, Flag, Eye, FileText, Download, User, Building2, PlusCircle, Pencil } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '../components'
 import { formatCurrency } from '../utils'
@@ -104,8 +104,9 @@ export function ContractorsTab({ contractors, onAddContractor, onEditContractor 
         action={
           <div className="flex items-center gap-2">
             {onAddContractor && (
-              <Button variant="outline" size="sm" onClick={onAddContractor} className="text-xs h-7 px-3">
-                + Add Contractor
+              <Button size="sm" onClick={onAddContractor} className="gap-1.5">
+                <PlusCircle className="size-3.5" />
+                Add Contractor
               </Button>
             )}
             <span className="text-xs font-medium uppercase tracking-label px-3 py-1 rounded-lg bg-primary/5 text-primary border border-primary/10">
@@ -185,11 +186,13 @@ export function ContractorsTab({ contractors, onAddContractor, onEditContractor 
                             </Button>
                             {onEditContractor && (
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={() => onEditContractor(c)}
+                                className="h-8 w-8 p-0"
+                                aria-label="Edit contractor"
                               >
-                                Edit
+                                <Pencil className="size-3.5" />
                               </Button>
                             )}
                           </div>
