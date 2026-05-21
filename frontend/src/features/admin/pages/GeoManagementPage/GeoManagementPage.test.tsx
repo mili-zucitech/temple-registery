@@ -72,10 +72,10 @@ describe('GeoManagementPage', () => {
   it('should render the 4-column hierarchy layout', async () => {
     renderWithProviders(<GeoManagementPage />)
     await waitFor(() => {
-      expect(screen.getByText('States')).toBeInTheDocument()
-      expect(screen.getByText('Districts')).toBeInTheDocument()
-      expect(screen.getByText('Taluks')).toBeInTheDocument()
-      expect(screen.getByText('Hoblis')).toBeInTheDocument()
+      expect(screen.getAllByText('States').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Districts').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Taluks').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Hoblis').length).toBeGreaterThan(0)
     })
   })
 
@@ -87,14 +87,14 @@ describe('GeoManagementPage', () => {
     })
   })
 
-  it('should show "Select a parent level first" when no state selected for District column', async () => {
+  it('should show "Select a parent first" when no state selected for District column', async () => {
     vi.mocked(useGetDistrictsByStateQuery).mockReturnValue({
       data: { success: true, message: 'OK', data: [] },
       isLoading: false,
     } as ReturnType<typeof useGetDistrictsByStateQuery>)
     renderWithProviders(<GeoManagementPage />)
     await waitFor(() => {
-      expect(screen.getAllByText(/Select a parent level first/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Select a parent first/i).length).toBeGreaterThan(0)
     })
   })
 
@@ -118,16 +118,14 @@ describe('GeoManagementPage', () => {
     expect(screen.queryByText('Karnataka')).not.toBeInTheDocument()
   })
 
-  it('should have disabled Add State button when state name is empty', async () => {
+  it('should open Add State sheet when Add State button clicked', async () => {
     renderWithProviders(<GeoManagementPage />)
-    // The first "Add" button (States column) should be disabled when no name is entered
-    const addButtons = screen.queryAllByRole('button', { name: /^add$/i })
-    if (addButtons.length > 0) {
-      expect(addButtons[0]).toBeDisabled()
-    } else {
-      // Button might not be rendered yet — assert state name input is empty
-      const stateNameInput = screen.getByPlaceholderText(/state name/i)
-      expect(stateNameInput).toHaveValue('')
-    }
+    const user = userEvent.setup()
+    const addStateBtn = await screen.findByRole('button', { name: /add state/i })
+    await user.click(addStateBtn)
+    // The Create form sheet should open with the state name input
+    const stateNameInput = await screen.findByPlaceholderText(/enter state/i)
+    expect(stateNameInput).toBeInTheDocument()
+    expect(stateNameInput).toHaveValue('')
   })
 })

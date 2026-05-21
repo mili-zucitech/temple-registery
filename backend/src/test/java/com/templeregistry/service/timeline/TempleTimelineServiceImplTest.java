@@ -9,6 +9,8 @@ import com.templeregistry.entity.workflow.WorkflowAction;
 import com.templeregistry.entity.workflow.WorkflowEntityType;
 import com.templeregistry.entity.workflow.WorkflowStatus;
 import com.templeregistry.event.workflow.GovernanceDomainEvent;
+import com.templeregistry.entity.auth.User;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.timeline.TempleTimelineEventRepository;
 import com.templeregistry.service.timeline.impl.TempleTimelineServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -33,6 +36,9 @@ class TempleTimelineServiceImplTest {
 
     @Mock
     TempleTimelineEventRepository repository;
+
+    @Mock
+    UserRepository userRepository;
 
     @InjectMocks
     TempleTimelineServiceImpl service;
