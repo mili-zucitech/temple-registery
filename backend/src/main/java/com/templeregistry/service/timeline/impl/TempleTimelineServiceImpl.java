@@ -7,6 +7,7 @@ import com.templeregistry.entity.timeline.TimelineEventCode;
 import com.templeregistry.entity.timeline.TimelineEventType;
 import com.templeregistry.event.workflow.GovernanceDomainEvent;
 import com.templeregistry.repository.timeline.TempleTimelineEventRepository;
+import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.service.timeline.TempleTimelineService;
 import com.templeregistry.service.timeline.TimelineEventMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class TempleTimelineServiceImpl implements TempleTimelineService {
     private static final int MAX_PAGE_SIZE = 50;
 
     private final TempleTimelineEventRepository repository;
+    private final UserRepository userRepository;
 
     // ─── Write: Workflow Event ─────────────────────────────────────────────────
 
@@ -63,6 +65,7 @@ public class TempleTimelineServiceImpl implements TempleTimelineService {
             .workflowAction(event.action() != null ? event.action().name() : null)
             .sourceTransitionId(transitionId)
             .performerId(event.actorId() != null ? event.actorId() : 0L)
+            .performerName(resolvePerformerName(event.actorId()))
             .performerRole(event.actorRole() != null ? event.actorRole() : "SYSTEM")
             .createdBySystem(isSystemAction(event))
             .occurredAt(event.occurredAt() != null ? event.occurredAt() : Instant.now())
@@ -111,6 +114,7 @@ public class TempleTimelineServiceImpl implements TempleTimelineService {
             .description(description)
             .referenceId(documentId)
             .performerId(performerId != null ? performerId : 0L)
+            .performerName(resolvePerformerName(performerId))
             .performerRole(performerRole != null ? performerRole : "UNKNOWN")
             .createdBySystem(false)
             .occurredAt(Instant.now())
@@ -175,6 +179,13 @@ public class TempleTimelineServiceImpl implements TempleTimelineService {
     private boolean isSystemAction(GovernanceDomainEvent event) {
         if (event.actorRole() == null) return true;
         return "SYSTEM".equalsIgnoreCase(event.actorRole());
+    }
+
+    private String resolvePerformerName(Long actorId) {
+        if (actorId == null || actorId == 0L) return null;
+        return userRepository.findById(actorId)
+                .map(u -> u.getFullName())
+                .orElse(null);
     }
 
     private String buildDocumentDescription(TimelineEventCode code, String label, String ownerType) {

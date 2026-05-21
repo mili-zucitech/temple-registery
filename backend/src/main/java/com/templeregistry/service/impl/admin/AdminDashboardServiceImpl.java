@@ -5,6 +5,7 @@ import com.templeregistry.dto.response.admin.StatewideDashboardResponse;
 import com.templeregistry.entity.auth.UserRole;
 import com.templeregistry.repository.audit.AuditDataEventRepository;
 import com.templeregistry.repository.auth.UserRepository;
+import com.templeregistry.repository.geo.DistrictRepository;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.service.admin.AdminDashboardService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final TempleSearchSummaryRepository searchSummaryRepository;
     private final UserRepository userRepository;
     private final AuditDataEventRepository auditDataEventRepository;
+    private final DistrictRepository districtRepository;
 
     @Override
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -47,12 +51,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long recentAuditCount = auditDataEventRepository.count();
 
         List<StatewideDashboardResponse.DistrictDistributionItem> districtDist =
-                searchSummaryRepository.countByDistrict().stream()
-                        .map(row -> StatewideDashboardResponse.DistrictDistributionItem.builder()
-                                .districtId(row[0] != null ? ((Number) row[0]).longValue() : null)
-                                .count(((Number) row[1]).longValue())
-                                .build())
-                        .toList();
+                buildDistrictDistribution(searchSummaryRepository.countByDistrict());
 
         List<GradeDistributionItem> gradeDist =
                 searchSummaryRepository.countByGradeForDistrict(null).stream()
@@ -79,5 +78,39 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .districtDistribution(districtDist)
                 .gradeDistribution(gradeDist)
                 .build();
+    }
+
+    /**
+     * Builds district distribution items, batch-resolving district names in a single query
+     * to avoid N+1 lookups.
+     */
+    private List<StatewideDashboardResponse.DistrictDistributionItem> buildDistrictDistribution(
+            List<Object[]> rows) {
+        // Collect all non-null district IDs first
+        List<Long> ids = rows.stream()
+                .filter(row -> row[0] != null)
+                .map(row -> ((Number) row[0]).longValue())
+                .collect(Collectors.toList());
+
+        // Batch-fetch district names in one query → Map<id, name>
+        Map<Long, String> nameById = districtRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(
+                        d -> d.getId(),
+                        d -> d.getName()
+                ));
+
+        return rows.stream()
+                .map(row -> {
+                    Long districtId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                    String name = districtId != null
+                            ? nameById.getOrDefault(districtId, "District #" + districtId)
+                            : "Unknown";
+                    return StatewideDashboardResponse.DistrictDistributionItem.builder()
+                            .districtId(districtId)
+                            .districtName(name)
+                            .count(((Number) row[1]).longValue())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 }

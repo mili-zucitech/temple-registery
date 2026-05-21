@@ -61,10 +61,7 @@ import com.templeregistry.service.workflow.VersionService;
 import com.templeregistry.service.clarification.ClarificationEngine;
 import com.templeregistry.entity.workflow.WorkflowInstance;
 import com.templeregistry.service.document.FileStorageService;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Paragraph;
+import com.templeregistry.util.pdf.AcknowledgementTemplate;
 import java.io.ByteArrayOutputStream;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.templeregistry.entity.trust.TrustType;
@@ -852,27 +849,32 @@ public class GovernanceWorkflowServiceImpl implements GovernanceWorkflowService 
     }
 
     private String generateAcknowledgementDocument(AssetDeclaration declaration, String acknowledgementNumber) {
-        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        try {
             Temple temple = loadTempleWithGeo(declaration.getTempleId());
-            PdfWriter writer = new PdfWriter(output);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
 
-            document.add(new Paragraph("Temple Registry - Declaration Acknowledgement"));
-            document.add(new Paragraph("Acknowledgement Number: " + acknowledgementNumber));
-            document.add(new Paragraph("Declaration ID: " + declaration.getId()));
-            document.add(new Paragraph("Temple Name: " + temple.getName()));
-            document.add(new Paragraph("Temple ID: " + declaration.getTempleId()));
-            document.add(new Paragraph("District ID: " + declaration.getDistrictId()));
-            document.add(new Paragraph("Financial Year: " + declaration.getFinancialYear()));
-            document.add(new Paragraph("Version: " + declaration.getVersionNumber()));
-            document.add(new Paragraph("Annual Income (INR): " + (declaration.getAnnualIncome() != null ? declaration.getAnnualIncome() : "N/A")));
-            document.add(new Paragraph("Annual Expenditure (INR): " + (declaration.getAnnualExpenditure() != null ? declaration.getAnnualExpenditure() : "N/A")));
-            document.add(new Paragraph("Approved At: " + LocalDateTime.now()));
-            document.close();
+            String income = declaration.getAnnualIncome() != null
+                ? String.format("₹ %,.2f", declaration.getAnnualIncome()) : null;
+            String expenditure = declaration.getAnnualExpenditure() != null
+                ? String.format("₹ %,.2f", declaration.getAnnualExpenditure()) : null;
+
+            byte[] pdfBytes = AcknowledgementTemplate.builder()
+                .acknowledgementNumber(acknowledgementNumber)
+                .declarationId(declaration.getId())
+                .templeName(temple.getName())
+                .templeId(declaration.getTempleId())
+                .districtId(declaration.getDistrictId())
+                .financialYear(declaration.getFinancialYear())
+                .version(String.valueOf(declaration.getVersionNumber()))
+                .annualIncome(income)
+                .annualExpenditure(expenditure)
+                .status(declaration.getStatus() != null ? declaration.getStatus().name() : "APPROVED")
+                .reviewedAt(LocalDateTime.now())
+                .remarks(declaration.getReviewComment())
+                .build()
+                .render();
 
             String filename = "ACK_DECLARATION_" + declaration.getId() + ".pdf";
-            return fileStorageService.uploadBytes("declarations/acknowledgements", filename, output.toByteArray());
+            return fileStorageService.uploadBytes("declarations/acknowledgements", filename, pdfBytes);
         } catch (Exception ex) {
             log.error("Acknowledgement PDF generation failed for declarationId={} ackNumber={}: {}",
                 declaration.getId(), acknowledgementNumber, ex.getMessage());

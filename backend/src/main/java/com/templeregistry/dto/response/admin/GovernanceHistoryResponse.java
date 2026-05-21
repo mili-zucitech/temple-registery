@@ -14,6 +14,7 @@ public class GovernanceHistoryResponse {
     private Long workflowInstanceId;
     private Long workflowTransitionId;
     private Long actorUserId;
+    private String actorName;
     private String actorRole;
     private String action;
     private String comment;

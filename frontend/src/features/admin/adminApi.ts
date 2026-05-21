@@ -55,10 +55,12 @@ export interface TempleOption {
 export interface AuditEventResponse {
   id: number
   actorId: number
+  actorName: string
   actorRole: string
   action: string
   entityType: string
   entityId: number
+  entityName: string
   details?: string
   occurredAt: string
 }
@@ -74,13 +76,13 @@ export interface StatewideDashboardResponse {
   totalUsers: number; totalSuperAdmins: number; totalDistrictCollectors: number
   totalDcStaff: number; totalTempleAuthorities: number; totalAuditors: number
   recentAuditEventCount: number
-  districtDistribution: Array<{ districtId: number; count: number }>
+  districtDistribution: Array<{ districtId: number; districtName: string; count: number }>
   gradeDistribution: Array<{ grade: string; count: number }>
 }
 
 export interface GovernanceHistoryResponse {
   id: number; entityId: number; entityType: string; workflowInstanceId?: number
-  workflowTransitionId?: number; actorUserId?: number; actorRole?: string
+  workflowTransitionId?: number; actorUserId?: number; actorName?: string; actorRole?: string
   action: string; comment?: string; timestamp: string
 }
 

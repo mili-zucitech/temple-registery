@@ -1,12 +1,7 @@
 package com.templeregistry.service.impl.export;
 
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.element.Cell;
 import com.opencsv.CSVWriter;
+import com.templeregistry.util.pdf.ExportReportTemplate;
 import com.templeregistry.dto.request.export.ExportDeclarationsRequest;
 import com.templeregistry.dto.request.export.ExportTemplesRequest;
 import com.templeregistry.entity.declaration.AssetDeclaration;
@@ -29,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -57,7 +53,15 @@ public class ExportServiceImpl implements ExportService {
 
         byte[] data;
         if ("PDF".equalsIgnoreCase(rq.getFormat())) {
-            data = generatePdf(buildTempleRows(temples), "Temple Export");
+            List<String[]> rows = buildTempleRows(temples);
+            data = ExportReportTemplate.builder()
+                .title("Temple Export Report")
+                .districtLabel(districtId != null ? "District #" + districtId : "All Districts")
+                .generatedBy(claims.role() + " / User #" + claims.userId())
+                .rows(rows)
+                .totalCount(rows.size() - 1)
+                .build()
+                .render();
         } else {
             data = generateCsv(buildTempleRows(temples));
         }
@@ -89,7 +93,15 @@ public class ExportServiceImpl implements ExportService {
 
         byte[] data;
         if ("PDF".equalsIgnoreCase(rq.getFormat())) {
-            data = generatePdf(buildDeclarationRows(declarations), "Declaration Export");
+            List<String[]> rows = buildDeclarationRows(declarations);
+            data = ExportReportTemplate.builder()
+                .title("Declaration Export Report")
+                .districtLabel(districtId != null ? "District #" + districtId : "All Districts")
+                .generatedBy(claims.role() + " / User #" + claims.userId())
+                .rows(rows)
+                .totalCount(rows.size() - 1)
+                .build()
+                .render();
         } else {
             data = generateCsv(buildDeclarationRows(declarations));
         }
@@ -108,44 +120,6 @@ public class ExportServiceImpl implements ExportService {
             return bos.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException("CSV generation failed.", e);
-        }
-    }
-
-    private byte[] generatePdf(List<String[]> rows, String title) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            PdfWriter writer = new PdfWriter(bos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
-
-            // Add title
-            document.add(new Paragraph(title).setFontSize(18).setBold());
-            document.add(new Paragraph("Generated on: " + java.time.LocalDateTime.now().toString()).setFontSize(10));
-            document.add(new Paragraph("\n"));
-
-            // Add table
-            if (!rows.isEmpty()) {
-                String[] headers = rows.get(0);
-                Table table = new Table(headers.length);
-                
-                // Add header row
-                for (String header : headers) {
-                    table.addHeaderCell(new Cell().add(new Paragraph(header).setBold()));
-                }
-                
-                // Add data rows
-                for (int i = 1; i < rows.size(); i++) {
-                    for (String cell : rows.get(i)) {
-                        table.addCell(new Cell().add(new Paragraph(cell)));
-                    }
-                }
-                
-                document.add(table);
-            }
-
-            document.close();
-            return bos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("PDF generation failed.", e);
         }
     }
 

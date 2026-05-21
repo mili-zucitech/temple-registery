@@ -32,6 +32,12 @@ const SystemConfigPage = lazy(() => import('@/features/admin/pages/SystemConfigP
 const NotificationRulesPage = lazy(() => import('@/features/admin/pages/NotificationRulesPage/NotificationRulesPage').then(m => ({ default: m.NotificationRulesPage })))
 const TempleGovernancePage = lazy(() => import('@/features/admin/pages/TempleGovernancePage/TempleGovernancePage').then(m => ({ default: m.TempleGovernancePage })))
 const SaTempleEditPage = lazy(() => import('@/features/admin/pages/SaTempleEditPage/SaTempleEditPage').then(m => ({ default: m.SaTempleEditPage })))
+const SaTempleTrustPage = lazy(() => import('@/features/admin/pages/SaTempleTrustPage/SaTempleTrustPage').then(m => ({ default: m.SaTempleTrustPage })))
+const SaTempleEmployeesPage = lazy(() => import('@/features/admin/pages/SaTempleEmployeesPage/SaTempleEmployeesPage').then(m => ({ default: m.SaTempleEmployeesPage })))
+const SaTempleContractorsPage = lazy(() => import('@/features/admin/pages/SaTempleContractorsPage/SaTempleContractorsPage').then(m => ({ default: m.SaTempleContractorsPage })))
+const SaTempleDocumentsPage = lazy(() => import('@/features/admin/pages/SaTempleDocumentsPage/SaTempleDocumentsPage').then(m => ({ default: m.SaTempleDocumentsPage })))
+const SaTempleDeclarationsPage = lazy(() => import('@/features/admin/pages/SaTempleDeclarationsPage/SaTempleDeclarationsPage').then(m => ({ default: m.SaTempleDeclarationsPage })))
+const SaTempleDeclarationFormPage = lazy(() => import('@/features/admin/pages/SaTempleDeclarationFormPage/SaTempleDeclarationFormPage').then(m => ({ default: m.SaTempleDeclarationFormPage })))
 const ObservationsPage = lazy(() => import('@/features/auditor/pages/ObservationsPage/ObservationsPage').then(m => ({ default: m.ObservationsPage })))
 const ObservationDetailPage = lazy(() => import('@/features/auditor/pages/ObservationDetailPage/ObservationDetailPage').then(m => ({ default: m.ObservationDetailPage })))
 const ComplianceReportPage = lazy(() => import('@/features/auditor/pages/ComplianceReportPage/ComplianceReportPage').then(m => ({ default: m.ComplianceReportPage })))
@@ -131,6 +137,12 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.ADMIN_NOTIFICATION_RULES, element: <Suspense fallback={<PageLoader />}><NotificationRulesPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_GOVERNANCE, element: <Suspense fallback={<PageLoader />}><TempleGovernancePage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_EDIT, element: <Suspense fallback={<PageLoader />}><SaTempleEditPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_TRUST, element: <Suspense fallback={<PageLoader />}><SaTempleTrustPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_EMPLOYEES, element: <Suspense fallback={<PageLoader />}><SaTempleEmployeesPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_CONTRACTORS, element: <Suspense fallback={<PageLoader />}><SaTempleContractorsPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_DOCUMENTS, element: <Suspense fallback={<PageLoader />}><SaTempleDocumentsPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationsPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATION_NEW, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationFormPage /></Suspense> },
             ],
           },
           // Auditor (read-only) — SUPER_ADMIN can also access auditor pages via sidebar links
