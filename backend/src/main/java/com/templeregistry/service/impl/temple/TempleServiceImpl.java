@@ -38,9 +38,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.core.io.ByteArrayResource;
 
 @Service
 @RequiredArgsConstructor
@@ -352,6 +354,15 @@ public class TempleServiceImpl implements TempleService {
 
         for (int i = 0; i < files.size(); i++) {
             MultipartFile file = files.get(i);
+
+            // Read bytes before upload so the InputStream is not consumed twice.
+            byte[] imageBytes;
+            try {
+                imageBytes = file.getBytes();
+            } catch (IOException e) {
+                throw new com.templeregistry.exception.FileValidationException("Failed to read uploaded file: " + e.getMessage());
+            }
+
             String path = fileStorageService.upload("temples/" + templeId + "/photos", file);
             boolean makePrimary = !hasPrimary && i == 0;
 
@@ -359,6 +370,8 @@ public class TempleServiceImpl implements TempleService {
                     .temple(temple)
                     .filePath(path)
                     .originalFilename(file.getOriginalFilename())
+                    .imageData(imageBytes)
+                    .contentType(file.getContentType())
                     .isPrimary(makePrimary)
                     .displayOrder(nextOrder++)
                     .build();
@@ -402,6 +415,20 @@ public class TempleServiceImpl implements TempleService {
     @PreAuthorize("isAuthenticated()")
     public Resource serveProfilePhoto(Long templeId) {
         Temple temple = findOrThrow(templeId);
+
+        // Try DB-stored bytes first (available on every machine that shares the TiDB database).
+        TemplePhoto primaryPhoto = templePhotoRepository
+                .findFirstByTempleIdAndIsPrimaryTrue(templeId).orElse(null);
+        if (primaryPhoto != null && primaryPhoto.getImageData() != null) {
+            byte[] data = primaryPhoto.getImageData();
+            String filename = primaryPhoto.getOriginalFilename();
+            return new ByteArrayResource(data) {
+                @Override
+                public String getFilename() { return filename; }
+            };
+        }
+
+        // Fallback: serve from local filesystem (for photos uploaded before V103).
         if (temple.getPhotoUrl() == null || temple.getPhotoUrl().isBlank()) {
             throw new EntityNotFoundException("ProfilePhoto", templeId);
         }
@@ -420,6 +447,18 @@ public class TempleServiceImpl implements TempleService {
             throw new EntityNotFoundException("TemplePhoto", photoId);
         }
         ownershipGuard.assertOwnsTemple(templeId);
+
+        // Serve from DB if bytes are stored (works on every machine sharing the TiDB database).
+        if (photo.getImageData() != null) {
+            byte[] data = photo.getImageData();
+            String filename = photo.getOriginalFilename();
+            return new ByteArrayResource(data) {
+                @Override
+                public String getFilename() { return filename; }
+            };
+        }
+
+        // Fallback: serve from local filesystem (for photos uploaded before V103).
         return fileStorageService.loadAsResource(photo.getFilePath());
     }
 

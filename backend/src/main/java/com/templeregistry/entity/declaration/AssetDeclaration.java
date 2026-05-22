@@ -122,7 +122,7 @@ public class AssetDeclaration extends BaseEntity {
      * Manually set by DC only. System must NEVER auto-set this.
      */
     @Builder.Default
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = com.templeregistry.entity.declaration.PhysicalVerificationStatusConverter.class)
     @Column(name = "physical_verification_status", nullable = false, length = 50)
     private PhysicalVerificationStatus physicalVerificationStatus = PhysicalVerificationStatus.NOT_INITIATED;
 
