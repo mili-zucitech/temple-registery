@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class TempleProfileStaging extends BaseEntity {
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = TempleProfileStagingStatusConverter.class)
     @Column(name = "status", nullable = false, length = 32)
     @Builder.Default
     private TempleProfileStagingStatus status = TempleProfileStagingStatus.DRAFT;

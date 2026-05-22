@@ -328,7 +328,7 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
       </div>
 
       {/* Member Detail Modal */}
-      <Dialog open={viewingMemberId !== null} onOpenChange={(open) => !open && setViewingMemberId(null)}>
+      <Dialog open={viewingMemberId !== null} onOpenChange={(open: any) => !open && setViewingMemberId(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           {viewingMember && (
             <div className="space-y-5">

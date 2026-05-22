@@ -11,7 +11,7 @@
 .classpath
 .project
 .settings/
-//
+
 # ─── OS ─────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
@@ -198,3 +198,7 @@ e2e/notification_inbox_test.log
 *.log
 *.pid
 *.tmp
+<<<<<<< HEAD
+ 
+=======
+>>>>>>> fa3ba8b57563b4b041932fb9a7193b651c55551c
