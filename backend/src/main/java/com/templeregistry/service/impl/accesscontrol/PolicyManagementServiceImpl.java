@@ -119,11 +119,15 @@ public class PolicyManagementServiceImpl implements PolicyManagementService {
     public List<PolicyResponse> batchUpsertPolicies(List<CreatePolicyRequest> requests) {
         List<PolicyResponse> results = new ArrayList<>();
         for (CreatePolicyRequest request : requests) {
-            policyRepository.findByTargetKeyAndSubjectTypeAndSubjectValue(
-                    request.getTargetKey(), request.getSubjectType(), request.getSubjectValue())
+            // Use a native query that ignores the @SQLRestriction so that soft-deleted
+            // records are also found. Without this, deleting then re-enabling a policy
+            // would hit the (target_key, subject_type, subject_value) unique constraint.
+            policyRepository.findByTargetKeyAndSubjectIncludingDeleted(
+                    request.getTargetKey(), request.getSubjectType().name(), request.getSubjectValue())
                     .ifPresentOrElse(existing -> {
                         existing.setEffect(request.getEffect());
                         existing.setActive(request.isActive());
+                        existing.setDeleted(false); // restore if previously soft-deleted
                         AccessControlPolicy saved = policyRepository.save(existing);
                         evaluationService.invalidateCache(saved.getTargetKey());
                         results.add(toResponse(saved));
