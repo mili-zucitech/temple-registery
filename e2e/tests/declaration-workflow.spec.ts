@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/data.fixture';
+import { env } from '../setup/env';
 
 function buildUniqueFinancialYear(seed: number): string {
   const start = 1000 + (seed % 8000);
@@ -14,7 +15,7 @@ function toCookieJar(setCookieHeader: string | null): string {
 }
 
 async function loginAndGetCookie(username: string, password: string): Promise<string> {
-  const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+  const response = await fetch(`${env.apiOrigin}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -28,8 +29,8 @@ async function loginAndGetCookie(username: string, password: string): Promise<st
 }
 
 async function dcAction(path: string, body: Record<string, unknown>): Promise<void> {
-  const cookie = await loginAndGetCookie('dc_mysuru', 'password123');
-  const response = await fetch(`http://localhost:8080/api/v1${path}`, {
+  const cookie = await loginAndGetCookie(env.roles.DC.username, env.roles.DC.password);
+  const response = await fetch(`${env.apiOrigin}/api/v1${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -48,9 +49,9 @@ async function taCreateAndSubmitDeclaration(
   financialYear: string,
   testRunId: string,
 ): Promise<number> {
-  const cookie = await loginAndGetCookie('ta_chamundi', 'password123');
+  const cookie = await loginAndGetCookie(env.roles.TA.username, env.roles.TA.password);
 
-  const createResponse = await fetch(`http://localhost:8080/api/v1/temples/${templeId}/declarations`, {
+  const createResponse = await fetch(`${env.apiOrigin}/api/v1/temples/${templeId}/declarations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -75,7 +76,7 @@ async function taCreateAndSubmitDeclaration(
     throw new Error('TA create declaration did not return a declaration id.');
   }
 
-  const submitResponse = await fetch(`http://localhost:8080/api/v1/governance/declarations/${declarationId}/submit`, {
+  const submitResponse = await fetch(`${env.apiOrigin}/api/v1/governance/declarations/${declarationId}/submit`, {
     method: 'POST',
     headers: { Cookie: cookie },
   });

@@ -51,7 +51,11 @@ const EMPTY_VALUES: CreateDeclarationRequest = {
   financialAssets: [],
 }
 
-export function DeclarationCreatePage() {
+interface DeclarationCreatePageProps {
+  onAfterSubmit?: (id: number) => void
+}
+
+export function DeclarationCreatePage({ onAfterSubmit }: DeclarationCreatePageProps = {}) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const templeId = useAppSelector((state) => state.auth.currentUser?.templeId) ?? Number(searchParams.get('templeId'))
@@ -123,7 +127,11 @@ export function DeclarationCreatePage() {
       if (!id) return
       await submitDeclaration(id).unwrap()
       toast.success('Declaration submitted for DC review.')
-      navigate(ROUTE_PATHS.TA_DECLARATION_DETAIL.replace(':id', String(id)))
+      if (onAfterSubmit) {
+        onAfterSubmit(id)
+      } else {
+        navigate(ROUTE_PATHS.TA_DECLARATION_DETAIL.replace(':id', String(id)))
+      }
     } catch (err) {
       toast.error(extractApiErrorMessage(err, 'Failed to submit declaration.'))
     }

@@ -23,7 +23,7 @@ export class LoginPage {
     await this.emailInput.fill(username);
     await this.passwordInput.fill(password);
     await this.loginButton.click();
-    await this.page.waitForURL(/\/(ta|dc|admin|auditor)\/dashboard/, { timeout: 15000 });
+    await this.page.waitForURL(/\/(ta|dc|admin|auditor|viewer)\/dashboard/, { timeout: 15000 });
   }
 
   async expectError(expectedMessage: string): Promise<void> {

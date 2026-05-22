@@ -1,5 +1,6 @@
 import { DbClient } from './db-client';
 import seedrandom from 'seedrandom';
+import { env } from '../setup/env';
 
 export type CleanupEntityType = 'DECLARATION' | 'TRUST' | 'TEMPLE';
 
@@ -10,7 +11,7 @@ interface CleanupRecord {
 
 export class TestContext {
   readonly testRunId: string;
-  readonly rng: seedrandom.PRNG;
+  readonly rng: () => number;
   private cleanupEntities: CleanupRecord[] = [];
 
   constructor(testId: string) {
@@ -44,13 +45,7 @@ export class TestContext {
       return;
     }
 
-    const db = new DbClient({
-      host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
-      port: parseInt(process.env.DB_PORT || '4000'),
-      user: process.env.DB_USER || '3Nkwm2fKtuGqoiu.root',
-      password: process.env.DB_PASSWORD || '6sXYNlDhrX80xnDz',
-      database: process.env.DB_NAME || 'test'
-    });
+    const db = new DbClient(env.db);
 
     const summary: string[] = [];
 
@@ -136,14 +131,33 @@ export class TestContext {
         } else if (entityType === 'TRUST') {
           await db.execute(`DELETE FROM trust_financials WHERE trust_id = ?`, [id]);
           await db.execute(`DELETE FROM board_members WHERE trust_id = ?`, [id]);
-          const t = await db.execute(`DELETE FROM trusts WHERE id = ?`, [id]);
-          if ((t as any).affectedRows > 0) summary.push(`trusts:${id}`);
+          try {
+            const t = await db.execute(`DELETE FROM trusts WHERE id = ?`, [id]);
+            if ((t as any).affectedRows > 0) summary.push(`trusts:${id}`);
+          } catch {
+            // In shared environments, late FK writes can race cleanup.
+            // Fall back to soft-delete so one-per-temple constraints remain clean.
+            const tSoft = await db.execute(`UPDATE trusts SET is_deleted = 1 WHERE id = ?`, [id]);
+            if ((tSoft as any).affectedRows > 0) summary.push(`trusts_soft_deleted:${id}`);
+          }
         } else if (entityType === 'TEMPLE') {
           const t = await db.execute(
             `DELETE FROM temples WHERE id = ? AND name LIKE 'Test Temple%'`, [id]
           );
           if ((t as any).affectedRows > 0) summary.push(`temples:${id}`);
         }
+      }
+
+      // Global hygiene: remove orphan outbox rows that can be left behind by
+      // interrupted runs and pollute consistency assertions across projects.
+      const orphanOutbox = await db.execute(
+        `DELETE o FROM notification_outbox o
+         LEFT JOIN workflow_instances w ON w.id = o.workflow_instance_id
+         WHERE o.workflow_instance_id IS NOT NULL
+           AND w.id IS NULL`
+      );
+      if ((orphanOutbox as any).affectedRows > 0) {
+        summary.push(`notification_outbox_orphans:${(orphanOutbox as any).affectedRows}`);
       }
     } finally {
       await db.disconnect();

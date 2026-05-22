@@ -51,6 +51,14 @@ export const ROUTE_PATHS = {
   ADMIN_SYSTEM_CONFIG: '/admin/system-config',
   ADMIN_NOTIFICATION_RULES: '/admin/notification-rules',
 
+  // SA temple module edit routes
+  ADMIN_TEMPLE_TRUST: '/admin/temples/:templeId/trust',
+  ADMIN_TEMPLE_EMPLOYEES: '/admin/temples/:templeId/employees',
+  ADMIN_TEMPLE_CONTRACTORS: '/admin/temples/:templeId/contractors',
+  ADMIN_TEMPLE_DOCUMENTS: '/admin/temples/:templeId/documents',
+  ADMIN_TEMPLE_DECLARATIONS: '/admin/temples/:templeId/declarations',
+  ADMIN_TEMPLE_DECLARATION_NEW: '/admin/temples/:templeId/declarations/new',
+
   // Auditor
   AUDITOR_DASHBOARD: '/auditor/dashboard',
   AUDITOR_TEMPLES: '/auditor/temples',

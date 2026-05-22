@@ -1,15 +1,10 @@
 import { DbClient } from './lib/db-client';
+import { env } from './setup/env';
 
 async function globalSetup() {
   console.log('🔧 Global Setup: Initializing test database...');
 
-  const db = new DbClient({
-    host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
-    port: parseInt(process.env.DB_PORT || '4000'),
-    user: process.env.DB_USER || '3Nkwm2fKtuGqoiu.root',
-    password: process.env.DB_PASSWORD || '6sXYNlDhrX80xnDz',
-    database: process.env.DB_NAME || 'test'
-  });
+  const db = new DbClient(env.db);
 
   await db.connect();
 
@@ -18,7 +13,8 @@ async function globalSetup() {
 
   // Sanity-read fixture principals used by smoke tests.
   await db.execute(
-    "SELECT username, role FROM users WHERE username IN ('ta_chamundi','dc_mysuru','super_admin')"
+    'SELECT username, role FROM users WHERE username IN (?, ?, ?)',
+    [env.roles.TA.username, env.roles.DC.username, env.roles.SA.username]
   );
 
   await db.disconnect();

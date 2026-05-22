@@ -1,133 +1,92 @@
 # Temple Registry E2E Test Platform
 
-Production-grade, deterministic test platform for Temple Registry application.
+Deterministic end-to-end test system for governance workflows, permissions, status transitions, notifications, and timeline consistency.
+
+## What This Covers
+
+- Role-aware auth and permission boundaries (SA, DC, TA, Auditor, Viewer)
+- Declaration lifecycle transitions and idempotency
+- Trust governance re-submission and reject-edit behavior
+- Validation guards (financial year, uniqueness, immutable-state updates)
+- Notification and timeline consistency checks
+- Existing UI workflows (auth, saved filters, directory behavior)
+
+For the detailed module-by-module matrix, see [COMPLETE_E2E_COVERAGE_MATRIX.md](COMPLETE_E2E_COVERAGE_MATRIX.md).
 
 ## Architecture
 
-- **250 tests total**: 60% Unit, 20% Component, 12% API Contract, 8% E2E
-- **Deterministic execution**: Seeded RNG, test_run_id tagging, no timestamp-based cleanup
-- **Parallel-safe**: Isolated test data, no shared state
-- **Modular assertions**: Workflow, Notification, Audit, Integrity
-- **Zero mocks**: Real DB, real API integration
+- `fixtures/base.fixture.ts`: test context, DB client, API client, deterministic cleanup
+- `fixtures/auth.fixture.ts`: authenticated browser contexts per role
+- `fixtures/data.fixture.ts`: reusable temple/trust/declaration test data fixtures
+- `lib/authenticated-request.ts`: raw authenticated `APIRequestContext` for exact status-code assertions
+- `lib/role-api-client.ts`: role-based `ApiClient` creator for success-path workflow actions
+- `setup/env.ts`: profile-driven environment resolution (`local`, `dev`, `staging`, `production`)
 
-## Setup
+## Environment Setup
 
-```bash
-cd e2e
-npm install
-```
+Create `e2e/.env` from `e2e/.env.example`.
 
-## Configuration
+Key variables:
 
-Create `.env` file:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=test_user
-DB_PASSWORD=test_pass
-DB_NAME=temple_registry_test
-API_BASE_URL=http://localhost:8080/api/v1
-BASE_URL=http://localhost:3000
-```
+- `E2E_TARGET`: `local | dev | staging | production`
+- `E2E_READ_ONLY`: `true | false` (defaults to `true` for production target)
+- `E2E_BASE_URL`: frontend URL
+- `E2E_API_ORIGIN`: backend origin (without `/api/v1`)
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `E2E_<ROLE>_USERNAME`, `E2E_<ROLE>_PASSWORD` for each role
 
 ## Running Tests
 
 ```bash
-# Run all tests
+cd e2e
+npm install
+
+# Full run
 npm test
 
-# Run specific suite
-npm test -- tests/declaration-workflow.spec.ts
+# Targeted API lifecycle suites
+npm test -- tests/auth-permissions.api.spec.ts tests/declaration-lifecycle.api.spec.ts tests/trust-governance.api.spec.ts tests/validation-and-transitions.api.spec.ts tests/timeline-notification.api.spec.ts
 
-# Run with UI
+# UI mode
 npm run test:ui
 
 # Debug mode
 npm run test:debug
 
-# View report
+# Report viewer
 npm run report
 ```
 
-## Test Structure
+## Stability and Determinism
 
-```
-e2e/
-├── fixtures/          # Test fixtures (auth, data, base)
-├── lib/              # Core libraries (DB, API, assertions)
-├── factories/        # Data factories (deterministic)
-├── pages/            # Page objects (simplified)
-├── tests/            # Test specs (20 critical flows)
-└── playwright.config.ts
-```
+- Deterministic IDs from `TestContext`
+- Unique declaration year generation per run to avoid duplicate-year conflicts
+- Poll-based async verification (`expect.poll`) for outbox/notification propagation
+- Cleanup ordering managed centrally in `lib/test-context.ts`
+- API-path normalization prevents `/auth/login` vs `/api/v1/auth/login` drift
 
-## Key Features
+## Retry and Parallelism
 
-### Deterministic Data
-- Seeded RNG per test using `testRunId`
-- No random IDs, no timestamp-based data
-- Reproducible test failures
+- Workers and retries are configurable via Playwright env:
+	- `PLAYWRIGHT_WORKERS`
+	- `PLAYWRIGHT_RETRIES`
+- Defaults:
+	- Local: 2 workers, 0 retries
+	- CI: 4 workers, 1 retry
 
-### Cleanup Strategy
-- `test_run_id` tagging on all test data
-- Parameterized DELETE queries (no SQL injection)
-- Automatic cleanup in fixture teardown
-- Dependency-ordered deletion
+## Reporting
 
-### DB Assertions
-- **Workflow**: No orphans, no duplicates, valid transitions
-- **Notification**: Outbox consistency, no duplicates
-- **Audit**: Complete trail, immutability
-- **Integrity**: FK integrity, clarification limits
+Configured reporters in `playwright.config.ts`:
 
-### Concurrency Tests
-- Duplicate submit prevention
-- Concurrent approval (optimistic locking)
-- Stale version handling
-- Transaction rollback integrity
+- HTML: `playwright-report/`
+- JSON: `test-results/results.json`
+- JUnit: `test-results/junit.xml`
 
-## Critical Test Flows
+## CI
 
-1. **Auth**: Login, logout, invalid credentials
-2. **Declaration Workflow**: Submit → Approve → Audit
-3. **Clarification**: Request → Respond → Resolve
-4. **Concurrency**: Duplicate submit, concurrent approval
-5. **Data Integrity**: FK integrity, no orphans, no duplicates
+See [../.github/workflows/e2e-playwright.yml](../.github/workflows/e2e-playwright.yml) for the GitHub Actions workflow.
 
-## Maintenance
+## Notes
 
-### Adding New Tests
-1. Create test in `tests/` directory
-2. Use fixtures from `fixtures/data.fixture.ts`
-3. Use factories for test data
-4. Add DB assertions for verification
-5. Ensure cleanup via `testContext.registerCleanup()`
-
-### Adding New Assertions
-1. Create assertion class in `lib/assertions/`
-2. Add to `DbAssertions` in `lib/assertions/index.ts`
-3. Use in tests via `dbAssert.<module>.<assertion>()`
-
-### Debugging Failures
-1. Check `playwright-report/` for screenshots/videos
-2. Use `test:debug` to step through tests
-3. Check DB state using `db.query()` in tests
-4. Verify cleanup with `test_run_id` queries
-
-## Performance
-
-- **Runtime**: ~20 minutes for full suite
-- **Parallel workers**: 2 local, 4 CI
-- **No retries**: Tests must be deterministic
-- **Fast cleanup**: Bulk DELETE by test_run_id
-
-## Best Practices
-
-1. **No hardcoded IDs**: Use factories
-2. **No timestamps**: Use test_run_id
-3. **No static helpers**: Use fixture-scoped clients
-4. **No mocks**: Use real integrations
-5. **Strong typing**: No `any` types
-6. **Modular assertions**: Reusable, composable
-7. **Clear naming**: `should_<behavior>_when_<condition>`
+- Production execution should use `E2E_READ_ONLY=true` and only read-safe suites.
+- Some legacy suites still exist for backward compatibility and historical regression coverage.

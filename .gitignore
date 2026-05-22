@@ -41,7 +41,7 @@ frontend/vitest_full.txt
 frontend/vitest_out.txt
 frontend/vitest_targeted.txt
 frontend/vitest_targeted2.txt
-
+frontend/coverage
 # ─── Backend build artefacts ────────────────────────────────
 backend/target/
 backend/BOOT-INF/

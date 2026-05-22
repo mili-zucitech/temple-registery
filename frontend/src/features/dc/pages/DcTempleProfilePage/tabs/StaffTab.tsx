@@ -1,4 +1,4 @@
-import { Users, Hash, Shield, Briefcase, Phone, Eye } from 'lucide-react'
+import { Users, Hash, Shield, Briefcase, Phone, Eye, PlusCircle, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { SectionCard } from '../components'
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,8 @@ export function StaffTab({ employees, onAddEmployee, onEditEmployee }: StaffTabP
         action={
           <div className="flex items-center gap-3">
             {onAddEmployee && (
-              <Button variant="outline" size="sm" onClick={onAddEmployee} className="text-xs h-7 px-3">
+              <Button size="sm" onClick={onAddEmployee} className="gap-1.5">
+                <PlusCircle className="size-3.5" />
                 Add Employee
               </Button>
             )}
@@ -152,12 +153,13 @@ export function StaffTab({ employees, onAddEmployee, onEditEmployee }: StaffTabP
                             </Button>
                             {onEditEmployee && (
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={() => onEditEmployee(employee.id)}
-                                className="h-8 px-2 text-xs text-primary hover:text-primary"
+                                className="h-8 w-8 p-0"
+                                aria-label="Edit employee"
                               >
-                                Edit
+                                <Pencil className="size-3.5" />
                               </Button>
                             )}
                           </div>

@@ -121,11 +121,11 @@ export function AuditLogPage() {
   const exportCsv = () => {
     const rows =
       activeTab === 'governance'
-        ? [['Time', 'Actor ID', 'Actor Role', 'Entity', 'Action', 'Reason'],
-           ...filteredEvents.map((e: any) => [formatDate(e.timestamp), e.actorUserId ?? '', e.actorRole ?? '', `${e.entityType}#${e.entityId}`, e.action, e.comment ?? ''])]
+        ? [['Time', 'Actor', 'Actor Role', 'Entity', 'Action', 'Reason'],
+           ...filteredEvents.map((e: any) => [formatDate(e.timestamp), e.actorName ?? `User #${e.actorUserId}`, e.actorRole ?? '', `${e.entityType}#${e.entityId}`, e.action, e.comment ?? ''])]
         : activeTab === 'mutation'
-        ? [['Time', 'Actor ID', 'Actor Role', 'Action', 'Entity', 'Details'],
-           ...filteredEvents.map((e: any) => [formatDate(e.occurredAt), e.actorId ?? '', e.actorRole ?? '', e.action, `${e.entityType}#${e.entityId}`, e.details ?? ''])]
+        ? [['Time', 'Actor', 'Actor Role', 'Action', 'Entity', 'Details'],
+           ...filteredEvents.map((e: any) => [formatDate(e.occurredAt), e.actorName ?? `User #${e.actorId}`, e.actorRole ?? '', e.action, e.entityName ?? `${e.entityType}#${e.entityId}`, e.details ?? ''])]
         : [['Time', 'User', 'Event', 'Status', 'IP'],
            ...filteredEvents.map((e: any) => [formatDate(e.occurredAt), e.username, e.eventType, e.status, e.ipAddress ?? ''])]
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -221,12 +221,12 @@ export function AuditLogPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium flex items-center gap-1"><User size={11} className="text-muted-foreground" />User #{event.actorId}</span>
+                            <span className="text-sm font-medium flex items-center gap-1"><User size={11} className="text-muted-foreground" />{event.actorName ?? `User #${event.actorId}`}</span>
                             {event.actorRole && <RoleBadge role={event.actorRole} />}
                           </div>
                         </td>
                         <td className="px-4 py-3"><ActionBadge action={event.action} /></td>
-                        <td className="px-4 py-3"><EntityDisplay entityType={event.entityType} entityId={event.entityId} /></td>
+                        <td className="px-4 py-3">{event.entityName ? <span className="text-sm font-medium">{event.entityName}</span> : <EntityDisplay entityType={event.entityType} entityId={event.entityId} />}</td>
                       </tr>
                       {expandedRow === event.id && (
                         <tr key={`${event.id}-exp`} className="bg-muted/10 border-b border-border">
@@ -267,7 +267,7 @@ export function AuditLogPage() {
                       <td className="px-4 py-3"><span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{formatDate(event.timestamp)}</span></td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium flex items-center gap-1"><User size={11} className="text-muted-foreground" />User #{event.actorUserId}</span>
+                          <span className="text-sm font-medium flex items-center gap-1"><User size={11} className="text-muted-foreground" />{event.actorName ?? `User #${event.actorUserId}`}</span>
                           {event.actorRole && <RoleBadge role={event.actorRole} />}
                         </div>
                       </td>

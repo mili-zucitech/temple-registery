@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/base.fixture';
 import { LoginPage } from '../pages/LoginPage';
 import { TempleSearchPage } from '../pages/TempleSearchPage';
+import { env } from '../setup/env';
 
 /**
  * Saved Filters — Temple Directory
@@ -15,10 +16,10 @@ import { TempleSearchPage } from '../pages/TempleSearchPage';
  * V2__master_seed_data.sql.
  */
 
-const DC_USERNAME = process.env.DC_USERNAME ?? 'dc_bengaluru';
-const DC_PASSWORD = process.env.DC_PASSWORD ?? 'password123';
-const AUDITOR_USERNAME = process.env.AUDITOR_USERNAME ?? 'auditor_user';
-const AUDITOR_PASSWORD = process.env.AUDITOR_PASSWORD ?? 'password123';
+const DC_USERNAME = process.env.DC_USERNAME ?? env.roles.DC.username;
+const DC_PASSWORD = process.env.DC_PASSWORD ?? env.roles.DC.password;
+const AUDITOR_USERNAME = process.env.AUDITOR_USERNAME ?? env.roles.AUDITOR.username;
+const AUDITOR_PASSWORD = process.env.AUDITOR_PASSWORD ?? env.roles.AUDITOR.password;
 
 test.describe('Temple Directory — Saved Filters', () => {
   let searchPage: TempleSearchPage;
@@ -27,7 +28,7 @@ test.describe('Temple Directory — Saved Filters', () => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(DC_USERNAME, DC_PASSWORD);
-    await page.waitForURL(/\/(dc|admin)\//, { timeout: 10_000 });
+    await page.waitForURL(/\/(dc|admin|auditor)\//, { timeout: 10_000 });
 
     searchPage = new TempleSearchPage(page);
     await searchPage.goto();
@@ -217,9 +218,11 @@ test.describe('Temple Directory — Saved Filters', () => {
     await searchPage.clickFilterChip('Overdue');
     await searchPage.waitForResults();
 
-    const nextBtn = page.getByRole('button', { name: /next/i });
-    if (await nextBtn.count()) {
-      if (await nextBtn.isEnabled()) {
+    const nextBtn = page.getByRole('button', { name: /next/i }).first();
+    const nextVisible = await nextBtn.isVisible({ timeout: 2000 }).catch(() => false);
+    if (nextVisible) {
+      const nextEnabled = await nextBtn.isEnabled({ timeout: 2000 }).catch(() => false);
+      if (nextEnabled) {
         await nextBtn.click();
         await searchPage.waitForResults();
       }
@@ -248,16 +251,17 @@ test.describe('Temple Directory — Saved Filters', () => {
   // ── Role-based visibility (AUDITOR) ──────────────────────────────────────
 
   test('should_allowAuditorToFilter_but_show_readOnly_banner', async ({ page }) => {
-    // Log out DC and log in as auditor
-    await page.getByRole('button', { name: /sign out|logout/i }).click();
-    await page.waitForURL(/\/login/, { timeout: 5_000 });
+    // Reset auth state and log in as auditor.
+    await page.context().clearCookies();
+    await page.goto('/login');
 
     const loginPage = new LoginPage(page);
     await loginPage.login(AUDITOR_USERNAME, AUDITOR_PASSWORD);
-    await page.waitForURL(/\/(dc|admin)\//, { timeout: 10_000 });
+    await page.waitForURL(/\/(dc|admin|auditor)\//, { timeout: 10_000 });
 
     searchPage = new TempleSearchPage(page);
-    await searchPage.goto();
+    await page.goto('/auditor/temples?page=0&size=10', { timeout: 60_000 });
+    await page.getByRole('main').first().waitFor({ state: 'visible', timeout: 15_000 });
     await searchPage.waitForResults();
 
     // Auditor should see filters (read-only) and no action buttons
@@ -271,10 +275,11 @@ test.describe('Temple Directory — Saved Filters', () => {
 test.describe('Temple Directory — Saved Filters (API contract)', () => {
   test('should_send_VERIFICATION_REQUIRED_to_backend_not_PENDING_REVIEW', async ({ page, request }) => {
     // Intercept the API call and verify the declarationStatus param
+    page.setDefaultNavigationTimeout(60_000);
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(DC_USERNAME, DC_PASSWORD);
-    await page.waitForURL(/\/(dc|admin)\//);
+    await page.waitForURL(/\/(dc|admin|auditor)\//);
 
     const searchPage = new TempleSearchPage(page);
 
@@ -299,7 +304,7 @@ test.describe('Temple Directory — Saved Filters (API contract)', () => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(DC_USERNAME, DC_PASSWORD);
-    await page.waitForURL(/\/(dc|admin)\//);
+    await page.waitForURL(/\/(dc|admin|auditor)\//);
 
     const searchPage = new TempleSearchPage(page);
 

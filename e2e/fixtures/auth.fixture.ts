@@ -1,6 +1,7 @@
 import { Page, Browser, request } from '@playwright/test';
 import { test as base } from './base.fixture';
 import { BaseFixtures } from './base.fixture';
+import { env } from '../setup/env';
 
 type Role = 'DC' | 'TA' | 'ADMIN';
 
@@ -12,9 +13,9 @@ type AuthFixtures = BaseFixtures & {
 };
 
 const ROLE_CREDENTIALS: Record<Role, { username: string; password: string }> = {
-  DC: { username: 'dc_mysuru', password: 'password123' },
-  TA: { username: 'ta_chamundi', password: 'password123' },
-  ADMIN: { username: 'super_admin', password: 'password123' }
+  DC: env.roles.DC,
+  TA: env.roles.TA,
+  ADMIN: env.roles.SA
 };
 
 async function createAuthenticatedPage(
@@ -50,7 +51,7 @@ async function createAuthenticatedPage(
 
 export const test = base.extend<AuthFixtures>({
   createRolePage: async ({ browser }, use) => {
-    const apiBaseURL = process.env.API_BASE_URL || 'http://localhost:8080';
+    const apiBaseURL = env.apiOrigin;
     const pages: Page[] = [];
 
     const creator = async (role: Role): Promise<Page> => {

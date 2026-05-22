@@ -202,7 +202,7 @@ export function useDcTempleSearch() {
     keyword: searchParams.get('keyword') ?? undefined,
     deityName: searchParams.get('deityName') ?? undefined,
     tradition: searchParams.get('tradition') ?? undefined,
-    declarationStatus: searchParams.get('declarationStatus') ?? undefined,
+    declarationStatus: (searchParams.get('declarationStatus') ?? undefined) as DcTempleSearchFilterRequest['declarationStatus'],
     hasApprovedDeclaration: searchParams.get('hasApprovedDeclaration') === 'true'
       ? true
       : searchParams.get('hasApprovedDeclaration') === 'false'
@@ -346,7 +346,7 @@ export function useDcTempleProfile(templeId: number) {
     isError: profileError,
     isFetching: profileFetching,
     refetch,
-  } = useGetDcTempleProfileQuery(templeId, { skip: !templeId })
+  } = useGetDcTempleProfileQuery(templeId, { skip: !templeId, refetchOnMountOrArgChange: true })
 
   return {
     profile: profileData?.data ?? null,

@@ -44,7 +44,7 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         String actorLabel  = resolveActorLabel(event.actorId());
         String reason      = extractReason(event);
 
-        String title          = buildRichTitle(event);
+        String title          = buildRichTitle(event, templeName, actorLabel);
         String body           = buildRichBody(event, templeName, actorLabel, reason, rule.getRecipientType());
         String notifType      = buildNotificationType(event);
         String redirectUrl    = buildRedirectUrl(event, rule.getRecipientType());
@@ -153,49 +153,52 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         return entityPart + "_" + actionPart;
     }
 
-    private String buildRichTitle(GovernanceDomainEvent event) {
+    private String buildRichTitle(GovernanceDomainEvent event, String templeName, String actorLabel) {
         WorkflowEntityType entityType = event.entityType();
         WorkflowAction     action     = event.action();
 
+        // Resolve just the actor's full name (not the role prefix) for the title
+        String actorName = resolveActorName(event.actorId());
+
         if (entityType == WorkflowEntityType.TEMPLE_PROFILE) {
-            if (action == WorkflowAction.SUBMIT)              return "Temple Profile Submitted";
-            if (action == WorkflowAction.APPROVE)             return "Temple Profile Approved";
-            if (action == WorkflowAction.REJECT)              return "Temple Profile Rejected";
-            if (action == WorkflowAction.RESUBMIT)            return "Temple Profile Resubmitted";
-            if (action == WorkflowAction.REQUEST_CLARIFICATION) return "Clarification Requested";
-            if (action == WorkflowAction.RESPOND_CLARIFICATION) return "Clarification Response Received";
-            if (action == WorkflowAction.BEGIN_REVIEW)        return "DC Started Reviewing Profile";
-            if (action == WorkflowAction.SEND_BACK)           return "Profile Sent Back for Revision";
+            if (action == WorkflowAction.SUBMIT)              return templeName + " – Profile Submitted";
+            if (action == WorkflowAction.APPROVE)             return templeName + " – Profile Approved by " + actorName;
+            if (action == WorkflowAction.REJECT)              return templeName + " – Profile Rejected by " + actorName;
+            if (action == WorkflowAction.RESUBMIT)            return templeName + " – Profile Resubmitted";
+            if (action == WorkflowAction.REQUEST_CLARIFICATION) return templeName + " – Clarification Requested";
+            if (action == WorkflowAction.RESPOND_CLARIFICATION) return templeName + " – Clarification Response Received";
+            if (action == WorkflowAction.BEGIN_REVIEW)        return templeName + " – DC Started Review";
+            if (action == WorkflowAction.SEND_BACK)           return templeName + " – Profile Sent Back for Revision";
         }
 
         if (entityType == WorkflowEntityType.TRUST) {
-            if (action == WorkflowAction.SUBMIT)              return "Trust Details Submitted";
-            if (action == WorkflowAction.APPROVE)             return "Trust Approved";
-            if (action == WorkflowAction.REJECT)              return "Trust Rejected";
-            if (action == WorkflowAction.SEND_BACK)           return "Trust Sent Back for Revision";
+            if (action == WorkflowAction.SUBMIT)              return templeName + " – Trust Submitted";
+            if (action == WorkflowAction.APPROVE)             return templeName + " – Trust Approved by " + actorName;
+            if (action == WorkflowAction.REJECT)              return templeName + " – Trust Rejected by " + actorName;
+            if (action == WorkflowAction.SEND_BACK)           return templeName + " – Trust Sent Back for Revision";
         }
 
         if (entityType == WorkflowEntityType.EMPLOYEE) {
-            if (action == WorkflowAction.SUBMIT || action == WorkflowAction.APPROVE) return "Employee Added";
-            if (action == WorkflowAction.EDIT_APPROVED)       return "Employee Updated";
-            if (action == WorkflowAction.REJECT)              return "Employee Removed";
+            if (action == WorkflowAction.SUBMIT || action == WorkflowAction.APPROVE) return templeName + " – Employee Added";
+            if (action == WorkflowAction.EDIT_APPROVED)       return templeName + " – Employee Updated";
+            if (action == WorkflowAction.REJECT)              return templeName + " – Employee Removed";
         }
 
         if (entityType == WorkflowEntityType.CONTRACTOR) {
-            if (action == WorkflowAction.SUBMIT || action == WorkflowAction.APPROVE) return "Contractor Added";
-            if (action == WorkflowAction.EDIT_APPROVED)       return "Contractor Updated";
-            if (action == WorkflowAction.REJECT)              return "Contractor Removed";
+            if (action == WorkflowAction.SUBMIT || action == WorkflowAction.APPROVE) return templeName + " – Contractor Added";
+            if (action == WorkflowAction.EDIT_APPROVED)       return templeName + " – Contractor Updated";
+            if (action == WorkflowAction.REJECT)              return templeName + " – Contractor Removed";
         }
 
         if (entityType == WorkflowEntityType.DOCUMENT) {
-            if (action == WorkflowAction.SUBMIT)              return "Document Uploaded";
-            if (action == WorkflowAction.REJECT)              return "Document Rejected";
+            if (action == WorkflowAction.SUBMIT)              return templeName + " – Document Uploaded";
+            if (action == WorkflowAction.REJECT)              return templeName + " – Document Rejected by " + actorName;
         }
 
         // Fallback: human-readable from enum names
         String entityLabel = entityType != null ? toReadable(entityType.name()) : "Record";
         String actionLabel = action     != null ? toReadable(action.name())     : "Updated";
-        return entityLabel + " " + actionLabel;
+        return templeName + " – " + entityLabel + " " + actionLabel;
     }
 
     private String buildRichBody(GovernanceDomainEvent event, String templeName, String actorLabel,

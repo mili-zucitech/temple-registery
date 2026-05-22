@@ -13,6 +13,7 @@
  */
 import { test, expect } from '../fixtures/data.fixture';
 import { DbClient } from '../lib/db-client';
+import { env } from '../setup/env';
 
 function toCookieJar(setCookieHeader: string | null): string {
   if (!setCookieHeader) return '';
@@ -23,7 +24,7 @@ function toCookieJar(setCookieHeader: string | null): string {
 }
 
 async function getAuthCookie(username: string, password: string): Promise<string> {
-  const res = await fetch('http://localhost:8080/api/v1/auth/login', {
+  const res = await fetch(`${env.apiOrigin}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -33,8 +34,8 @@ async function getAuthCookie(username: string, password: string): Promise<string
 }
 
 async function taAction(path: string, body: Record<string, unknown> = {}): Promise<any> {
-  const cookie = await getAuthCookie('ta_chamundi', 'password123');
-  const res = await fetch(`http://localhost:8080/api/v1${path}`, {
+  const cookie = await getAuthCookie(env.roles.TA.username, env.roles.TA.password);
+  const res = await fetch(`${env.apiOrigin}/api/v1${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: JSON.stringify(body),
@@ -44,8 +45,8 @@ async function taAction(path: string, body: Record<string, unknown> = {}): Promi
 }
 
 async function dcAction(path: string, body: Record<string, unknown> = {}): Promise<void> {
-  const cookie = await getAuthCookie('dc_mysuru', 'password123');
-  const res = await fetch(`http://localhost:8080/api/v1${path}`, {
+  const cookie = await getAuthCookie(env.roles.DC.username, env.roles.DC.password);
+  const res = await fetch(`${env.apiOrigin}/api/v1${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: JSON.stringify(body),
@@ -74,23 +75,35 @@ async function taCreateTrust(templeId: number, seed: number): Promise<number> {
 }
 
 test.describe.serial('Trust Workflow', () => {
-  const TEMPLE_ID = 31970;
+  let taTempleId: number;
 
-  // Temporarily soft-delete any pre-existing non-E2E trust for the test temple
-  // so the one-per-temple constraint doesn't block test trust creation.
+  // Temporarily soft-delete trusts for the dedicated test temple so the
+  // one-per-temple constraint doesn't block deterministic trust creation.
   test.beforeAll(async () => {
-    const db = new DbClient({
-      host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
-      port: parseInt(process.env.DB_PORT || '4000'),
-      user: process.env.DB_USER || '3Nkwm2fKtuGqoiu.root',
-      password: process.env.DB_PASSWORD || '6sXYNlDhrX80xnDz',
-      database: process.env.DB_NAME || 'test',
-    });
+    const db = new DbClient(env.db);
     await db.connect();
     try {
+      const temple = await db.getOne<{ id: number }>(
+        `SELECT t.id
+         FROM temples t
+         JOIN users u ON u.temple_id = t.id
+         WHERE u.username = ?
+         LIMIT 1`,
+        [env.roles.TA.username]
+      );
+
+      if (!temple?.id) {
+        throw new Error(`Unable to resolve temple for TA user ${env.roles.TA.username}`);
+      }
+      taTempleId = temple.id;
+
+      await db.execute(
+        `UPDATE trusts SET is_deleted = 1 WHERE temple_id = ? AND trust_name LIKE 'E2E%' AND is_deleted = 0`,
+        [taTempleId]
+      );
       await db.execute(
         `UPDATE trusts SET is_deleted = 1 WHERE temple_id = ? AND trust_name NOT LIKE 'E2E%' AND is_deleted = 0`,
-        [TEMPLE_ID]
+        [taTempleId]
       );
     } finally {
       await db.disconnect();
@@ -98,18 +111,12 @@ test.describe.serial('Trust Workflow', () => {
   });
 
   test.afterAll(async () => {
-    const db = new DbClient({
-      host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
-      port: parseInt(process.env.DB_PORT || '4000'),
-      user: process.env.DB_USER || '3Nkwm2fKtuGqoiu.root',
-      password: process.env.DB_PASSWORD || '6sXYNlDhrX80xnDz',
-      database: process.env.DB_NAME || 'test',
-    });
+    const db = new DbClient(env.db);
     await db.connect();
     try {
       await db.execute(
         `UPDATE trusts SET is_deleted = 0 WHERE temple_id = ? AND trust_name NOT LIKE 'E2E%'`,
-        [TEMPLE_ID]
+        [taTempleId]
       );
     } finally {
       await db.disconnect();
@@ -122,12 +129,11 @@ test.describe.serial('Trust Workflow', () => {
    */
   test('should_complete_full_lifecycle_when_ta_submits_and_dc_approves_after_sendback', async ({
     testContext,
-    temple,
     db,
     dbAssert,
   }) => {
     const seed = testContext.generateId();
-    const trustId = await taCreateTrust(temple.id, seed);
+    const trustId = await taCreateTrust(taTempleId, seed);
     testContext.registerEntityForCleanup('TRUST', trustId);
 
     // Step 1: TA submits
@@ -169,12 +175,11 @@ test.describe.serial('Trust Workflow', () => {
    */
   test('should_reject_trust_when_dc_rejects', async ({
     testContext,
-    temple,
     db,
     dbAssert,
   }) => {
     const seed = testContext.generateId() + 1;
-    const trustId = await taCreateTrust(temple.id, seed);
+    const trustId = await taCreateTrust(taTempleId, seed);
     testContext.registerEntityForCleanup('TRUST', trustId);
 
     await taAction(`/governance/trusts/${trustId}/submit`);
@@ -206,12 +211,11 @@ test.describe.serial('Trust Workflow', () => {
    */
   test('should_have_consistent_audit_trail_when_dc_approves_directly', async ({
     testContext,
-    temple,
     db,
     dbAssert,
   }) => {
     const seed = testContext.generateId() + 2;
-    const trustId = await taCreateTrust(temple.id, seed);
+    const trustId = await taCreateTrust(taTempleId, seed);
     testContext.registerEntityForCleanup('TRUST', trustId);
 
     await taAction(`/governance/trusts/${trustId}/submit`);

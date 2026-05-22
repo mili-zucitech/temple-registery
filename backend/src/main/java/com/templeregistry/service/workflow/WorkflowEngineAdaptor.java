@@ -5,6 +5,8 @@ import com.templeregistry.repository.workflow.WorkflowInstanceRepository;
 import com.templeregistry.security.RoleConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -95,15 +97,19 @@ public class WorkflowEngineAdaptor {
             || instance.getStatus() == WorkflowStatus.UPDATED_AFTER_APPROVAL) {
 
             WorkflowAction action;
+            String comment = null;
             if (instance.getStatus() == WorkflowStatus.UPDATED_AFTER_APPROVAL) {
                 action = WorkflowAction.RESUBMIT;
             } else if (instance.getStatus() == WorkflowStatus.CLARIFICATION_REQUESTED) {
                 action = WorkflowAction.RESPOND_CLARIFICATION;
+                // Governance submit endpoints do not accept a body. Provide a default
+                // clarification response comment so RESPOND_CLARIFICATION remains valid.
+                comment = "Responded to clarification via submit action";
             } else {
                 action = WorkflowAction.SUBMIT;
             }
 
-            execute(instance.getId(), action, actorId, templeId, null, null, null);
+            execute(instance.getId(), action, actorId, templeId, null, comment, null);
             return true;
         } else if (instance.getStatus() == WorkflowStatus.REJECTED) {
             // REJECTED → UPDATED_AFTER_APPROVAL → RESUBMITTED (two-step per TransitionRuleRegistry)
@@ -268,11 +274,25 @@ public class WorkflowEngineAdaptor {
     }
 
     private String resolveRole(WorkflowAction action, Long districtId) {
+        // For DC/SA actions (approve/reject/etc.), derive from action + districtId
         return switch (action) {
             case APPROVE, REJECT, REJECT_EDIT, SEND_BACK, REQUEST_CLARIFICATION,
                  VERIFY_TEMPLE_PROFILE, FLAG_TEMPLE_PROFILE, UNFLAG_TEMPLE_PROFILE ->
                 districtId != null ? "DC" : RoleConstants.SUPER_ADMIN;
-            default -> "TA";
+            // For submitter actions, honour the actual authenticated role so SA
+            // submissions are recorded as SUPER_ADMIN rather than hardcoded "TA"
+            default -> resolveAuthenticatedRole();
         };
+    }
+
+    private String resolveAuthenticatedRole() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities() == null) return "TA";
+        return auth.getAuthorities().stream()
+            .map(a -> a.getAuthority())
+            .filter(a -> a.startsWith("ROLE_"))
+            .map(a -> a.substring(5)) // strip "ROLE_" prefix
+            .findFirst()
+            .orElse("TA");
     }
 }

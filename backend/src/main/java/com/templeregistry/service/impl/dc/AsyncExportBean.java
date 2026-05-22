@@ -1,15 +1,10 @@
 package com.templeregistry.service.impl.dc;
 
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.element.Cell;
 import com.opencsv.CSVWriter;
 import com.templeregistry.entity.temple.TempleSearchSummary;
 import com.templeregistry.repository.temple.TempleSearchSummaryRepository;
 import com.templeregistry.service.dc.NotificationEventPublisher;
+import com.templeregistry.util.pdf.ExportReportTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -202,7 +197,7 @@ public class AsyncExportBean {
             page++;
         } while (batch.size() == EXPORT_BATCH_SIZE);
 
-        generatePdf(rows, outputPath, "Temple Export");
+        generatePdf(rows, outputPath, "Temple Export", districtId);
     }
 
     void writeDeclarationsPdf(Path outputPath, Long districtId) throws IOException {
@@ -232,41 +227,18 @@ public class AsyncExportBean {
             page++;
         } while (batch.size() == EXPORT_BATCH_SIZE);
 
-        generatePdf(rows, outputPath, "Declaration Export");
+        generatePdf(rows, outputPath, "Declaration Export", districtId);
     }
 
-    private void generatePdf(List<String[]> rows, Path outputPath, String title) throws IOException {
+    private void generatePdf(List<String[]> rows, Path outputPath, String title, Long districtId) throws IOException {
         try (FileOutputStream fos = new FileOutputStream(outputPath.toFile())) {
-            PdfWriter writer = new PdfWriter(fos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
-
-            // Add title
-            document.add(new Paragraph(title).setFontSize(18).setBold());
-            document.add(new Paragraph("Generated on: " + java.time.LocalDateTime.now().toString()).setFontSize(10));
-            document.add(new Paragraph("\n"));
-
-            // Add table
-            if (!rows.isEmpty()) {
-                String[] headers = rows.get(0);
-                Table table = new Table(headers.length);
-                
-                // Add header row
-                for (String header : headers) {
-                    table.addHeaderCell(new Cell().add(new Paragraph(header).setBold()));
-                }
-                
-                // Add data rows
-                for (int i = 1; i < rows.size(); i++) {
-                    for (String cell : rows.get(i)) {
-                        table.addCell(new Cell().add(new Paragraph(cell)));
-                    }
-                }
-                
-                document.add(table);
-            }
-
-            document.close();
+            ExportReportTemplate.builder()
+                .title(title)
+                .districtLabel(districtId != null ? "District #" + districtId : "All Districts")
+                .rows(rows)
+                .totalCount(Math.max(0, rows.size() - 1))
+                .build()
+                .renderTo(fos);
         }
     }
 

@@ -37,6 +37,7 @@ public class StatewideDashboardResponse {
     @Builder
     public static class DistrictDistributionItem {
         private Long districtId;
+        private String districtName;
         private long count;
     }
 

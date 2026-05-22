@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
-import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle, Download, Loader2 } from 'lucide-react'
+import { AlertTriangle, Shield, Users, TrendingUp, Eye, ChevronLeft, ChevronRight, User, Phone, MapPin, Calendar, CheckCircle2, AlertCircle, Download, Loader2, Pencil } from 'lucide-react'
 import { SectionCard, DetailItem } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { TrustSectionSkeleton } from '@/features/dc/components/DcSkeletons/DcSkeletons'
@@ -159,7 +159,8 @@ export function TrustTab({ trust, boardMembers, trustFinancials, boardMeetings, 
           action={
             <div className="flex items-center gap-2">
               {onEditTrust && (
-                <Button variant="outline" size="sm" onClick={onEditTrust} className="text-xs h-7 px-3">
+                <Button variant="outline" size="sm" onClick={onEditTrust} className="gap-1.5">
+                  <Pencil className="size-3.5" />
                   Edit Trust
                 </Button>
               )}
