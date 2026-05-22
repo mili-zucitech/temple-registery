@@ -74,6 +74,14 @@ const handlers = [
       },
     })
   }),
+  // DACVM: default handler — returns empty permissions (all allowed by default)
+  http.get(`${BASE}/auth/me/permissions`, () =>
+    HttpResponse.json({
+      success: true,
+      message: 'OK',
+      data: { permissions: {}, fieldMasks: {} },
+    })
+  ),
 ]
 
 export const server = setupServer(...handlers)

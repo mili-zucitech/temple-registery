@@ -21,6 +21,7 @@ import templeReducer from '@/features/temple-profile/hooks/templeSlice'
 import declarationReducer from '@/features/declaration/declarationSlice'
 import notificationReducer from '@/features/notification/notificationSlice'
 import { templeApi } from '@/features/temple-profile/hooks/templeApi'
+import { accessControlApi } from '@/features/access-control/accessControlApi'
 
 export const rootReducer = combineReducers({
   // RTK Query caches
@@ -42,6 +43,7 @@ export const rootReducer = combineReducers({
   [auditorApi.reducerPath]: auditorApi.reducer,
   [viewerApi.reducerPath]: viewerApi.reducer,
   [timelineApi.reducerPath]: timelineApi.reducer,
+  [accessControlApi.reducerPath]: accessControlApi.reducer,
 
   // UI slices
   auth: authReducer,

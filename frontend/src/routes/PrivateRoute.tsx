@@ -5,6 +5,7 @@ import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import { setCurrentUser } from '@/features/auth/authSlice'
 import { useAppDispatch } from '@/app/store'
 import { ROUTE_PATHS } from '@/constants/routePaths'
+import { PermissionsProvider } from '@/features/access-control/context/PermissionsContext'
 
 /**
  * Redirects unauthenticated users to /login.
@@ -36,5 +37,5 @@ export function PrivateRoute() {
     return <Navigate to={ROUTE_PATHS.LOGIN} replace />
   }
 
-  return <Outlet />
+  return <PermissionsProvider><Outlet /></PermissionsProvider>
 }

@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Search, FileText, Users, Building2,
   ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw, ChevronLeft, ChevronRight,
-  Eye, ShieldCheck, History, Bell, AlertTriangle
+  Eye, ShieldCheck, History, Bell, AlertTriangle, Lock
 } from 'lucide-react'
 import { useLogout } from '@/features/auth/authHooks'
 import { useAppSelector } from '@/app/store'
@@ -11,35 +11,38 @@ import { USER_ROLES } from '@/constants/roles'
 import { ROUTE_PATHS } from '@/constants/routePaths'
 import { Button } from '@/components/ui/button'
 import { useGetStatewideDashboardQuery } from '@/features/admin/adminApi'
+import { usePermissions } from '@/features/access-control/hooks/usePermissions'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 
 interface NavItem {
   label: string
   to: string
   icon: React.ReactNode
   badge?: number
+  targetKey?: string
 }
 
 function getDcNavItems(): NavItem[] {
   return [
-    { label: 'Dashboard', to: ROUTE_PATHS.DC_DASHBOARD, icon: <LayoutDashboard size={16} /> },
-    { label: 'Temples', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
-    { label: 'Export', to: ROUTE_PATHS.DC_EXPORT, icon: <Download size={16} /> },
-    { label: 'Activity', to: ROUTE_PATHS.DC_ACTIVITY, icon: <Activity size={16} /> },
+    { label: 'Dashboard', to: ROUTE_PATHS.DC_DASHBOARD, icon: <LayoutDashboard size={16} />, targetKey: TARGET_KEYS.PAGE_DC_DASHBOARD },
+    { label: 'Temples',   to: ROUTE_PATHS.DC_TEMPLES,   icon: <Search size={16} /> },
+    { label: 'Export',    to: ROUTE_PATHS.DC_EXPORT,    icon: <Download size={16} />,       targetKey: TARGET_KEYS.PAGE_DC_EXPORT },
+    { label: 'Activity',  to: ROUTE_PATHS.DC_ACTIVITY,  icon: <Activity size={16} />,       targetKey: TARGET_KEYS.PAGE_DC_ACTIVITY },
   ]
 }
 
 function getTaNavItems(): NavItem[] {
   return [
-    { label: 'Dashboard', to: ROUTE_PATHS.TA_DASHBOARD, icon: <LayoutDashboard size={16} /> },
-    { label: 'Temple Profile', to: ROUTE_PATHS.TA_TEMPLE, icon: <Building2 size={16} /> },
-    { label: 'Temple Search', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
-    { label: 'Trust & Board', to: ROUTE_PATHS.TA_TRUST, icon: <Shield size={16} /> },
-    { label: 'Employees', to: ROUTE_PATHS.TA_EMPLOYEES, icon: <Users size={16} /> },
-    { label: 'Contractors', to: ROUTE_PATHS.TA_CONTRACTORS, icon: <FileText size={16} /> },
-    { label: 'Declarations', to: ROUTE_PATHS.TA_DECLARATIONS, icon: <ClipboardList size={16} /> },
-    { label: 'Documents', to: ROUTE_PATHS.TA_DOCUMENTS, icon: <Download size={16} /> },
-    { label: 'Profile Status', to: ROUTE_PATHS.TA_PROFILE_STATUS, icon: <Clock size={16} /> },
-    { label: 'Activity', to: ROUTE_PATHS.TA_ACTIVITY, icon: <Activity size={16} /> },
+    { label: 'Dashboard',     to: ROUTE_PATHS.TA_DASHBOARD,    icon: <LayoutDashboard size={16} />, targetKey: TARGET_KEYS.PAGE_TA_DASHBOARD },
+    { label: 'Temple Profile',to: ROUTE_PATHS.TA_TEMPLE,       icon: <Building2 size={16} /> },
+    { label: 'Temple Search', to: ROUTE_PATHS.DC_TEMPLES,      icon: <Search size={16} />,         targetKey: TARGET_KEYS.PAGE_TA_TEMPLE_SEARCH },
+    { label: 'Trust & Board', to: ROUTE_PATHS.TA_TRUST,        icon: <Shield size={16} />,         targetKey: TARGET_KEYS.PAGE_TA_TRUST },
+    { label: 'Employees',     to: ROUTE_PATHS.TA_EMPLOYEES,    icon: <Users size={16} />,          targetKey: TARGET_KEYS.PAGE_TA_EMPLOYEES },
+    { label: 'Contractors',   to: ROUTE_PATHS.TA_CONTRACTORS,  icon: <FileText size={16} />,       targetKey: TARGET_KEYS.PAGE_TA_CONTRACTORS },
+    { label: 'Declarations',  to: ROUTE_PATHS.TA_DECLARATIONS, icon: <ClipboardList size={16} />,  targetKey: TARGET_KEYS.PAGE_TA_DECLARATIONS },
+    { label: 'Documents',     to: ROUTE_PATHS.TA_DOCUMENTS,    icon: <Download size={16} />,       targetKey: TARGET_KEYS.PAGE_TA_DOCUMENTS },
+    { label: 'Profile Status',to: ROUTE_PATHS.TA_PROFILE_STATUS,icon: <Clock size={16} /> },
+    { label: 'Activity',      to: ROUTE_PATHS.TA_ACTIVITY,     icon: <Activity size={16} /> },
   ]
 }
 
@@ -53,6 +56,7 @@ function getAdminNavItems(pendingCount?: number): NavItem[] {
     { label: 'Geo Master', to: ROUTE_PATHS.ADMIN_GEO, icon: <Settings size={16} /> },
     { label: 'System Config', to: ROUTE_PATHS.ADMIN_SYSTEM_CONFIG, icon: <Settings size={16} /> },
     { label: 'Notification Rules', to: ROUTE_PATHS.ADMIN_NOTIFICATION_RULES, icon: <Bell size={16} /> },
+    { label: 'Access Control', to: ROUTE_PATHS.ADMIN_ACCESS_CONTROL, icon: <Lock size={16} /> },
     // Data access — SA can also navigate DC/Auditor pages
     { label: 'Temple Search', to: ROUTE_PATHS.DC_TEMPLES, icon: <Search size={16} /> },
     { label: 'Declarations', to: ROUTE_PATHS.DC_DECLARATIONS, icon: <ClipboardList size={16} /> },
@@ -63,23 +67,23 @@ function getAdminNavItems(pendingCount?: number): NavItem[] {
 
 function getAuditorNavItems(): NavItem[] {
   return [
-    { label: 'Dashboard', to: ROUTE_PATHS.AUDITOR_DASHBOARD, icon: <LayoutDashboard size={16} /> },
-    { label: 'Temples', to: ROUTE_PATHS.AUDITOR_TEMPLES, icon: <Building2 size={16} /> },
-    { label: 'Declarations', to: ROUTE_PATHS.AUDITOR_DECLARATIONS, icon: <ClipboardList size={16} /> },
-    { label: 'Observations', to: ROUTE_PATHS.AUDITOR_OBSERVATIONS, icon: <Eye size={16} /> },
-    { label: 'Compliance', to: ROUTE_PATHS.AUDITOR_COMPLIANCE, icon: <ShieldCheck size={16} /> },
-    { label: 'Audit Trail', to: ROUTE_PATHS.AUDITOR_AUDIT_TRAIL, icon: <History size={16} /> },
+    { label: 'Dashboard',    to: ROUTE_PATHS.AUDITOR_DASHBOARD,    icon: <LayoutDashboard size={16} />, targetKey: TARGET_KEYS.PAGE_AUDITOR_DASHBOARD },
+    { label: 'Temples',      to: ROUTE_PATHS.AUDITOR_TEMPLES,      icon: <Building2 size={16} /> },
+    { label: 'Declarations', to: ROUTE_PATHS.AUDITOR_DECLARATIONS,  icon: <ClipboardList size={16} /> },
+    { label: 'Observations', to: ROUTE_PATHS.AUDITOR_OBSERVATIONS,  icon: <Eye size={16} />,            targetKey: TARGET_KEYS.PAGE_AUDITOR_OBSERVATIONS },
+    { label: 'Compliance',   to: ROUTE_PATHS.AUDITOR_COMPLIANCE,    icon: <ShieldCheck size={16} />,    targetKey: TARGET_KEYS.PAGE_AUDITOR_COMPLIANCE },
+    { label: 'Audit Trail',  to: ROUTE_PATHS.AUDITOR_AUDIT_TRAIL,   icon: <History size={16} />,        targetKey: TARGET_KEYS.PAGE_AUDITOR_AUDIT_TRAIL },
   ]
 }
 
 function getViewerNavItems(): NavItem[] {
   return [
-    { label: 'Dashboard', to: ROUTE_PATHS.VIEWER_DASHBOARD, icon: <LayoutDashboard size={16} /> },
-    { label: 'Temples', to: ROUTE_PATHS.VIEWER_TEMPLES, icon: <Building2 size={16} /> },
-    { label: 'Declarations', to: ROUTE_PATHS.VIEWER_DECLARATIONS, icon: <ClipboardList size={16} /> },
-    { label: 'Compliance', to: ROUTE_PATHS.VIEWER_COMPLIANCE, icon: <ShieldCheck size={16} /> },
-    { label: 'Audit Trail', to: ROUTE_PATHS.VIEWER_AUDIT_TRAIL, icon: <History size={16} /> },
-    { label: 'Export', to: ROUTE_PATHS.VIEWER_EXPORT, icon: <Download size={16} /> },
+    { label: 'Dashboard',    to: ROUTE_PATHS.VIEWER_DASHBOARD,    icon: <LayoutDashboard size={16} />, targetKey: TARGET_KEYS.PAGE_VIEWER_DASHBOARD },
+    { label: 'Temples',      to: ROUTE_PATHS.VIEWER_TEMPLES,      icon: <Building2 size={16} /> },
+    { label: 'Declarations', to: ROUTE_PATHS.VIEWER_DECLARATIONS,  icon: <ClipboardList size={16} /> },
+    { label: 'Compliance',   to: ROUTE_PATHS.VIEWER_COMPLIANCE,    icon: <ShieldCheck size={16} /> },
+    { label: 'Audit Trail',  to: ROUTE_PATHS.VIEWER_AUDIT_TRAIL,   icon: <History size={16} /> },
+    { label: 'Export',       to: ROUTE_PATHS.VIEWER_EXPORT,        icon: <Download size={16} />,       targetKey: TARGET_KEYS.PAGE_VIEWER_EXPORT },
   ]
 }
 
@@ -96,18 +100,24 @@ export function Sidebar({ open, setOpen, collapsed, onToggleCollapse }: SidebarP
   const { handleLogout } = useLogout()
   const currentUser = useAppSelector((s) => s.auth.currentUser)
   const role = currentUser?.role
+  const { can, isLoading: permissionsLoading } = usePermissions()
 
   const { data: dashData } = useGetStatewideDashboardQuery(undefined, { skip: role !== USER_ROLES.SUPER_ADMIN })
   const pendingCount = role === USER_ROLES.SUPER_ADMIN
     ? ((dashData?.data?.totalPendingDeclarations ?? 0) + (dashData?.data?.totalPendingProfileReviews ?? 0))
     : 0
 
-  let navItems: NavItem[] = []
-  if (role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF) navItems = getDcNavItems()
-  else if (role === USER_ROLES.TEMPLE_AUTHORITY) navItems = getTaNavItems()
-  else if (role === USER_ROLES.SUPER_ADMIN) navItems = getAdminNavItems(pendingCount)
-  else if (role === USER_ROLES.AUDITOR) navItems = getAuditorNavItems()
-  else if (role === USER_ROLES.VIEWER) navItems = getViewerNavItems()
+  let allNavItems: NavItem[] = []
+  if (role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.DC_STAFF) allNavItems = getDcNavItems()
+  else if (role === USER_ROLES.TEMPLE_AUTHORITY) allNavItems = getTaNavItems()
+  else if (role === USER_ROLES.SUPER_ADMIN) allNavItems = getAdminNavItems(pendingCount)
+  else if (role === USER_ROLES.AUDITOR) allNavItems = getAuditorNavItems()
+  else if (role === USER_ROLES.VIEWER) allNavItems = getViewerNavItems()
+
+  // Filter nav items by permission. Fails-open while loading (no targetKey = always shown).
+  const navItems = permissionsLoading
+    ? allNavItems
+    : allNavItems.filter((item) => !item.targetKey || can(item.targetKey))
 
   // Prevent body scroll when sidebar drawer is open on mobile
   useEffect(() => {

@@ -14,6 +14,12 @@ vi.mock('@/features/auth/authApi', () => ({
   useGetCurrentUserQuery: vi.fn(),
 }))
 
+// Mock the permissions API — PermissionsProvider is rendered inside PrivateRoute
+vi.mock('@/features/access-control/accessControlApi', () => ({
+  useGetMyPermissionsQuery: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  accessControlApi: { reducerPath: 'accessControlApi', middleware: () => (next: unknown) => next },
+}))
+
 import { useAppSelector } from '@/app/store'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 

@@ -4,6 +4,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useGetViewerDashboardQuery } from '@/features/viewer/viewerApi'
+import { PolicyGate } from '@/features/access-control/components/PolicyGate'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 import {
   AlertCircle,
   CheckCircle2,
@@ -53,34 +55,42 @@ export function ViewerDashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <KpiCard
-              title="Compliance Anomalies"
-              value={anomalyCount}
-              icon={<ShieldCheck size={20} />}
-              description="Temples with active anomalies"
-              onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
-            />
-            <KpiCard
-              title="Overdue Declarations"
-              value={overdueCount}
-              icon={<FileText size={20} />}
-              description="Statewide overdue asset declarations"
-              onClick={() => navigate(ROUTE_PATHS.VIEWER_DECLARATIONS)}
-            />
-            <KpiCard
-              title="Open Observations"
-              value={openObsCount}
-              icon={<Eye size={20} />}
-              description="Pending review or action"
-              onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
-            />
-            <KpiCard
-              title="Assigned Reviews"
-              value={assignedObsCount}
-              icon={<ClipboardList size={20} />}
-              description={`${workloadStatus} · compliance posture`}
-              onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
-            />
+            <PolicyGate target={TARGET_KEYS.KPI_VIEWER_COMPLIANCE_ANOMALIES}>
+              <KpiCard
+                title="Compliance Anomalies"
+                value={anomalyCount}
+                icon={<ShieldCheck size={20} />}
+                description="Temples with active anomalies"
+                onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_VIEWER_OVERDUE_DECLARATIONS}>
+              <KpiCard
+                title="Overdue Declarations"
+                value={overdueCount}
+                icon={<FileText size={20} />}
+                description="Statewide overdue asset declarations"
+                onClick={() => navigate(ROUTE_PATHS.VIEWER_DECLARATIONS)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_VIEWER_OPEN_OBSERVATIONS}>
+              <KpiCard
+                title="Open Observations"
+                value={openObsCount}
+                icon={<Eye size={20} />}
+                description="Pending review or action"
+                onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_VIEWER_ASSIGNED_REVIEWS}>
+              <KpiCard
+                title="Assigned Reviews"
+                value={assignedObsCount}
+                icon={<ClipboardList size={20} />}
+                description={`${workloadStatus} · compliance posture`}
+                onClick={() => navigate(ROUTE_PATHS.VIEWER_COMPLIANCE)}
+              />
+            </PolicyGate>
           </div>
         )}
       </section>

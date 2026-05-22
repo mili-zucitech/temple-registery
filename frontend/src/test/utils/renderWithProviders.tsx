@@ -16,6 +16,7 @@ import { exportApi } from '../../features/export/exportApi'
 import { adminApi } from '../../features/admin/adminApi'
 import { dcApi } from '../../features/dc/dcApi'
 import { geoApi } from '../../features/geo/geoApi'
+import { accessControlApi } from '../../features/access-control/accessControlApi'
 
 function buildTestStore(preloadedState?: Parameters<typeof configureStore>[0]['preloadedState']) {
   return configureStore({
@@ -35,6 +36,7 @@ function buildTestStore(preloadedState?: Parameters<typeof configureStore>[0]['p
         adminApi.middleware,
         dcApi.middleware,
         geoApi.middleware,
+        accessControlApi.middleware,
       ),
   })
 }

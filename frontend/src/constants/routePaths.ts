@@ -50,6 +50,7 @@ export const ROUTE_PATHS = {
   ADMIN_TEMPLE_EDIT: '/admin/temples/:templeId/edit',
   ADMIN_SYSTEM_CONFIG: '/admin/system-config',
   ADMIN_NOTIFICATION_RULES: '/admin/notification-rules',
+  ADMIN_ACCESS_CONTROL: '/admin/access-control',
 
   // SA temple module edit routes
   ADMIN_TEMPLE_TRUST: '/admin/temples/:templeId/trust',

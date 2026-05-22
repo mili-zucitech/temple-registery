@@ -31,6 +31,8 @@ import { ROUTE_PATHS } from '@/constants/routePaths'
 import { USER_ROLES } from '@/constants/roles'
 import { useAppSelector } from '@/app/store'
 import { ReadOnlyBanner } from '@/components/feedback/ReadOnlyBanner/ReadOnlyBanner'
+import { usePermissions } from '@/features/access-control/hooks/usePermissions'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 import { useDcTempleSearch, useDcDashboard } from '@/features/dc/dcHooks'
 import { useExportTemplesMutation } from '@/features/dc/dcApi'
 import { useGeoHierarchy } from '@/features/geo/geoHooks'
@@ -73,6 +75,7 @@ function useDebounce<T>(value: T, delay: number): T {
 export function DcTempleSearchPage() {
   const navigate = useNavigate()
   const role = useAppSelector((s) => s.auth.currentUser?.role)
+  const { can } = usePermissions()
   const [viewMode, setViewMode] = useState<DirectoryViewMode>(() => {
     const v = localStorage.getItem('dcTempleDirectoryView')
     return v === 'table' || v === 'list' ? v : 'list'
@@ -124,6 +127,41 @@ export function DcTempleSearchPage() {
   }
 
   const { dashboard, isLoading: dashLoading } = useDcDashboard()
+
+  // Role-based KPI visibility: TA uses its own key set; DC/others use DC keys.
+  const kpiPermKeys: Record<string, string> = role === USER_ROLES.TEMPLE_AUTHORITY
+    ? {
+        total:    TARGET_KEYS.KPI_TA_SEARCH_TOTAL_TEMPLES,
+        overdue:  TARGET_KEYS.KPI_TA_SEARCH_OVERDUE,
+        pending:  TARGET_KEYS.KPI_TA_SEARCH_PENDING,
+        profiles: TARGET_KEYS.KPI_TA_SEARCH_PROFILE_REVIEWS,
+      }
+    : {
+        total:    TARGET_KEYS.KPI_DC_TOTAL_TEMPLES,
+        overdue:  TARGET_KEYS.KPI_DC_OVERDUE_DECLARATIONS,
+        pending:  TARGET_KEYS.KPI_DC_PENDING_DECLARATIONS,
+        profiles: TARGET_KEYS.KPI_DC_PROFILE_REVIEWS,
+      }
+  const canShowTile = Object.fromEntries(
+    Object.entries(kpiPermKeys).map(([k, v]) => [k, can(v)]),
+  ) as Record<string, boolean>
+
+  // Role-based filter section permission keys for the search sidebar.
+  const filterPermKeys: Record<string, string> = role === USER_ROLES.TEMPLE_AUTHORITY
+    ? {
+        declarationStatus: TARGET_KEYS.SECTION_TA_SEARCH_DECLARATION_STATUS,
+        trustRegistered:   TARGET_KEYS.SECTION_TA_SEARCH_TRUST_REGISTERED,
+        savedFilters:      TARGET_KEYS.SECTION_TA_SEARCH_SAVED_FILTERS,
+        cardStatus:        TARGET_KEYS.SECTION_TA_SEARCH_CARD_STATUS,
+        cardTrust:         TARGET_KEYS.SECTION_TA_SEARCH_CARD_TRUST,
+      }
+    : {
+        declarationStatus: TARGET_KEYS.SECTION_DC_SEARCH_DECLARATION_STATUS,
+        trustRegistered:   TARGET_KEYS.SECTION_DC_SEARCH_TRUST_REGISTERED,
+        savedFilters:      TARGET_KEYS.SECTION_DC_SEARCH_SAVED_FILTERS,
+        cardStatus:        TARGET_KEYS.SECTION_DC_SEARCH_CARD_STATUS,
+        cardTrust:         TARGET_KEYS.SECTION_DC_SEARCH_CARD_TRUST,
+      }
 
   // Mobile filter drawer (shown only on < lg)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -505,6 +543,7 @@ export function DcTempleSearchPage() {
       </div>
 
       {/* DECLARATION STATUS */}
+      {can(filterPermKeys.declarationStatus) && (
       <div>
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Declaration Status
@@ -578,8 +617,10 @@ export function DcTempleSearchPage() {
           />
         </div>
       </div>
+      )}
 
       {/* TRUST REGISTRATION — 3-state toggle group */}
+      {can(filterPermKeys.trustRegistered) && (
       <div>
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Trust Registration
@@ -618,6 +659,7 @@ export function DcTempleSearchPage() {
           })}
         </div>
       </div>
+      )}
 
       {/* YEAR RANGE */}
       <div>
@@ -777,7 +819,7 @@ export function DcTempleSearchPage() {
           </div>
 
           {/* Compliance strip */}
-          <ComplianceStrip dashboard={dashboard} isLoading={dashLoading} gradeCount={gradeCount} />
+          <ComplianceStrip dashboard={dashboard} isLoading={dashLoading} gradeCount={gradeCount} canShowTile={canShowTile} />
 
           {/* Result count + sort controls */}
           <div className="flex items-center justify-between gap-3 min-h-[28px]">
@@ -874,6 +916,7 @@ export function DcTempleSearchPage() {
           {/* Saved filters (presets) — each preset is mutually exclusive:
                clicking one clears the other preset's conflicting param so results
                are always unambiguous. Active state mirrors the current URL filters. */}
+          {can(filterPermKeys.savedFilters) && (
           <div className="flex flex-wrap gap-2 pt-2">
             <span className="text-[11px] text-muted-foreground font-medium mr-1.5">Saved filters:</span>
             <Button
@@ -913,6 +956,7 @@ export function DcTempleSearchPage() {
               High Risk (Overdue)
             </Button>
           </div>
+          )}
 
           {/* Results */}
           <div>
@@ -1013,7 +1057,7 @@ export function DcTempleSearchPage() {
                           <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Temple</th>
                           <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Grade</th>
                           <th className="px-3 py-2 text-left font-semibold text-muted-foreground hidden md:table-cell">Taluk</th>
-                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Declaration</th>
+                          {can(filterPermKeys.cardStatus) && <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Declaration</th>}
                           <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Risk</th>
                           <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Action</th>
                         </tr>
@@ -1072,9 +1116,11 @@ export function DcTempleSearchPage() {
                               <td className="px-3 py-2 hidden md:table-cell text-muted-foreground">
                                 {t.talukId ? (talukIdToName[t.talukId] ?? `Taluk #${t.talukId}`) : '—'}
                               </td>
+                              {can(filterPermKeys.cardStatus) && (
                               <td className="px-3 py-2">
                                 <span className="text-muted-foreground text-xs">{getDeclarationBadgeLabel(t.assetDeclarationStatus)}</span>
                               </td>
+                              )}
                               <td className="px-3 py-2">
                                 <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', riskClass)}>
                                   {riskLabel}
@@ -1114,6 +1160,8 @@ export function DcTempleSearchPage() {
                         districtIdToName={districtIdToName}
                         talukIdToName={talukIdToName}
                         hobliIdToName={hobliIdToName}
+                        showDeclarationStatus={can(filterPermKeys.cardStatus)}
+                        showTrustStatus={can(filterPermKeys.cardTrust)}
                         onView={() => {
                           const detailPath = role === USER_ROLES.AUDITOR
                             ? ROUTE_PATHS.AUDITOR_TEMPLE_DETAIL
@@ -1180,10 +1228,12 @@ interface ComplianceStripProps {
   } | null
   isLoading: boolean
   gradeCount: Record<string, number>
+  /** Per-tile visibility map from the page-level permission check. Absent key = visible. */
+  canShowTile?: Record<string, boolean>
 }
 
-function ComplianceStrip({ dashboard, isLoading, gradeCount }: ComplianceStripProps) {
-  const tiles = [
+function ComplianceStrip({ dashboard, isLoading, gradeCount, canShowTile }: ComplianceStripProps) {
+  const allTiles = [
     {
       key: 'total',
       icon: <Building2 size={12} className="text-blue-600" aria-hidden />,
@@ -1225,6 +1275,10 @@ function ComplianceStrip({ dashboard, isLoading, gradeCount }: ComplianceStripPr
       urgent: false,
     },
   ]
+
+  const tiles = canShowTile
+    ? allTiles.filter((t) => canShowTile[t.key] !== false)
+    : allTiles
 
   return (
     <div
@@ -1312,6 +1366,8 @@ interface TempleCardProps {
   districtIdToName: Record<number, string>
   talukIdToName: Record<number, string>
   hobliIdToName: Record<number, string>
+  showDeclarationStatus?: boolean
+  showTrustStatus?: boolean
   onView: () => void
 }
 
@@ -1320,6 +1376,8 @@ const TempleCard = memo(function TempleCard({
   districtIdToName,
   talukIdToName,
   hobliIdToName,
+  showDeclarationStatus = true,
+  showTrustStatus = true,
   onView,
 }: TempleCardProps) {
   const isUrgent    = temple.overdueDeclarations > 0
@@ -1379,7 +1437,7 @@ const TempleCard = memo(function TempleCard({
 
         {/* Badge cluster — grouped for fast scanning */}
         <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-          <DeclarationStatusBadge status={temple.assetDeclarationStatus} />
+          {showDeclarationStatus && <DeclarationStatusBadge status={temple.assetDeclarationStatus} />}
           {temple.pendingDeclarations > 0 && (
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-2 py-0.5">
               <span className="tabular-nums">{temple.pendingDeclarations}</span>
@@ -1392,7 +1450,7 @@ const TempleCard = memo(function TempleCard({
               <span className="font-normal">Overdue</span>
             </span>
           )}
-          <TrustBadge registered={temple.hasActiveTrust} />
+          {showTrustStatus && <TrustBadge registered={temple.hasActiveTrust} />}
         </div>
 
         {/* Review button — isolated from card click */}
@@ -1416,7 +1474,7 @@ const TempleCard = memo(function TempleCard({
 
       {/* Mobile badge row — shown only on xs */}
       <div className="flex sm:hidden items-center gap-1.5 flex-wrap mt-2.5 pl-[calc(44px+14px)]">
-        <DeclarationStatusBadge status={temple.assetDeclarationStatus} />
+        {showDeclarationStatus && <DeclarationStatusBadge status={temple.assetDeclarationStatus} />}
         {temple.pendingDeclarations > 0 && (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-2 py-0.5">
             <span className="tabular-nums">{temple.pendingDeclarations}</span> Pending

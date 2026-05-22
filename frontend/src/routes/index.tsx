@@ -59,6 +59,7 @@ const NotificationPreferencesPage = lazy(() => import('@/features/notification/p
 const PublicTempleSearchPage = lazy(() => import('@/features/search/PublicTempleSearchPage').then(m => ({ default: m.PublicTempleSearchPage })))
 const TaTempleSearchPage = lazy(() => import('@/features/ta/pages/TaTempleSearchPage/TaTempleSearchPage').then(m => ({ default: m.TaTempleSearchPage })))
 const TaTempleDetailPage = lazy(() => import('@/features/ta/pages/TaTempleDetailPage/TaTempleDetailPage').then(m => ({ default: m.TaTempleDetailPage })))
+const AccessControlPage = lazy(() => import('@/features/access-control/pages/AccessControlPage/AccessControlPage').then(m => ({ default: m.AccessControlPage })))
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -143,6 +144,7 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.ADMIN_TEMPLE_DOCUMENTS, element: <Suspense fallback={<PageLoader />}><SaTempleDocumentsPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationsPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATION_NEW, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationFormPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_ACCESS_CONTROL, element: <Suspense fallback={<PageLoader />}><AccessControlPage /></Suspense> },
             ],
           },
           // Auditor (read-only) — SUPER_ADMIN can also access auditor pages via sidebar links
