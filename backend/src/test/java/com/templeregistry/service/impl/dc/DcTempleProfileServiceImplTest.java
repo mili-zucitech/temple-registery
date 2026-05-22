@@ -208,7 +208,9 @@ class DcTempleProfileServiceImplTest {
     }
 
     @Test
-    void should_enforceDistrictScope_when_roleIsDc() {
+    void should_allowCrossDistrictRead_when_roleIsDc() {
+        // DC has statewide read access — assertDistrictScope must NOT be called on profile reads.
+        // District scope is only enforced on governance actions (approve, reject, verify, flag).
         Temple temple = templeWithFullGeo();
         temple.setId(7L);
         stubMinimumForGetFullProfile(temple);
@@ -216,7 +218,7 @@ class DcTempleProfileServiceImplTest {
 
         service.getFullProfile(7L, DC_CLAIMS);
 
-        verify(jurisdictionGuard).assertDistrictScope(eq(temple), eq(DC_CLAIMS));
+        verify(jurisdictionGuard, never()).assertDistrictScope(any(), any());
     }
 
     // â”€â”€ Test: hobli is null (partial geo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

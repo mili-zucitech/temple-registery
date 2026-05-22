@@ -412,7 +412,6 @@ public class TempleServiceImpl implements TempleService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
     public Resource serveProfilePhoto(Long templeId) {
         Temple temple = findOrThrow(templeId);
 
@@ -437,7 +436,6 @@ public class TempleServiceImpl implements TempleService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize("isAuthenticated()")
     public Resource serveTemplePhoto(Long templeId, Long photoId) {
         findOrThrow(templeId);
         TemplePhoto photo = templePhotoRepository.findById(photoId)
@@ -446,7 +444,6 @@ public class TempleServiceImpl implements TempleService {
         if (!photo.getTemple().getId().equals(templeId)) {
             throw new EntityNotFoundException("TemplePhoto", photoId);
         }
-        ownershipGuard.assertOwnsTemple(templeId);
 
         // Serve from DB if bytes are stored (works on every machine sharing the TiDB database).
         if (photo.getImageData() != null) {
