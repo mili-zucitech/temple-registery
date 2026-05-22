@@ -219,7 +219,7 @@ function OverviewTab() {
               <div className="relative w-full aspect-square rounded-xl overflow-hidden border-2 border-orange-200/60 dark:border-orange-800/40 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 shadow-md group">
                 {effectivePhotoUrl ? (
                   <img
-                    src={`${import.meta.env.VITE_BASE_URL}${effectivePhotoUrl}`}
+                    src={`${import.meta.env.VITE_BASE_URL ?? ''}${effectivePhotoUrl}`}
                     alt={`${temple?.name ?? 'Temple'} profile photo`}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}

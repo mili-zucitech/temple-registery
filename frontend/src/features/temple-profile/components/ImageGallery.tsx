@@ -103,7 +103,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
             onClick={() => openLightbox(index)}
           >
             <img
-              src={`${import.meta.env.VITE_BASE_URL}${photo.url}`}
+              src={`${import.meta.env.VITE_BASE_URL ?? ''}${photo.url}`}
               alt={photo.fileName || 'Temple photo'}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-1"
@@ -164,7 +164,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
             >
               <div className="relative overflow-hidden rounded-xl shadow-2xl border border-white/5 bg-white/5">
                 <img
-                  src={`${import.meta.env.VITE_BASE_URL}${currentPhoto.url}`}
+                  src={`${import.meta.env.VITE_BASE_URL ?? ''}${currentPhoto.url}`}
                   alt={currentPhoto.fileName}
                   className="max-h-[65vh] w-auto object-contain transition-transform duration-500"
                 />
@@ -263,7 +263,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
                   selectedIndex === i ? "border-primary scale-110 shadow-lg shadow-primary/20" : "border-transparent opacity-40 hover:opacity-100"
                 )}
               >
-                <img src={`${import.meta.env.VITE_BASE_URL}${photo.url}`} className="w-full h-full object-cover" alt="" />
+                <img src={`${import.meta.env.VITE_BASE_URL ?? ''}${photo.url}`} className="w-full h-full object-cover" alt="" />
               </button>
             ))}
           </div>
