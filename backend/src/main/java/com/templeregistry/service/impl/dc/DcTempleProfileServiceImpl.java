@@ -107,12 +107,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         public TempleFullProfileResponse getFullProfile(Long templeId, ScopeHelper.Claims claims) {
                 Temple temple = templeRepository.findWithGeoById(templeId)
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
-                // Enforce district scope for DC/DC_STAFF. SUPER_ADMIN and AUDITOR are not
-                // jurisdiction-scoped.
-                if (RoleConstants.DISTRICT_COLLECTOR.equals(claims.role())
-                                || RoleConstants.DC_STAFF.equals(claims.role())) {
-                        jurisdictionGuard.assertDistrictScope(temple, claims);
-                }
+                // DC/DC_STAFF have statewide read access — district scope is only enforced
+                // on governance actions (approve, reject, verify, flag), not on profile reads.
 
                 // Geo names from eagerly loaded chain — each hop null-checked to handle
                 // incomplete seed data
@@ -258,7 +254,6 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
 
                 Temple temple = templeRepository.findWithGeoById(d.getTempleId())
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", d.getTempleId()));
-                jurisdictionGuard.assertDistrictScope(temple, claims);
 
                 List<ClarificationItemResponse> clarifications = clarificationRepository
                                 .findAllByDeclarationIdOrderByCreatedAtAsc(declarationId)
@@ -385,9 +380,9 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         @Transactional(readOnly = true)
         @PreAuthorize(RoleConstants.CAN_READ_ALL)
         public ProfileStagingResponse getPendingProfileStaging(Long templeId, ScopeHelper.Claims claims) {
-                Temple temple = templeRepository.findWithGeoById(templeId)
+                // Temple existence check only — district scope not required for reads.
+                templeRepository.findWithGeoById(templeId)
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
-                jurisdictionGuard.assertDistrictScope(temple, claims);
 
                 return profileStagingRepository
                                 .findTopByTempleIdAndStatusInOrderByVersionNumberDesc(
@@ -404,12 +399,8 @@ public class DcTempleProfileServiceImpl implements DcTempleProfileService {
         @Transactional(readOnly = true)
         @PreAuthorize(RoleConstants.CAN_READ_TEMPLES)
         public PaginatedResponse<DcProfileHistoryEntry> getProfileHistory(Long templeId, ScopeHelper.Claims claims, int page, int size) {
-                Temple temple = templeRepository.findWithGeoById(templeId)
+                templeRepository.findWithGeoById(templeId)
                                 .orElseThrow(() -> new EntityNotFoundException("Temple", templeId));
-                if (RoleConstants.DISTRICT_COLLECTOR.equals(claims.role())
-                                || RoleConstants.DC_STAFF.equals(claims.role())) {
-                        jurisdictionGuard.assertDistrictScope(temple, claims);
-                }
                 int clamped = paginationUtil.clampSize(size);
 
                 // Fetch all workflow instances for TEMPLE_PROFILE entities linked to this temple.
