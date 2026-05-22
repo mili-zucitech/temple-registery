@@ -8,6 +8,7 @@ import com.templeregistry.dto.response.auth.UserProfileResponse;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.auth.AuthService;
 import com.templeregistry.service.auth.UserProfileService;
+import com.templeregistry.service.accesscontrol.PolicyEvaluationService;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,7 @@ class AuthControllerTest {
     @MockBean ScopeHelper scopeHelper;
     @MockBean AuthService authService;
     @MockBean UserProfileService userProfileService;
+    @MockBean PolicyEvaluationService policyEvaluationService;
 
     // ── POST /api/v1/auth/login ─────────────────────────────────────────────
 

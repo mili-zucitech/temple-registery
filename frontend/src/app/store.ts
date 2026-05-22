@@ -19,6 +19,7 @@ import { templeApi } from '@/features/temple-profile/hooks/templeApi'
 import { auditorApi } from '@/features/auditor/auditorApi'
 import { viewerApi } from '@/features/viewer/viewerApi'
 import { timelineApi } from '@/features/timeline/timelineApi'
+import { accessControlApi } from '@/features/access-control/accessControlApi'
 
 /** Global RTK Query error logger middleware — handles 4xx and 5xx */
 const rtkQueryErrorLogger =
@@ -73,6 +74,7 @@ export const store = configureStore({
       auditorApi.middleware,
       viewerApi.middleware,
       timelineApi.middleware,
+      accessControlApi.middleware,
     ),
 })
 

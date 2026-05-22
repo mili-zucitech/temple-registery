@@ -53,6 +53,8 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useAppSelector } from '@/app/store'
 import { USER_ROLES } from '@/constants/roles'
+import { usePermissions } from '@/features/access-control/hooks/usePermissions'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 import {
   useDcTempleProfile,
   useDcDeclarationDetail,
@@ -119,6 +121,7 @@ export function DcTempleProfilePage() {
   const isOwnTemple = isTa && currentTempleId === id
   const canAct =
     role === USER_ROLES.DISTRICT_COLLECTOR || role === USER_ROLES.SUPER_ADMIN
+  const { can } = usePermissions()
 
   // Governance visibility: TEMPLE_AUTHORITY sees governance only for their own temple.
   // For DC/SA roles, only show governance when the temple has a pending profile submission.
@@ -372,15 +375,16 @@ export function DcTempleProfilePage() {
             <TabsList className="h-12 p-0 bg-transparent gap-1 flex w-full min-w-max">
               {(
                 [
-                  { v: 'overview',     label: 'Overview',      icon: <Info size={14} />, count: null },
-                  { v: 'declarations', label: 'Declarations',  icon: <FileText size={14} />, count: declarations?.length ?? 0 },
-                  { v: 'trust',        label: 'Trust & Board', icon: <Shield size={14} />,   count: boardMemberCount },
-                  { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,    count: employees?.length ?? 0 },
-                  { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,count: contractors?.length ?? 0 },
-                  { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />, count: null },
-                  { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,    count: null },
+                  { v: 'overview',     label: 'Overview',      icon: <Info size={14} />,        count: null,                    targetKey: TARGET_KEYS.TAB_DC_TEMPLE_OVERVIEW },
+                  { v: 'declarations', label: 'Declarations',  icon: <FileText size={14} />,    count: declarations?.length ?? 0, targetKey: TARGET_KEYS.TAB_DC_TEMPLE_DECLARATIONS },
+                  { v: 'trust',        label: 'Trust & Board', icon: <Shield size={14} />,      count: boardMemberCount,          targetKey: TARGET_KEYS.TAB_DC_TEMPLE_TRUST },
+                  { v: 'staff',        label: 'Staff',         icon: <Users size={14} />,       count: employees?.length ?? 0,    targetKey: TARGET_KEYS.TAB_DC_TEMPLE_STAFF },
+                  { v: 'contractors',  label: 'Contractors',   icon: <Briefcase size={14} />,   count: contractors?.length ?? 0,  targetKey: TARGET_KEYS.TAB_DC_TEMPLE_CONTRACTORS },
+                  { v: 'documents',    label: 'Documents',     icon: <FileText size={14} />,    count: null,                    targetKey: TARGET_KEYS.TAB_DC_TEMPLE_DOCUMENTS },
+                  { v: 'timeline',     label: 'Timeline',      icon: <Clock size={14} />,       count: null,                    targetKey: TARGET_KEYS.TAB_DC_TEMPLE_TIMELINE },
                 ] as const
               ).filter((tab) => tab.v !== 'timeline' || showProfileGovernance || canAct)
+              .filter((tab) => can(tab.targetKey))
               .map((tab) => (
                 <TabsTrigger
                   key={tab.v}
@@ -463,6 +467,7 @@ export function DcTempleProfilePage() {
             />
           </TabsContent>
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_DECLARATIONS) && (
           <TabsContent value="declarations" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DeclarationsTab
               declarations={declarations}
@@ -479,7 +484,9 @@ export function DcTempleProfilePage() {
               }
             />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_TRUST) && (
           <TabsContent value="trust" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TrustTab
               trust={trust}
@@ -517,7 +524,9 @@ export function DcTempleProfilePage() {
               }}
             />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_STAFF) && (
           <TabsContent value="staff" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StaffTab
               employees={employees}
@@ -533,7 +542,9 @@ export function DcTempleProfilePage() {
               }
             />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_CONTRACTORS) && (
           <TabsContent value="contractors" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ContractorsTab
               contractors={contractors}
@@ -549,17 +560,22 @@ export function DcTempleProfilePage() {
               }
             />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_DOCUMENTS) && (
           <TabsContent value="documents" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             <DocumentsTab templeId={id} />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_DC_TEMPLE_TIMELINE) && (
           <TabsContent value="timeline" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
             {(showProfileGovernance || canAct)
               ? <TimelineTab templeId={id} />
               : null
             }
           </TabsContent>
+          )}
         </div>
       </Tabs>
 
