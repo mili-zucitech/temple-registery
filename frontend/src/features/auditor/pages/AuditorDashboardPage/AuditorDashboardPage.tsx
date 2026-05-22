@@ -2,6 +2,8 @@ import { KpiCard } from '@/components/data-display/KpiCard/KpiCard'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useGetComplianceReportQuery, useListObservationsQuery } from '@/features/auditor/auditorApi'
+import { PolicyGate } from '@/features/access-control/components/PolicyGate'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, Eye, ShieldCheck, FileText, Activity, Clock3, TrendingUp, ClipboardList } from 'lucide-react'
@@ -46,34 +48,42 @@ export function AuditorDashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <KpiCard
-              title="Open Observations"
-              value={openObsCount}
-              icon={<Eye size={20} />}
-              description="Pending review or action"
-              onClick={() => navigate(ROUTE_PATHS.AUDITOR_OBSERVATIONS)}
-            />
-            <KpiCard
-              title="Compliance Anomalies"
-              value={complianceCount}
-              icon={<ShieldCheck size={20} />}
-              description="Temples with active anomalies"
-              onClick={() => navigate(ROUTE_PATHS.AUDITOR_COMPLIANCE)}
-            />
-            <KpiCard
-              title="Overdue Declarations"
-              value={overdueDeclarations}
-              icon={<FileText size={20} />}
-              description="Statewide overdue asset declarations"
-              onClick={() => navigate(ROUTE_PATHS.AUDITOR_DECLARATIONS)}
-            />
-            <KpiCard
-              title="Assigned Reviews"
-              value={assignedObsCount}
-              icon={<ClipboardList size={20} />}
-              description={`${workloadStatus} \u00b7 ${criticalAnomalies} critical risk signals`}
-              onClick={() => navigate(ROUTE_PATHS.AUDITOR_OBSERVATIONS)}
-            />
+            <PolicyGate target={TARGET_KEYS.KPI_AUDITOR_OPEN_OBSERVATIONS}>
+              <KpiCard
+                title="Open Observations"
+                value={openObsCount}
+                icon={<Eye size={20} />}
+                description="Pending review or action"
+                onClick={() => navigate(ROUTE_PATHS.AUDITOR_OBSERVATIONS)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_AUDITOR_COMPLIANCE_ANOMALIES}>
+              <KpiCard
+                title="Compliance Anomalies"
+                value={complianceCount}
+                icon={<ShieldCheck size={20} />}
+                description="Temples with active anomalies"
+                onClick={() => navigate(ROUTE_PATHS.AUDITOR_COMPLIANCE)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_AUDITOR_OVERDUE_DECLARATIONS}>
+              <KpiCard
+                title="Overdue Declarations"
+                value={overdueDeclarations}
+                icon={<FileText size={20} />}
+                description="Statewide overdue asset declarations"
+                onClick={() => navigate(ROUTE_PATHS.AUDITOR_DECLARATIONS)}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_AUDITOR_ASSIGNED_REVIEWS}>
+              <KpiCard
+                title="Assigned Reviews"
+                value={assignedObsCount}
+                icon={<ClipboardList size={20} />}
+                description={`${workloadStatus} · ${criticalAnomalies} critical risk signals`}
+                onClick={() => navigate(ROUTE_PATHS.AUDITOR_OBSERVATIONS)}
+              />
+            </PolicyGate>
           </div>
         )}
       </section>

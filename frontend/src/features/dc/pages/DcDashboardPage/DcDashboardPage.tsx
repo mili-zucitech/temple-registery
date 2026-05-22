@@ -42,6 +42,15 @@ import {
   Tooltip as RechartsTooltip,
   CartesianGrid,
 } from 'recharts'
+import { usePermissions } from '@/features/access-control/hooks/usePermissions'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
+
+const DC_KPI_CARD_KEYS: Record<string, string> = {
+  'Total Temples':   TARGET_KEYS.KPI_DC_TOTAL_TEMPLES,
+  'Pending Review':  TARGET_KEYS.KPI_DC_PENDING_DECLARATIONS,
+  'Overdue':         TARGET_KEYS.KPI_DC_OVERDUE_DECLARATIONS,
+  'Profile Reviews': TARGET_KEYS.KPI_DC_PROFILE_REVIEWS,
+}
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -157,6 +166,7 @@ export function DcModuleDashboardPage() {
   const { notifications, isLoading: notifLoading, onMarkRead } = useDcNotifications(0, 6)
   const districtId = useAppSelector((s) => s.auth.currentUser?.districtId ?? null)
   const { taluks, districts } = useGeoHierarchy({ stateId: 1, districtId: districtId ?? undefined })
+  const { can } = usePermissions()
 
   // Compute all data before any conditional returns (Rules of Hooks)
   const overdueCount = dashboard?.overdueDeclarations ?? 0
@@ -356,7 +366,10 @@ export function DcModuleDashboardPage() {
             sub: 'Missing filings',
             onClick: () => navigate(`${ROUTE_PATHS.DC_TEMPLES}?hasApprovedDeclaration=false`),
           },
-        ] as const).map(card => (
+        ] as const).map(card => {
+          const targetKey = DC_KPI_CARD_KEYS[card.label]
+          if (targetKey && !can(targetKey)) return null
+          return (
           <motion.button
             key={card.label}
             variants={fadeUp}
@@ -373,7 +386,8 @@ export function DcModuleDashboardPage() {
               <p className="mt-0.5 text-[11px] text-muted-foreground truncate">{card.sub}</p>
             </div>
           </motion.button>
-        ))}
+          )
+        })}
       </motion.div>
 
       {/* ── QUICK ACTIONS ────────────────────────────────────────────────── */}

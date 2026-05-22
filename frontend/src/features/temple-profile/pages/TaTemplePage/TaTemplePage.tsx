@@ -16,6 +16,14 @@ import { useProfileHistory, useTempleProfile } from '@/features/temple-profile/h
 import { useGetTemplePhotosQuery } from '../../hooks/templeApi'
 import { TempleProfileStagingResponse } from '../../hooks/templeTypes'
 import { TimelineTab } from '@/features/dc/pages/DcTempleProfilePage/tabs/TimelineTab'
+import { usePermissions } from '@/features/access-control/hooks/usePermissions'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
+
+const TA_TAB_KEYS: Record<string, string> = {
+  overview: TARGET_KEYS.TAB_TA_TEMPLE_OVERVIEW,
+  history:  TARGET_KEYS.TAB_TA_TEMPLE_HISTORY,
+  timeline: TARGET_KEYS.TAB_TA_TEMPLE_TIMELINE,
+}
 
 function fmt(iso?: string | null) {
   if (!iso) return '—'
@@ -491,6 +499,7 @@ function HistoryTab() {
 export function TaTemplePage() {
   const { temple, stagingProfile, currentProfile, isLoading, isError } = useTempleProfile()
   const [activeTab, setActiveTab] = useState('overview')
+  const { can } = usePermissions()
 
   if (isLoading) return (
     <div className="space-y-4">
@@ -548,7 +557,7 @@ export function TaTemplePage() {
       {/* ── Tab Navigation ── */}
       <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 shadow-lg">
         <div className="flex overflow-x-auto scrollbar-thin px-4">
-          {(['overview', 'history', 'timeline'] as const).map((tab) => (
+          {(['overview', 'history', 'timeline'] as const).filter((tab) => can(TA_TAB_KEYS[tab])).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -568,17 +577,23 @@ export function TaTemplePage() {
       {/* ── Tab Contents ── */}
       <div className="bg-slate-50 dark:bg-slate-950 min-h-screen">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {can(TARGET_KEYS.TAB_TA_TEMPLE_OVERVIEW) && (
           <TabsContent value="overview" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
             <OverviewTab />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_TA_TEMPLE_HISTORY) && (
           <TabsContent value="history" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
             <HistoryTab />
           </TabsContent>
+          )}
 
+          {can(TARGET_KEYS.TAB_TA_TEMPLE_TIMELINE) && (
           <TabsContent value="timeline" className="mt-0 p-4 focus-visible:outline-none animate-in fade-in-50 duration-300">
             <TimelineTab templeId={temple.id} />
           </TabsContent>
+          )}
 
         </Tabs>
       </div>

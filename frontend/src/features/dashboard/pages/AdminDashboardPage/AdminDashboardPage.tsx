@@ -1,6 +1,8 @@
 import { KpiCard } from '@/components/data-display/KpiCard/KpiCard'
 import { CardSkeleton } from '@/components/feedback/Skeleton/Skeleton'
 import { useGetStatewideDashboardQuery, useListAuditEventsQuery, type AuditEventResponse } from '@/features/admin/adminApi'
+import { PolicyGate } from '@/features/access-control/components/PolicyGate'
+import { TARGET_KEYS } from '@/features/access-control/constants/targetKeys'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,30 +41,38 @@ export function AdminDashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <KpiCard
-              title="Total Users"
-              value={stats?.totalUsers ?? 0}
-              icon={<Users size={20} />}
-              description={`${stats?.totalAuditors ?? 0} auditors · ${stats?.totalDistrictCollectors ?? 0} DCs`}
-            />
-            <KpiCard
-              title="Temples Registered"
-              value={stats?.totalTemples ?? 0}
-              icon={<Building2 size={20} />}
-              description={`${stats?.totalActiveTemples ?? 0} active · ${stats?.totalSuspendedTemples ?? 0} suspended`}
-            />
-            <KpiCard
-              title="Pending Declarations"
-              value={stats?.totalPendingDeclarations ?? 0}
-              icon={<FileText size={20} />}
-              description={`${stats?.totalOverdueDeclarations ?? 0} overdue`}
-            />
-            <KpiCard
-              title="Audit Events (24h)"
-              value={stats?.recentAuditEventCount ?? 0}
-              icon={<ShieldAlert size={20} />}
-              description="Data mutation events"
-            />
+            <PolicyGate target={TARGET_KEYS.KPI_ADMIN_TOTAL_USERS}>
+              <KpiCard
+                title="Total Users"
+                value={stats?.totalUsers ?? 0}
+                icon={<Users size={20} />}
+                description={`${stats?.totalAuditors ?? 0} auditors · ${stats?.totalDistrictCollectors ?? 0} DCs`}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_ADMIN_TEMPLES_REGISTERED}>
+              <KpiCard
+                title="Temples Registered"
+                value={stats?.totalTemples ?? 0}
+                icon={<Building2 size={20} />}
+                description={`${stats?.totalActiveTemples ?? 0} active · ${stats?.totalSuspendedTemples ?? 0} suspended`}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_ADMIN_PENDING_DECLARATIONS}>
+              <KpiCard
+                title="Pending Declarations"
+                value={stats?.totalPendingDeclarations ?? 0}
+                icon={<FileText size={20} />}
+                description={`${stats?.totalOverdueDeclarations ?? 0} overdue`}
+              />
+            </PolicyGate>
+            <PolicyGate target={TARGET_KEYS.KPI_ADMIN_AUDIT_EVENTS}>
+              <KpiCard
+                title="Audit Events (24h)"
+                value={stats?.recentAuditEventCount ?? 0}
+                icon={<ShieldAlert size={20} />}
+                description="Data mutation events"
+              />
+            </PolicyGate>
           </div>
         )}
       </section>

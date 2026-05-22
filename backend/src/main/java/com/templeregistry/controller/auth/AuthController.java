@@ -2,8 +2,11 @@ package com.templeregistry.controller.auth;
 
 import com.templeregistry.common.ApiResponse;
 import com.templeregistry.dto.request.auth.*;
+import com.templeregistry.dto.response.accesscontrol.EffectivePermissionsResponse;
 import com.templeregistry.dto.response.auth.AuthTokenResponse;
 import com.templeregistry.dto.response.auth.UserProfileResponse;
+import com.templeregistry.security.ScopeHelper;
+import com.templeregistry.service.accesscontrol.PolicyEvaluationService;
 import com.templeregistry.service.auth.AuthService;
 import com.templeregistry.service.auth.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +36,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserProfileService userProfileService;
+    private final PolicyEvaluationService policyEvaluationService;
     private final Environment environment;
 
     @PostMapping("/login")
@@ -88,6 +93,15 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserProfileResponse>> me() {
         return ResponseEntity.ok(ApiResponse.success("Profile retrieved.",
                 userProfileService.getCurrentUserProfile()));
+    }
+
+    @GetMapping("/me/permissions")
+    @Operation(summary = "Get the effective DACVM permissions and field masks for the current user.")
+    public ResponseEntity<ApiResponse<EffectivePermissionsResponse>> myPermissions(
+            @AuthenticationPrincipal ScopeHelper.Claims claims) {
+        EffectivePermissionsResponse permissions = policyEvaluationService
+                .getEffectivePermissions(claims.role(), claims.userId());
+        return ResponseEntity.ok(ApiResponse.success("Permissions retrieved.", permissions));
     }
 
     @PostMapping("/password-reset-req")
