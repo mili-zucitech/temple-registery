@@ -171,8 +171,8 @@ class PolicyManagementServiceImplTest {
             AccessControlPolicy existing = buildSavedPolicy(20L,
                     buildCreateRequest("button.ta.employees.add", SubjectType.ROLE, "TEMPLE_AUTHORITY", PolicyEffect.ALLOW));
 
-            when(policyRepository.findByTargetKeyAndSubjectTypeAndSubjectValue(
-                    "button.ta.employees.add", SubjectType.ROLE, "TEMPLE_AUTHORITY"))
+            when(policyRepository.findByTargetKeyAndSubjectIncludingDeleted(
+                    "button.ta.employees.add", "ROLE", "TEMPLE_AUTHORITY"))
                     .thenReturn(Optional.of(existing));
             when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -191,7 +191,7 @@ class PolicyManagementServiceImplTest {
                     "page.dc.export", SubjectType.ROLE, "DC_STAFF", PolicyEffect.DENY);
             AccessControlPolicy saved = buildSavedPolicy(21L, request);
 
-            when(policyRepository.findByTargetKeyAndSubjectTypeAndSubjectValue(any(), any(), any()))
+            when(policyRepository.findByTargetKeyAndSubjectIncludingDeleted(any(), any(), any()))
                     .thenReturn(Optional.empty());
             // createPolicy will be called internally — stub the save
             when(policyRepository.save(any())).thenReturn(saved);
