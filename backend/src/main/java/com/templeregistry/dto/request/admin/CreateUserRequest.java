@@ -77,4 +77,14 @@ public class CreateUserRequest {
      */
     @Builder.Default
     private UserAccessType accessType = UserAccessType.EDIT;
+
+    /**
+     * When {@code true}, the system sends a welcome email containing the username
+     * and temporary password to the user's email address immediately after account creation.
+     *
+     * <p>Defaults to {@code false} — admin must explicitly opt-in to email dispatch.
+     * The password is passed to the email renderer and is NEVER logged or stored in plaintext.
+     */
+    @Builder.Default
+    private boolean sendCredentialsEmail = false;
 }

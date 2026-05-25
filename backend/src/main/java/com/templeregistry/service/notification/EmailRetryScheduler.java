@@ -1,76 +1,50 @@
 package com.templeregistry.service.notification;
 
-import com.templeregistry.entity.notification.EmailDeliveryLog;
-import com.templeregistry.repository.notification.EmailDeliveryLogRepository;
+import com.templeregistry.repository.notification.EmailOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Scheduled job to retry failed email deliveries.
- * Runs every 5 minutes (300000 ms).
+ * Monitoring scheduler for the email delivery pipeline.
+ *
+ * <p>Email retries are now handled by
+ * {@link com.templeregistry.service.notification.impl.EmailDeliveryService#processRetries()}
+ * which reads from the DB-backed {@link com.templeregistry.entity.notification.EmailOutbox}
+ * with full render context and exponential back-off.
+ *
+ * <p>This scheduler monitors for DEAD_LETTER emails (permanently failed) and logs
+ * an alert so ops teams can investigate. It no longer drives SMTP delivery.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class EmailRetryScheduler {
 
-    private static final int MAX_RETRIES = 3;
-    private static final String STATUS_FAILED = "FAILED";
-    private static final String STATUS_RETRYING = "RETRYING";
-    private static final String STATUS_SENT = "SENT";
-
-    private final EmailDeliveryLogRepository emailDeliveryLogRepository;
-    private final EmailService emailService;
+    private final EmailOutboxRepository emailOutboxRepository;
 
     /**
-     * Retries failed email deliveries.
-     * Picks up EmailDeliveryLog records with status=FAILED and retry_count < MAX_RETRIES.
+     * Runs every 10 minutes and logs a WARNING if any emails are permanently dead-lettered.
+     * DEAD_LETTER emails require manual investigation (bad template, invalid recipient, etc.).
      */
-    @Scheduled(fixedDelay = 300000)
-    @Transactional
-    public void retryFailedEmails() {
-        List<EmailDeliveryLog> failedEmails = emailDeliveryLogRepository
-                .findByStatusAndRetryCountLessThan(STATUS_FAILED, MAX_RETRIES);
-
-        if (failedEmails.isEmpty()) {
-            log.debug("No failed emails to retry.");
-            return;
+    @Scheduled(fixedDelay = 10, timeUnit = TimeUnit.MINUTES)
+    public void monitorDeadLetterQueue() {
+        long deadLetterCount = emailOutboxRepository.countByStatus("DEAD_LETTER");
+        if (deadLetterCount > 0) {
+            log.error("[EmailMonitor] {} email(s) are DEAD_LETTER and require manual review. "
+                + "Check email_outbox table for last_failure_reason details.", deadLetterCount);
+        } else {
+            log.debug("[EmailMonitor] Email outbox healthy — no DEAD_LETTER items.");
         }
 
-        log.info("Retrying {} failed email(s)...", failedEmails.size());
-
-        for (EmailDeliveryLog emailLog : failedEmails) {
-            try {
-                emailLog.setStatus(STATUS_RETRYING);
-                emailDeliveryLogRepository.save(emailLog);
-
-                emailService.resendByLog(
-                    emailLog.getRecipientEmail(),
-                    emailLog.getSubject(),
-                    emailLog.getTemplateName());
-
-                emailLog.setStatus(STATUS_SENT);
-                emailLog.setFailureReason(null);
-                emailDeliveryLogRepository.save(emailLog);
-
-                log.info("Email retry succeeded: id=[{}] recipient=[{}] attempt=[{}]",
-                    emailLog.getId(), emailLog.getRecipientEmail(), emailLog.getRetryCount() + 1);
-
-            } catch (Exception ex) {
-                emailLog.setStatus(STATUS_FAILED);
-                emailLog.setRetryCount(emailLog.getRetryCount() + 1);
-                emailLog.setFailureReason("Retry failed: " + ex.getMessage());
-                emailDeliveryLogRepository.save(emailLog);
-
-                log.error("Email retry failed: id=[{}] recipient=[{}] retryCount=[{}] error=[{}]",
-                        emailLog.getId(), emailLog.getRecipientEmail(), emailLog.getRetryCount(), ex.getMessage());
-            }
+        long pendingCount = emailOutboxRepository.countByStatus("PENDING");
+        long failedCount  = emailOutboxRepository.countByStatus("FAILED");
+        if (pendingCount > 100 || failedCount > 20) {
+            log.warn("[EmailMonitor] High email backlog — PENDING={} FAILED={}", pendingCount, failedCount);
         }
     }
 }
+

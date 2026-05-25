@@ -76,7 +76,7 @@ app:
     access-token-expiry-ms: 7200000
 
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:5173
 
   encryption:
     key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
@@ -87,7 +87,7 @@ app:
   storage:
     base-dir: ./uploads
 
-  base-url: ${APP_BASE_URL:http://localhost:3000}
+  base-url: ${APP_BASE_URL:http://localhost:5173}
 
   notification:
     email-enabled: false

@@ -2,6 +2,7 @@ package com.templeregistry.service.impl.notification;
 
 import com.templeregistry.repository.auth.UserRepository;
 import com.templeregistry.repository.notification.EmailDeliveryLogRepository;
+import com.templeregistry.service.notification.EmailTemplateResolver;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +37,14 @@ class EmailServiceImplPasswordResetTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EmailTemplateResolver templateResolver;
+
     private EmailServiceImpl emailService;
 
     @BeforeEach
     void setUp() {
-        emailService = new EmailServiceImpl(mailSender, templateEngine, deliveryLogRepository, userRepository);
+        emailService = new EmailServiceImpl(mailSender, templateEngine, deliveryLogRepository, userRepository, templateResolver);
         setField(emailService, "fromEmail", "noreply@templeregistry.gov.in");
         setField(emailService, "emailEnabled", true);
     }

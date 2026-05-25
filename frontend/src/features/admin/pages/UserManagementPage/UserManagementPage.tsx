@@ -362,87 +362,63 @@ function RoleTabContent({
   activating: boolean
 }) {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Debounce search input — avoids a server request on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
 
   // Use per-tab pagination state with sessionStorage persistence
   const [paginationState, setPaginationState] = useTabPaginationState(role)
   const { currentPage, statusFilter } = paginationState
 
-  // API call with pagination parameters
+  // Server-side search + role filter; status is kept client-side (simple flag)
   const { data, isLoading, isError, refetch } = useListUsersQuery({
-    page: currentPage - 1,  // Convert 1-indexed UI to 0-indexed backend
-    size: 20
+    page: currentPage - 1,
+    size: 20,
+    ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+    ...(role !== 'ALL' ? { role } : {}),
   })
 
-  // Extract pagination metadata from API response
   const allUsers = data?.data?.content ?? []
   const totalPages = data?.data?.totalPages ?? 0
-  const totalElements = data?.data?.totalElements ?? 0
 
-  // Filter by role (client-side)
-  const byRole = role === 'ALL' ? allUsers : allUsers.filter(u => u.role === role)
-
-  // Filter by search query (client-side)
-  const q = search.trim().toLowerCase()
-  const bySearch = q
-    ? byRole.filter(u =>
-        u.fullName.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q)
-      )
-    : byRole
-
-  // Filter by status (client-side)
+  // Status is the only remaining client-side filter
   const filtered = statusFilter === 'ALL'
-    ? bySearch
-    : bySearch.filter(u => statusFilter === 'ACTIVE' ? u.active : !u.active)
+    ? allUsers
+    : allUsers.filter(u => (statusFilter === 'ACTIVE' ? u.active : !u.active))
 
-  // Calculate status counts for filter badges (based on search-filtered set)
+  // Status counts based on the current server-returned page
   const counts: Record<StatusFilter, number> = {
-    ALL: bySearch.length,
-    ACTIVE: bySearch.filter(u => u.active).length,
-    INACTIVE: bySearch.filter(u => !u.active).length,
+    ALL: allUsers.length,
+    ACTIVE: allUsers.filter(u => u.active).length,
+    INACTIVE: allUsers.filter(u => !u.active).length,
   }
 
-  // Reset to page 1 when search changes
+  // Reset to page 1 when debounced search changes
   useEffect(() => {
     setPaginationState({ ...paginationState, currentPage: 1 })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
+  }, [debouncedSearch])
 
-  // Reset to page 1 when status filter changes
-  useEffect(() => {
-    setPaginationState({
-      ...paginationState,
-      currentPage: 1,
-      statusFilter
-    })
-  }, [statusFilter])
-
-  // Handle invalid page numbers (e.g., user on page 5, filter results only have 2 pages)
+  // Handle invalid page numbers (e.g., after filtering reduces total pages)
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
-      setPaginationState({
-        ...paginationState,
-        currentPage: totalPages
-      })
+      setPaginationState({ ...paginationState, currentPage: totalPages })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalPages, currentPage])
 
   // Handle status filter change
   const handleStatusFilterChange = (newFilter: StatusFilter) => {
-    setPaginationState({
-      ...paginationState,
-      statusFilter: newFilter,
-      currentPage: 1  // Reset to page 1 when filter changes
-    })
+    setPaginationState({ ...paginationState, statusFilter: newFilter, currentPage: 1 })
   }
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    setPaginationState({
-      ...paginationState,
-      currentPage: page
-    })
+    setPaginationState({ ...paginationState, currentPage: page })
   }
 
   return (
@@ -554,14 +530,17 @@ export function UserManagementPage() {
     try {
       if (selectedUser) {
         await updateUser({ id: selectedUser.id, body: values }).unwrap()
-        toast.success('User updated successfully')
+        toast.success(`${selectedUser.fullName} updated successfully`)
       } else {
-        await createUser(values).unwrap()
-        toast.success('User created successfully')
+        const created = await createUser(values).unwrap()
+        const name = created?.data?.fullName ?? values.fullName ?? 'User'
+        toast.success(`${name} created successfully`)
       }
       setDialogOpen(false)
-    } catch (err: any) {
-      toast.error(err.data?.message || 'Failed to save user')
+    } catch (err: unknown) {
+      const apiErr = err as { data?: { message?: string }; message?: string }
+      const msg = apiErr?.data?.message ?? apiErr?.message ?? 'Failed to save user'
+      toast.error(msg)
     }
   }
 

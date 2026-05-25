@@ -74,7 +74,7 @@ class AdminControllerTest {
         void should_return200WithPage_when_usersExist() throws Exception {
             when(paginationUtil.clampSize(10)).thenReturn(10);
             var pageImpl = new PageImpl<>(List.of(sampleUser()), PageRequest.of(0, 10), 1L);
-            when(adminService.listUsers(0, 10)).thenReturn(PaginatedResponse.of(pageImpl));
+            when(adminService.listUsers(0, 10, "", "")).thenReturn(PaginatedResponse.of(pageImpl));
 
             mockMvc.perform(get("/api/v1/admin/users"))
                     .andExpect(status().isOk())
@@ -86,7 +86,7 @@ class AdminControllerTest {
         void should_return200EmptyPage_when_noUsersExist() throws Exception {
             when(paginationUtil.clampSize(10)).thenReturn(10);
             var pageImpl = new PageImpl<>(List.<UserAdminResponse>of(), PageRequest.of(0, 10), 0L);
-            when(adminService.listUsers(0, 10)).thenReturn(PaginatedResponse.of(pageImpl));
+            when(adminService.listUsers(0, 10, "", "")).thenReturn(PaginatedResponse.of(pageImpl));
 
             mockMvc.perform(get("/api/v1/admin/users"))
                     .andExpect(status().isOk())

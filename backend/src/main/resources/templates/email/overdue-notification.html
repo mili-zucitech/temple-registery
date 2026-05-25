@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Overdue Submission Alert</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#DC2626', '⚠️', ${title != null ? title : 'Overdue Submission Alert'}, 'Immediate Attention Required')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear Temple Authority,</p>
+
+    <div class="message-box urgent">
+      <p th:text="${body != null ? body : 'Your submission is overdue. Immediate action is required to avoid compliance issues.'}">
+        This submission is overdue.
+      </p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title" style="color:#DC2626;">⏰ Overdue Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Reason', ${reason != null and !#strings.isEmpty(reason) ? reason : 'Submission deadline has passed'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('OVERDUE')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="security-note" style="border:1px solid #FECACA;background:#FEF2F2;">
+      <strong style="color:#DC2626;">🚨 Escalation Notice:</strong><br/>
+      Continued non-compliance may result in escalation to senior authorities. Please submit the
+      required information immediately to avoid further action.
+    </div>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Take Action Now', '#DC2626')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>

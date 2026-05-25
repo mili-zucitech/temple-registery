@@ -84,17 +84,34 @@ public class NotificationDispatchServiceImpl implements com.templeregistry.servi
         if (sendEmail) {
             try {
                 if (notificationPreferenceService.isEmailEnabled(recipientId, moduleType)) {
+                    // Build enriched context so templates have all variables they need.
+                    // The raw event.metadata() only carries "comment" and "transitionId".
+                    // We add the computed rich fields here.
+                    java.util.Map<String, Object> enrichedMetadata = new java.util.HashMap<>(
+                        event.metadata() != null ? event.metadata() : java.util.Map.of()
+                    );
+                    enrichedMetadata.put("body",           body);
+                    enrichedMetadata.put("templeName",     templeName);
+                    enrichedMetadata.put("actorLabel",     actorLabel);
+                    enrichedMetadata.put("actorName",      resolveActorName(event.actorId()));
+                    enrichedMetadata.put("reason",         reason != null ? reason : "");
+                    enrichedMetadata.put("redirectUrl",    redirectUrl);
+                    enrichedMetadata.put("entityType",     entityTypeName);
+                    enrichedMetadata.put("workflowStatus", workflowStatus != null ? workflowStatus : "");
+                    enrichedMetadata.put("priority",       rule.getPriority());
+                    enrichedMetadata.put("action",         event.action() != null ? event.action().name() : "");
+
                     emailDeliveryService.enqueue(EmailRequest.builder()
                             .recipientId(recipientId)
                             .templateKey(rule.getTemplateKey())
                             .entityType(entityTypeName)
                             .entityId(event.entityId())
                             .subject(title)
-                            .metadata(event.metadata())
+                            .metadata(enrichedMetadata)
                             .build());
-                    if ("HIGH".equals(rule.getPriority()) || "CRITICAL".equals(rule.getPriority())) {
-                        emailService.sendNotification(recipientId, title, rule.getTemplateKey(), event.metadata());
-                    }
+                    // HIGH/CRITICAL: also enqueue with elevated priority — the DB outbox
+                    // processes HIGH/CRITICAL items first (ordered by priority in the query).
+                    // No separate synchronous fast-path needed; the outbox worker runs every 10s.
                 }
             } catch (Exception e) {
                 log.error("[NotificationDispatch] Email queue failed for recipient={}: {}", recipientId, e.getMessage());

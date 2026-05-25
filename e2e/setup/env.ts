@@ -76,7 +76,7 @@ function resolveRole(role: RoleKey, fallbackUsername: string): RoleCredentials {
 
 export function loadE2EEnvironment(): E2EEnvironment {
   const target = toTarget(process.env.E2E_TARGET);
-  const baseURL = normalizeOrigin(process.env.E2E_BASE_URL, 'http://localhost:3000');
+  const baseURL = normalizeOrigin(process.env.E2E_BASE_URL, 'http://localhost:5173');
   const apiOrigin = normalizeOrigin(process.env.E2E_API_ORIGIN, process.env.API_BASE_URL ?? 'http://localhost:8080');
   const apiV1Base = normalizeApiV1Base(process.env.E2E_API_V1_BASE, apiOrigin);
   const readOnly = parseBoolean(process.env.E2E_READ_ONLY, target === 'production');

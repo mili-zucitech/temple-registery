@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import ReactSelect from 'react-select'
-import { Eye, EyeOff, Pencil, Building2 } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Building2, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -68,6 +68,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
   const isEdit = !!user
   const [showPassword, setShowPassword] = useState(false)
   const [passwordValue, setPasswordValue] = useState('')
+  const [sendCredentialsEmail, setSendCredentialsEmail] = useState(true)
   const [districtSearch, setDistrictSearch] = useState('')
   /** Toggle: true = create new temple, false = assign existing */
   const [createTemple, setCreateTemple] = useState(true)
@@ -137,6 +138,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
       setSelectedTempleOption(null)
       setShowPassword(false)
       setPasswordValue('')
+      setSendCredentialsEmail(true)
     }
   }, [open, user])
 
@@ -202,6 +204,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
         : undefined,
       designation: isTempleAuthority ? values.designation : undefined,
       accessType: isTempleAuthority ? (values.accessType ?? 'EDIT') : undefined,
+      sendCredentialsEmail: sendCredentialsEmail,
     })
   }
 
@@ -577,6 +580,48 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
               )}
 
             </div>
+
+            {/* Send Credentials toggle — create only, only shown when a password is entered */}
+            {!isEdit && passwordValue.length >= 8 && (
+              <div className="px-6 pb-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSendCredentialsEmail(v => !v)}
+                  onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') setSendCredentialsEmail(v => !v) }}
+                  className={cn(
+                    'flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer select-none transition-all duration-150',
+                    sendCredentialsEmail
+                      ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/20'
+                      : 'border-border hover:border-border/80 hover:bg-muted/30',
+                  )}
+                  aria-pressed={sendCredentialsEmail}
+                >
+                  <div className="mt-0.5">
+                    <Switch
+                      id="sendCredentialsSwitch"
+                      checked={sendCredentialsEmail}
+                      onCheckedChange={setSendCredentialsEmail}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Send login credentials via email"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <Mail size={13} className={cn('shrink-0', sendCredentialsEmail ? 'text-primary' : 'text-muted-foreground')} />
+                      <span className={cn('text-sm font-medium', sendCredentialsEmail ? 'text-foreground' : 'text-muted-foreground')}>
+                        Send Credentials via Email
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {sendCredentialsEmail
+                        ? 'An account-created email with username & password will be sent to the user.'
+                        : "Enable to send the username and temporary password to the user's email address."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <DialogFooter className="px-6 py-4 border-t shrink-0">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
