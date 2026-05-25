@@ -64,8 +64,10 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PaginatedResponse<UserAdminResponse>>> listUsers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(ApiResponse.success("Users retrieved.", adminService.listUsers(page, size)));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "") String role) {
+        return ResponseEntity.ok(ApiResponse.success("Users retrieved.", adminService.listUsers(page, size, search, role)));
     }
 
     @GetMapping("/users/{id}")

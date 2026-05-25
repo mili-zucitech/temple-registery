@@ -1,5 +1,59 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Submission Received</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <!-- Header -->
+  <th:block th:replace="~{email/email-layout :: header('#3B82F6', '📄', ${title}, 'New Submission Received')}"></th:block>
+
+  <!-- Body -->
+  <div class="body">
+    <p class="greeting">Dear District Commissioner,</p>
+
+    <div class="message-box">
+      <p th:text="${body != null ? body : 'A new submission has been received and is awaiting your review.'}">
+        A new submission has been received.
+      </p>
+    </div>
+
+    <!-- Workflow Details -->
+    <div class="info-card">
+      <p class="info-card-title">Submission Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Submitted By', ${actorName != null ? actorName : 'Temple Authority'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('SUBMITTED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:#64748B;margin-bottom:8px;">
+      Please review this submission at your earliest convenience. The Temple Authority is awaiting
+      your decision.
+    </p>
+
+    <!-- CTA -->
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Review Submission', '#3B82F6')}"></th:block>
+  </div>
+
+  <!-- Footer -->
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+
+</div>
+</div>
+</body>
+</html>
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

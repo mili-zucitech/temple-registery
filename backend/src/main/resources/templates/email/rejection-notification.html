@@ -1,5 +1,58 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Submission Rejected</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#EF4444', '❌', ${title}, 'Submission Rejected')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear Temple Authority,</p>
+
+    <div class="message-box danger">
+      <p th:text="${body != null ? body : 'Your submission has been reviewed and rejected.'}">
+        Your submission has been rejected.
+      </p>
+    </div>
+
+    <div class="info-card" th:if="${reason != null and !#strings.isEmpty(reason)}">
+      <p class="info-card-title">Rejection Reason</p>
+      <p style="font-size:15px;color:#374151;line-height:1.6;" th:text="${reason}">Reason not provided.</p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Rejection Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Rejected By', ${actorLabel != null ? actorLabel : 'District Commissioner'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('REJECTED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="security-note">
+      <strong>⚠️ What to do next:</strong><br/>
+      Rejection is a final status. If you believe this decision was made in error, please contact
+      your District Commissioner office directly with supporting documentation.
+    </div>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'View Details', '#EF4444')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

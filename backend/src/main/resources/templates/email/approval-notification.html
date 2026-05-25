@@ -1,5 +1,52 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Submission Approved</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#10B981', '✅', ${title}, 'Submission Approved')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear Temple Authority,</p>
+
+    <div class="message-box success">
+      <p th:text="${body != null ? body : 'Your submission has been reviewed and approved.'}">
+        Your submission has been approved.
+      </p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Approval Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Approved By', ${actorLabel != null ? actorLabel : 'District Commissioner'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('APPROVED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:#64748B;">
+      Your record is now approved and reflected in the official Temple Registry. No further
+      action is required at this time.
+    </p>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'View Approved Record', '#10B981')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

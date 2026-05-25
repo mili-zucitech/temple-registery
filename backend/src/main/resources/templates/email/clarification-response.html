@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Clarification Response Received</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#6366F1', '💬', ${title}, 'Clarification Response Received')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear District Commissioner,</p>
+
+    <div class="message-box">
+      <p th:text="${body != null ? body : 'The Temple Authority has responded to your clarification request. Please review their response and proceed with your decision.'}">
+        Clarification response received.
+      </p>
+    </div>
+
+    <div class="info-card" th:if="${comment != null and !#strings.isEmpty(comment)}">
+      <p class="info-card-title">Temple Authority Response</p>
+      <p style="font-size:15px;color:#374151;line-height:1.6;" th:text="${comment}">Response details.</p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Submission Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Responded By', ${actorLabel != null ? actorLabel : 'Temple Authority'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('CLARIFICATION_RESPONDED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:#64748B;">
+      The submission is awaiting your review. Please log in to the portal to approve, reject,
+      or request additional information.
+    </p>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Review Response', '#6366F1')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>

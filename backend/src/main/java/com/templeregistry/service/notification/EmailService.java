@@ -56,15 +56,35 @@ public interface EmailService {
     /**
      * Resends an email using the recipient address, subject and template already
      * stored in a failed {@link com.templeregistry.entity.notification.EmailDeliveryLog} row.
-     * Called by {@link com.templeregistry.service.notification.EmailRetryScheduler}.
      *
      * @param recipientEmail email address from the delivery log
      * @param subject        subject line from the delivery log
      * @param templateName   Thymeleaf template key from the delivery log
      * @throws jakarta.mail.MessagingException if SMTP delivery fails
+     * @deprecated Retries are now handled by {@link com.templeregistry.service.notification.impl.EmailDeliveryService#processRetries()}
+     *             which uses the full render context from {@link com.templeregistry.entity.notification.EmailOutbox}.
      */
+    @Deprecated(forRemoval = true)
     default void resendByLog(String recipientEmail, String subject, String templateName)
             throws jakarta.mail.MessagingException {
-        // No-op default — overridden in EmailServiceImpl
+        // No-op default — legacy; retries now use EmailDeliveryService.processRetries()
+    }
+
+    /**
+     * Sends a welcome / credential email to a newly created user.
+     *
+     * <p>The {@code temporaryPassword} is used <em>only</em> for rendering the email and is
+     * never logged, never stored in the database, and discarded immediately after the email is sent.
+     *
+     * @param recipientEmail    user's email address
+     * @param username          assigned username
+     * @param temporaryPassword plaintext temporary password — MUST NOT be logged
+     * @param role              user role label (e.g. "TEMPLE_AUTHORITY")
+     * @param loginUrl          full login URL for the CTA button
+     */
+    default void sendUserAccountCreatedEmail(String recipientEmail, String username,
+                                              String temporaryPassword, String role,
+                                              String loginUrl) {
+        // No-op default — override in EmailServiceImpl
     }
 }

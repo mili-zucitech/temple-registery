@@ -1,5 +1,57 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Clarification Required</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#F59E0B', '❓', ${title}, 'Clarification Required')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear Temple Authority,</p>
+
+    <div class="message-box warning">
+      <p th:text="${body != null ? body : 'The District Commissioner has requested clarification on your submission.'}">
+        Clarification has been requested.
+      </p>
+    </div>
+
+    <div class="info-card" th:if="${reason != null and !#strings.isEmpty(reason)}">
+      <p class="info-card-title">Clarification Required</p>
+      <p style="font-size:15px;color:#374151;line-height:1.6;" th:text="${reason}">Details not provided.</p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Submission Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Requested By', ${actorLabel != null ? actorLabel : 'District Commissioner'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('CLARIFICATION_REQUESTED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="security-note">
+      <strong>📋 Action Required:</strong><br/>
+      Please log in to the Temple Registry portal, review the clarification request, and provide
+      your response. The DC will review your response before making a final decision.
+    </div>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Respond to Clarification', '#F59E0B')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
