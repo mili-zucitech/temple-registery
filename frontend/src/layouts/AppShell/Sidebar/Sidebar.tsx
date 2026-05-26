@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Search, FileText, Users, Building2,
   ClipboardList, Download, Settings, LogOut, Shield, Clock, Activity, RefreshCw, ChevronLeft, ChevronRight,
-  Eye, ShieldCheck, History, Bell, AlertTriangle, Lock
+  Eye, ShieldCheck, History, Bell, AlertTriangle, Lock, Megaphone
 } from 'lucide-react'
 import { useLogout } from '@/features/auth/authHooks'
 import { useAppSelector } from '@/app/store'
@@ -25,6 +25,7 @@ interface NavItem {
 function getDcNavItems(): NavItem[] {
   return [
     { label: 'Dashboard', to: ROUTE_PATHS.DC_DASHBOARD, icon: <LayoutDashboard size={16} />, targetKey: TARGET_KEYS.PAGE_DC_DASHBOARD },
+    { label: 'Notices',   to: ROUTE_PATHS.DC_NOTICES,   icon: <Megaphone size={16} /> },
     { label: 'Temples',   to: ROUTE_PATHS.DC_TEMPLES,   icon: <Search size={16} /> },
     { label: 'Export',    to: ROUTE_PATHS.DC_EXPORT,    icon: <Download size={16} />,       targetKey: TARGET_KEYS.PAGE_DC_EXPORT },
     { label: 'Activity',  to: ROUTE_PATHS.DC_ACTIVITY,  icon: <Activity size={16} />,       targetKey: TARGET_KEYS.PAGE_DC_ACTIVITY },
@@ -49,6 +50,7 @@ function getTaNavItems(): NavItem[] {
 function getAdminNavItems(pendingCount?: number): NavItem[] {
   return [
     { label: 'Dashboard', to: ROUTE_PATHS.ADMIN_DASHBOARD, icon: <LayoutDashboard size={16} /> },
+    { label: 'Notices', to: ROUTE_PATHS.ADMIN_NOTICES, icon: <Megaphone size={16} /> },
     { label: 'Users', to: ROUTE_PATHS.ADMIN_USERS, icon: <Users size={16} />, badge: undefined },
     { label: 'Temple Governance', to: ROUTE_PATHS.ADMIN_TEMPLE_GOVERNANCE, icon: <AlertTriangle size={16} /> },
     { label: 'Admin Tools', to: ROUTE_PATHS.ADMIN_TOOLS, icon: <RefreshCw size={16} />, badge: pendingCount && pendingCount > 0 ? pendingCount : undefined },

@@ -11,6 +11,7 @@ export const ROUTE_PATHS = {
 
   // DC / DC Staff
   DC_DASHBOARD: '/dc/dashboard',
+  DC_NOTICES: '/dc/notices',
   DC_TEMPLES: '/dc/temples',
   DC_TEMPLE_DETAIL: '/dc/temples/:templeId',
   DC_DECLARATIONS: '/dc/declarations',
@@ -51,6 +52,7 @@ export const ROUTE_PATHS = {
   ADMIN_SYSTEM_CONFIG: '/admin/system-config',
   ADMIN_NOTIFICATION_RULES: '/admin/notification-rules',
   ADMIN_ACCESS_CONTROL: '/admin/access-control',
+  ADMIN_NOTICES: '/admin/notices',
 
   // SA temple module edit routes
   ADMIN_TEMPLE_TRUST: '/admin/temples/:templeId/trust',

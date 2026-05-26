@@ -60,6 +60,8 @@ const PublicTempleSearchPage = lazy(() => import('@/features/search/PublicTemple
 const TaTempleSearchPage = lazy(() => import('@/features/ta/pages/TaTempleSearchPage/TaTempleSearchPage').then(m => ({ default: m.TaTempleSearchPage })))
 const TaTempleDetailPage = lazy(() => import('@/features/ta/pages/TaTempleDetailPage/TaTempleDetailPage').then(m => ({ default: m.TaTempleDetailPage })))
 const AccessControlPage = lazy(() => import('@/features/access-control/pages/AccessControlPage/AccessControlPage').then(m => ({ default: m.AccessControlPage })))
+const DcNoticesPage = lazy(() => import('@/features/notice/pages/DcNoticesPage/DcNoticesPage').then(m => ({ default: m.DcNoticesPage })))
+const AdminNoticesPage = lazy(() => import('@/features/notice/pages/AdminNoticesPage/AdminNoticesPage').then(m => ({ default: m.AdminNoticesPage })))
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -85,6 +87,7 @@ const router = createBrowserRouter([
             element: <RoleRoute allowedRoles={[USER_ROLES.DISTRICT_COLLECTOR, USER_ROLES.DC_STAFF, USER_ROLES.SUPER_ADMIN]} />,
             children: [
               { path: ROUTE_PATHS.DC_DASHBOARD, element: <Suspense fallback={<PageLoader />}><DcDashboardPage /></Suspense> },
+              { path: ROUTE_PATHS.DC_NOTICES, element: <Suspense fallback={<PageLoader />}><DcNoticesPage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><DcDeclarationListPage /></Suspense> },
               { path: ROUTE_PATHS.DC_DECLARATION_DETAIL, element: <Suspense fallback={<PageLoader />}><DcDeclarationDetailPage /></Suspense> },
               { path: ROUTE_PATHS.DC_EXPORT, element: <Suspense fallback={<PageLoader />}><DcExportPage /></Suspense> },
@@ -145,6 +148,7 @@ const router = createBrowserRouter([
               { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATIONS, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationsPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_TEMPLE_DECLARATION_NEW, element: <Suspense fallback={<PageLoader />}><SaTempleDeclarationFormPage /></Suspense> },
               { path: ROUTE_PATHS.ADMIN_ACCESS_CONTROL, element: <Suspense fallback={<PageLoader />}><AccessControlPage /></Suspense> },
+              { path: ROUTE_PATHS.ADMIN_NOTICES, element: <Suspense fallback={<PageLoader />}><AdminNoticesPage /></Suspense> },
             ],
           },
           // Auditor (read-only) — SUPER_ADMIN can also access auditor pages via sidebar links
