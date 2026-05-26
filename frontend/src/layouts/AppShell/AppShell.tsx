@@ -5,6 +5,7 @@ import { TopBar } from './TopBar/TopBar'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dc/dashboard': 'Dashboard',
+  '/dc/notices': 'Notice Board',
   '/dc/temples': 'Temple Search',
   '/dc/declarations': 'Declarations',
   '/dc/export': 'Export Reports',
@@ -27,6 +28,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/temple-governance': 'Temple Governance',
   '/admin/system-config': 'System Configuration',
   '/admin/notification-rules': 'Notification Rules',
+  '/admin/notices': 'Notice Board',
   '/auditor/dashboard': 'Dashboard',
   '/auditor/temples': 'Temples',
   '/auditor/declarations': 'Declarations',

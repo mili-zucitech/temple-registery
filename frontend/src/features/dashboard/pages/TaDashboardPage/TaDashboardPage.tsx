@@ -6,7 +6,6 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useGetCurrentUserQuery } from '@/features/auth/authApi'
 import { useListDeclarationsQuery } from '@/features/declaration/declarationApi'
-import { useListNotificationsQuery } from '@/features/notification/notificationApi'
 import { StatusBadge } from '@/components/data-display/StatusBadge/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useGetTempleByIdQuery } from '@/features/temple-profile/hooks/templeApi'
+import { NoticeBoardWidget } from '@/features/notice/components/NoticeBoardWidget'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,8 +208,6 @@ export function TaDashboardPage() {
   const totalDeclarations = declData?.data?.totalElements ?? 0
   const latestDeclaration = declarations[0]
 
-  const { data: notifData } = useListNotificationsQuery({ page: 0, size: 4 })
-  const notifications = notifData?.data?.content ?? []
 
   const isLoading = userLoading || templeLoading || declLoading
 
@@ -720,62 +718,9 @@ export function TaDashboardPage() {
         </motion.div>
       </div>
 
-      {/* ── NOTICES & ALERTS ─────────────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="rounded-2xl border border-border bg-card shadow-soft-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Bell size={15} className="text-primary" />
-            <h2 className="text-sm font-bold text-foreground">Notices & Alerts</h2>
-          </div>
-          <button
-            onClick={() => navigate(ROUTE_PATHS.TA_ACTIVITY)}
-            className="flex items-center gap-0.5 text-xs text-primary hover:underline font-medium"
-          >
-            View all <ChevronRight size={12} />
-          </button>
-        </div>
-
-        {notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-            <Bell size={36} className="text-muted-foreground/30 mb-2" />
-            <p className="text-sm font-medium text-foreground">No notices</p>
-            <p className="text-xs text-muted-foreground mt-1">Alerts from the DC office will appear here.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {notifications.slice(0, 3).map((n, idx) => (
-              <button
-                key={n.id}
-                onClick={() => navigate(ROUTE_PATHS.TA_ACTIVITY)}
-                className="w-full flex items-start gap-3 pl-4 pr-5 py-4 hover:bg-muted/20 transition-colors text-left group relative"
-              >
-                <div className={cn(
-                  'absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full',
-                  (!n.read || idx === 0) ? 'bg-destructive' : 'bg-primary/30',
-                )} />
-                <div className={cn(
-                  'mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
-                  (!n.read || idx === 0) ? 'bg-destructive/10' : 'bg-primary/10',
-                )}>
-                  <Bell size={13} className={cn((!n.read || idx === 0) ? 'text-destructive' : 'text-primary')} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className={cn('text-sm leading-snug', !n.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>
-                      {n.title}
-                    </p>
-                    {(!n.read || idx === 0) && (
-                      <span className="flex-shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-destructive">New</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
-                  <p className="text-[11px] text-muted-foreground/60 mt-1.5">{fmtDate(n.createdAt)}</p>
-                </div>
-                <ChevronRight size={13} className="mt-1 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors flex-shrink-0" />
-              </button>
-            ))}
-          </div>
-        )}
+      {/* ── NOTICE BOARD ─────────────────────────────────────────────────── */}
+      <motion.div variants={fadeUp}>
+        <NoticeBoardWidget />
       </motion.div>
 
     </motion.div>

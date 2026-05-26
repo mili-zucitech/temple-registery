@@ -20,6 +20,7 @@ import { auditorApi } from '@/features/auditor/auditorApi'
 import { viewerApi } from '@/features/viewer/viewerApi'
 import { timelineApi } from '@/features/timeline/timelineApi'
 import { accessControlApi } from '@/features/access-control/accessControlApi'
+import { noticeApi } from '@/features/notice/noticeApi'
 
 /** Global RTK Query error logger middleware — handles 4xx and 5xx */
 const rtkQueryErrorLogger =
@@ -75,6 +76,7 @@ export const store = configureStore({
       viewerApi.middleware,
       timelineApi.middleware,
       accessControlApi.middleware,
+      noticeApi.middleware,
     ),
 })
 
