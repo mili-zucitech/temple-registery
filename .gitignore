@@ -50,6 +50,7 @@ backend/BOOT-INF/
 # ─── Backend — private keys / secrets ───────────────────────
 backend/src/main/resources/keys/
 backend/src/main/resources/application-prod.yml
+backend/dev-secrets.properties
 
 # ─── Backend — log files ────────────────────────────────────
 backend/app.log

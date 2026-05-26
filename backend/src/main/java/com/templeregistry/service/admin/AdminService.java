@@ -8,7 +8,7 @@ import com.templeregistry.dto.response.admin.UserAdminResponse;
 
 public interface AdminService {
 
-    PaginatedResponse<UserAdminResponse> listUsers(int page, int size);
+    PaginatedResponse<UserAdminResponse> listUsers(int page, int size, String search, String role);
 
     UserAdminResponse getUserById(Long id);
 

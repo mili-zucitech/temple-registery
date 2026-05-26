@@ -16,6 +16,13 @@ public interface AccessControlPolicyRepository extends JpaRepository<AccessContr
     Optional<AccessControlPolicy> findByTargetKeyAndSubjectTypeAndSubjectValue(
             String targetKey, SubjectType subjectType, String subjectValue);
 
+    /** Finds the policy regardless of soft-delete state — used by batch upsert to restore deleted policies. */
+    @Query(value = "SELECT * FROM access_control_policies WHERE target_key = :targetKey AND subject_type = :subjectType AND subject_value = :subjectValue LIMIT 1", nativeQuery = true)
+    Optional<AccessControlPolicy> findByTargetKeyAndSubjectIncludingDeleted(
+            @Param("targetKey") String targetKey,
+            @Param("subjectType") String subjectType,
+            @Param("subjectValue") String subjectValue);
+
     List<AccessControlPolicy> findAllByTargetKeyAndActiveTrue(String targetKey);
 
     List<AccessControlPolicy> findAllBySubjectTypeAndSubjectValueAndActiveTrue(

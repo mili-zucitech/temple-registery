@@ -43,7 +43,7 @@ spring:
 # Application Configuration
 app:
   # Base URL for email links (change for production)
-  base-url: ${APP_BASE_URL:http://localhost:3000}
+  base-url: ${APP_BASE_URL:http://localhost:5173}
   
   # Notification Settings
   notification:
@@ -93,7 +93,7 @@ spring:
     enabled: false
 
 app:
-  base-url: http://localhost:3000
+  base-url: http://localhost:5173
   notification:
     email-enabled: false  # Only in-app notifications in dev
 
@@ -174,7 +174,7 @@ app:
 # Development:
 # - SMTP_USERNAME (optional if email disabled)
 # - SMTP_PASSWORD (optional if email disabled)
-# - APP_BASE_URL (optional, defaults to localhost:3000)
+# - APP_BASE_URL (optional, defaults to localhost:5173)
 #
 # Production:
 # - SMTP_HOST (required)

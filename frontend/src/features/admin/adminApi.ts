@@ -37,6 +37,12 @@ export interface CreateUserRequest {
   designation?: string
   /** VIEW = read-only; EDIT = full write access. Defaults to EDIT. */
   accessType?: 'VIEW' | 'EDIT'
+  /**
+   * When true, the backend sends an account-created email to the user
+   * containing their username and the plaintext password set by the admin.
+   * Only evaluated on user creation — ignored on updates.
+   */
+  sendCredentialsEmail?: boolean
 }
 
 export interface TempleOption {
@@ -110,8 +116,16 @@ export const adminApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['AdminUser', 'AuditEvent', 'AuthEvent', 'SystemConfig', 'NotificationRule', 'TempleSearch', 'Districts', 'TempleOption'],
   endpoints: (builder) => ({
-    listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number }>({
-      query: ({ page = 0, size = 10 } = {}) => ({ url: '/admin/users', params: { page, size } }),
+    listUsers: builder.query<ApiResponse<PaginatedResponse<UserAdminResponse>>, { page?: number; size?: number; search?: string; role?: string }>({
+      query: ({ page = 0, size = 20, search = '', role = '' } = {}) => ({
+        url: '/admin/users',
+        params: {
+          page,
+          size,
+          ...(search && search.trim() ? { search: search.trim() } : {}),
+          ...(role && role !== 'ALL' ? { role } : {}),
+        },
+      }),
       providesTags: ['AdminUser'],
     }),
     createUser: builder.mutation<ApiResponse<UserAdminResponse>, CreateUserRequest>({

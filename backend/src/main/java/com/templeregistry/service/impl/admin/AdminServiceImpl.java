@@ -19,12 +19,14 @@ import com.templeregistry.security.RoleConstants;
 import com.templeregistry.security.ScopeHelper;
 import com.templeregistry.service.admin.AdminService;
 import com.templeregistry.service.audit.AuditService;
+import com.templeregistry.service.notification.EmailService;
 import com.templeregistry.service.temple.TempleSearchSummaryService;
 import com.templeregistry.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -51,12 +53,24 @@ public class AdminServiceImpl implements AdminService {
     private final TempleSearchSummaryService searchSummaryService;
     private final AuditService auditService;
     private final PaginationUtil paginationUtil;
+    private final EmailService emailService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:5173}")
+    private String baseUrl;
 
     @Override
     @PreAuthorize(RoleConstants.ADMIN_ONLY)
     @Transactional(readOnly = true)
-    public PaginatedResponse<UserAdminResponse> listUsers(int page, int size) {
-        Page<User> result = userRepository.findAll(PageRequest.of(page, paginationUtil.clampSize(size)));
+    public PaginatedResponse<UserAdminResponse> listUsers(int page, int size, String search, String role) {
+        Pageable pageable = PageRequest.of(page, paginationUtil.clampSize(size));
+        String normalizedSearch = (search == null) ? "" : search.trim();
+        Page<User> result;
+        if (role != null && !role.isBlank() && !"ALL".equalsIgnoreCase(role)) {
+            UserRole userRole = UserRole.valueOf(role.toUpperCase());
+            result = userRepository.searchUsersByRole(userRole, normalizedSearch, pageable);
+        } else {
+            result = userRepository.searchUsers(normalizedSearch, pageable);
+        }
         return PaginatedResponse.of(result.map(this::toResponse));
     }
 
@@ -102,6 +116,18 @@ public class AdminServiceImpl implements AdminService {
         User saved = userRepository.save(user);
         auditService.logDataEvent(currentActorId(), "SUPER_ADMIN", "CREATE_USER",
                 "User", saved.getId(), "Created user: " + saved.getUsername());
+
+        // Send credentials email — password is passed directly and is NEVER logged
+        if (rq.isSendCredentialsEmail()) {
+            emailService.sendUserAccountCreatedEmail(
+                saved.getEmail(),
+                saved.getUsername(),
+                rq.getPassword(),         // plaintext; used only for email render, never stored
+                saved.getRole().name(),
+                baseUrl + "/login"
+            );
+        }
+
         return toResponse(saved);
     }
 

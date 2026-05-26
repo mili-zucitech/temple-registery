@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Welcome to Temple Registry</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+<style>
+  .cred-box{background:#F0FDF4;border:2px solid #86EFAC;border-radius:10px;padding:24px;margin:24px 0;text-align:center}
+  .cred-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#15803D;margin-bottom:4px}
+  .cred-value{font-size:20px;font-weight:800;color:#166534;font-family:'Courier New',monospace;letter-spacing:.08em;word-break:break-all}
+  .cred-password-box{background:#FFFBEB;border:2px solid #FCD34D;border-radius:10px;padding:20px;margin:16px 0;text-align:center}
+  .cred-password-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92400E;margin-bottom:4px}
+  .cred-password-value{font-size:18px;font-weight:800;color:#78350F;font-family:'Courier New',monospace;letter-spacing:.06em;word-break:break-all}
+  .step-list{list-style:none;counter-reset:steps;margin:16px 0}
+  .step-list li{counter-increment:steps;padding:10px 0 10px 44px;position:relative;font-size:14px;color:#374151;border-bottom:1px solid #F1F5F9}
+  .step-list li:last-child{border-bottom:none}
+  .step-list li::before{content:counter(steps);position:absolute;left:0;top:50%;transform:translateY(-50%);width:28px;height:28px;background:#6366F1;color:#FFFFFF;border-radius:50%;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;text-align:center;line-height:28px}
+</style>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <!-- Header -->
+  <div class="header" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);">
+    <span class="header-icon">🕉️</span>
+    <p class="header-org">Temple Registry &amp; Management Portal</p>
+    <h1 class="header-title">Welcome Aboard!</h1>
+    <p class="header-subtitle">Your account has been created by the Administrator</p>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+    <p class="greeting">Hello,</p>
+    <p style="color:#475569;margin-bottom:24px;">
+      Your account on the <strong>Temple Registry &amp; Management Portal</strong> has been created.
+      Below are your login credentials. Please keep them secure and change your password immediately
+      after your first login.
+    </p>
+
+    <!-- Role Badge -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <span style="display:inline-block;background:#EEF2FF;color:#4338CA;padding:6px 20px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:.06em;">
+        ROLE: <span th:text="${role != null ? role : 'User'}">Temple Authority</span>
+      </span>
+    </div>
+
+    <!-- Username -->
+    <div class="cred-box">
+      <p class="cred-label">Your Username</p>
+      <p class="cred-value" th:text="${username}">username</p>
+    </div>
+
+    <!-- Temporary Password -->
+    <div class="cred-password-box">
+      <p class="cred-password-label">⚠️ Temporary Password — Change Immediately</p>
+      <p class="cred-password-value" th:text="${temporaryPassword}">••••••••</p>
+    </div>
+
+    <!-- Getting Started Steps -->
+    <div class="info-card">
+      <p class="info-card-title">Getting Started</p>
+      <ol class="step-list">
+        <li>Click the button below to open the login page</li>
+        <li>Enter your username and temporary password above</li>
+        <li>You will be prompted to change your password on first login</li>
+        <li>Complete your profile and begin managing temple records</li>
+      </ol>
+    </div>
+
+    <!-- Security Notice -->
+    <div class="security-note">
+      <strong>🔒 Security Instructions</strong><br/>
+      • This temporary password is valid for <strong>first login only</strong>.<br/>
+      • Never share your credentials with anyone, including administrators.<br/>
+      • If you did not expect this email, contact <a href="mailto:support@templeregistry.gov.in" style="color:#6366F1;">support@templeregistry.gov.in</a> immediately.<br/>
+      • Your account will be locked after 5 failed login attempts.
+    </div>
+
+    <!-- CTA -->
+    <th:block th:replace="~{email/email-layout :: ctaButton(${loginUrl != null ? loginUrl : actionUrl}, 'Login to Temple Registry', '#6366F1')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>
