@@ -1,0 +1,968 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PaginationControl Visual Snapshots > renders correctly when disabled 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground opacity-50 cursor-not-allowed"
+        disabled=""
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground opacity-50 cursor-not-allowed"
+        disabled=""
+      >
+        2
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground opacity-50 cursor-not-allowed"
+        disabled=""
+      >
+        3
+      </button>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground opacity-50 cursor-not-allowed"
+        disabled=""
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground opacity-50 cursor-not-allowed"
+        disabled=""
+      >
+        5
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 5 pages on page 1 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-current="page"
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        5
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 5 pages on page 3 (middle) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        5
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 5 pages on page 5 (last) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        5
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 7 pages (boundary - no ellipsis) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        5
+      </button>
+      <button
+        aria-label="Page 6"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        6
+      </button>
+      <button
+        aria-label="Page 7"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        7
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 8 pages (boundary - with ellipsis) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        5
+      </button>
+      <span
+        aria-hidden="true"
+        class="inline-flex items-center justify-center h-9 w-9 text-sm text-muted-foreground"
+      >
+        ...
+      </span>
+      <button
+        aria-label="Page 8"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        8
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 10 pages on page 2 (first 4 pattern) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 2"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        2
+      </button>
+      <button
+        aria-label="Page 3"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        3
+      </button>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        5
+      </button>
+      <span
+        aria-hidden="true"
+        class="inline-flex items-center justify-center h-9 w-9 text-sm text-muted-foreground"
+      >
+        ...
+      </span>
+      <button
+        aria-label="Page 10"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        10
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 10 pages on page 5 (middle pattern) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <span
+        aria-hidden="true"
+        class="inline-flex items-center justify-center h-9 w-9 text-sm text-muted-foreground"
+      >
+        ...
+      </span>
+      <button
+        aria-label="Page 4"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        4
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 5"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        5
+      </button>
+      <button
+        aria-label="Page 6"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        6
+      </button>
+      <span
+        aria-hidden="true"
+        class="inline-flex items-center justify-center h-9 w-9 text-sm text-muted-foreground"
+      >
+        ...
+      </span>
+      <button
+        aria-label="Page 10"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        10
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with 10 pages on page 9 (last 4 pattern) 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        1
+      </button>
+      <span
+        aria-hidden="true"
+        class="inline-flex items-center justify-center h-9 w-9 text-sm text-muted-foreground"
+      >
+        ...
+      </span>
+      <button
+        aria-label="Page 6"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        6
+      </button>
+      <button
+        aria-label="Page 7"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        7
+      </button>
+      <button
+        aria-label="Page 8"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        8
+      </button>
+      <button
+        aria-current="page"
+        aria-label="Page 9"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        9
+      </button>
+      <button
+        aria-label="Page 10"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-muted hover:text-accent-foreground"
+      >
+        10
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-muted hover:text-accent-foreground"
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`PaginationControl Visual Snapshots > renders correctly with single page 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center gap-1 py-4"
+  >
+    <button
+      aria-label="Previous page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <svg
+        class="lucide lucide-chevron-left h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m15 18-6-6 6-6"
+        />
+      </svg>
+      <span>
+        Previous
+      </span>
+    </button>
+    <div
+      class="flex items-center gap-1"
+    >
+      <button
+        aria-current="page"
+        aria-label="Page 1"
+        class="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground"
+      >
+        1
+      </button>
+    </div>
+    <button
+      aria-label="Next page"
+      class="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 opacity-50 cursor-not-allowed"
+      disabled=""
+    >
+      <span>
+        Next
+      </span>
+      <svg
+        class="lucide lucide-chevron-right h-4 w-4"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m9 18 6-6-6-6"
+        />
+      </svg>
+    </button>
+  </div>
+</div>
+`;

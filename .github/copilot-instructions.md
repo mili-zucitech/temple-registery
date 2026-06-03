@@ -51,7 +51,7 @@ States: `DRAFT → SUBMITTED → APPROVED → REJECTED`
 - Controllers: `ResponseEntity` only, `@Valid` on request bodies, no business logic, no try-catch.
 - Services: all business logic lives here. Interface + Impl pattern. `@Transactional` on write methods; `@Transactional(readOnly = true)` on reads.
 - All exceptions handled by a single `@RestControllerAdvice` — never catch in controllers.
-- Entities always extend `BaseEntity` (UUID PK, audit fields, `is_deleted`). Never expose entities via APIs.
+- Entities always extend `BaseEntity` (BIGINT PK, audit fields, `is_deleted`). Never expose entities via APIs.
 - Repositories: DB access only. Use `@EntityGraph` or `JOIN FETCH` to prevent N+1 queries.
 - All DB schema changes via Flyway migrations only. Never modify the DB schema by hand.
 - Authorization enforced at the service layer via `@PreAuthorize`. Deny by default.

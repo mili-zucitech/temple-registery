@@ -1,0 +1,111 @@
+spring:
+  application:
+    name: temple-registry-backend
+
+  profiles:
+    default: dev
+
+  datasource:
+    url: jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:3Nkwm2fKtuGqoiu.root}
+    password: ${DB_PASSWORD:6sXYNlDhrX80xnDz}
+
+    hikari:
+      connection-timeout: 20000
+      connection-test-query: SELECT 1
+      idle-timeout: 240000
+      max-lifetime: 540000
+      keepalive-time: 120000
+      minimum-idle: 2
+      maximum-pool-size: 8
+      connection-init-sql: "SET tidb_enable_noop_functions=1"
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+    properties:
+      hibernate:
+        format_sql: false
+
+  flyway:
+    enabled: true
+    validate-on-migrate: false
+    repair-on-migrate: true
+
+  security:
+    debug: false
+
+  mail:
+    enabled: false
+    host: smtp.gmail.com
+    port: 587
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+
+          starttls:
+            enable: true
+            required: true
+
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+  api-docs:
+    path: /v3/api-docs
+
+trm:
+  export:
+    base-dir: ./exports
+
+app:
+  jwt:
+    private-key-path: classpath:keys/jwt-private.pem
+    public-key-path: classpath:keys/jwt-public.pem
+    access-token-expiry-ms: 7200000
+
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:5173
+
+  encryption:
+    key: ${APP_ENCRYPTION_KEY:TempleRegDev32ByteKey!!Replace!!}
+
+  hmac:
+    key: ${APP_HMAC_KEY:TempleRegHmacDev32ByteKey!Repl!!}
+
+  storage:
+    base-dir: ./uploads
+
+  base-url: ${APP_BASE_URL:http://localhost:5173}
+
+  notification:
+    email-enabled: false
+
+  legacy:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.templeregistry: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+management:
+  health:
+    mail:
+      enabled: false
+
+debug: false

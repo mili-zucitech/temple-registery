@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Submission Resubmitted</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#8B5CF6', '🔄', ${title}, 'Submission Resubmitted for Review')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear District Commissioner,</p>
+
+    <div class="message-box">
+      <p th:text="${body != null ? body : 'The Temple Authority has resubmitted their submission after addressing the clarification. Please review the updated submission.'}">
+        The submission has been resubmitted.
+      </p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Resubmission Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Module', ${entityType != null ? #strings.replace(entityType, '_', ' ') : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Resubmitted By', ${actorLabel != null ? actorLabel : 'Temple Authority'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Notes', ${comment != null and !#strings.isEmpty(comment) ? comment : 'No additional notes'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('RESUBMITTED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:#64748B;">
+      The Temple Authority has addressed your previous clarification request. Please review the
+      updated information and take action.
+    </p>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Review Resubmission', '#8B5CF6')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>

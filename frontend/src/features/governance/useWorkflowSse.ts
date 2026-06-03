@@ -1,0 +1,108 @@
+import { useEffect, useRef, useCallback } from 'react'
+import { useDispatch } from 'react-redux'
+import { workflowApi } from '../governance/workflowApi'
+import { getApiV1BaseUrl } from '@/lib/apiBase'
+
+interface SseNotification {
+  type: 'notification' | 'badge' | 'connected'
+  title?: string
+  body?: string
+  unreadCount?: number
+}
+
+interface UseWorkflowSseOptions {
+  userId: number | null
+  enabled?: boolean
+  onNotification?: (notification: SseNotification) => void
+}
+
+/**
+ * SSE hook for real-time workflow notification push.
+ *
+ * Connects to GET /api/v1/notifications/stream.
+ * Handles reconnect with exponential backoff on disconnect.
+ * Invalidates RTK Query badge count cache on every event.
+ */
+export const useWorkflowSse = ({
+  userId,
+  enabled = true,
+  onNotification,
+}: UseWorkflowSseOptions) => {
+  const dispatch = useDispatch()
+  const esRef = useRef<EventSource | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryDelayRef = useRef(2000)
+  const isMountedRef = useRef(false)
+  // Keep latest callback in a ref so connect() doesn't need it as a dependency
+  const onNotificationRef = useRef(onNotification)
+  useEffect(() => { onNotificationRef.current = onNotification })
+
+  const connect = useCallback(() => {
+    if (!userId || !enabled) return
+    if (esRef.current?.readyState === EventSource.OPEN) return
+
+    const url = `${getApiV1BaseUrl()}/notifications/stream`
+
+    const es = new EventSource(url, { withCredentials: true })
+    esRef.current = es
+
+    es.addEventListener('connected', () => {
+      retryDelayRef.current = 2000 // reset backoff on successful connect
+    })
+
+    es.addEventListener('notification', (event) => {
+      try {
+        const data = JSON.parse(event.data) as { title: string; body: string }
+        onNotificationRef.current?.({ type: 'notification', ...data })
+        // Invalidate badge count and workflow state in RTK Query cache
+        dispatch(workflowApi.util.invalidateTags(['BadgeCount', 'WorkflowState', 'Dashboard']))
+      } catch (e) {
+        console.warn('[SSE] Failed to parse notification event', e)
+      }
+    })
+
+    es.addEventListener('badge', (event) => {
+      try {
+        const data = JSON.parse(event.data) as { unreadCount: number }
+        onNotificationRef.current?.({ type: 'badge', unreadCount: data.unreadCount })
+        dispatch(workflowApi.util.invalidateTags(['BadgeCount']))
+      } catch (e) {
+        console.warn('[SSE] Failed to parse badge event', e)
+      }
+    })
+
+    es.onerror = () => {
+      es.close()
+      // Guard: only update state and reconnect if this is still the active emitter
+      // and the component is still mounted. Prevents stale onerror from a
+      // cleanup-closed connection overwriting esRef set by the next render's connect().
+      if (esRef.current !== es) return
+      esRef.current = null
+      if (!isMountedRef.current) return
+      // Exponential backoff: 2s, 4s, 8s, max 30s
+      const delay = Math.min(retryDelayRef.current * 2, 30000)
+      retryDelayRef.current = delay
+      reconnectTimeoutRef.current = setTimeout(connect, delay)
+    }
+  }, [userId, enabled, dispatch])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    connect()
+    return () => {
+      isMountedRef.current = false
+      esRef.current?.close()
+      esRef.current = null
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
+    }
+  }, [connect])
+
+  const disconnect = useCallback(() => {
+    isMountedRef.current = false
+    esRef.current?.close()
+    esRef.current = null
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
+  }, [])
+
+  return { disconnect }
+}

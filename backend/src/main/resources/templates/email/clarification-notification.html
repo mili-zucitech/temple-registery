@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title th:text="${title}">Clarification Required</title>
+<th:block th:replace="~{email/email-layout :: styles}"></th:block>
+</head>
+<body>
+<div class="email-wrapper">
+<div class="container">
+
+  <th:block th:replace="~{email/email-layout :: header('#F59E0B', '❓', ${title}, 'Clarification Required')}"></th:block>
+
+  <div class="body">
+    <p class="greeting">Dear Temple Authority,</p>
+
+    <div class="message-box warning">
+      <p th:text="${body != null ? body : 'The District Commissioner has requested clarification on your submission.'}">
+        Clarification has been requested.
+      </p>
+    </div>
+
+    <div class="info-card" th:if="${reason != null and !#strings.isEmpty(reason)}">
+      <p class="info-card-title">Clarification Required</p>
+      <p style="font-size:15px;color:#374151;line-height:1.6;" th:text="${reason}">Details not provided.</p>
+    </div>
+
+    <div class="info-card">
+      <p class="info-card-title">Submission Details</p>
+      <table class="detail-table">
+        <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName != null ? templeName : 'N/A'})}"></tr>
+        <tr th:replace="~{email/email-layout :: detailRow('Requested By', ${actorLabel != null ? actorLabel : 'District Commissioner'})}"></tr>
+        <tr>
+          <td>Status</td>
+          <td><th:block th:replace="~{email/email-layout :: statusBadge('CLARIFICATION_REQUESTED')}"></th:block></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="security-note">
+      <strong>📋 Action Required:</strong><br/>
+      Please log in to the Temple Registry portal, review the clarification request, and provide
+      your response. The DC will review your response before making a final decision.
+    </div>
+
+    <th:block th:replace="~{email/email-layout :: ctaButton(${redirectUrl != null ? redirectUrl : actionUrl}, 'Respond to Clarification', '#F59E0B')}"></th:block>
+  </div>
+
+  <th:block th:replace="~{email/email-layout :: footer}"></th:block>
+</div>
+</div>
+</body>
+</html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">Clarification Required</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .info-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .message {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .action-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #ff9800;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .action-button:hover {
+            background-color: #f57c00;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="info-icon">!</div>
+            <h1 th:text="${title}">Clarification Required</h1>
+        </div>
+        
+        <div class="content">
+            <p>Dear User,</p>
+            
+            <div class="message">
+                <p><strong>Additional Information Needed</strong></p>
+                <p th:text="${body}">Clarification is required for your submission.</p>
+            </div>
+            
+            <div style="text-align: center;">
+                <a th:href="${actionUrl}" class="action-button">Provide Clarification</a>
+            </div>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+                Your submission is under review and requires additional information or clarification. 
+                Please respond promptly to avoid delays in processing.
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Temple Registry System</strong></p>
+            <p>Government of India | Department of Religious Affairs</p>
+            <p th:text="'© ' + ${year} + ' Temple Registry. All rights reserved.'">© 2024 Temple Registry. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

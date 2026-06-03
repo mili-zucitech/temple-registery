@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+</head>
+<body>
+
+<!--
+  email/email-layout.html — Shared Thymeleaf fragments for all email templates.
+
+  Usage in a template:
+    <div th:replace="~{email/email-layout :: styles}"></div>
+    <div th:replace="~{email/email-layout :: header(${accentColor}, ${icon}, ${title}, ${subtitle})}"></div>
+    <div th:replace="~{email/email-layout :: footer}"></div>
+    <a th:replace="~{email/email-layout :: ctaButton(${actionUrl}, 'View Details', ${accentColor})}"></a>
+    <tr th:replace="~{email/email-layout :: detailRow('Temple Name', ${templeName})}"></tr>
+    <span th:replace="~{email/email-layout :: statusBadge(${workflowStatus})}"></span>
+-->
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: styles — shared CSS for all email templates
+═══════════════════════════════════════════════════════ -->
+<th:block th:fragment="styles">
+<style>
+  /* Reset & base */
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background-color:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:1.6;color:#1E293B;-webkit-font-smoothing:antialiased}
+  /* Wrapper */
+  .email-wrapper{background-color:#F1F5F9;padding:32px 16px;min-height:100vh}
+  .container{max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  /* Header */
+  .header{padding:36px 40px 32px;text-align:center;color:#FFFFFF}
+  .header-icon{font-size:44px;margin-bottom:12px;display:block}
+  .header-org{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.85;margin-bottom:8px}
+  .header-title{font-size:24px;font-weight:700;line-height:1.3;margin-bottom:4px}
+  .header-subtitle{font-size:14px;opacity:.85;font-weight:400}
+  /* Body */
+  .body{padding:36px 40px}
+  .greeting{font-size:16px;color:#475569;margin-bottom:24px}
+  /* Info card */
+  .info-card{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:24px;margin:24px 0}
+  .info-card-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;margin-bottom:16px}
+  table.detail-table{width:100%;border-collapse:collapse}
+  table.detail-table td{padding:8px 0;vertical-align:top;font-size:14px}
+  table.detail-table td:first-child{color:#64748B;white-space:nowrap;padding-right:20px;width:140px;font-weight:500}
+  table.detail-table td:last-child{color:#1E293B;font-weight:600}
+  table.detail-table tr+tr td{border-top:1px solid #F1F5F9}
+  /* Message box */
+  .message-box{border-left:4px solid #4F46E5;background:#EEF2FF;border-radius:0 8px 8px 0;padding:16px 20px;margin:24px 0}
+  .message-box.success{border-left-color:#10B981;background:#ECFDF5}
+  .message-box.warning{border-left-color:#F59E0B;background:#FFFBEB}
+  .message-box.danger {border-left-color:#EF4444;background:#FEF2F2}
+  .message-box.urgent {border-left-color:#DC2626;background:#FEF2F2}
+  .message-box p{font-size:15px;color:#374151;margin:0}
+  /* Status badge */
+  .badge{display:inline-block;padding:4px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .badge-submitted    {background:#DBEAFE;color:#1D4ED8}
+  .badge-under-review {background:#FEF9C3;color:#854D0E}
+  .badge-approved     {background:#DCFCE7;color:#15803D}
+  .badge-rejected     {background:#FEE2E2;color:#B91C1C}
+  .badge-clarification{background:#FFEDD5;color:#C2410C}
+  .badge-overdue      {background:#FEE2E2;color:#991B1B}
+  .badge-draft        {background:#F1F5F9;color:#475569}
+  .badge-resubmitted  {background:#EDE9FE;color:#6D28D9}
+  /* CTA Button */
+  .cta-wrap{text-align:center;margin:32px 0}
+  .cta-btn{display:inline-block;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none;color:#FFFFFF!important;letter-spacing:.01em}
+  /* Divider */
+  .divider{border:none;border-top:1px solid #E2E8F0;margin:28px 0}
+  /* Security note */
+  .security-note{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px;margin-top:24px;font-size:13px;color:#64748B;line-height:1.5}
+  .security-note strong{color:#475569}
+  /* Footer */
+  .footer{background:#F8FAFC;padding:24px 40px;border-top:1px solid #E2E8F0;text-align:center}
+  .footer p{font-size:12px;color:#94A3B8;margin:4px 0;line-height:1.6}
+  .footer a{color:#6366F1;text-decoration:none}
+  /* Responsive */
+  @media(max-width:480px){
+    .body,.header{padding:24px 24px}
+    .footer{padding:20px 24px}
+    table.detail-table td:first-child{width:auto;display:block;padding-right:0;padding-bottom:2px}
+    table.detail-table td:last-child{display:block;padding-left:0}
+    table.detail-table tr+tr td{border-top:none;padding-top:12px}
+  }
+</style>
+</th:block>
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: header(accentColor, icon, titleText, subtitleText)
+═══════════════════════════════════════════════════════ -->
+<th:block th:fragment="header(accentColor, icon, titleText, subtitleText)">
+  <div class="header" th:style="'background: linear-gradient(135deg, ' + ${accentColor} + ' 0%, ' + ${accentColor} + 'CC 100%);'">
+    <span class="header-icon" th:text="${icon}">📧</span>
+    <p class="header-org">Temple Registry &amp; Management Portal</p>
+    <h1 class="header-title" th:text="${titleText}">Notification</h1>
+    <p class="header-subtitle" th:text="${subtitleText}">Government of Karnataka</p>
+  </div>
+</th:block>
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: footer
+═══════════════════════════════════════════════════════ -->
+<th:block th:fragment="footer">
+  <div class="footer">
+    <p>This is an automated notification from the Temple Registry &amp; Management Portal.</p>
+    <p>Please do not reply to this email. For support, contact <a href="mailto:support@templeregistry.gov.in">support@templeregistry.gov.in</a></p>
+    <p style="margin-top:12px">
+      &copy; <span th:text="${year}">2025</span> Government of Karnataka · Temple Registry &amp; Management Portal
+    </p>
+  </div>
+</th:block>
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: ctaButton(url, text, color)
+═══════════════════════════════════════════════════════ -->
+<th:block th:fragment="ctaButton(url, text, color)">
+  <div class="cta-wrap">
+    <a th:href="${url}" class="cta-btn" th:style="'background-color:' + ${color} + ';'"
+       th:text="${text}">View Details</a>
+  </div>
+</th:block>
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: detailRow(label, value)
+═══════════════════════════════════════════════════════ -->
+<tr th:fragment="detailRow(label, value)">
+  <td th:text="${label}">Label</td>
+  <td th:text="${value}">Value</td>
+</tr>
+
+<!-- ═══════════════════════════════════════════════════════
+     FRAGMENT: statusBadge(status)
+═══════════════════════════════════════════════════════ -->
+<th:block th:fragment="statusBadge(status)">
+  <span th:class="'badge badge-' + ${#strings.toLowerCase(status != null ? status : 'draft')}"
+        th:text="${status != null ? #strings.replace(status, '_', ' ') : 'DRAFT'}">SUBMITTED</span>
+</th:block>
+
+</body>
+</html>
