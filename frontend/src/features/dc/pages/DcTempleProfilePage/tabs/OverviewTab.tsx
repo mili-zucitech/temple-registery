@@ -4,7 +4,7 @@ import { SectionCard, DetailItem, KpiCard } from '../components'
 import { GovernanceActionPanel } from '@/features/dc/components/GovernanceActionPanel/GovernanceActionPanel'
 import { ProfileGovernanceSectionSkeleton } from '@/features/dc/components/DcSkeletons/DcSkeletons'
 import { Button } from '@/components/ui/button'
-import { formatList } from '../utils'
+import { formatList, formatCurrency } from '../utils'
 import type { TempleFullProfileResponse, ProfileStagingResponse, ProfileCurrentResponse } from '@/features/dc/dcTypes'
 import { DcTempleImageGallery } from '@/features/dc/components/DcTempleImageGallery'
 
@@ -35,7 +35,7 @@ export function OverviewTab({
   onEditProfile,
   isRefetching = false,
 }: OverviewTabProps) {
-  const { temple, trust, declarations, trustFinancials, hobliName, talukName, districtName, cityName } = profile
+  const { temple, trust, declarations, hobliName, talukName, districtName, cityName } = profile
   const currentProfile = profile.currentProfile
 
   const pendingGovernance = pendingStaging?.governanceStatus
@@ -149,9 +149,9 @@ export function OverviewTab({
         />
         <KpiCard
           label="Incomes Tracked"
-          value={trustFinancials.length}
+          value={formatCurrency(trust?.annualIncome, true)}
           icon={<TrendingUp size={18} />}
-          variant="success"
+          variant={trust?.annualIncome != null ? 'success' : 'neutral'}
           className="shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
         />
         <KpiCard
