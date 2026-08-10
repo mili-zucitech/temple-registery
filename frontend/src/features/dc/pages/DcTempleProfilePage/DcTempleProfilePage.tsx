@@ -586,7 +586,7 @@ export function DcTempleProfilePage() {
 
           {id === FINANCE_DASHBOARD_TEMPLE_ID && can(TARGET_KEYS.TAB_DC_TEMPLE_FINANCE) && (
           <TabsContent value="finance" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Full-bleed: the static page carries its own 24px gutter, matching the tab bar's px-6. */}
+            {/* Full-bleeed: the static page carries its own 24px gutter, matching the tab bar's px-6. */}
             <iframe
               src={FINANCE_DASHBOARD_SRC}
               title="Finance Dashboard — Kollur Sri Mookambika Devi Temple"
