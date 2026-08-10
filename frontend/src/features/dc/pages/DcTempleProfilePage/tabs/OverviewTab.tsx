@@ -101,6 +101,15 @@ export function OverviewTab({
   const effectiveAddressLine1 = displayPendingStaging?.addressLine1 || temple.street || null
   const effectivePinCode = displayPendingStaging?.pinCode || temple.pinCode || null
 
+  // Government-administered structures (Endowment boards, Devaswom boards) are
+  // distinguished from privately-managed trusts for display purposes.
+  const GOVERNMENT_TRUST_TYPES = ['ENDOWMENT', 'DEVASWOM']
+  const trustStatusLabel = !trust
+    ? 'Individual'
+    : GOVERNMENT_TRUST_TYPES.includes(trust.trustType ?? '')
+      ? 'Government'
+      : 'Trust'
+
   const pendingReviewDecls = useMemo(() =>
     declarations.filter((d) => ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_RESPONDED'].includes(d.status)),
     [declarations]
@@ -146,8 +155,8 @@ export function OverviewTab({
           className="shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
         />
         <KpiCard
-          label="Trust Status"
-          value={trust ? 'Managed' : 'Individual'}
+          label="Managed By"
+          value={trustStatusLabel}
           icon={<Shield size={18} />}
           variant={trust ? 'success' : 'warning'}
           className="shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
